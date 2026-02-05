@@ -47,7 +47,9 @@ jobs:
       - name: Install dependencies
         run: mix deps.get
       - name: Run sobelow
-        run: mix sobelow --format sarif --quiet > results.sarif
+        run: mix sobelow --format sarif --out results.sarif
+        env:
+          MIX_ENV: test
       - name: Upload report
         uses: github/codeql-action/upload-sarif@v4
         with:
