@@ -20,6 +20,165 @@
 - Make sure to make the app still work for a variety of screens, touch screen and keep it accessible.
 - TEST at all levels that make sense! Try to stay close to the specification in the original GoCD repo. Test [LiveViews](https://hexdocs.pm/phoenix_live_view/Phoenix.LiveViewTest.html) and [Ecto](https://hexdocs.pm/ecto/testing-with-ecto.html) apart from the unit and integration tests of modules. Make sure the tests run in Github Actions and report a table of results.
 
+## CRITICAL: Domain Language and Data Model Fidelity
+
+### Absolute Requirements
+
+**We MUST use EXACTLY the same domain language and data model as the original GoCD.**
+
+This is not negotiable. GoCD's conceptual model is one of its greatest strengths, and users depend on this consistency. Any deviation will:
+- Break mental models that users have built over years
+- Make documentation and learning materials inconsistent
+- Create confusion during migration from original GoCD
+- Violate the core principle: this is a rewrite, not a redesign
+
+### GoCD Domain Hierarchy (from smallest to largest)
+
+Based on [GoCD Concepts Documentation](../../docs.go.cd/content/introduction/concepts_in_go.md):
+
+1. **Task** - A single action/command (e.g., `ant compile`, `rake test`, shell script)
+   - The atomic unit of work
+   - Runs sequentially within a job
+   - Each task is independent (own process, environment vars don't carry over)
+   - Filesystem changes DO carry over to next task
+
+2. **Job** - Multiple tasks that run in order
+   - Contains 1+ tasks
+   - Fails if any task fails
+   - Can publish **Artifacts** (files/directories) after completion
+   - Has **Resources** (tags) for agent matching
+   - Runs on a single agent
+
+3. **Stage** - Multiple jobs that can run in parallel
+   - Contains 1+ jobs
+   - Jobs are independent and parallelizable
+   - Fails if any job fails
+   - Has **Approval Type**: "success" (automatic) or "manual"
+   - Can fetch artifacts from previous stages
+
+4. **Pipeline** - Multiple stages that run sequentially
+   - Contains 1+ stages
+   - Stages run in order
+   - Fails if any stage fails
+   - Has a **Pipeline Group** for organization
+   - Triggered by **Materials**
+   - Each run creates a **Pipeline Instance** with incrementing counter
+   - Can be used as a material for other pipelines (pipeline dependency)
+
+5. **Materials** - Triggers for pipelines
+   - Types: Git, SVN, Mercurial, Perforce, TFS, Pipeline Dependency, Package, Timer, Plugin
+   - Polled for changes by GoCD Server
+   - Trigger pipelines when changes detected
+   - Pipeline can have multiple materials
+
+6. **Pipeline Instance** - Single execution of a pipeline
+   - Has unique counter (increments)
+   - Has label (customizable, default `${COUNT}`)
+   - Tracks:
+     - Status (Building, Passed, Failed, Cancelled, Paused)
+     - Who/what triggered it
+     - When scheduled/completed
+     - Material revisions used
+
+### Supporting Concepts
+
+7. **Artifacts**
+   - Files/directories published by jobs
+   - Stored by GoCD Server
+   - Can be fetched by downstream stages/pipelines
+   - Fetch Artifact Task ensures correct version is retrieved
+
+8. **Agent** - Worker that executes jobs
+   - Polls GoCD Server for assigned jobs
+   - Executes tasks within jobs
+   - Reports status back to Server
+   - Has **Resources** (capabilities)
+   - Can belong to **Environments**
+
+9. **Resources** - Free-form tags for agent-job matching
+   - Defined on agents (broadcast capabilities)
+   - Defined on jobs (requirements)
+   - Job only runs on agents with matching resources
+   - E.g., "firefox", "linux", "docker", "nodejs"
+
+10. **Environment** - Grouping and isolation mechanism
+    - Rules:
+      - Pipeline can belong to maximum ONE environment
+      - Agent can belong to MULTIPLE environments or none
+      - Agent only picks jobs from pipelines in its environments
+      - Agent in environment cannot pick jobs from pipelines with no environment
+    - Used for deployment stages (dev, staging, prod)
+
+11. **Environment Variables**
+    - User-defined variables available to tasks
+    - Cascade and override:
+      - Environment level (lowest priority)
+      - Pipeline level
+      - Stage level
+      - Job level (highest priority)
+
+12. **Template** - Reusable pipeline configuration
+    - Define stages/jobs/tasks once
+    - Multiple pipelines can use same template
+    - Helps manage branches and large numbers of pipelines
+
+### Data Model Requirements
+
+When implementing schemas and database tables:
+
+1. **Use exact GoCD terminology**
+   - Table names: `pipelines`, `stages`, `jobs`, `tasks`, `materials`
+   - Not: `builds`, `workflows`, `steps`, `sources`
+
+2. **Maintain hierarchy**
+   - Pipeline → Stage → Job → Task (parent-child relationships)
+   - Pipeline Instance → Stage Instance → Job Instance
+   - Each instance level tracks its own execution state
+
+3. **Preserve relationships**
+   - Pipeline ↔ Materials (many-to-many)
+   - Pipeline → Pipeline Instances (one-to-many)
+   - Pipeline belongs to one Pipeline Group (string, not relation)
+   - Job publishes Artifacts (one-to-many)
+   - Job requires Resources (array of strings)
+   - Agent has Resources (array of strings)
+
+4. **Instance tracking**
+   - Every pipeline run = Pipeline Instance (with counter)
+   - Every stage run in that instance = Stage Instance
+   - Every job run in that stage = Job Instance
+   - Instances preserve history and enable value stream map
+
+5. **Status values**
+   - Use exact GoCD statuses: Building, Passed, Failed, Cancelled, Paused
+   - Not: Running, Success, Error, Stopped
+
+6. **Field naming**
+   - `approval_type` not `approval_method`
+   - `triggered_by` not `started_by`
+   - `counter` not `build_number`
+   - `label_template` not `version_pattern`
+
+### Validation Checklist
+
+Before implementing any schema:
+- [ ] Check against concepts_in_go.md
+- [ ] Verify terminology matches GoCD exactly
+- [ ] Ensure hierarchy is preserved
+- [ ] Confirm relationships are correct
+- [ ] Validate status values match GoCD
+- [ ] Test that instance tracking works
+
+### Reference Documentation
+
+Always refer to:
+- [GoCD Concepts](../../docs.go.cd/content/introduction/concepts_in_go.md)
+- [GoCD Configuration Reference](../../docs.go.cd/content/configuration/configuration_reference.html)
+- Original GoCD database schema (when available)
+- GoCD API documentation for field names
+
+**When in doubt, check the original GoCD. Never invent new concepts or rename existing ones.**
+
 ## Design and Styling Approach
 
 ### Core Principle: Visual Fidelity to GoCD

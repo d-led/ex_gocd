@@ -53,29 +53,39 @@
 
 ---
 
-### Phase 2: Core Domain Model
+### Phase 2: Core Domain Model (RESET - PLANNING)
 
 **Goal**: Implement foundational GoCD concepts in Ecto schemas
 
-#### 2.1 Basic Schema
+**CRITICAL**: Must follow exact GoCD domain model and terminology. See [rewrite.md](./rewrite.md) for detailed requirements.
+
+#### 2.1 Basic Schema (PLANNED)
 
 ```elixir
-# Priority order:
-1. Pipeline (name, group, materials)
-2. Stage (name, approval_type, jobs)
-3. Job (name, tasks, artifacts)
-4. Material (type, url, branch)
-5. PipelineInstance (counter, status, trigger)
+# Correct GoCD hierarchy - from smallest to largest:
+1. Task (single command: ant, rake, shell script)
+2. Job (multiple tasks, runs in order on one agent)
+3. Stage (multiple jobs, run in parallel)
+4. Pipeline (multiple stages, run sequentially)
+5. Material (Git, SVN, Pipeline Dependency, Timer, etc.)
+6. PipelineInstance (single execution with counter)
+7. StageInstance (execution of stage within pipeline instance)
+8. JobInstance (execution of job within stage instance)
 ```
 
-#### 2.2 Relationships
+#### 2.2 Relationships (PLANNED)
 
 - Pipeline → Stages (has_many)
 - Stage → Jobs (has_many)
+- Job → Tasks (has_many) **← was missing before**
 - Pipeline → Materials (many_to_many)
 - Pipeline → PipelineInstances (has_many)
+- PipelineInstance → StageInstances (has_many) **← was missing before**
+- StageInstance → JobInstances (has_many) **← was missing before**
+- Job publishes Artifacts (one-to-many)
+- Agent and Job have Resources (array of strings)
 
-#### 2.3 Testing
+#### 2.3 Testing (NOT STARTED)
 
 - [ ] Schema validation tests
 - [ ] Relationship integrity tests
@@ -396,21 +406,26 @@
 
 ## Current Focus
 
-**Phase 1: COMPLETE!** ✅ (Week of Feb 6, 2026)
+**Phase 2: Domain Model - RESET & REPLANNING** (Week of Feb 6, 2026)
 
-- Fix purple active indicator styling ✅
-- Fix font weight to match GoCD ✅
-- Create pipeline group cards (static) ✅
-- Create pipeline cards with stages (static) ✅
-- Implement search functionality ✅
-- Write LiveView tests ✅
-- Fix double LiveSocket binding issue ✅
-- Add responsive design tests ✅
-- Fix Sobelow GitHub Action ✅
+Phase 1: COMPLETE! ✅
+- Dashboard UI with full test coverage ✅
 
-**Next Up**: Phase 2 (Core Domain Model)
+Phase 2: IN PROGRESS - Schema Design
+- ⚠️  Initial schema attempt reset - didn't match GoCD model
+- ✅ Added comprehensive domain model documentation to rewrite.md
+- 📋 Key learnings:
+  - Task must be a separate entity (was embedded in Job)
+  - Need Instance tables for Pipeline, Stage, Job (for execution tracking)
+  - Must use exact GoCD terminology and status values
+  - Hierarchy: Task → Job → Stage → Pipeline
+  
+**Next Steps**:
+1. Review GoCD source code for exact schema
+2. Create schema following GoCD model precisely
+3. Implement with tests from the start
 
-Ready to begin implementing Ecto schemas for pipelines, stages, jobs, and materials!
+**Next Up**: Phase 2 (Core Domain Model - proper implementation)
 
 ## Guiding Principles
 

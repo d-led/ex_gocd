@@ -206,4 +206,52 @@ defmodule ExGoCDWeb.DashboardLiveTest do
       assert has_element?(view, ".pipeline")
     end
   end
+
+  describe "responsive design" do
+    test "renders dashboard container with proper structure", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      assert has_element?(view, ".dashboard")
+      assert has_element?(view, ".dashboard-modifiers")
+      assert has_element?(view, ".dashboard-group")
+    end
+
+    test "search input has proper responsive classes", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      assert has_element?(view, ".pipeline-search_dashboard")
+      assert has_element?(view, "#pipeline-search")
+    end
+
+    test "pipeline groups render in responsive grid layout", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      assert has_element?(view, ".dashboard-group_items")
+      assert has_element?(view, ".dashboard-group_pipeline")
+    end
+
+    test "pipeline cards have responsive structure", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      assert has_element?(view, ".pipeline_header")
+      assert has_element?(view, ".pipeline_instances")
+      assert has_element?(view, ".pipeline_stages")
+    end
+
+    test "empty state message is properly centered", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      # Trigger search with non-existent pipeline
+      view
+      |> element("#pipeline-search")
+      |> render_change(%{"value" => "nonexistent-pipeline-xyz"})
+
+      html = render(view)
+
+      assert html =~ "dashboard-message"
+      assert html =~ "text-center"
+      assert html =~ "No matches found"
+      assert html =~ "nonexistent-pipeline-xyz"
+    end
+  end
 end
