@@ -37,8 +37,12 @@ body {
 }
 
 /* Dashboard Container */
+
+/* Pixel-perfect: GoCD dashboard card/margin fidelity */
 .dashboard {
   padding: 0 30px 50px;
+  max-width: 1600px;
+  margin: 0 auto;
 }
 
 /* Dashboard Modifiers (search/filter bar) */
@@ -172,10 +176,14 @@ body {
 
 
 /* Dashboard Groups */
+
+/* Pixel-perfect: GoCD dashboard group card fidelity */
 .dashboard-group {
   margin-bottom: 50px;
   background: #fff;
-  border-radius: var(--global-border-radius);
+  border-radius: 5px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  border: 1px solid #ddd;
 }
 
 .dashboard-group_title {
@@ -215,6 +223,8 @@ body {
   min-height: 300px;
 }
 
+
+/* Pixel-perfect: GoCD pipeline card fidelity */
 .dashboard-group_pipeline {
   width: var(--pipeline-width);
   padding: 0 0 5px;
@@ -222,7 +232,7 @@ body {
   background: #fff;
   border-radius: 5px;
   margin: 5px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
 }
 
 
@@ -259,6 +269,8 @@ body {
   justify-content: space-between;
 }
 
+
+/* Pixel-perfect: GoCD pipeline actions alignment */
 .pipeline_actions {
   display: flex;
   position: relative;
@@ -266,6 +278,7 @@ body {
   flex-shrink: 0;
   right: 0;
   align-items: flex-start;
+  gap: 0;
 }
 
 .pipeline_locked {
@@ -295,33 +308,44 @@ body {
   cursor: not-allowed;
 }
 
+
+/* Pixel-perfect: GoCD gear icon fidelity */
 .edit_config {
   overflow: hidden;
   font-size: var(--pipeline-icons-size);
   color: var(--icon-color);
   text-decoration: none;
   display: inline-block;
-  width: 20px;
-  height: 20px;
+  width: 25px;
+  height: 25px;
   border: none;
   background: none;
   cursor: pointer;
   padding: 0;
   margin: 0;
+  vertical-align: middle;
 }
-
 .edit_config::before {
-  content: "⚙";
+  content: "\f013";
+  font-family: "Font Awesome 6 Free";
+  font-weight: 900;
   font-size: var(--pipeline-icons-size);
+  display: inline-block;
+  vertical-align: middle;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
-
 .edit_config:hover {
   color: var(--icon-hover-color);
+  animation: rotate 2s linear infinite;
 }
-
 .edit_config.disabled {
   color: #999;
   cursor: not-allowed;
+}
+@keyframes rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .pipeline_history {

@@ -29,9 +29,15 @@
   height: 20px;
   width: 40px;
   display: inline-block;
-  margin: 10px 0;
+  margin: 10px 0 10px 20px;
   background: url("/images/go_logo.svg") no-repeat 0 0;
   flex-shrink: 0;
+  @media (min-width: 768px) {
+    margin: 10px 0 10px 0;
+  }
+  @media (min-width: 992px) {
+    margin-right: 10px;
+  }
 }
 
 .gocd_logo:focus {
