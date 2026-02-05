@@ -192,16 +192,31 @@ Legend:
 - Created DashboardLive tests (mount, render, events, accessibility)
 - Created Layout component tests (header, navigation, responsive design)
 - Created test fixtures module following GoCD's "Mother" pattern
+- **Phase 1.2 Complete**: Recreated GoCD dashboard pixel-perfectly from source
+- Created ExGoCD.MockData module with 8 realistic pipelines across 4 groups
+- Completely rewrote dashboard HTML structure to match GoCD exactly:
+  - pipeline_header with pipeline_sub_header (name + actions)
+  - pipeline_operations with play/pause/play_with_options buttons
+  - pipeline_instances with full instance details
+  - pipeline_instance with more_info (Compare, Changes, VSM links)
+  - pipeline_instance-details (triggered_by, timestamp)
+  - pipeline_stages with pipeline_stage_manual_gate_wrapper
+  - Exact pipeline_stage elements (34px × 16px colored blocks)
+- Added complete CSS from GoCD source (pipeline_btn, pipeline_operations, more_info, etc.)
+- Integrated mock data with triggered_by, counter, and all pipeline fields
+- Added PostgreSQL 15 service to GitHub Actions workflow
+- All 38 tests passing with updated assertions for new structure
 
 ---
 
 ## Next Steps
 
-1. **Immediate (Phase 1.2 - Continue)**:
-   - Create pipeline group card components (static mockup)
-   - Create pipeline card components with stages (static)
-   - Implement client-side search functionality
-   - Add empty state messaging
+1. **Immediate (Phase 1.2 - Visual Verification)**:
+   - Compare visual output at localhost:4000 vs http://localhost:8153/go/pipelines
+   - Add sprite images or icon fonts for pipeline operation buttons
+   - Fine-tune spacing and typography to match GoCD exactly
+
+2. **Phase 2: Core Domain Model**:
 
 2. **Phase 2: Core Domain Model**:
    - Define Ecto schemas for core domain (Pipeline, Stage, Job, Material, Agent)

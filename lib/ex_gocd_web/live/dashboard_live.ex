@@ -81,99 +81,151 @@ defmodule ExGoCDWeb.DashboardLive do
     |> Enum.reject(fn {_group, pipelines} -> Enum.empty?(pipelines) end)
   end
 
-  # Component functions
+  # Component functions - EXACT GoCD HTML structure
 
   defp pipeline_group(assigns) do
     ~H"""
-    <div class="pipeline-group" role="region" aria-label={"Pipeline group: #{@name}"}>
-      <h2 class="pipeline-group_title">
-        {@name}
-        <span class="pipeline-group_count">({length(@pipelines)})</span>
-      </h2>
-      <div class="pipeline-group_items">
-        <%= for pipeline <- @pipelines do %>
-          <.pipeline_card pipeline={pipeline} />
-        <% end %>
+    <div class="dashboard-group" role="region" aria-label={"Pipeline group: #{@name}"}>
+      <div class="dashboard-group_title">
+        <div class="dashboard-group_name">{@name}</div>
       </div>
+      <ul class="dashboard-group_items">
+        <%= for pipeline <- @pipelines do %>
+          <li class="dashboard-group_pipeline">
+            <.pipeline_widget pipeline={pipeline} />
+          </li>
+        <% end %>
+      </ul>
     </div>
     """
   end
 
-  defp pipeline_card(assigns) do
+  defp pipeline_widget(assigns) do
     ~H"""
-    <div
-      class={"pipeline_card #{status_class(@pipeline.status)}"}
-      role="article"
-      aria-label={"Pipeline #{@pipeline.name}"}
-    >
+    <div class="pipeline">
       <div class="pipeline_header">
-        <h3 class="pipeline_name">
-          <a href={"/pipelines/#{@pipeline.name}"} tabindex="0">
-            {@pipeline.name}
-          </a>
-        </h3>
-        <div class="pipeline_info">
-          <span class="pipeline_counter">#{@pipeline.counter}</span>
-          <span class="pipeline_status">{@pipeline.status}</span>
+        <div class="pipeline_sub_header">
+          <h3 class="pipeline_name">{@pipeline.name}</h3>
+          <div class="pipeline_actions">
+            <a
+              aria-label={"Edit Configuration for Pipeline #{@pipeline.name}"}
+              title="Edit Pipeline Configuration"
+              href={"/admin/pipelines/#{@pipeline.name}/edit"}
+              class="edit_config"
+            >
+            </a>
+          </div>
+        </div>
+        <div>
+          <ul class="pipeline_operations">
+            <li>
+              <button
+                type="button"
+                aria-label="Trigger Pipeline"
+                title="Trigger Pipeline"
+                class="button pipeline_btn play"
+              >
+              </button>
+            </li>
+            <li>
+              <button
+                type="button"
+                aria-label="Trigger with Options"
+                title="Trigger with Options"
+                class="button pipeline_btn play_with_options"
+              >
+              </button>
+            </li>
+            <li>
+              <button
+                type="button"
+                aria-label="Pause Pipeline"
+                title="Pause Pipeline"
+                class="button pipeline_btn pause"
+              >
+              </button>
+            </li>
+          </ul>
+          <a href={"/pipeline/activity/#{@pipeline.name}"} class="pipeline_history">History</a>
         </div>
       </div>
-      <div class="pipeline_stages">
-        <%= for stage <- @pipeline.stages do %>
-          <.stage_indicator stage={stage} />
-        <% end %>
-      </div>
-      <div class="pipeline_meta">
-        <span class="pipeline_time">
-          {format_time(@pipeline.last_run)}
-        </span>
+      <div class="pipeline_instances">
+        <.pipeline_instance pipeline={@pipeline} />
       </div>
     </div>
     """
   end
 
-  defp stage_indicator(assigns) do
+  defp pipeline_instance(assigns) do
     ~H"""
-    <div
-      class={"stage_indicator stage_#{String.downcase(@stage.status)}"}
-      title={"#{@stage.name}: #{@stage.status}"}
-      role="status"
-      aria-label={"Stage #{@stage.name} is #{@stage.status}"}
-    >
-      <div class="stage_name">{@stage.name}</div>
-      <div class="stage_status">{status_icon(@stage.status)}</div>
-      <%= if @stage.duration do %>
-        <div class="stage_duration">{format_duration(@stage.duration)}</div>
-      <% end %>
+    <div class="pipeline_instance">
+      <label class="pipeline_instance-label">Instance: {@pipeline.counter}</label>
+      <div class="more_info">
+        <ul class="info">
+          <li>
+            <a href={"/compare/#{@pipeline.name}/#{@pipeline.counter - 1}/with/#{@pipeline.counter}"}>
+              Compare
+            </a>
+          </li>
+          <li>
+            <a aria-label="Changes" title="Changes">
+              <span class="changes">Changes</span>
+            </a>
+          </li>
+          <li>
+            <a
+              href={"/pipelines/value_stream_map/#{@pipeline.name}/#{@pipeline.counter}"}
+              title="Value Stream Map"
+            >
+              VSM
+            </a>
+          </li>
+        </ul>
+      </div>
+      <div class="pipeline_instance-details">
+        <div>{@pipeline.triggered_by}</div>
+        <div title={format_server_time(@pipeline.last_run)}>
+          on {format_local_time(@pipeline.last_run)}
+        </div>
+      </div>
+      <ul class="pipeline_stages">
+        <%= for stage <- @pipeline.stages do %>
+          <div class="pipeline_stage_manual_gate_wrapper">
+            <a
+              class={stage_class(stage.status)}
+              title={stage_title(stage)}
+              aria-label={stage_title(stage)}
+            >
+            </a>
+          </div>
+        <% end %>
+      </ul>
     </div>
     """
   end
 
-  defp status_class(status) do
+  defp stage_class(status) do
+    base = "pipeline_stage"
+
     case status do
-      "Passed" -> "pipeline_passed"
-      "Failed" -> "pipeline_failed"
-      "Building" -> "pipeline_building"
-      _ -> "pipeline_unknown"
+      "Passed" -> "#{base} passed"
+      "Failed" -> "#{base} failed"
+      "Building" -> "#{base} building"
+      "Cancelled" -> "#{base} cancelled"
+      "NotRun" -> "#{base} unknown"
+      _ -> "#{base} unknown"
     end
   end
 
-  defp status_icon(status) do
-    case status do
-      "Passed" -> "✓"
-      "Failed" -> "✗"
-      "Building" -> "⟳"
-      "Cancelled" -> "⊘"
-      _ -> "○"
-    end
+  defp stage_title(stage) do
+    "#{stage.name} (#{stage.status})"
   end
 
-  defp format_time(datetime) do
-    Calendar.strftime(datetime, "%b %d, %H:%M")
+  defp format_local_time(datetime) do
+    Calendar.strftime(datetime, "%d %b, %Y at %H:%M:%S Local Time")
   end
 
-  defp format_duration(seconds) do
-    minutes = div(seconds, 60)
-    secs = rem(seconds, 60)
-    "#{minutes}m #{secs}s"
+  defp format_server_time(datetime) do
+    Calendar.strftime(datetime, "%d %b, %Y at %H:%M:%S +00:00 Server Time")
   end
 end

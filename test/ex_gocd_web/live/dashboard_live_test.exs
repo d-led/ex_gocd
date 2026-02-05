@@ -7,10 +7,9 @@ defmodule ExGoCDWeb.DashboardLiveTest do
     test "renders dashboard with default state", %{conn: conn} do
       {:ok, _view, html} = live(conn, ~p"/")
 
-      assert html =~ "Welcome to GoCD"
-      assert html =~ "No pipelines configured yet"
       assert html =~ "Search pipelines"
       assert html =~ "Group pipelines by:"
+      assert html =~ "Pipeline Dashboard"
     end
 
     test "initializes with default assigns", %{conn: conn} do
@@ -180,7 +179,7 @@ defmodule ExGoCDWeb.DashboardLiveTest do
 
       assert has_element?(view, "[role='main'][aria-label='Pipeline Dashboard']")
       assert has_element?(view, "[role='search'][aria-label='Pipeline filters']")
-      assert has_element?(view, "[role='status'][aria-live='polite']")
+      assert has_element?(view, "#flash-group[aria-live='polite']")
     end
 
     test "has descriptive labels for screen readers", %{conn: conn} do
@@ -197,13 +196,14 @@ defmodule ExGoCDWeb.DashboardLiveTest do
     end
   end
 
-  describe "empty state" do
-    test "displays welcome message when no pipelines configured", %{conn: conn} do
+  describe "pipelines display" do
+    test "displays mock pipelines from ExGoCD.MockData", %{conn: conn} do
       {:ok, view, html} = live(conn, ~p"/")
 
-      assert html =~ "Welcome to GoCD"
-      assert html =~ "No pipelines configured yet"
-      assert has_element?(view, ".dashboard-message")
+      # Check for pipeline groups
+      assert html =~ "dashboard-group"
+      assert has_element?(view, ".dashboard-group")
+      assert has_element?(view, ".pipeline")
     end
   end
 end

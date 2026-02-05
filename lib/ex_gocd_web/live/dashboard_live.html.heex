@@ -1,96 +1,92 @@
-<div class="pipeline_wrapper" role="main" aria-label="Pipeline Dashboard">
-  <div class="dashboard-container">
-    <section class="dashboard-modifiers" role="search" aria-label="Pipeline filters">
-      <div class="groupby">
-        <label class="grouping-label" id="grouping-label">Group pipelines by:</label>
-        <div
-          class={"c-dropdown #{if @dropdown_open, do: "open", else: ""}"}
-          phx-click-away="close_dropdown"
-          role="combobox"
-          aria-expanded={to_string(@dropdown_open)}
-          aria-haspopup="listbox"
-          aria-labelledby="grouping-label"
+<div class="dashboard" role="main" aria-label="Pipeline Dashboard">
+  <section class="dashboard-modifiers" role="search" aria-label="Pipeline filters">
+    <div class="groupby">
+      <label class="grouping-label" id="grouping-label">Group pipelines by:</label>
+      <div
+        class={"c-dropdown #{if @dropdown_open, do: "open", else: ""}"}
+        phx-click-away="close_dropdown"
+        role="combobox"
+        aria-expanded={to_string(@dropdown_open)}
+        aria-haspopup="listbox"
+        aria-labelledby="grouping-label"
+      >
+        <a
+          href="#"
+          class="c-dropdown-head"
+          phx-click="toggle_dropdown"
+          role="button"
+          aria-label={"Group by #{@grouping_text}"}
+          tabindex="0"
+          phx-key="Enter"
+          phx-keydown="toggle_dropdown"
         >
+          {@grouping_text}
+        </a>
+        <i
+          class="c-down-arrow"
+          phx-click="toggle_dropdown"
+          role="presentation"
+          aria-hidden="true"
+        >
+        </i>
+        <div class="c-dropdown-body" role="listbox" aria-labelledby="grouping-label">
           <a
             href="#"
-            class="c-dropdown-head"
-            phx-click="toggle_dropdown"
-            role="button"
-            aria-label={"Group by #{@grouping_text}"}
+            class="c-dropdown-item"
+            phx-click="select_grouping"
+            phx-value-scheme="environment"
+            role="option"
+            aria-selected={to_string(@grouping_scheme == "environment")}
+            aria-label="Group by Environment"
             tabindex="0"
-            phx-key="Enter"
-            phx-keydown="toggle_dropdown"
           >
-            {@grouping_text}
+            Environment
           </a>
-          <i
-            class="c-down-arrow"
-            phx-click="toggle_dropdown"
-            role="presentation"
-            aria-hidden="true"
+          <a
+            href="#"
+            class="c-dropdown-item"
+            phx-click="select_grouping"
+            phx-value-scheme="pipeline_group"
+            role="option"
+            aria-selected={to_string(@grouping_scheme == "pipeline_group")}
+            aria-label="Group by Pipeline Group"
+            tabindex="0"
           >
-          </i>
-          <div class="c-dropdown-body" role="listbox" aria-labelledby="grouping-label">
-            <a
-              href="#"
-              class="c-dropdown-item"
-              phx-click="select_grouping"
-              phx-value-scheme="environment"
-              role="option"
-              aria-selected={to_string(@grouping_scheme == "environment")}
-              aria-label="Group by Environment"
-              tabindex="0"
-            >
-              Environment
-            </a>
-            <a
-              href="#"
-              class="c-dropdown-item"
-              phx-click="select_grouping"
-              phx-value-scheme="pipeline_group"
-              role="option"
-              aria-selected={to_string(@grouping_scheme == "pipeline_group")}
-              aria-label="Group by Pipeline Group"
-              tabindex="0"
-            >
-              Pipeline Group
-            </a>
-          </div>
+            Pipeline Group
+          </a>
         </div>
       </div>
+    </div>
 
-      <div class="pipeline-search_dashboard">
-        <label for="pipeline-search" class="sr-only">Search pipelines</label>
-        <input
-          id="pipeline-search"
-          type="search"
-          placeholder="Search pipelines"
-          value={@search_text}
-          phx-change="search"
-          phx-debounce="300"
-          name="value"
-          aria-label="Search pipelines"
-          autocomplete="off"
-        />
-      </div>
-    </section>
+    <div class="pipeline-search_dashboard">
+      <label for="pipeline-search" class="sr-only">Search pipelines</label>
+      <input
+        id="pipeline-search"
+        type="search"
+        placeholder="Search pipelines"
+        value={@search_text}
+        phx-change="search"
+        phx-debounce="300"
+        name="value"
+        aria-label="Search pipelines"
+        autocomplete="off"
+      />
+    </div>
+  </section>
 
-    <%= if @has_pipelines do %>
-      <div class="pipeline-groups">
-        <%= for {group_name, pipelines} <- @pipeline_groups do %>
-          <.pipeline_group name={group_name} pipelines={pipelines} />
-        <% end %>
-      </div>
-    <% else %>
-      <div class="dashboard-message text-center" role="status" aria-live="polite">
-        <%= if @search_text != "" do %>
-          <h3>No matches found</h3>
-          <p>No pipelines match "<%= @search_text %>"</p>
-        <% else %>
-          <h3>Welcome to GoCD</h3>
-          <p>No pipelines configured yet</p>
-        <% end %>
-      </div>
+  <%= if @has_pipelines do %>
+    <%= for {group_name, pipelines} <- @pipeline_groups do %>
+      <.pipeline_group name={group_name} pipelines={pipelines} />
     <% end %>
-  </div>
+  <% else %>
+    <div class="dashboard-message text-center" role="status" aria-live="polite">
+      <%= if @search_text != "" do %>
+        <h3>No matches found</h3>
+        <p>No pipelines match "<%= @search_text %>"</p>
+      <% else %>
+        <h3>Welcome to GoCD</h3>
+        <p>No pipelines configured yet</p>
+      <% end %>
+    </div>
+  <% end %>
 </div>

@@ -21,6 +21,7 @@ defmodule ExGoCD.MockData do
         group: "Build",
         counter: 145,
         status: "Passed",
+        triggered_by: "Triggered by dmitry",
         last_run: ~U[2026-02-05 10:30:00Z],
         stages: [
           %{name: "compile", status: "Passed", duration: 120},
@@ -36,6 +37,7 @@ defmodule ExGoCD.MockData do
         group: "Build",
         counter: 142,
         status: "Building",
+        triggered_by: "Triggered by changes",
         last_run: ~U[2026-02-05 10:35:00Z],
         stages: [
           %{name: "compile", status: "Passed", duration: 150},
@@ -51,6 +53,7 @@ defmodule ExGoCD.MockData do
         group: "Build",
         counter: 138,
         status: "Failed",
+        triggered_by: "Triggered by anonymous",
         last_run: ~U[2026-02-05 09:15:00Z],
         stages: [
           %{name: "compile", status: "Passed", duration: 130},
@@ -66,6 +69,7 @@ defmodule ExGoCD.MockData do
         group: "Quality",
         counter: 89,
         status: "Passed",
+        triggered_by: "Triggered by gocd",
         last_run: ~U[2026-02-05 08:00:00Z],
         stages: [
           %{name: "dependency-check", status: "Passed", duration: 60},
@@ -81,6 +85,7 @@ defmodule ExGoCD.MockData do
         group: "Quality",
         counter: 23,
         status: "Passed",
+        triggered_by: "Triggered by timer",
         last_run: ~U[2026-02-04 22:00:00Z],
         stages: [
           %{name: "setup", status: "Passed", duration: 30},
@@ -96,6 +101,7 @@ defmodule ExGoCD.MockData do
         group: "Deployment",
         counter: 234,
         status: "Passed",
+        triggered_by: "Triggered by build-linux",
         last_run: ~U[2026-02-05 10:00:00Z],
         stages: [
           %{name: "deploy", status: "Passed", duration: 90},
@@ -110,6 +116,7 @@ defmodule ExGoCD.MockData do
         group: "Deployment",
         counter: 198,
         status: "Passed",
+        triggered_by: "Triggered by deploy-staging",
         last_run: ~U[2026-02-04 16:30:00Z],
         stages: [
           %{name: "approval", status: "Passed", duration: 0},
@@ -126,6 +133,7 @@ defmodule ExGoCD.MockData do
         group: "Documentation",
         counter: 67,
         status: "Passed",
+        triggered_by: "Triggered by changes",
         last_run: ~U[2026-02-05 09:00:00Z],
         stages: [
           %{name: "build", status: "Passed", duration: 45},
