@@ -1,0 +1,291 @@
+/* Pipeline Dashboard Components
+   Converted from GoCD source: server/src/main/webapp/WEB-INF/rails/webpack/views/dashboard/
+   Maintains visual fidelity to original GoCD dashboard
+*/
+
+/* Pipeline Groups */
+.pipeline-groups {
+  padding: 20px;
+}
+
+.pipeline-group {
+  margin-bottom: 30px;
+}
+
+.pipeline-group_title {
+  font-size: 19px;
+  font-weight: 600;
+  color: #333;
+  margin: 0 0 15px 0;
+  padding: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.pipeline-group_count {
+  font-size: 14px;
+  font-weight: 400;
+  color: #666;
+  margin-left: 8px;
+}
+
+.pipeline-group_items {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 20px;
+}
+
+/* Pipeline Cards */
+.pipeline_card {
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 3px;
+  padding: 15px;
+  transition: box-shadow 0.2s ease;
+  position: relative;
+}
+
+.pipeline_card:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.pipeline_card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  border-radius: 3px 3px 0 0;
+}
+
+.pipeline_passed::before {
+  background-color: #1bc98e;
+}
+
+.pipeline_failed::before {
+  background-color: #e64759;
+}
+
+.pipeline_building::before {
+  background-color: #fdb45c;
+}
+
+.pipeline_unknown::before {
+  background-color: #94399e;
+}
+
+/* Pipeline Header */
+.pipeline_header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.pipeline_name {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
+  padding: 0;
+  flex: 1;
+}
+
+.pipeline_name a {
+  color: #333;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.pipeline_name a:hover {
+  color: #943a9e;
+  text-decoration: underline;
+}
+
+.pipeline_info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-size: 12px;
+  color: #666;
+  margin-left: 10px;
+}
+
+.pipeline_counter {
+  font-weight: 600;
+  color: #333;
+}
+
+.pipeline_status {
+  margin-top: 2px;
+  text-transform: uppercase;
+  font-size: 11px;
+}
+
+/* Pipeline Stages */
+.pipeline_stages {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.stage_indicator {
+  flex: 1;
+  min-width: 0;
+  background: #f5f5f5;
+  border: 1px solid #ddd;
+  border-radius: 3px;
+  padding: 8px;
+  font-size: 12px;
+  text-align: center;
+  transition: all 0.2s ease;
+}
+
+.stage_indicator:hover {
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+}
+
+.stage_name {
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stage_status {
+  font-size: 16px;
+  margin-bottom: 2px;
+}
+
+.stage_duration {
+  font-size: 10px;
+  color: #666;
+}
+
+/* Stage Status Colors */
+.stage_passed {
+  border-left: 3px solid #1bc98e;
+}
+
+.stage_passed .stage_status {
+  color: #1bc98e;
+}
+
+.stage_failed {
+  border-left: 3px solid #e64759;
+}
+
+.stage_failed .stage_status {
+  color: #e64759;
+}
+
+.stage_building {
+  border-left: 3px solid #fdb45c;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.stage_building .stage_status {
+  color: #fdb45c;
+}
+
+.stage_cancelled {
+  border-left: 3px solid #999;
+}
+
+.stage_cancelled .stage_status {
+  color: #999;
+}
+
+.stage_notrun {
+  border-left: 3px solid #ccc;
+  opacity: 0.6;
+}
+
+.stage_notrun .stage_status {
+  color: #999;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+/* Pipeline Meta */
+.pipeline_meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  color: #999;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.pipeline_time {
+  font-style: italic;
+}
+
+/* Empty State */
+.dashboard-message {
+  padding: 60px 20px;
+  margin: 40px auto;
+  max-width: 500px;
+}
+
+.dashboard-message h3 {
+  font-size: 24px;
+  font-weight: 600;
+  color: #333;
+  margin: 0 0 10px 0;
+}
+
+.dashboard-message p {
+  font-size: 16px;
+  color: #666;
+  margin: 0;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .pipeline-groups {
+    padding: 15px;
+  }
+
+  .pipeline-group_items {
+    grid-template-columns: 1fr;
+    gap: 15px;
+  }
+
+  .pipeline_card {
+    padding: 12px;
+  }
+
+  .pipeline_stages {
+    flex-direction: column;
+  }
+
+  .stage_indicator {
+    flex: auto;
+  }
+}
+
+@media (min-width: 769px) and (max-width: 1200px) {
+  .pipeline-group_items {
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  }
+}
+
+@media (min-width: 1201px) {
+  .pipeline-group_items {
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  }
+}

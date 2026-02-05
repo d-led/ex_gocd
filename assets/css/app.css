@@ -107,6 +107,7 @@
 /* Import GoCD styles */
 @import "./gocd/site_header.css";
 @import "./gocd/dropdown.css";
+@import "./gocd/dashboard.css";
 
 /* GoCD global styles */
 body {

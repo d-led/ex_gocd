@@ -75,9 +75,22 @@
       </div>
     </section>
 
-    <div class="dashboard-message text-center" role="status" aria-live="polite">
-      <h3>Welcome to GoCD</h3>
-      <p>No pipelines configured yet</p>
-    </div>
+    <%= if @has_pipelines do %>
+      <div class="pipeline-groups">
+        <%= for {group_name, pipelines} <- @pipeline_groups do %>
+          <.pipeline_group name={group_name} pipelines={pipelines} />
+        <% end %>
+      </div>
+    <% else %>
+      <div class="dashboard-message text-center" role="status" aria-live="polite">
+        <%= if @search_text != "" do %>
+          <h3>No matches found</h3>
+          <p>No pipelines match "<%= @search_text %>"</p>
+        <% else %>
+          <h3>Welcome to GoCD</h3>
+          <p>No pipelines configured yet</p>
+        <% end %>
+      </div>
+    <% end %>
   </div>
 </div>
