@@ -1,0 +1,31 @@
+/*
+ * Copyright Thoughtworks, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+$zindex: (
+  modal-overlay-nth: 102,
+  modal-overlay: 101,
+  modal-overlay-bg: 100,
+  wizard-overlay: 4,
+  site-header: 15,
+  page-header: 5,
+  menu: 11,
+  submenu: 10,
+  tooltip: 9,
+  users-management-filter: 1,
+  user-management-header : 4,
+  logindesign : -1,
+  user-management-table-header : 1,
+  stage-overview: 5,
+);

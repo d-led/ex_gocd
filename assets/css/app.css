@@ -1,0 +1,273 @@
+/* See the Tailwind configuration guide for advanced usage
+   https://tailwindcss.com/docs/configuration */
+
+@import "tailwindcss" source(none);
+@source "../css";
+@source "../js";
+@source "../../lib/ex_gocd_web";
+
+/* A Tailwind plugin that makes "hero-#{ICON}" classes available.
+   The heroicons installation itself is managed by your mix.exs */
+@plugin "../vendor/heroicons";
+
+/* daisyUI Tailwind Plugin. You can update this file by fetching the latest version with:
+   curl -sLO https://github.com/saadeghi/daisyui/releases/latest/download/daisyui.js
+   Make sure to look at the daisyUI changelog: https://daisyui.com/docs/changelog/ */
+@plugin "../vendor/daisyui" {
+  themes: false;
+}
+
+/* daisyUI theme plugin. You can update this file by fetching the latest version with:
+  curl -sLO https://github.com/saadeghi/daisyui/releases/latest/download/daisyui-theme.js
+  We ship with two themes, a light one inspired on Phoenix colors and a dark one inspired
+  on Elixir colors. Build your own at: https://daisyui.com/theme-generator/ */
+@plugin "../vendor/daisyui-theme" {
+  name: "dark";
+  default: false;
+  prefersdark: true;
+  color-scheme: "dark";
+  --color-base-100: oklch(30.33% 0.016 252.42);
+  --color-base-200: oklch(25.26% 0.014 253.1);
+  --color-base-300: oklch(20.15% 0.012 254.09);
+  --color-base-content: oklch(97.807% 0.029 256.847);
+  --color-primary: oklch(58% 0.233 277.117);
+  --color-primary-content: oklch(96% 0.018 272.314);
+  --color-secondary: oklch(58% 0.233 277.117);
+  --color-secondary-content: oklch(96% 0.018 272.314);
+  --color-accent: oklch(60% 0.25 292.717);
+  --color-accent-content: oklch(96% 0.016 293.756);
+  --color-neutral: oklch(37% 0.044 257.287);
+  --color-neutral-content: oklch(98% 0.003 247.858);
+  --color-info: oklch(58% 0.158 241.966);
+  --color-info-content: oklch(97% 0.013 236.62);
+  --color-success: oklch(60% 0.118 184.704);
+  --color-success-content: oklch(98% 0.014 180.72);
+  --color-warning: oklch(66% 0.179 58.318);
+  --color-warning-content: oklch(98% 0.022 95.277);
+  --color-error: oklch(58% 0.253 17.585);
+  --color-error-content: oklch(96% 0.015 12.422);
+  --radius-selector: 0.25rem;
+  --radius-field: 0.25rem;
+  --radius-box: 0.5rem;
+  --size-selector: 0.21875rem;
+  --size-field: 0.21875rem;
+  --border: 1.5px;
+  --depth: 1;
+  --noise: 0;
+}
+
+@plugin "../vendor/daisyui-theme" {
+  name: "light";
+  default: true;
+  prefersdark: false;
+  color-scheme: "light";
+  --color-base-100: oklch(98% 0 0);
+  --color-base-200: oklch(96% 0.001 286.375);
+  --color-base-300: oklch(92% 0.004 286.32);
+  --color-base-content: oklch(21% 0.006 285.885);
+  --color-primary: oklch(70% 0.213 47.604);
+  --color-primary-content: oklch(98% 0.016 73.684);
+  --color-secondary: oklch(55% 0.027 264.364);
+  --color-secondary-content: oklch(98% 0.002 247.839);
+  --color-accent: oklch(0% 0 0);
+  --color-accent-content: oklch(100% 0 0);
+  --color-neutral: oklch(44% 0.017 285.786);
+  --color-neutral-content: oklch(98% 0 0);
+  --color-info: oklch(62% 0.214 259.815);
+  --color-info-content: oklch(97% 0.014 254.604);
+  --color-success: oklch(70% 0.14 182.503);
+  --color-success-content: oklch(98% 0.014 180.72);
+  --color-warning: oklch(66% 0.179 58.318);
+  --color-warning-content: oklch(98% 0.022 95.277);
+  --color-error: oklch(58% 0.253 17.585);
+  --color-error-content: oklch(96% 0.015 12.422);
+  --radius-selector: 0.25rem;
+  --radius-field: 0.25rem;
+  --radius-box: 0.5rem;
+  --size-selector: 0.21875rem;
+  --size-field: 0.21875rem;
+  --border: 1.5px;
+  --depth: 1;
+  --noise: 0;
+}
+
+/* Add variants based on LiveView classes */
+@custom-variant phx-click-loading (.phx-click-loading&, .phx-click-loading &);
+@custom-variant phx-submit-loading (.phx-submit-loading&, .phx-submit-loading &);
+@custom-variant phx-change-loading (.phx-change-loading&, .phx-change-loading &);
+
+/* Use the data attribute for dark mode  */
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
+
+/* Make LiveView wrapper divs transparent for layout */
+[data-phx-session], [data-phx-teleported-src] { display: contents }
+
+/* This file is for your main application CSS */
+
+/* Import GoCD styles */
+@import "./gocd/site_header.css";
+@import "./gocd/dropdown.css";
+
+/* GoCD global styles */
+body {
+  margin: 0;
+  padding: 0;
+  font-family: "Open Sans", "Helvetica Neue", helvetica, arial, sans-serif;
+  background: #f4f8f9;
+  color: #333;
+}
+
+.gocd-app {
+  margin: 0;
+  padding: 0;
+}
+
+.main-container {
+  margin-top: 50px;
+  padding: 20px;
+  min-height: calc(100vh - 50px);
+}
+
+/* Mobile-first responsive adjustments */
+@media (min-width: 768px) {
+  .main-container {
+    margin-top: 40px;
+    min-height: calc(100vh - 40px);
+  }
+}
+
+@media (max-width: 768px) {
+  .main-container {
+    padding: 10px;
+  }
+}
+
+.pipeline_wrapper {
+  width: 100%;
+}
+
+.dashboard-container {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.dashboard-modifiers {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  margin-bottom: 20px;
+  padding: 10px 0;
+}
+
+@media (min-width: 768px) {
+  .dashboard-modifiers {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    gap: 20px;
+  }
+}
+
+.pipeline-search_dashboard {
+  width: 100%;
+  max-width: 350px;
+}
+
+@media (max-width: 768px) {
+  .pipeline-search_dashboard {
+    max-width: 100%;
+  }
+}
+
+.pipeline-search_dashboard input {
+  width: 100%;
+  height: 44px;
+  padding: 0 15px;
+  border: 1px solid #d6e0e2;
+  border-radius: 3px;
+  font-size: 14px;
+  box-sizing: border-box;
+  background: #fff;
+  font-family: "Open Sans", "Helvetica Neue", helvetica, arial, sans-serif;
+}
+
+@media (min-width: 768px) {
+  .pipeline-search_dashboard input {
+    height: 35px;
+    padding: 0 10px;
+  }
+}
+
+.pipeline-search_dashboard input:focus {
+  outline: 2px solid #31a1ad;
+  outline-offset: 2px;
+  border-color: #31a1ad;
+}
+
+.pipeline-search_dashboard input::placeholder {
+  color: #999;
+}
+
+.dashboard-message {
+  padding: 40px 20px;
+  text-align: center;
+  color: #647984;
+}
+
+.dashboard-message h3 {
+  font-size: 24px;
+  margin-bottom: 10px;
+  color: #333;
+  font-weight: 600;
+}
+
+.dashboard-message p {
+  font-size: 16px;
+}
+
+.text-center {
+  text-align: center;
+}
+
+/* Override some DaisyUI styles for GoCD look */
+.flash {
+  margin-top: 50px;
+}
+
+/* Ensure proper focus management for accessibility */
+*:focus {
+  outline: 2px solid #31a1ad;
+  outline-offset: 2px;
+}
+
+/* But remove outline for mouse users (only show for keyboard) */
+*:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Skip to main content link for screen readers */
+.skip-to-main {
+  position: absolute;
+  left: -9999px;
+  z-index: 999;
+  padding: 10px;
+  background: #000728;
+  color: white;
+  text-decoration: none;
+}
+
+.skip-to-main:focus {
+  left: 10px;
+  top: 10px;
+}
+
+/* High contrast mode improvements */
+@media (prefers-contrast: high) {
+  body {
+    background: #fff;
+  }
+  
+  .site-header {
+    border-bottom: 2px solid #fff;
+  }
+}

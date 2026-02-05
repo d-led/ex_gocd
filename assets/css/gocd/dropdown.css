@@ -1,0 +1,193 @@
+/* GoCD Dropdown Component - Converted from SCSS with accessibility enhancements */
+
+.groupby {
+  display: flex;
+  align-items: center;
+}
+
+.grouping-label {
+  white-space: nowrap;
+  margin: 0 10px 0 0;
+  display: inline-block;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.c-dropdown {
+  min-width: 180px;
+  position: relative;
+  font-size: 13px;
+  display: inline-block;
+}
+
+.c-dropdown.open {
+  z-index: 5;
+}
+
+.c-dropdown.open .c-dropdown-body {
+  display: block;
+}
+
+.c-dropdown-head {
+  display: inline-block;
+  position: relative;
+  z-index: 2;
+  height: 34px;
+  line-height: 32px;
+  padding: 0 25px 0 10px;
+  border: 1px solid #d6e0e2;
+  border-radius: 3px;
+  background: #fff;
+  width: 100%;
+  cursor: pointer;
+  font-weight: 600;
+  color: #000;
+  text-decoration: none;
+  box-sizing: border-box;
+  /* Touch-friendly sizing */
+  min-height: 44px;
+  line-height: 42px;
+}
+
+@media (min-width: 768px) {
+  .c-dropdown-head {
+    min-height: 34px;
+    height: 34px;
+    line-height: 32px;
+    padding: 0 25px 0 10px;
+  }
+}
+
+.c-dropdown.open .c-dropdown-head {
+  border-radius: 3px 3px 0 0;
+  border-bottom-color: transparent;
+}
+
+.c-dropdown-head:hover,
+.c-dropdown-head:active,
+.c-dropdown-head:focus {
+  color: #000;
+  outline: 2px solid #31a1ad;
+  outline-offset: 2px;
+  text-decoration: none;
+}
+
+.c-dropdown-head:visited {
+  color: #000;
+}
+
+.c-dropdown-body {
+  min-width: 180px;
+  position: absolute;
+  border-radius: 0 0 3px 3px;
+  background: #fff;
+  top: 34px;
+  display: none;
+  border: 1px solid #d6e0e2;
+  border-top: none;
+  color: #000;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  z-index: 10;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+@media (min-width: 768px) {
+  .c-dropdown-body {
+    top: 34px;
+  }
+}
+
+.c-dropdown-item {
+  text-decoration: none;
+  display: block;
+  padding: 10px 15px;
+  cursor: pointer;
+  color: #000;
+  background: #fff;
+  transition: background-color 0.2s ease;
+  /* Touch-friendly sizing */
+  min-height: 44px;
+  line-height: 24px;
+  box-sizing: border-box;
+}
+
+@media (min-width: 768px) {
+  .c-dropdown-item {
+    padding: 7px 15px;
+    min-height: auto;
+  }
+}
+
+.c-dropdown-item:first-child {
+  border: none;
+}
+
+.c-dropdown-item:hover,
+.c-dropdown-item:focus {
+  color: #000;
+  background: rgba(0, 0, 0, 0.05);
+  outline: 2px solid #31a1ad;
+  outline-offset: -2px;
+  text-decoration: none;
+}
+
+.c-dropdown-item:visited {
+  color: #000;
+}
+
+.c-down-arrow {
+  position: absolute;
+  right: 7px;
+  top: 50%;
+  transform: translateY(-50%);
+  cursor: pointer;
+  z-index: 6;
+  font-size: 12px;
+  pointer-events: none;
+}
+
+.c-down-arrow::before {
+  content: "▼";
+  color: #647984;
+}
+
+.c-dropdown.open .c-down-arrow::before {
+  content: "▲";
+}
+
+/* Screen reader only class for accessibility */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* Focus visible for better keyboard navigation */
+.c-dropdown-head:focus-visible,
+.c-dropdown-item:focus-visible {
+  outline: 2px solid #31a1ad;
+  outline-offset: 2px;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .c-dropdown-head,
+  .c-dropdown-body,
+  .c-dropdown-item {
+    border-width: 2px;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .c-dropdown-item {
+    transition: none;
+  }
+}

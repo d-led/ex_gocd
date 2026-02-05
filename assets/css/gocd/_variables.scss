@@ -1,0 +1,100 @@
+/*
+ * Copyright Thoughtworks, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+// colors
+$go-primary: #943a9e;
+$go-secondary: #31a1ad;
+$go-darkblue: #33374f;
+$white: #fff;
+$black: #000;
+$go-danger: #fa2d2d;
+$go-green: #00c853;
+$go-disabled: #999;
+$primary-bg: #f4f8f9;
+$secondary-bg: #e7eef0;
+$text-color: #333;
+$line-color: #e9edef;
+$element-bg: #fff;
+$body-color: $text-color;
+$body-bg: $primary-bg;
+$footer-bg: $secondary-bg;
+$link-color: #0a8fcb;
+$link-hover-color: #0b5b7e;
+$link-decoration: none;
+$link-hover-decoration: none;
+
+// icons
+
+$icon-color: #647984;
+$icon-bg: #fff;
+$icon-bg-hover: #d4eff6;
+$icon-light-color: #e6e6e6;
+$icon-drag: #9b9b9b;
+
+// fonts
+
+$font-family-base: "Open Sans", "Helvetica Neue", helvetica, arial, sans-serif;
+$font-weight-base: 400;
+$line-height-base: 1.5;
+$global-font-weight: 600;
+$font-family-monospace: monospace;
+$font-size-base: 14px;
+
+// margins
+$global-margin-top: 20px;
+$global-margin-bottom: 20px;
+$label-margin-bottom: 0;
+
+// border
+
+$border-color: $line-color;
+$global-border-color: $line-color;
+$global-border-radius: 3px;
+
+// transition
+$transition: all 0.2s ease-in-out;
+
+// forms
+
+$form-element-height: 35px;
+$form-element-height-small: 24px;
+
+// callout
+
+$success: #dbf1d9;
+$success-txt: #298a4c;
+$warning: #fdf5e2;
+$warning-txt: #b88c34;
+$alert: #feebec;
+$alert-txt: #e5bfc0;
+$info: #d3effb;
+
+// forms
+
+$form-element-height: 35px;
+$form-element-height-small: 25px;
+$form-header-bg: $secondary-bg;
+
+// navigation
+
+$subnav-link-color: #bbb;
+
+// buttons
+$btn-primary: $go-primary;
+$btn-secondary: $go-secondary;
+$btn-text-color: #fff;
+$btn-reset: #666;
+$btn-danger: $go-danger;
+$icon-drag: #9b9b9b;
