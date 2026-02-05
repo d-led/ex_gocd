@@ -1,0 +1,10 @@
+[
+  verbose: false,
+  private: false,
+  skip: false,
+  format: "txt",
+  out: "",
+  threshold: "low",
+  ignore: ["Config.CSP"],
+  ignore_files: []
+]
