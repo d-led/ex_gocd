@@ -1,7 +1,40 @@
 /* Pipeline Dashboard - EXACT copy from GoCD source
  * Source: gocd/server/src/main/webapp/WEB-INF/rails/app/assets/new_stylesheets/single_page_apps/new_dashboard.scss
- * DO NOT MODIFY - maintain pixel-perfect fidelity
+ * Extended with responsive layout for small screens
  */
+
+/* CSS Custom Properties - converted from GoCD SCSS variables */
+:root {
+  --dark-gray: #333;
+  --border-color: #d6e0e2;
+  --icon-color: #647984;
+  --icon-hover-color: #000;
+  --icon-size: 12px;
+  --pipeline-icons-size: 16px;
+  --global-border-radius: 3px;
+  --passed: #1bc98e;
+  --failed: #e64759;
+  --building: #fdb45c;
+  --body-bg: #f4f8f9;
+  --group-title-bg: #e7eef0;
+  --filter-width: 362px;
+  --pipeline-width: 267px;
+}
+
+/* Global Page Styles */
+body {
+  background: var(--body-bg);
+  font-size: 14px;
+  margin: 0;
+  padding: 0;
+}
+
+/* Main Container */
+.main-container {
+  margin-top: 50px;
+  background: transparent;
+  overflow: visible;
+}
 
 /* Dashboard Container */
 .dashboard {
@@ -18,22 +51,139 @@
   z-index: 5;
 }
 
+.groupby {
+  display: flex;
+  align-items: center;
+}
+
+.grouping-label {
+  margin-right: 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.grouping_select {
+  margin: 0 0 0 10px;
+  width: 145px;
+  display: inline-block;
+}
+
+/* Dropdown Component Styling */
+.c-dropdown {
+  position: relative;
+  display: inline-block;
+  width: 145px;
+}
+
+.c-dropdown-head {
+  display: block;
+  padding: 8px 30px 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--global-border-radius);
+  background: #fff;
+  color: var(--dark-gray);
+  text-decoration: none;
+  font-size: 13px;
+  cursor: pointer;
+  position: relative;
+}
+
+.c-dropdown-head:hover {
+  border-color: var(--icon-color);
+}
+
+.c-down-arrow {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  font-style: normal;
+}
+
+.c-down-arrow::before {
+  content: "▼";
+  font-size: 10px;
+  color: var(--icon-color);
+}
+
+.c-dropdown.open .c-down-arrow::before {
+  content: "▲";
+}
+
+.c-dropdown-body {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 2px;
+  background: #fff;
+  border: 1px solid var(--border-color);
+  border-radius: var(--global-border-radius);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  z-index: 100;
+}
+
+.c-dropdown.open .c-dropdown-body {
+  display: block;
+}
+
+.c-dropdown-item {
+  display: block;
+  padding: 8px 12px;
+  color: var(--dark-gray);
+  text-decoration: none;
+  font-size: 13px;
+  cursor: pointer;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.c-dropdown-item:last-child {
+  border-bottom: none;
+}
+
+.c-dropdown-item:hover {
+  background: #f5f5f5;
+}
+
+.c-dropdown-item[aria-selected="true"] {
+  background: var(--group-title-bg);
+  font-weight: 600;
+}
+
+
 .pipeline-search_dashboard {
   width: 350px;
 }
+
+.pipeline-search_dashboard input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--global-border-radius);
+  font-size: 13px;
+}
+
+.pipeline-search_dashboard input:focus {
+  outline: none;
+  border-color: var(--icon-color);
+}
+
 
 /* Dashboard Groups */
 .dashboard-group {
   margin-bottom: 50px;
   background: #fff;
+  border-radius: var(--global-border-radius);
 }
 
 .dashboard-group_title {
-  background: #e7eef0;
+  background: var(--group-title-bg);
   margin: 0;
   padding: 10px 10px 10px 30px;
   position: relative;
-  border-radius: 5px 5px 0 0;
+  border-radius: var(--global-border-radius) var(--global-border-radius) 0 0;
 }
 
 .dashboard-group_title span {
@@ -48,6 +198,7 @@
   font-size: 18px;
   font-weight: 600;
   line-height: 25px;
+  margin: 0;
 }
 
 .dashboard-group_items {
@@ -56,8 +207,8 @@
   list-style-type: none;
   margin: 0 0 0 -5px;
   padding: 20px 30px;
-  border-bottom-left-radius: 3px;
-  border-bottom-right-radius: 3px;
+  border-bottom-left-radius: var(--global-border-radius);
+  border-bottom-right-radius: var(--global-border-radius);
 }
 
 .dashboard-group_items:empty {
@@ -65,13 +216,16 @@
 }
 
 .dashboard-group_pipeline {
-  width: 267px;
+  width: var(--pipeline-width);
   padding: 0 0 5px;
   border: 1px solid #ddd;
   background: #fff;
   border-radius: 5px;
   margin: 5px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
+
+
 
 /* Pipeline */
 .pipeline {
@@ -82,7 +236,7 @@
   padding: 0 15px 10px 15px;
   margin: 10px 0 0;
   border-radius: 5px 5px 0 0;
-  border-bottom: 1px solid #d6e0e2;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .pipeline_header::after {
@@ -114,23 +268,55 @@
   align-items: flex-start;
 }
 
+.pipeline_locked {
+  overflow: hidden;
+  width: 25px;
+  height: 25px;
+  font-size: var(--pipeline-icons-size);
+  color: var(--icon-color);
+  cursor: pointer;
+  background: none;
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.pipeline_locked::before {
+  content: "🔒";
+  font-size: var(--pipeline-icons-size);
+}
+
+.pipeline_locked:hover {
+  color: var(--icon-hover-color);
+}
+
+.pipeline_locked.disabled {
+  color: #999;
+  cursor: not-allowed;
+}
+
 .edit_config {
   overflow: hidden;
-  font-size: 16px;
-  color: #647984;
+  font-size: var(--pipeline-icons-size);
+  color: var(--icon-color);
   text-decoration: none;
   display: inline-block;
   width: 20px;
   height: 20px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 0;
+  margin: 0;
 }
 
 .edit_config::before {
   content: "⚙";
-  font-size: 16px;
+  font-size: var(--pipeline-icons-size);
 }
 
 .edit_config:hover {
-  color: #000;
+  color: var(--icon-hover-color);
 }
 
 .edit_config.disabled {
@@ -145,12 +331,20 @@
   margin-top: 10px;
 }
 
+
+
 /* Pipeline Operations */
 .pipeline_operations {
   list-style-type: none;
   margin: 5px 0 0;
   padding: 0;
   float: left;
+}
+
+.pipeline_operations::after {
+  content: "";
+  display: table;
+  clear: both;
 }
 
 .pipeline_operations li {
@@ -163,12 +357,13 @@
 }
 
 .pipeline_btn {
-  border: 1px solid #d6e0e2;
+  border: 1px solid var(--border-color);
   background: #fff;
   width: 36px;
   height: 22px;
   cursor: pointer;
   position: relative;
+  padding: 0;
 }
 
 .pipeline_btn:focus,
@@ -191,7 +386,7 @@
 .pipeline_btn.play::before {
   content: "▶";
   font-size: 12px;
-  color: #333;
+  color: var(--dark-gray);
 }
 
 .pipeline_btn.play:hover::before {
@@ -201,7 +396,8 @@
 .pipeline_btn.play_with_options::before {
   content: "▶+";
   font-size: 10px;
-  color: #333;
+  color: var(--dark-gray);
+  font-weight: bold;
 }
 
 .pipeline_btn.play_with_options:hover::before {
@@ -211,11 +407,30 @@
 .pipeline_btn.pause::before {
   content: "❚❚";
   font-size: 12px;
-  color: #333;
+  color: var(--dark-gray);
+  letter-spacing: -2px;
 }
 
 .pipeline_btn.pause:hover::before {
   color: #fff;
+}
+
+.pipeline_btn.unpause::before {
+  content: "▶";
+  font-size: 12px;
+  color: #fff;
+}
+
+.pipeline_btn.unpause {
+  background-color: #4d4d4d;
+}
+
+.pipeline_btn.unpause:hover {
+  background-color: #fff;
+}
+
+.pipeline_btn.unpause:hover::before {
+  color: var(--dark-gray);
 }
 
 .pipeline_btn.disabled {
@@ -227,6 +442,12 @@
   background: #fff;
 }
 
+.pipeline_btn.disabled:hover::before {
+  color: var(--dark-gray);
+}
+
+
+
 /* Pipeline Instances */
 .pipeline_instances {
   /* Container for all instances */
@@ -234,12 +455,18 @@
 
 .pipeline_instance {
   padding: 10px 0 0;
-  border-top: 1px dotted #d6e0e2;
+  border-top: 1px dotted var(--border-color);
   margin: 0 15px;
 }
 
 .pipeline_instance:first-child {
   border: 0;
+}
+
+.no_instance {
+  margin: 25px 15px;
+  font-size: 13px;
+  color: #666;
 }
 
 .pipeline_instance-label {
@@ -249,6 +476,13 @@
   text-overflow: ellipsis;
   overflow: hidden;
   white-space: nowrap;
+}
+
+.pipeline_instance-details {
+  font-size: 12px;
+  line-height: 16px;
+  color: #666;
+  margin: 3px 0;
 }
 
 .more_info {
@@ -264,7 +498,7 @@
 
 .more_info .info li {
   display: inline-block;
-  border-left: 1px solid #d6e0e2;
+  border-left: 1px solid var(--border-color);
 }
 
 .more_info .info li:first-child {
@@ -281,6 +515,11 @@
   font-size: 13px;
   line-height: 13px;
   text-decoration: underline;
+  color: #0066cc;
+}
+
+.more_info .info a:hover {
+  color: #004499;
 }
 
 .more_info .changes {
@@ -294,7 +533,7 @@
   height: 0;
   border-right: 6px solid transparent;
   border-left: 6px solid transparent;
-  border-top: 6px solid #333;
+  border-top: 6px solid var(--dark-gray);
   position: absolute;
   top: 8px;
   left: auto;
@@ -303,47 +542,7 @@
   display: inline-block;
 }
 
-.pipeline_instance-details {
-  font-size: 12px;
-  line-height: 16px;
-}
 
-.pipeline_history {
-  text-decoration: underline;
-  font-size: 13px;
-  float: right;
-  margin-top: 10px;
-}
-
-/* Pipeline Instance */
-.pipeline_instance {
-  padding: 10px 0 0;
-  border-top: 1px dotted #d6e0e2;
-  margin: 0 15px;
-}
-
-.pipeline_instance:first-child {
-  border: 0;
-}
-
-.no_instance {
-  margin: 25px 15px;
-  font-size: 13px;
-}
-
-.pipeline_instance-label {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 14px;
-  font-weight: 500;
-  line-height: normal;
-}
-
-.pipeline_instance-details {
-  font-size: 12px;
-  line-height: 16px;
-}
 
 /* Pipeline Stages - EXACT GoCD styling */
 .pipeline_stages {
@@ -359,50 +558,129 @@
   display: flex;
 }
 
+.manual_gate {
+  padding: 1px 5px;
+  cursor: pointer;
+  border: none;
+  background: none;
+  font-size: 14px;
+  color: var(--icon-color);
+}
+
+.manual_gate::before {
+  content: "▶";
+  display: inline-block;
+  margin-right: 2px;
+}
+
+.manual_gate.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.manual_gate.disabled:hover {
+  opacity: 0.5;
+}
+
 .pipeline_stage_manual_gate_wrapper .pipeline_stage {
   width: 34px;
   height: 16px;
-  line-height: 13px;
   margin: 5px;
+  padding: 2px 0 1px;
   text-align: center;
-  display: block;
+  display: inline-block;
   cursor: pointer;
   text-decoration: none;
+  border-radius: 2px;
+  line-height: 1;
+  box-sizing: border-box;
 }
 
 .pipeline_stage {
   width: 34px;
   height: 16px;
-  line-height: 13px;
   margin: 5px;
+  padding: 2px 0 1px;
   text-align: center;
-  font-size: 12px;
+  font-size: var(--icon-size);
+  border-radius: 2px;
+  display: inline-block;
+  line-height: 1;
+  box-sizing: border-box;
 }
 
-/* Stage Status Colors - GoCD standard */
+/* Stage Status Colors - GoCD standard with ICONS for colorblind users */
 .pipeline_stage.passed {
-  background: #1bc98e;
+  background: var(--passed);
   color: #fff;
+}
+
+.pipeline_stage.passed::before {
+  content: "\f00c";
+  font-family: "Font Awesome 6 Free";
+  font-weight: 900;
+  font-size: var(--icon-size);
+  margin-right: 1.5px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .pipeline_stage.failed {
-  background: #e64759;
+  background: var(--failed);
   color: #fff;
 }
 
+.pipeline_stage.failed::before {
+  content: "\f06a";
+  font-family: "Font Awesome 6 Free";
+  font-weight: 900;
+  font-size: var(--icon-size);
+  margin-right: 1.5px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.pipeline_stage.failing {
+  background: var(--failed);
+  color: #fff;
+  /* TODO: Add failing.gif animation like GoCD */
+}
+
+.pipeline_stage.failing::before {
+  content: "\f06a";
+  font-family: "Font Awesome 6 Free";
+  font-weight: 900;
+  font-size: var(--icon-size);
+  margin-right: 1.5px;
+}
+
 .pipeline_stage.building {
-  background: #fdb45c;
+  background: var(--building);
+  color: var(--dark-gray);
+  /* GoCD uses building.gif - animated GIF background image, not CSS animation */
 }
 
 .pipeline_stage.unknown {
-  border: 1px solid #d6e0e2;
+  border: 1px solid var(--border-color);
   background: #e6e3e3;
+  color: #999;
 }
 
 .pipeline_stage.cancelled {
-  background: #fdb45c;
-  color: #333;
+  background: var(--building);
+  color: var(--dark-gray);
 }
+
+.pipeline_stage.cancelled::before {
+  content: "\f05e";
+  font-family: "Font Awesome 6 Free";
+  font-weight: 900;
+  font-size: var(--icon-size);
+  margin-right: 1.5px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
 
 /* Empty State & Messages */
 .dashboard-message {
@@ -415,7 +693,7 @@
 .dashboard-message h3 {
   font-size: 24px;
   font-weight: 600;
-  color: #333;
+  color: var(--dark-gray);
   margin: 0 0 10px 0;
 }
 
@@ -426,16 +704,35 @@
 }
 
 .pipeline_message {
-  border: 1px solid #d6e0e2;
+  border: 1px solid var(--border-color);
   background: #fff;
   font-size: 12px;
   padding: 1px 10px;
   margin-top: 5px;
-  border-radius: 3px;
+  border-radius: var(--global-border-radius);
 }
 
 .pipeline_message p {
-  margin: 0;
+  margin: 5px 0;
+}
+
+.pipeline_message.success {
+  border: 1px solid rgba(31, 199, 89, 0.33);
+  background: rgba(31, 199, 89, 0.16);
+}
+
+.pipeline_message.error {
+  border: 1px solid rgba(199, 31, 31, 0.32);
+  background: rgba(199, 31, 31, 0.33);
+}
+
+.pipeline_pause-message {
+  word-break: break-all;
+  font-size: 12px;
+  margin: 5px 0 0;
+  float: left;
+  clear: both;
+  color: #666;
 }
 
 /* Utility Classes */
@@ -443,9 +740,164 @@
   text-align: center;
 }
 
-/* Main Container */
-.main-container {
-  margin-top: 50px;
-  background: transparent;
-  overflow: visible;
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* Responsive Layout - Beautiful on all screens */
+/* Tablet and below (768px) */
+@media (max-width: 768px) {
+  .dashboard {
+    padding: 0 15px 30px;
+  }
+
+  .dashboard-modifiers {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .groupby {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .grouping_select {
+    flex: 1;
+    max-width: 200px;
+  }
+
+  .pipeline-search_dashboard {
+    width: 100%;
+  }
+
+  .dashboard-group_title {
+    padding: 10px 15px;
+  }
+
+  .dashboard-group_items {
+    padding: 15px;
+    margin: 0;
+    justify-content: center;
+  }
+
+  .dashboard-group_pipeline {
+    width: 100%;
+    max-width: 400px;
+  }
+}
+
+/* Mobile (480px and below) */
+@media (max-width: 480px) {
+  body {
+    font-size: 13px;
+  }
+
+  .main-container {
+    margin-top: 20px;
+  }
+
+  .dashboard {
+    padding: 0 10px 20px;
+  }
+
+  .dashboard-modifiers {
+    margin-bottom: 15px;
+  }
+
+  .grouping-label {
+    font-size: 12px;
+  }
+
+  .grouping_select {
+    margin: 0 0 0 5px;
+  }
+
+  .dashboard-group {
+    margin-bottom: 30px;
+  }
+
+  .dashboard-group_title {
+    padding: 8px 10px;
+  }
+
+  .dashboard-group_name {
+    font-size: 16px;
+  }
+
+  .dashboard-group_items {
+    padding: 10px;
+  }
+
+  .dashboard-group_pipeline {
+    width: 100%;
+    max-width: none;
+    margin: 5px 0;
+  }
+
+  .pipeline_header {
+    padding: 0 10px 8px;
+  }
+
+  .pipeline_name {
+    font-size: 13px;
+  }
+
+  .pipeline_sub_header {
+    width: 100%;
+    max-width: 240px;
+  }
+
+  .pipeline_operations {
+    margin: 3px 0 0;
+  }
+
+  .pipeline_instance {
+    margin: 0 10px;
+  }
+
+  .more_info .info a {
+    font-size: 12px;
+    padding: 0 5px;
+  }
+
+  .pipeline_stages {
+    margin: 1px 0 8px -2px;
+  }
+
+  .pipeline_stage,
+  .pipeline_stage_manual_gate_wrapper .pipeline_stage {
+    width: 30px;
+    height: 15px;
+    line-height: 12px;
+    margin: 3px;
+  }
+
+  .dashboard-message {
+    padding: 40px 15px;
+  }
+
+  .dashboard-message h3 {
+    font-size: 20px;
+  }
+
+  .dashboard-message p {
+    font-size: 14px;
+  }
+}
+
+/* Ultra-wide screens - limit pipeline width growth */
+@media (min-width: 1800px) {
+  .dashboard {
+    max-width: 1600px;
+    margin: 0 auto;
+  }
 }

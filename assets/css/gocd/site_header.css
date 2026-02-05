@@ -75,14 +75,14 @@
 
 @media (min-width: 768px) {
   .site-navigation_left ul {
-    margin: 0 0 0 20px;
+    margin: 0 0 0 10px;
     gap: 0;
   }
 }
 
 @media (min-width: 992px) {
   .site-navigation_left ul {
-    margin: 0 0 0 30px;
+    margin: 0 0 0 10px;
   }
 }
 
