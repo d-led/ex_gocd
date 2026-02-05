@@ -15,7 +15,7 @@ defmodule ExGoCDWeb.DashboardLiveTest do
     test "initializes with default assigns", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/")
 
-      assert view |> element("title") |> render() =~ "Pipelines"
+      assert page_title(view) =~ "Pipelines"
       assert has_element?(view, "[role='search']")
       assert has_element?(view, "[role='combobox']")
     end
