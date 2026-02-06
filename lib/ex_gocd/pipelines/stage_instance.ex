@@ -1,10 +1,10 @@
 defmodule ExGoCD.Pipelines.StageInstance do
   @moduledoc """
   A stage instance represents a single execution of a stage within a pipeline instance.
-  
+
   Stage instances track the status and timing of stage runs. Multiple stage instances
   can exist for the same stage (e.g., when manually re-running a stage).
-  
+
   Based on GoCD concepts: https://docs.gocd.org/current/introduction/concepts_in_go.html#stage
   """
   use Ecto.Schema

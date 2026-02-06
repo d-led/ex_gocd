@@ -1,10 +1,10 @@
 defmodule ExGoCD.Pipelines.PipelineInstance do
   @moduledoc """
   A pipeline instance represents a single execution of a pipeline.
-  
+
   Each time a pipeline is triggered, a new instance is created with an
   incrementing counter. Instances track status, who triggered it, and timing.
-  
+
   Based on GoCD concepts: https://docs.gocd.org/current/introduction/concepts_in_go.html#pipeline
   """
   use Ecto.Schema

@@ -1,10 +1,10 @@
 defmodule ExGoCD.Pipelines.Material do
   @moduledoc """
   A material is a cause for a pipeline to run (trigger).
-  
+
   Materials include source code repositories (Git, SVN, etc.), pipeline dependencies,
   package repositories, and timer triggers. GoCD polls materials for changes.
-  
+
   Based on GoCD concepts: https://docs.gocd.org/current/introduction/concepts_in_go.html#materials
   """
   use Ecto.Schema

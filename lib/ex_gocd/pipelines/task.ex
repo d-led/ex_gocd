@@ -1,10 +1,10 @@
 defmodule ExGoCD.Pipelines.Task do
   @moduledoc """
   A task is a single action that needs to be performed, typically a command.
-  
+
   Tasks run sequentially within a job. Each task runs as an independent program,
   so environment variable changes don't carry over, but filesystem changes do.
-  
+
   Based on GoCD concepts: https://docs.gocd.org/current/introduction/concepts_in_go.html#task
   """
   use Ecto.Schema

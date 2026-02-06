@@ -1,10 +1,10 @@
 defmodule ExGoCD.Pipelines.Pipeline do
   @moduledoc """
   A pipeline consists of multiple stages that run sequentially.
-  
+
   If a stage fails, the pipeline fails and following stages won't run.
   Pipelines are triggered by materials and each run creates a pipeline instance.
-  
+
   Based on GoCD concepts: https://docs.gocd.org/current/introduction/concepts_in_go.html#pipeline
   """
   use Ecto.Schema

@@ -1,10 +1,10 @@
 defmodule ExGoCD.Pipelines.JobInstance do
   @moduledoc """
   A job instance represents a single execution of a job within a stage instance.
-  
+
   Job instances track the status, timing, and agent assignment for job runs.
   They also track console output and test results.
-  
+
   Based on GoCD concepts: https://docs.gocd.org/current/introduction/concepts_in_go.html#job
   """
   use Ecto.Schema

@@ -1,10 +1,10 @@
 defmodule ExGoCD.Pipelines.Stage do
   @moduledoc """
   A stage consists of multiple jobs that can run independently in parallel.
-  
+
   Stages run sequentially within a pipeline. If any job fails, the stage fails,
   but other jobs in the stage continue to completion.
-  
+
   Based on GoCD concepts: https://docs.gocd.org/current/introduction/concepts_in_go.html#stage
   """
   use Ecto.Schema

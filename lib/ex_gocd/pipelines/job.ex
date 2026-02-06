@@ -1,10 +1,10 @@
 defmodule ExGoCD.Pipelines.Job do
   @moduledoc """
   A job consists of multiple tasks that run in order on a single agent.
-  
+
   If a task fails, the job fails and remaining tasks won't run (unless configured otherwise).
   Jobs within a stage are independent and can run in parallel.
-  
+
   Based on GoCD concepts: https://docs.gocd.org/current/introduction/concepts_in_go.html#job
   """
   use Ecto.Schema
