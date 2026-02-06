@@ -25,6 +25,101 @@
 - compared to the original with its static, versioned config, let's also make both the server and the agent a [12-factor app](https://12factor.net/config) and let it be configured via the environment. We can still version the resulting config when it changes upon e.g. restart.
 - the Agent in [../agent](../agent/) might profit from cross-checking with https://github.com/gocd-contrib/gocd-golang-agent but we'll use modern go approaches and libraries
 
+## CRITICAL: Protocol Compatibility
+
+### Absolute Requirement: Binary Protocol Compatibility
+
+**Both the agent and Phoenix server MUST be 100% compatible with original GoCD's agent protocol and API.**
+
+This ensures:
+- Our Go agent can register with original GoCD server
+- Our Phoenix server can accept original GoCD agents
+- API clients can use either server interchangeably
+- Zero migration friction for users
+
+### Agent Protocol (WebSocket + Custom Protocol)
+
+**Registration** (original GoCD):
+- Endpoint: `POST /admin/agent` (NOT `/api/agents`)
+- Format: `application/x-www-form-urlencoded` (form data, NOT JSON)
+- Fields: `hostname`, `uuid`, `location`, `usablespace`, `agentAutoRegisterKey`, `agentAutoRegisterResources`, `agentAutoRegisterEnvironments`, `supportsBuildCommandProtocol`
+- Token flow: `GET /admin/agent/token?uuid={uuid}` → then registration with token
+- Response: JSON with `AgentPrivateKey` and `AgentCertificate`
+
+**Communication**:
+- Protocol: WebSocket at `/agent-websocket` (NOT REST/JSON polling)
+- Scheme: `wss://` for HTTPS servers
+- Message format: Custom JSON protocol with `action` field
+
+**Protocol Messages** (see [gocd-golang-agent/protocol](https://github.com/gocd-contrib/gocd-golang-agent/tree/main/protocol)):
+- `setCookie` - Server sets agent cookie
+- `ping` - Agent heartbeat with `AgentRuntimeInfo`
+- `build` - Server assigns job to agent
+- `reportCurrentStatus` - Agent reports job progress
+- `reportCompleting` - Agent signals job completion starting
+- `reportCompleted` - Agent reports final job result
+- `cancelBuild` - Server cancels running job
+- `reregister` - Server requests agent re-registration
+- `acknowledge` - Agent ACKs received message
+
+**Console Logs**:
+- Upload via HTTP POST to build-specific console URL
+- Buffered with 5-second flush interval
+- Timestamp prefix: `HH:mm:ss.SSS`
+
+**Artifacts**:
+- Upload: HTTP POST multipart/form-data
+- Fields: `zipfile` (zipped source), `file_checksum` (MD5)
+- Retry logic with `attempt` query param
+- Download: HTTP GET with checksum verification
+
+### REST API (HTTP + JSON)
+
+**Must match original GoCD API spec**: [api.go.cd](../../api.go.cd)
+
+**Critical endpoints**:
+- Agent listing: `GET /api/agents` (versioned, e.g., `/api/v7/agents`)
+- Pipeline groups: `GET /api/config/pipeline_groups`
+- Pipeline config: `GET /api/admin/pipelines/{name}`
+- Value Stream Map: `GET /api/pipelines/{name}/value_stream_map`
+
+**API versioning**:
+- Header: `Accept: application/vnd.go.cd.v7+json`
+- URL prefix: `/api/v7/...`
+- Maintain latest version only (no backward compatibility burden)
+
+### Implementation Strategy
+
+**Go Agent**:
+1. Use WebSocket library (e.g., `gorilla/websocket`)
+2. Implement custom protocol message types from golang-agent reference
+3. Form-based registration with token flow
+4. Ping every 10 seconds with runtime info
+5. Process build messages, execute tasks, report status
+6. Upload console logs and artifacts via multipart HTTP
+
+**Phoenix Server**:
+1. WebSocket endpoint: `Phoenix.Socket` at `/agent-websocket`
+2. Handle agent protocol messages in socket handler
+3. Form-based registration endpoint: controller action
+4. REST API: versioned controllers matching api.go.cd spec
+5. Console log streaming: accept HTTP POST, store, serve via API
+6. Artifact storage: handle multipart uploads, serve downloads
+
+### Validation
+
+**Test matrix**:
+- ✅ Go agent registers with original GoCD server
+- ✅ Go agent registers with Phoenix server
+- ✅ Original Java agent registers with Phoenix server
+- ✅ API clients work with both servers identically
+
+**Reference implementation**: [gocd-contrib/gocd-golang-agent](https://github.com/gocd-contrib/gocd-golang-agent)
+- Copy protocol message definitions
+- Copy WebSocket connection logic
+- Copy registration flow
+- Use modern Go libraries for everything else (go-git, etc.)
+
 ## CRITICAL: Domain Language and Data Model Fidelity
 
 ### Absolute Requirements

@@ -1,23 +1,35 @@
 # GoCD Agent (Go Implementation)
 
-A clean, well-tested Go implementation of a GoCD agent that communicates with the Phoenix-based GoCD server.
+**100% compatible with original GoCD server protocol.**
+
+A clean, modern Go implementation using libraries instead of CLI tools (go-git, not git binary).
+
+## Protocol Compatibility
+
+This agent implements the **exact same WebSocket + custom protocol** as original GoCD:
+- Registration: `POST /admin/agent` (form-based, with token)
+- Communication: WebSocket at `/agent-websocket`
+- Messages: `ping`, `build`, `reportCurrentStatus`, `reportCompleted`, etc.
+- Console logs: HTTP POST with timestamped streaming
+- Artifacts: multipart/form-data upload with MD5 checksum
+
+Reference: [gocd-contrib/gocd-golang-agent](https://github.com/gocd-contrib/gocd-golang-agent)
 
 ## Architecture
 
 ```shell
 agent/
 ├── cmd/
-│   └── agent/          # Main entry point
+│   └── root.go         # CLI with cobra
+├── main.go             # Entry point
 ├── internal/
-│   ├── config/         # Configuration
-│   ├── controller/     # Agent lifecycle management
-│   ├── identifier/     # Agent UUID and identity
-│   ├── registration/   # Server registration
-│   ├── polling/        # Work polling (TODO)
-│   ├── executor/       # Job execution (TODO)
-│   └── reporter/       # Status reporting (TODO)
+│   ├── config/         # 12-factor config (env vars)
+│   ├── agent/          # Main agent loop (register, ping, work)
+│   ├── client/         # HTTP client (registration, artifacts, console)
+│   ├── executor/       # Task execution (exec, go-git, artifacts)
+│   └── console/        # Console log buffering & streaming
 └── pkg/
-    └── api/           # Server API client (TODO)
+    └── protocol/       # Protocol message definitions
 ```
 
 ## Building
@@ -48,14 +60,50 @@ process-compose up
 
 ## Configuration
 
-The agent can be configured via:
+The agent follows 12-factor app principles using Viper for configuration management.
 
-1. **Command-line flags**:
-   - `--server-url`: GoCD server URL (default: http://localhost:4000)
-   - `--work-dir`: Agent working directory (default: ./work)
+### Environment Variables (AGENT_ prefix)
 
-2. **Environment variables**:
-   - `GOCD_AUTO_REGISTER_KEY`: Auto-registration key
+All configuration uses the `AGENT_` prefix. Configuration keys with dots are converted to underscores.
+
+| Environment Variable | Default | Description |
+|---------------------|---------|-------------|
+| `AGENT_SERVER_URL` | `http://localhost:8153/go` | GoCD server URL |
+| `AGENT_WORK_DIR` | `./work` | Working directory for the agent |
+| `AGENT_HEARTBEAT_INTERVAL` | `10s` | Heartbeat interval (duration format) |
+| `AGENT_WORK_POLL_INTERVAL` | `5s` | Work polling interval (duration format) |
+| `AGENT_AUTO_REGISTER_KEY` | - | Auto-registration key |
+| `AGENT_AUTO_REGISTER_RESOURCES` | - | Comma-separated resources |
+| `AGENT_AUTO_REGISTER_ENVIRONMENTS` | - | Comma-separated environments |
+| `AGENT_AUTO_REGISTER_ELASTIC_AGENT_ID` | - | Elastic agent ID |
+| `AGENT_AUTO_REGISTER_ELASTIC_PLUGIN_ID` | - | Elastic plugin ID |
+
+**Examples:**
+
+```bash
+# Basic usage
+AGENT_SERVER_URL="http://localhost:4000" go run .
+
+# With auto-registration
+AGENT_SERVER_URL="https://gocd.example.com" \
+AGENT_AUTO_REGISTER_KEY="secret-key" \
+AGENT_AUTO_REGISTER_RESOURCES="docker,linux" \
+AGENT_AUTO_REGISTER_ENVIRONMENTS="production" \
+go run .
+
+# Custom intervals
+AGENT_SERVER_URL="http://localhost:4000" \
+AGENT_HEARTBEAT_INTERVAL="30s" \
+AGENT_WORK_POLL_INTERVAL="10s" \
+go run .
+```
+
+### Legacy Environment Variables (Deprecated)
+
+The old `GOCD_` prefix is deprecated but may still work depending on your viper setup:
+- ❌ `GOCD_SERVER_URL` → ✅ `AGENT_SERVER_URL`
+- ❌ `GOCD_AGENT_WORK_DIR` → ✅ `AGENT_WORK_DIR`
+- ❌ `GOCD_AUTO_REGISTER_KEY` → ✅ `AGENT_AUTO_REGISTER_KEY`
 
 ## Agent Identity
 
@@ -64,28 +112,35 @@ On first run, the agent creates a `.agent-id.json` file in the work directory co
 - Hostname
 - IP address
 
-## Features
+## Implementation Status
 
-### ✅ Phase 1: Registration & Heartbeat
-- [x] Agent identifier generation and persistence
-- [x] Registration with server
-- [x] Periodic heartbeat
-- [x] Graceful shutdown
+### 🚧 Phase 1: WebSocket Protocol (TODO - REQUIRED FOR COMPATIBILITY)
+- [ ] WebSocket connection to `/agent-websocket`
+- [ ] Form-based registration at `/admin/agent` with token flow
+- [ ] Custom protocol message parsing (ping, build, setCookie, reregister, etc.)
+- [ ] Proper TLS/certificate handling
+- [ ] Connection retry and reconnection logic
 
-### 🚧 Phase 2: Work Polling (TODO)
-- [ ] Poll server for assigned jobs
-- [ ] Handle "no work" gracefully
-- [ ] Connection retry logic
+### ⚠️ Current State: REST/JSON (INCOMPATIBLE - NEEDS REWRITE)
+- [x] ~~REST registration~~ (uses `/api/agents` - wrong endpoint!)
+- [x] ~~JSON polling~~ (should use WebSocket, not HTTP polling!)
+- [x] Task execution (exec, go-git) - ✅ Keep this
+- [x] Console log buffering - ✅ Keep this, adapt upload to HTTP POST
+- [x] Artifact handling structure - ✅ Keep this, adapt to multipart
 
-### 🚧 Phase 3: Job Execution (TODO)
-- [ ] Execute tasks (exec, ant, rake, etc.)
-- [ ] Environment variable handling
-- [ ] Console log streaming
+### 🎯 What to Keep
+- Config package (12-factor env vars) ✅
+- Executor (exec, go-git for Git operations) ✅
+- Console log buffering (change upload to match protocol) ✅
+- Task execution logic ✅
+- Binary build (no cgo, statically linked) ✅
 
-### 🚧 Phase 4: Status Reporting (TODO)
-- [ ] Job state transitions
-- [ ] Console log streaming
-- [ ] Build completion
+### 🔄 What to Rewrite
+- Replace REST client with WebSocket connection
+- Replace JSON protocol with custom message types
+- Change registration from JSON to form POST
+- Implement ping/heartbeat via WebSocket messages
+- Get work via WebSocket `build` messages (not HTTP polling)
 
 ## Testing
 

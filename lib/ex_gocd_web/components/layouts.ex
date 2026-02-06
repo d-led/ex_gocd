@@ -36,17 +36,17 @@ defmodule ExGoCDWeb.Layouts do
       <nav id="main-navigation" class="main-navigation" role="navigation" aria-label="Main navigation">
         <div class="site-header_left">
           <ul class="site-navigation_left" role="menubar">
-            <li role="none" class="active">
-              <a href="/pipelines" role="menuitem" aria-current="page" tabindex="0">Dashboard</a>
+            <li role="none" class={if active_tab?(assigns, :dashboard), do: "active", else: ""}>
+              <a href="/pipelines" role="menuitem" tabindex="0" aria-current={if active_tab?(assigns, :dashboard), do: "page", else: "false"}>Dashboard</a>
             </li>
-            <li role="none">
-              <a href="/agents" role="menuitem" tabindex="0">Agents</a>
+            <li role="none" class={if active_tab?(assigns, :agents), do: "active", else: ""}>
+              <a href="/agents" role="menuitem" tabindex="0" aria-current={if active_tab?(assigns, :agents), do: "page", else: "false"}>Agents</a>
             </li>
-            <li role="none">
-              <a href="/materials" role="menuitem" tabindex="0">Materials</a>
+            <li role="none" class={if active_tab?(assigns, :materials), do: "active", else: ""}>
+              <a href="/materials" role="menuitem" tabindex="0" aria-current={if active_tab?(assigns, :materials), do: "page", else: "false"}>Materials</a>
             </li>
-            <li role="none">
-              <a href="/admin" role="menuitem" tabindex="0">Admin</a>
+            <li role="none" class={if active_tab?(assigns, :admin), do: "active", else: ""}>
+              <a href="/admin" role="menuitem" tabindex="0" aria-current={if active_tab?(assigns, :admin), do: "page", else: "false"}>Admin</a>
             </li>
           </ul>
         </div>
@@ -64,6 +64,18 @@ defmodule ExGoCDWeb.Layouts do
       </nav>
     </header>
     """
+  end
+
+  defp active_tab?(assigns, tab) do
+    current_path = Map.get(assigns, :current_path, "")
+
+    case tab do
+      :dashboard -> current_path in ["/", "/pipelines"]
+      :agents -> String.starts_with?(current_path, "/agents")
+      :materials -> String.starts_with?(current_path, "/materials")
+      :admin -> String.starts_with?(current_path, "/admin")
+      _ -> false
+    end
   end
 
   @doc """

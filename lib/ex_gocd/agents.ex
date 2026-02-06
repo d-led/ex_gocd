@@ -6,11 +6,38 @@ defmodule ExGoCD.Agents do
   disk space, etc.) is managed separately by agent instances in memory.
 
   Based on GoCD's agent management in AgentService.java and AgentDao.java.
+
+  ## Mock Mode
+
+  Set `USE_MOCK_DATA=true` to use mock data instead of the database.
+  This is useful for UI development without a database connection.
   """
 
   import Ecto.Query, warn: false
   alias ExGoCD.Repo
   alias ExGoCD.Agents.Agent
+  alias ExGoCD.Agents.Mock
+
+  @agents_topic "agents:updates"
+
+  # Check if we should use mock data
+  defp use_mock? do
+    System.get_env("USE_MOCK_DATA") == "true"
+  end
+
+  @doc """
+  Subscribes to agent updates for real-time notifications.
+  """
+  def subscribe do
+    Phoenix.PubSub.subscribe(ExGoCD.PubSub, @agents_topic)
+  end
+
+  defp broadcast({:ok, agent}, event) do
+    Phoenix.PubSub.broadcast(ExGoCD.PubSub, @agents_topic, {event, agent})
+    {:ok, agent}
+  end
+
+  defp broadcast({:error, _} = error, _event), do: error
 
   @doc """
   Registers a new agent or updates existing one.
@@ -20,18 +47,24 @@ defmodule ExGoCD.Agents do
   """
   @spec register_agent(map()) :: {:ok, Agent.t()} | {:error, Ecto.Changeset.t()}
   def register_agent(attrs) do
-    uuid = attrs["uuid"] || attrs[:uuid]
+    if use_mock?() do
+      Mock.register_agent(attrs)
+    else
+      uuid = attrs["uuid"] || attrs[:uuid]
 
-    case uuid && get_agent_by_uuid(uuid) do
-      nil ->
-        %Agent{}
-        |> Agent.registration_changeset(attrs)
-        |> Repo.insert()
+      case uuid && get_agent_by_uuid(uuid) do
+        nil ->
+          %Agent{}
+          |> Agent.registration_changeset(attrs)
+          |> Repo.insert()
+          |> broadcast(:agent_registered)
 
-      existing_agent ->
-        existing_agent
-        |> Agent.changeset(attrs)
-        |> Repo.update()
+        existing_agent ->
+          existing_agent
+          |> Agent.changeset(attrs)
+          |> Repo.update()
+          |> broadcast(:agent_updated)
+      end
     end
   end
 
@@ -40,7 +73,11 @@ defmodule ExGoCD.Agents do
   """
   @spec get_agent_by_uuid(String.t()) :: Agent.t() | nil
   def get_agent_by_uuid(uuid) when is_binary(uuid) do
-    Repo.get_by(Agent, uuid: uuid)
+    if use_mock?() do
+      Mock.get_agent_by_uuid(uuid)
+    else
+      Repo.get_by(Agent, uuid: uuid)
+    end
   end
 
   @doc """
@@ -54,7 +91,11 @@ defmodule ExGoCD.Agents do
   """
   @spec list_agents() :: [Agent.t()]
   def list_agents do
-    Repo.all(Agent)
+    if use_mock?() do
+      Mock.list_agents()
+    else
+      Repo.all(Agent)
+    end
   end
 
   @doc """
@@ -62,8 +103,12 @@ defmodule ExGoCD.Agents do
   """
   @spec list_active_agents() :: [Agent.t()]
   def list_active_agents do
-    from(a in Agent, where: a.disabled == false and a.deleted == false)
-    |> Repo.all()
+    if use_mock?() do
+      Mock.list_active_agents()
+    else
+      from(a in Agent, where: a.disabled == false and a.deleted == false)
+      |> Repo.all()
+    end
   end
 
   @doc """
@@ -92,30 +137,85 @@ defmodule ExGoCD.Agents do
     agent
     |> Agent.changeset(attrs)
     |> Repo.update()
+    |> broadcast(:agent_updated)
   end
 
   @doc """
   Enables an agent.
   """
-  @spec enable_agent(Agent.t()) :: {:ok, Agent.t()} | {:error, Ecto.Changeset.t()}
+  @spec enable_agent(Agent.t() | String.t()) :: {:ok, Agent.t()} | {:error, Ecto.Changeset.t()}
   def enable_agent(%Agent{} = agent) do
-    update_agent(agent, %{disabled: false})
+    if use_mock?() do
+      Mock.enable_agent(agent.uuid)
+    else
+      agent
+      |> Agent.changeset(%{disabled: false})
+      |> Repo.update()
+      |> broadcast(:agent_enabled)
+    end
+  end
+
+  def enable_agent(uuid) when is_binary(uuid) do
+    if use_mock?() do
+      Mock.enable_agent(uuid)
+    else
+      case get_agent_by_uuid(uuid) do
+        nil -> {:error, :not_found}
+        agent -> enable_agent(agent)
+      end
+    end
   end
 
   @doc """
   Disables an agent.
   """
-  @spec disable_agent(Agent.t()) :: {:ok, Agent.t()} | {:error, Ecto.Changeset.t()}
+  @spec disable_agent(Agent.t() | String.t()) :: {:ok, Agent.t()} | {:error, Ecto.Changeset.t()}
   def disable_agent(%Agent{} = agent) do
-    update_agent(agent, %{disabled: true})
+    if use_mock?() do
+      Mock.disable_agent(agent.uuid)
+    else
+      agent
+      |> Agent.changeset(%{disabled: true})
+      |> Repo.update()
+      |> broadcast(:agent_disabled)
+    end
+  end
+
+  def disable_agent(uuid) when is_binary(uuid) do
+    if use_mock?() do
+      Mock.disable_agent(uuid)
+    else
+      case get_agent_by_uuid(uuid) do
+        nil -> {:error, :not_found}
+        agent -> disable_agent(agent)
+      end
+    end
   end
 
   @doc """
   Soft deletes an agent.
   """
-  @spec delete_agent(Agent.t()) :: {:ok, Agent.t()} | {:error, Ecto.Changeset.t()}
+  @spec delete_agent(Agent.t() | String.t()) :: {:ok, Agent.t()} | {:error, Ecto.Changeset.t()}
   def delete_agent(%Agent{} = agent) do
-    update_agent(agent, %{deleted: true})
+    if use_mock?() do
+      Mock.delete_agent(agent.uuid)
+    else
+      agent
+      |> Agent.changeset(%{deleted: true})
+      |> Repo.update()
+      |> broadcast(:agent_deleted)
+    end
+  end
+
+  def delete_agent(uuid) when is_binary(uuid) do
+    if use_mock?() do
+      Mock.delete_agent(uuid)
+    else
+      case get_agent_by_uuid(uuid) do
+        nil -> {:error, :not_found}
+        agent -> delete_agent(agent)
+      end
+    end
   end
 
   @doc """

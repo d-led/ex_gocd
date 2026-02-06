@@ -8,6 +8,7 @@ defmodule ExGoCDWeb.DashboardLive do
     {:ok,
      socket
      |> assign(:page_title, "Pipelines")
+     |> assign(:current_path, "/pipelines")
      |> assign(:search_text, "")
      |> assign(:grouping_scheme, "environment")
      |> assign(:grouping_text, "Environment")

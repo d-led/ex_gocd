@@ -14,11 +14,28 @@ defmodule ExGoCDWeb.Router do
     plug :accepts, ["json"]
   end
 
+  pipeline :form do
+    plug :accepts, ["html", "json"]
+    plug :fetch_session
+  end
+
   scope "/", ExGoCDWeb do
     pipe_through :browser
 
     live "/", DashboardLive, :index
     live "/pipelines", DashboardLive, :index
+    live "/agents", AgentsLive, :index
+    live "/agents/:uuid/job_run_history", AgentJobHistoryLive, :index
+  end
+
+  # Original GoCD agent registration endpoints (backward compatibility)
+  scope "/admin", ExGoCDWeb do
+    pipe_through :form
+
+    # Agent registration endpoints matching original GoCD API
+    post "/agent", AdminAgentController, :register
+    get "/agent/token", AdminAgentController, :token
+    get "/agent/root_certificate", AdminAgentController, :root_certificate
   end
 
   # API routes for agents and other resources

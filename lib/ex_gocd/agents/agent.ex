@@ -22,6 +22,10 @@ defmodule ExGoCD.Agents.Agent do
           environments: [String.t()],
           resources: [String.t()],
           cookie: String.t() | nil,
+          working_dir: String.t() | nil,
+          operating_system: String.t() | nil,
+          free_space: integer() | nil,
+          state: String.t(),
           inserted_at: NaiveDateTime.t() | nil,
           updated_at: NaiveDateTime.t() | nil
         }
@@ -38,6 +42,11 @@ defmodule ExGoCD.Agents.Agent do
     field :environments, {:array, :string}, default: []
     field :resources, {:array, :string}, default: []
     field :cookie, :string
+    # Runtime fields
+    field :working_dir, :string
+    field :operating_system, :string
+    field :free_space, :integer
+    field :state, :string, default: "Idle"
 
     timestamps(type: :utc_datetime)
   end
@@ -60,7 +69,11 @@ defmodule ExGoCD.Agents.Agent do
       :deleted,
       :environments,
       :resources,
-      :cookie
+      :cookie,
+      :working_dir,
+      :operating_system,
+      :free_space,
+      :state
     ])
     |> validate_required([:uuid, :hostname, :ipaddress])
     |> validate_format(:uuid, ~r/^[a-f0-9-]{36}$/i, message: "must be a valid UUID")
@@ -83,7 +96,11 @@ defmodule ExGoCD.Agents.Agent do
       :elastic_plugin_id,
       :environments,
       :resources,
-      :cookie
+      :cookie,
+      :working_dir,
+      :operating_system,
+      :free_space,
+      :state
     ])
     |> validate_required([:uuid, :hostname, :ipaddress])
     |> validate_format(:uuid, ~r/^[a-f0-9-]{36}$/i, message: "must be a valid UUID")
@@ -91,6 +108,7 @@ defmodule ExGoCD.Agents.Agent do
     |> validate_resources()
     |> put_change(:disabled, false)
     |> put_change(:deleted, false)
+    |> put_change(:state, "Idle")
     |> unique_constraint(:uuid)
   end
 

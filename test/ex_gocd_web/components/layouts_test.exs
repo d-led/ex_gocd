@@ -48,7 +48,7 @@ defmodule ExGoCDWeb.LayoutsTest do
     end
 
     test "marks Dashboard as active page" do
-      assigns = %{}
+      assigns = %{current_path: "/pipelines"}
       html = render_component(&Layouts.site_header/1, assigns)
 
       assert html =~ ~s(class="active")

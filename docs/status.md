@@ -99,11 +99,15 @@ Legend: Not started | In progress | Complete | Not applicable
 
 ### Web/UI Modules
 
-| GoCD Module               | Purpose       | Status | Phoenix Equivalent            | Notes                       |
-| ------------------------- | ------------- | ------ | ----------------------------- | --------------------------- |
-| `server/src/main/webapp/` | Web assets    |        | `assets/`, `lib/ex_gocd_web/` | Phoenix/LiveView UI         |
-| `spark/spark-spa/`        | SPA framework |        | LiveView                      | No SPA needed with LiveView |
-| `spark/spark-base/`       | Web framework |        | N/A                           | Phoenix handles this        |
+| GoCD Module                                                         | Purpose                  | Status | Phoenix Equivalent                     | Notes                                                    |
+| ------------------------------------------------------------------- | ------------------------ | ------ | -------------------------------------- | -------------------------------------------------------- |
+| `server/src/main/webapp/`                                           | Web assets               |        | `assets/`, `lib/ex_gocd_web/`          | Phoenix/LiveView UI                                      |
+| `spark/spark-spa/`                                                  | SPA framework            |        | LiveView                               | No SPA needed with LiveView                              |
+| `spark/spark-base/`                                                 | Web framework            |        | N/A                                    | Phoenix handles this                                     |
+| `server/.../webpack/views/pages/agents/`                            | Agents management UI     |        | `AgentsLive`                           | [Complete] Real-time agent table, tabs, bulk operations  |
+| `server/.../webpack/views/pages/agent-job-run-history/`             | Agent job history UI     |        | `AgentJobHistoryLive`                  | [Complete] Job history table with pagination & sorting   |
+| `server/.../webpack/views/pages/agent-job-run-history/...modal.tsx` | Job state transitions UI |        | Future modal component                 | [Planned] Modal for viewing detailed state transitions   |
+| `server/.../webpack/views/dashboard/`                               | Dashboard UI             |        | `DashboardLive`                        | [Complete] Pipeline groups, stages, jobs visualization   |
 
 ### Infrastructure Modules
 
@@ -450,6 +454,27 @@ Legend: Not started | In progress | Complete | Not applicable
 - **Phase 2 Started**: Agent communication and job execution
 - Created AGENTS.md with comprehensive implementation plan
 - Defined 5-phase agent development roadmap with success criteria
+- **Agents UI Implementation**: Created comprehensive agent management interface
+  - Implemented AgentsLive with GoCD-style agents table
+  - Added agent tabs (All Agents, Physical, Virtual, Pending, Static, Elastic)
+  - Implemented bulk operations (Enable, Disable, Delete)
+  - Added column sorting and multi-select functionality
+  - Real-time updates via Phoenix.PubSub
+  - UUID hidden from table, shown in tooltip on hover
+  - Agent name links to job run history (`/agents/:uuid/job_run_history`)
+  - Source reference: [gocd/server/.../agents/](https://github.com/gocd/gocd/tree/main/server/src/main/webapp/WEB-INF/rails/webpack/views/pages/agents/)
+- **Agent Job Run History Page**:
+  - Created AgentJobHistoryLive matching GoCD's job history interface
+  - Source reference: [gocd/server/.../agent-job-run-history/](https://github.com/gocd/gocd/tree/main/server/src/main/webapp/WEB-INF/rails/webpack/views/pages/agent-job-run-history/)
+  - Table columns: Pipeline, Stage, Job, Result, Job State Transitions
+  - Job name links to `/go/tab/build/detail/{pipeline}/{counter}/{stage}/{stage_counter}/{job}`
+  - Sortable columns with Font Awesome icons
+  - Pagination controls (Previous/Next) above and below table
+  - Empty state message when no jobs executed
+  - State transition icon with hover effect
+  - Full CSS styling from agent_job_history.css
+  - Ready for data integration when job execution system is implemented
+- All 166 tests passing
 
 ---
 

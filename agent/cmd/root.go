@@ -1,51 +1,92 @@
-/*
-Copyright © 2026 NAME HERE <EMAIL ADDRESS>
+// Copyright © 2026 ex_gocd
+// Licensed under the Apache License, Version 2.0
 
-*/
 package cmd
 
 import (
+	"context"
+	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 
+	"github.com/d-led/ex_gocd/agent/internal/agent"
+	"github.com/d-led/ex_gocd/agent/internal/config"
 	"github.com/spf13/cobra"
 )
 
-
-
-// rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "agent",
-	Short: "A brief description of your application",
-	Long: `A longer description that spans multiple lines and likely contains
-examples and usage of using your application. For example:
+	Use:   "gocd-agent",
+	Short: "GoCD Agent - Execute CI/CD jobs",
+	Long: `A modern GoCD agent written in Go that executes CI/CD jobs.
 
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
-	// Uncomment the following line if your bare application
-	// has an action associated with it:
-	// Run: func(cmd *cobra.Command, args []string) { },
+Features:
+  - Automatic registration with GoCD server
+  - Git operations using go-git (no git CLI required)
+  - Task execution (exec, git, artifacts)
+  - Console log streaming
+  - Graceful shutdown
+  
+The agent is configured via environment variables following 12-factor app principles.`,
+	Run: runAgent,
 }
 
-// Execute adds all child commands to the root command and sets flags appropriately.
-// This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
-	err := rootCmd.Execute()
-	if err != nil {
+	if err := rootCmd.Execute(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
 
+func runAgent(cmd *cobra.Command, args []string) {
+	// Load configuration
+	cfg, err := config.Load()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to load config: %v\n", err)
+		os.Exit(1)
+	}
+	
+	// Create agent
+	agt, err := agent.New(cfg)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to create agent: %v\n", err)
+		os.Exit(1)
+	}
+	
+	// Setup context with cancellation
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	
+	// Handle graceful shutdown
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	
+	// Start agent in goroutine
+	errChan := make(chan error, 1)
+	go func() {
+		errChan <- agt.Start(ctx)
+	}()
+	
+	// Wait for shutdown signal or error
+	select {
+	case <-sigChan:
+		fmt.Println("\nReceived shutdown signal, stopping...")
+		cancel()
+		// Wait for agent to stop
+		<-errChan
+		
+	case err := <-errChan:
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Agent error: %v\n", err)
+			os.Exit(1)
+		}
+	}
+	
+	fmt.Println("Agent stopped")
+}
+
 func init() {
-	// Here you will define your flags and configuration settings.
-	// Cobra supports persistent flags, which, if defined here,
-	// will be global for your application.
-
-	// rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.agent.yaml)")
-
-	// Cobra also supports local flags, which will only run
-	// when this action is called directly.
-	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	// No flags needed - everything is configured via environment variables
 }
 
 
