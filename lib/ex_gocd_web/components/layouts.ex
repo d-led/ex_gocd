@@ -37,16 +37,44 @@ defmodule ExGoCDWeb.Layouts do
         <div class="site-header_left">
           <ul class="site-navigation_left" role="menubar">
             <li role="none" class={if active_tab?(assigns, :dashboard), do: "active", else: ""}>
-              <a href="/pipelines" role="menuitem" tabindex="0" aria-current={if active_tab?(assigns, :dashboard), do: "page", else: "false"}>Dashboard</a>
+              <a
+                href="/pipelines"
+                role="menuitem"
+                tabindex="0"
+                aria-current={if active_tab?(assigns, :dashboard), do: "page", else: "false"}
+              >
+                Dashboard
+              </a>
             </li>
             <li role="none" class={if active_tab?(assigns, :agents), do: "active", else: ""}>
-              <a href="/agents" role="menuitem" tabindex="0" aria-current={if active_tab?(assigns, :agents), do: "page", else: "false"}>Agents</a>
+              <a
+                href="/agents"
+                role="menuitem"
+                tabindex="0"
+                aria-current={if active_tab?(assigns, :agents), do: "page", else: "false"}
+              >
+                Agents
+              </a>
             </li>
             <li role="none" class={if active_tab?(assigns, :materials), do: "active", else: ""}>
-              <a href="/materials" role="menuitem" tabindex="0" aria-current={if active_tab?(assigns, :materials), do: "page", else: "false"}>Materials</a>
+              <a
+                href="/materials"
+                role="menuitem"
+                tabindex="0"
+                aria-current={if active_tab?(assigns, :materials), do: "page", else: "false"}
+              >
+                Materials
+              </a>
             </li>
             <li role="none" class={if active_tab?(assigns, :admin), do: "active", else: ""}>
-              <a href="/admin" role="menuitem" tabindex="0" aria-current={if active_tab?(assigns, :admin), do: "page", else: "false"}>Admin</a>
+              <a
+                href="/admin"
+                role="menuitem"
+                tabindex="0"
+                aria-current={if active_tab?(assigns, :admin), do: "page", else: "false"}
+              >
+                Admin
+              </a>
             </li>
           </ul>
         </div>

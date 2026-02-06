@@ -51,11 +51,11 @@ defmodule ExGoCDWeb.AgentJobHistoryLive do
           <span>Agent Job Run History</span>
         </h1>
         <div class="agent-info">
-          <span class="agent-hostname"><%= @agent.hostname %></span>
+          <span class="agent-hostname">{@agent.hostname}</span>
         </div>
       </div>
-
-      <!-- Pagination Top -->
+      
+    <!-- Pagination Top -->
       <div class="pagination-controls">
         <button
           type="button"
@@ -74,27 +74,23 @@ defmodule ExGoCDWeb.AgentJobHistoryLive do
           Next
         </button>
       </div>
-
-      <!-- Job History Table -->
+      
+    <!-- Job History Table -->
       <div class="job-history-table-container">
         <table class="job-history-table">
           <thead>
             <tr>
               <th class="sortable">
-                Pipeline
-                <i class="fa fa-sort" aria-hidden="true"></i>
+                Pipeline <i class="fa fa-sort" aria-hidden="true"></i>
               </th>
               <th class="sortable">
-                Stage
-                <i class="fa fa-sort" aria-hidden="true"></i>
+                Stage <i class="fa fa-sort" aria-hidden="true"></i>
               </th>
               <th class="sortable">
-                Job
-                <i class="fa fa-sort" aria-hidden="true"></i>
+                Job <i class="fa fa-sort" aria-hidden="true"></i>
               </th>
               <th class="sortable">
-                Result
-                <i class="fa fa-sort" aria-hidden="true"></i>
+                Result <i class="fa fa-sort" aria-hidden="true"></i>
               </th>
               <th>Job State Transitions</th>
             </tr>
@@ -109,8 +105,8 @@ defmodule ExGoCDWeb.AgentJobHistoryLive do
             <% else %>
               <%= for job <- @job_history do %>
                 <tr>
-                  <td><%= job.pipeline_name %></td>
-                  <td><%= job.stage_name %></td>
+                  <td>{job.pipeline_name}</td>
+                  <td>{job.stage_name}</td>
                   <td>
                     <a
                       href={
@@ -118,12 +114,12 @@ defmodule ExGoCDWeb.AgentJobHistoryLive do
                       }
                       class="job-link"
                     >
-                      <%= job.job_name %>
+                      {job.job_name}
                     </a>
                   </td>
                   <td>
                     <span class={result_class(job.result)}>
-                      <%= job.result %>
+                      {job.result}
                     </span>
                   </td>
                   <td>
@@ -137,8 +133,8 @@ defmodule ExGoCDWeb.AgentJobHistoryLive do
           </tbody>
         </table>
       </div>
-
-      <!-- Pagination Bottom -->
+      
+    <!-- Pagination Bottom -->
       <div class="pagination-controls">
         <button
           type="button"

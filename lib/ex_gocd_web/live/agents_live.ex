@@ -154,8 +154,8 @@ defmodule ExGoCDWeb.AgentsLive do
           </span>
         </h1>
       </div>
-
-      <!-- Tabs -->
+      
+    <!-- Tabs -->
       <div class="agents-tabs">
         <button
           type="button"
@@ -174,8 +174,8 @@ defmodule ExGoCDWeb.AgentsLive do
           ELASTIC
         </button>
       </div>
-
-      <!-- Bulk Actions & Stats -->
+      
+    <!-- Bulk Actions & Stats -->
       <div class="agents-controls">
         <div class="bulk-actions">
           <button
@@ -214,20 +214,20 @@ defmodule ExGoCDWeb.AgentsLive do
         <div class="agents-stats">
           <span>Total</span>
           <span class="stats-separator">:</span>
-          <span class="stats-value"><%= total_count(@agents, @agent_type) %></span>
+          <span class="stats-value">{total_count(@agents, @agent_type)}</span>
 
           <span class="stats-label">Pending</span>
           <span class="stats-separator">:</span>
-          <span class="stats-value"><%= pending_count(@agents, @agent_type) %></span>
+          <span class="stats-value">{pending_count(@agents, @agent_type)}</span>
 
           <span class="stats-label">Enabled</span>
           <span class="stats-separator">:</span>
-          <span class="stats-value stats-enabled"><%= enabled_count(@agents, @agent_type) %></span>
+          <span class="stats-value stats-enabled">{enabled_count(@agents, @agent_type)}</span>
 
           <span class="stats-label">Disabled</span>
           <span class="stats-separator">:</span>
           <span class="stats-value stats-disabled">
-            <%= disabled_count(@agents, @agent_type) %>
+            {disabled_count(@agents, @agent_type)}
           </span>
         </div>
 
@@ -236,8 +236,8 @@ defmodule ExGoCDWeb.AgentsLive do
           <input type="text" placeholder="Filter Agents" />
         </div>
       </div>
-
-      <!-- Agents Table -->
+      
+    <!-- Agents Table -->
       <div class="agents-table-container">
         <table class="agents-table">
           <thead>
@@ -253,36 +253,28 @@ defmodule ExGoCDWeb.AgentsLive do
                 />
               </th>
               <th class="sortable">
-                AGENT NAME
-                <i class="fa fa-sort" aria-hidden="true"></i>
+                AGENT NAME <i class="fa fa-sort" aria-hidden="true"></i>
               </th>
               <th class="sortable">
-                SANDBOX
-                <i class="fa fa-sort" aria-hidden="true"></i>
+                SANDBOX <i class="fa fa-sort" aria-hidden="true"></i>
               </th>
               <th class="sortable">
-                OS
-                <i class="fa fa-sort" aria-hidden="true"></i>
+                OS <i class="fa fa-sort" aria-hidden="true"></i>
               </th>
               <th class="sortable">
-                IP ADDRESS
-                <i class="fa fa-sort" aria-hidden="true"></i>
+                IP ADDRESS <i class="fa fa-sort" aria-hidden="true"></i>
               </th>
               <th class="sortable">
-                STATUS
-                <i class="fa fa-sort" aria-hidden="true"></i>
+                STATUS <i class="fa fa-sort" aria-hidden="true"></i>
               </th>
               <th class="sortable">
-                FREE SPACE
-                <i class="fa fa-sort" aria-hidden="true"></i>
+                FREE SPACE <i class="fa fa-sort" aria-hidden="true"></i>
               </th>
               <th class="sortable">
-                RESOURCES
-                <i class="fa fa-sort" aria-hidden="true"></i>
+                RESOURCES <i class="fa fa-sort" aria-hidden="true"></i>
               </th>
               <th class="sortable">
-                ENVIRONMENTS
-                <i class="fa fa-sort" aria-hidden="true"></i>
+                ENVIRONMENTS <i class="fa fa-sort" aria-hidden="true"></i>
               </th>
             </tr>
           </thead>
@@ -298,29 +290,33 @@ defmodule ExGoCDWeb.AgentsLive do
                   />
                 </td>
                 <td>
-                  <a href={"/agents/#{agent.uuid}/job_run_history"} title={agent.uuid} class="agent-name">
-                    <%= agent.hostname %>
+                  <a
+                    href={"/agents/#{agent.uuid}/job_run_history"}
+                    title={agent.uuid}
+                    class="agent-name"
+                  >
+                    {agent.hostname}
                   </a>
                 </td>
-                <td><%= agent.working_dir || "" %></td>
-                <td><%= agent.operating_system || "" %></td>
-                <td><%= agent.ipaddress %></td>
+                <td>{agent.working_dir || ""}</td>
+                <td>{agent.operating_system || ""}</td>
+                <td>{agent.ipaddress}</td>
                 <td>
                   <span class={agent_status_class(agent)}>
-                    <%= agent_status_text(agent) %>
+                    {agent_status_text(agent)}
                   </span>
                 </td>
-                <td><%= format_bytes(agent.free_space) %></td>
+                <td>{format_bytes(agent.free_space)}</td>
                 <td>
                   <%= if agent.resources && length(agent.resources) > 0 do %>
-                    <%= Enum.join(agent.resources, ", ") %>
+                    {Enum.join(agent.resources, ", ")}
                   <% else %>
                     <span class="none-specified">none specified</span>
                   <% end %>
                 </td>
                 <td>
                   <%= if agent.environments && length(agent.environments) > 0 do %>
-                    <%= Enum.join(agent.environments, ", ") %>
+                    {Enum.join(agent.environments, ", ")}
                   <% else %>
                     <span class="none-specified">none specified</span>
                   <% end %>

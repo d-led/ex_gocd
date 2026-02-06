@@ -57,7 +57,9 @@ defmodule ExGoCDWeb.AdminAgentController do
 
     # Validate required fields
     unless attrs["uuid"] && attrs["hostname"] do
-      Logger.error("Missing required fields: uuid=#{attrs["uuid"]}, hostname=#{attrs["hostname"]}")
+      Logger.error(
+        "Missing required fields: uuid=#{attrs["uuid"]}, hostname=#{attrs["hostname"]}"
+      )
 
       conn
       |> put_status(:bad_request)
@@ -131,6 +133,7 @@ defmodule ExGoCDWeb.AdminAgentController do
   # Helper to parse comma-separated values into array
   defp parse_comma_separated(nil), do: []
   defp parse_comma_separated(""), do: []
+
   defp parse_comma_separated(str) when is_binary(str) do
     str
     |> String.split(",")
@@ -140,12 +143,14 @@ defmodule ExGoCDWeb.AdminAgentController do
 
   # Helper to parse free space value
   defp parse_free_space(nil), do: nil
+
   defp parse_free_space(str) when is_binary(str) do
     case Integer.parse(str) do
       {num, _} -> num
       :error -> nil
     end
   end
+
   defp parse_free_space(num) when is_integer(num), do: num
 
   # Helper to translate changeset errors
