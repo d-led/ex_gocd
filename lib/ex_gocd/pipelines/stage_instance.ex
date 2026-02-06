@@ -98,7 +98,15 @@ defmodule ExGoCD.Pipelines.StageInstance do
       :config_version,
       :pipeline_instance_id
     ])
-    |> validate_required([:name, :counter, :order_id, :state, :approval_type, :created_time, :pipeline_instance_id])
+    |> validate_required([
+      :name,
+      :counter,
+      :order_id,
+      :state,
+      :approval_type,
+      :created_time,
+      :pipeline_instance_id
+    ])
     |> validate_number(:counter, greater_than: 0)
     |> validate_inclusion(:approval_type, ["success", "manual"])
     |> validate_inclusion(:result, ["Passed", "Failed", "Cancelled", "Unknown"])

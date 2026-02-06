@@ -53,6 +53,8 @@ defmodule ExGoCD.Pipelines.PipelineInstance do
     |> validate_required([:counter, :label, :natural_order, :build_cause, :pipeline_id])
     |> validate_number(:counter, greater_than: 0)
     |> foreign_key_constraint(:pipeline_id)
-    |> unique_constraint([:pipeline_id, :counter], name: :pipeline_instances_pipeline_id_counter_index)
+    |> unique_constraint([:pipeline_id, :counter],
+      name: :pipeline_instances_pipeline_id_counter_index
+    )
   end
 end

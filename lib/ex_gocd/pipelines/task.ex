@@ -47,7 +47,16 @@ defmodule ExGoCD.Pipelines.Task do
   @spec changeset(t(), map()) :: Ecto.Changeset.t()
   def changeset(task, attrs) do
     task
-    |> cast(attrs, [:type, :command, :arguments, :working_directory, :run_if, :timeout, :on_cancel, :job_id])
+    |> cast(attrs, [
+      :type,
+      :command,
+      :arguments,
+      :working_directory,
+      :run_if,
+      :timeout,
+      :on_cancel,
+      :job_id
+    ])
     |> validate_required([:type, :job_id])
     |> validate_inclusion(:type, ["exec", "ant", "nant", "rake", "fetch", "plugin"])
     |> validate_inclusion(:run_if, ["passed", "failed", "any"])

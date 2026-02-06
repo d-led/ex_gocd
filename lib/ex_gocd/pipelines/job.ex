@@ -34,7 +34,8 @@ defmodule ExGoCD.Pipelines.Job do
   schema "jobs" do
     field :name, :string
     field :run_instance_count, :string
-    field :timeout, :string  # "never" or numeric value
+    # "never" or numeric value
+    field :timeout, :string
     field :resources, {:array, :string}, default: []
     field :environment_variables, :map, default: %{}
     field :run_on_all_agents, :boolean, default: false

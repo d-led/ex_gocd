@@ -21,10 +21,19 @@ defmodule ExGoCDWeb.Router do
     live "/pipelines", DashboardLive, :index
   end
 
-  # Other scopes may use custom stacks.
-  # scope "/api", ExGoCDWeb do
-  #   pipe_through :api
-  # end
+  # API routes for agents and other resources
+  scope "/api", ExGoCDWeb.API do
+    pipe_through :api
+
+    # Agent management (matching GoCD's agent API spec)
+    post "/agents/register", AgentController, :register
+    get "/agents", AgentController, :index
+    get "/agents/:uuid", AgentController, :show
+    patch "/agents/:uuid", AgentController, :update
+    delete "/agents/:uuid", AgentController, :delete
+    put "/agents/:uuid/enable", AgentController, :enable
+    put "/agents/:uuid/disable", AgentController, :disable
+  end
 
   # Enable LiveDashboard and Swoosh mailbox preview in development
   if Application.compile_env(:ex_gocd, :dev_routes) do

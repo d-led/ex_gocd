@@ -21,6 +21,8 @@
 - TEST at all levels that make sense! Try to stay close to the specification in the original GoCD repo. Test [LiveViews](https://hexdocs.pm/phoenix_live_view/Phoenix.LiveViewTest.html) and [Ecto](https://hexdocs.pm/ecto/testing-with-ecto.html) apart from the unit and integration tests of modules. Make sure the tests run in Github Actions and report a table of results.
 - For the API spec, we need to stick to the same spec but without the backward compatibility (just latest version): [api.go.cd](../../api.go.cd)
 - Validate data properly. Users need to know what exactly is wrong and where. GoCD is optimized for immediate understandability and insight into failures.
+- Strictly follow the latest GoCD API spec and the DB schema and its connection to the conceps and the domain language of GoCD. It's what we must continuously check that we preserve it.
+- compared to the original with its static, versioned config, let's also make both the server and the agent a [12-factor app](https://12factor.net/config) and let it be configured via the environment. We can still version the resulting config when it changes upon e.g. restart.
 
 ## CRITICAL: Domain Language and Data Model Fidelity
 

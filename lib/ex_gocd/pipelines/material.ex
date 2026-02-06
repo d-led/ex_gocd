@@ -47,7 +47,7 @@ defmodule ExGoCD.Pipelines.Material do
   @doc """
   Builds a changeset for creating or updating a material.
   """
-  @spec changeset(t(),map()) :: Ecto.Changeset.t()
+  @spec changeset(t(), map()) :: Ecto.Changeset.t()
   def changeset(material, attrs) do
     material
     |> cast(attrs, [

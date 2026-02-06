@@ -80,7 +80,15 @@ defmodule ExGoCD.Pipelines.JobInstance do
       :stage_instance_id
     ])
     |> validate_required([:name, :scheduled_at, :stage_instance_id])
-    |> validate_inclusion(:state, ["Scheduled", "Assigned", "Preparing", "Building", "Completing", "Completed", "Rescheduled"])
+    |> validate_inclusion(:state, [
+      "Scheduled",
+      "Assigned",
+      "Preparing",
+      "Building",
+      "Completing",
+      "Completed",
+      "Rescheduled"
+    ])
     |> validate_inclusion(:result, ["Passed", "Failed", "Cancelled", "Unknown"])
     |> foreign_key_constraint(:job_id)
     |> foreign_key_constraint(:stage_instance_id)

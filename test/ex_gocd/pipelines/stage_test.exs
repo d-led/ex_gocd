@@ -68,10 +68,12 @@ defmodule ExGoCD.Pipelines.StageTest do
       })
       |> Repo.insert!()
 
-      changeset = Stage.changeset(%Stage{}, %{
-        name: "build",
-        pipeline_id: pipeline.id
-      })
+      changeset =
+        Stage.changeset(%Stage{}, %{
+          name: "build",
+          pipeline_id: pipeline.id
+        })
+
       assert {:error, changeset} = Repo.insert(changeset)
       assert %{name: [_]} = errors_on(changeset)
     end

@@ -1,0 +1,15 @@
+version: "0.5"
+
+# https://f1bonacc1.github.io/process-compose/
+# process-compose
+
+log_location: processes.log
+log_level: debug
+
+processes:
+  gocd_server:
+    command: "elixir --name gocd@127.0.0.1 -S mix phx.server"
+    working_dir: "./"
+    environment:
+      - "PORT=4000"
+      - "GOCD_AUTO_REGISTER_KEY=123456789abcdef"

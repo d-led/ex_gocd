@@ -54,13 +54,15 @@ Legend:
 
 ### Agent Modules
 
-| GoCD Module               | Purpose            | Status | Phoenix Equivalent   | Notes                |
-| ------------------------- | ------------------ | ------ | -------------------- | -------------------- |
-| `agent/`                  | Main agent         | ❌     | Go binary (`agent/`) | Standalone Go agent  |
-| `agent-common/`           | Agent common code  | ❌     | Go package           | Shared agent code    |
-| `agent-launcher/`         | Agent launcher     | ❌     | Go binary            | Agent bootstrapping  |
-| `agent-bootstrapper/`     | Agent bootstrapper | ❌     | Go binary            | Agent initialization |
-| `agent-process-launcher/` | Process launcher   | ❌     | Go package           | Process management   |
+| GoCD Module               | Purpose            | Status | Phoenix Equivalent      | Notes                           |
+| ------------------------- | ------------------ | ------ | ----------------------- | ------------------------------- |
+| `agent/`                  | Main agent         | 🚧     | Go binary (`agent/`)    | Phase 2a: Registration in progress |
+| `agent-common/`           | Agent common code  | 🚧     | Go package              | Shared agent code               |
+| `api/api-agents-v7/`      | Agent API          | 🚧     | `API.AgentController`   | Registration, status, work APIs |
+| `domain/.../Agent.java`   | Agent config       | 🚧     | `Agents.Agent`          | Agent Ecto schema               |
+| `agent-launcher/`         | Agent launcher     | ❌     | Go binary               | Agent bootstrapping (Phase 2c)  |
+| `agent-bootstrapper/`     | Agent bootstrapper | ❌     | Go binary               | Agent initialization (Phase 2c) |
+| `agent-process-launcher/` | Process launcher   | ❌     | Go package              | Process management (Phase 2b)   |
 
 ### Web/UI Modules
 
@@ -406,34 +408,71 @@ Legend:
 - Integrated mock data with triggered_by, counter, and all pipeline fields
 - Added PostgreSQL 15 service to GitHub Actions workflow
 - All 38 tests passing with updated assertions for new structure
+- **Phase 1.4 Complete**: Schema alignment with GoCD source code (97 tests passing)
+- Examined GoCD Java source (domain/ and config/config-api/) for exact field mappings
+- Updated all 8 schemas to match GoCD exactly (Pipeline, Stage, Job, Material, *Instance)
+- Fixed test failures based on GoCD constructors and validation rules
+- Created comprehensive test mapping documentation (GoCD Java tests → Phoenix tests)
+- Created value_objects.md documenting non-persistent domain objects (BuildCause, Identifiers)
+- **Phase 2 Started**: Agent communication and job execution
+- Created AGENTS.md with comprehensive implementation plan
+- Defined 5-phase agent development roadmap with success criteria
+
+---
+
+## Current Focus: Phase 2 - Agent Communication & Job Execution
+
+See [AGENTS.md](../../../AGENTS.md) for comprehensive implementation plan.
+
+### Goals
+1. Build Go-based agent with clean architecture
+2. Implement agent registration (Ecto API + REST API)
+3. Establish polling mechanism for work assignment
+4. Execute simple jobs and stream console output
+5. Maintain comprehensive test coverage (>80%)
+
+### Active Tasks
+- [ ] Create agents migration
+- [ ] Implement Agent Ecto schema  
+- [ ] Implement Agents context module
+- [ ] Build agent registration API endpoint
+- [ ] Write agent registration tests
+- [ ] Bootstrap Go agent project structure
+- [ ] Implement agent registration in Go
+- [ ] Write Go agent integration tests
+- [ ] Verify end-to-end registration flow
 
 ---
 
 ## Next Steps
 
-1. **Immediate (Phase 1.2 - Visual Verification)**:
-   - Compare visual output at localhost:4000 vs http://localhost:8153/go/pipelines
-   - Add sprite images or icon fonts for pipeline operation buttons
-   - Fine-tune spacing and typography to match GoCD exactly
+1. **Phase 2a: Agent Registration** (Current):
+   - Complete Phoenix server-side agent management (schema, context, API)
+   - Build Go agent with registration capability
+   - Verify end-to-end registration flow with tests
 
-2. **Phase 2: Core Domain Model**:
+2. **Phase 2b: Work Polling & Execution**:
+   - Implement job queue and work assignment
+   - Build Go agent polling mechanism
+   - Implement task executor with console streaming
+   - Resource matching algorithm
 
-3. **Phase 2: Core Domain Model**:
-   - Define Ecto schemas for core domain (Pipeline, Stage, Job, Material, Agent)
-   - Setup ExMachina for test fixtures
-   - Write comprehensive schema tests
+3. **Phase 2c: Artifacts & Integration**:
+   - Artifact upload/download
+   - Build completion reporting
+   - Graceful shutdown
+   - Full integration tests
 
 4. **Phase 3: Dashboard with Real Data**:
-   - Implement context modules
    - Connect LiveView to database
-   - Add seed data
+   - Display real pipeline/agent data
+   - Add seed data for development
 
 5. **Later Phases**:
    - Implement basic config parsing
-   - Create agent registration GenServer
    - Build material polling system
    - Implement pipeline scheduler
-   - Develop agent (Go) with basic communication protocol
+   - Environment-based agent isolation
 
 ---
 

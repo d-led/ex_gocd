@@ -86,7 +86,8 @@ defmodule ExGoCD.Repo.Migrations.CreateCompletePipelinesSchema do
       add :name, :string, null: false
       add :resources, {:array, :string}, default: []
       add :environment_variables, :map, default: %{}
-      add :timeout, :string  # "never" or numeric value as string
+      # "never" or numeric value as string
+      add :timeout, :string
       add :run_instance_count, :string
       add :run_on_all_agents, :boolean, default: false, null: false
       add :elastic_profile_id, :string
@@ -111,7 +112,8 @@ defmodule ExGoCD.Repo.Migrations.CreateCompletePipelinesSchema do
       add :arguments, {:array, :string}, default: []
       add :working_directory, :string
       add :run_if, :string, default: "passed", null: false
-      add :timeout, :integer  # -1 or nil for no timeout
+      # -1 or nil for no timeout
+      add :timeout, :integer
       add :on_cancel, :map
 
       add :job_id, references(:jobs, on_delete: :delete_all), null: false
@@ -147,8 +149,10 @@ defmodule ExGoCD.Repo.Migrations.CreateCompletePipelinesSchema do
       add :name, :string, null: false
       add :counter, :integer, null: false
       add :order_id, :integer, null: false
-      add :state, :string, null: false  # StageState enum
-      add :result, :string, default: "Unknown", null: false  # StageResult enum
+      # StageState enum
+      add :state, :string, null: false
+      # StageResult enum
+      add :result, :string, default: "Unknown", null: false
       add :approval_type, :string, null: false
       add :approved_by, :string
       add :cancelled_by, :string
@@ -164,14 +168,16 @@ defmodule ExGoCD.Repo.Migrations.CreateCompletePipelinesSchema do
       add :clean_working_dir, :boolean, default: false, null: false
 
       # Tracking fields
-      add :identifier, :string  # Full StageIdentifier string
+      # Full StageIdentifier string
+      add :identifier, :string
       add :completed_by_transition_id, :bigint
       add :latest_run, :boolean, default: true, null: false
       add :rerun_of_counter, :integer
       add :artifacts_deleted, :boolean, default: false, null: false
       add :config_version, :string
 
-      add :pipeline_instance_id, references(:pipeline_instances, on_delete: :delete_all), null: false
+      add :pipeline_instance_id, references(:pipeline_instances, on_delete: :delete_all),
+        null: false
 
       timestamps(type: :utc_datetime)
     end
@@ -185,8 +191,10 @@ defmodule ExGoCD.Repo.Migrations.CreateCompletePipelinesSchema do
     # Based on: domain/JobInstance.java
     create table(:job_instances) do
       add :name, :string, null: false
-      add :state, :string, default: "Scheduled", null: false  # JobState enum
-      add :result, :string, default: "Unknown", null: false  # JobResult enum
+      # JobState enum
+      add :state, :string, default: "Scheduled", null: false
+      # JobResult enum
+      add :result, :string, default: "Unknown", null: false
       add :agent_uuid, :string
 
       # Timing
@@ -200,12 +208,14 @@ defmodule ExGoCD.Repo.Migrations.CreateCompletePipelinesSchema do
 
       # Tracking fields
       add :ignored, :boolean, default: false, null: false
-      add :identifier, :string  # Full JobIdentifier string
+      # Full JobIdentifier string
+      add :identifier, :string
       add :original_job_id, :bigint
       add :rerun, :boolean, default: false, null: false
 
       add :stage_instance_id, references(:stage_instances, on_delete: :delete_all), null: false
-      add :job_id, references(:jobs, on_delete: :nilify_all)  # Link back to config
+      # Link back to config
+      add :job_id, references(:jobs, on_delete: :nilify_all)
 
       timestamps(type: :utc_datetime)
     end

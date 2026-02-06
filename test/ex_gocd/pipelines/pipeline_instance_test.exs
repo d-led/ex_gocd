@@ -66,13 +66,15 @@ defmodule ExGoCD.Pipelines.PipelineInstanceTest do
       })
       |> Repo.insert!()
 
-      changeset = PipelineInstance.changeset(%PipelineInstance{}, %{
-        counter: 1,
-        label: "1-duplicate",
-        natural_order: 2.0,
-        build_cause: %{"approver" => "user"},
-        pipeline_id: pipeline.id
-      })
+      changeset =
+        PipelineInstance.changeset(%PipelineInstance{}, %{
+          counter: 1,
+          label: "1-duplicate",
+          natural_order: 2.0,
+          build_cause: %{"approver" => "user"},
+          pipeline_id: pipeline.id
+        })
+
       assert {:error, changeset} = Repo.insert(changeset)
       assert %{pipeline_id: [_]} = errors_on(changeset)
     end

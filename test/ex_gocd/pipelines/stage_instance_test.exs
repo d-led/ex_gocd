@@ -158,16 +158,18 @@ defmodule ExGoCD.Pipelines.StageInstanceTest do
       })
       |> Repo.insert!()
 
-      changeset = StageInstance.changeset(%StageInstance{}, %{
-        name: "build",
-        counter: 1,
-        order_id: 2,
-        state: "Building",
-        result: "Unknown",
-        approval_type: "success",
-        created_time: DateTime.utc_now(),
-        pipeline_instance_id: pipeline_instance.id
-      })
+      changeset =
+        StageInstance.changeset(%StageInstance{}, %{
+          name: "build",
+          counter: 1,
+          order_id: 2,
+          state: "Building",
+          result: "Unknown",
+          approval_type: "success",
+          created_time: DateTime.utc_now(),
+          pipeline_instance_id: pipeline_instance.id
+        })
+
       assert {:error, changeset} = Repo.insert(changeset)
       assert %{pipeline_instance_id: [_]} = errors_on(changeset)
     end
