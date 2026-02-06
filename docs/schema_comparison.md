@@ -3,12 +3,14 @@
 ## Summary
 
 Current schemas mix configuration and instance concepts. GoCD separates:
+
 - **Config classes** (PipelineConfig, StageConfig, JobConfig) - Define what to run
 - **Instance classes** (Pipeline, Stage, JobInstance) - Track execution
 
 Our schemas follow the same pattern:
-- Pipeline, Stage, Job, Task - CONFIG/DEFINITION ✅
-- PipelineInstance, StageInstance, JobInstance - EXECUTION TRACKING ✅
+
+- Pipeline, Stage, Job, Task - CONFIG/DEFINITION
+- PipelineInstance, StageInstance, JobInstance - EXECUTION TRACKING
 
 **BUT** - field mappings are incomplete and sometimes incorrect.
 
@@ -38,25 +40,25 @@ private boolean templateApplied;                       // Whether template is ap
 ### Phoenix Schema: `lib/ex_gocd/pipelines/pipeline.ex`
 
 ```elixir
-field :name, :string                          # ✅ MATCHES (name)
-field :group, :string                         # ✅ CORRECT (pipeline group name)  
-field :label_template, :string                # ✅ MATCHES (labelTemplate)
-field :lock_behavior, :string                 # ✅ MATCHES (lockBehavior)
-field :environment_variables, :map            # ✅ MATCHES (variables)
-field :timer, :string                         # ✅ SIMPLIFIED (TimerConfig → cron string)
+field :name, :string                          #  MATCHES (name)
+field :group, :string                         #  CORRECT (pipeline group name)
+field :label_template, :string                #  MATCHES (labelTemplate)
+field :lock_behavior, :string                 #  MATCHES (lockBehavior)
+field :environment_variables, :map            #  MATCHES (variables)
+field :timer, :string                         #  SIMPLIFIED (TimerConfig → cron string)
 
-has_many :stages, Stage                       # ✅ MATCHES (extends BaseCollection<StageConfig>)
-many_to_many :materials, Material             # ✅ MATCHES (materialConfigs)
-has_many :instances, PipelineInstance         # ✅ CORRECT (instances of this pipeline)
+has_many :stages, Stage                       #  MATCHES (extends BaseCollection<StageConfig>)
+many_to_many :materials, Material             #  MATCHES (materialConfigs)
+has_many :instances, PipelineInstance         #  CORRECT (instances of this pipeline)
 ```
 
 ### Missing Fields
 
-- ❌ `params` - pipeline parameters (ParamsConfig)
-- ❌ `tracking_tool` - issue tracker config (TrackingTool)
-- ❌ `template_name` - template reference
-- ❌ `display_order_weight` - UI ordering
-- ❌ `origin` - config source (file/repo) - maybe not needed for MVP
+- `params` - pipeline parameters (ParamsConfig)
+- `tracking_tool` - issue tracker config (TrackingTool)
+- `template_name` - template reference
+- `display_order_weight` - UI ordering
+- `origin` - config source (file/repo) - maybe not needed for MVP
 
 ### Field Issues
 
@@ -82,20 +84,20 @@ private JobConfigs jobConfigs;                         // Collection of jobs
 ### Phoenix Schema: `lib/ex_gocd/pipelines/stage.ex`
 
 ```elixir
-field :name, :string                          # ✅ MATCHES (name)
-field :fetch_materials, :boolean              # ✅ MATCHES (fetchMaterials)
-field :clean_working_directory, :boolean      # ✅ MATCHES (cleanWorkingDir)
-field :never_cleanup_artifacts, :boolean      # ✅ MATCHES (artifactCleanupProhibited)
+field :name, :string                          #  MATCHES (name)
+field :fetch_materials, :boolean              #  MATCHES (fetchMaterials)
+field :clean_working_directory, :boolean      #  MATCHES (cleanWorkingDir)
+field :never_cleanup_artifacts, :boolean      #  MATCHES (artifactCleanupProhibited)
 field :approval_type, :string                 # ⚠️ SIMPLIFIED (Approval object → string)
-field :environment_variables, :map            # ✅ MATCHES (variables)
+field :environment_variables, :map            #  MATCHES (variables)
 
-belongs_to :pipeline, Pipeline                # ✅ CORRECT (parent pipeline config)
-has_many :jobs, Job                           # ✅ MATCHES (jobConfigs)
+belongs_to :pipeline, Pipeline                #  CORRECT (parent pipeline config)
+has_many :jobs, Job                           #  MATCHES (jobConfigs)
 ```
 
 ### Missing Fields
 
-- ❌ Approval authorization (who can approve) - Approval object has more than just type
+- Approval authorization (who can approve) - Approval object has more than just type
 
 ### Field Issues
 
@@ -124,26 +126,26 @@ private String elasticProfileId;                       // Elastic agent profile
 ### Phoenix Schema: `lib/ex_gocd/pipelines/job.ex`
 
 ```elixir
-field :name, :string                          # ✅ MATCHES (jobName)
-field :run_instance_count, :string            # ✅ MATCHES (runInstanceCount)
+field :name, :string                          #  MATCHES (jobName)
+field :run_instance_count, :string            #  MATCHES (runInstanceCount)
 field :timeout, :integer                      # ⚠️ WRONG TYPE (should be string for "never")
-field :resources, {:array, :string}           # ✅ MATCHES (resourceConfigs)
-field :environment_variables, :map            # ✅ MATCHES (variables)
+field :resources, {:array, :string}           #  MATCHES (resourceConfigs)
+field :environment_variables, :map            #  MATCHES (variables)
 
-belongs_to :stage, Stage                      # ✅ CORRECT (parent stage config)
-has_many :tasks, Task                         # ✅ MATCHES (tasks)
+belongs_to :stage, Stage                      #  CORRECT (parent stage config)
+has_many :tasks, Task                         #  MATCHES (tasks)
 ```
 
 ### Missing Fields
 
-- ❌ `tabs` - custom tabs configuration
-- ❌ `artifact_configs` - artifact publishing (critical feature!)
-- ❌ `run_on_all_agents` - boolean flag
-- ❌ `elastic_profile_id` - elastic agent profile
+- `tabs` - custom tabs configuration
+- `artifact_configs` - artifact publishing (critical feature!)
+- `run_on_all_agents` - boolean flag
+- `elastic_profile_id` - elastic agent profile
 
 ### Field Issues
 
-- ❌ `timeout` - should be `:string` not `:integer` (GoCD allows "never" or timeout value)
+- `timeout` - should be `:string` not `:integer` (GoCD allows "never" or timeout value)
 
 ---
 
@@ -166,15 +168,15 @@ private Task cancelTask;                               // Task to run on cancel
 ### Phoenix Schema: `lib/ex_gocd/pipelines/task.ex`
 
 ```elixir
-field :type, :string                          # ✅ CORRECT (task type)
-field :command, :string                       # ✅ MATCHES (command)
-field :arguments, {:array, :string}           # ✅ MATCHES (argList)
-field :working_directory, :string             # ✅ MATCHES (workingDirectory)
-field :run_if, :string                        # ✅ MATCHES (conditions)
+field :type, :string                          #  CORRECT (task type)
+field :command, :string                       #  MATCHES (command)
+field :arguments, {:array, :string}           #  MATCHES (argList)
+field :working_directory, :string             #  MATCHES (workingDirectory)
+field :run_if, :string                        #  MATCHES (conditions)
 field :timeout, :integer                      # ⚠️ SHOULD ALLOW NULL (-1 or nil)
-field :on_cancel, :map                        # ✅ SIMPLIFIED (cancelTask → map)
+field :on_cancel, :map                        #  SIMPLIFIED (cancelTask → map)
 
-belongs_to :job, Job                          # ✅ CORRECT (tasks belong to job config)
+belongs_to :job, Job                          #  CORRECT (tasks belong to job config)
 ```
 
 ### Missing Fields
@@ -213,37 +215,42 @@ Filter filter;                                         // Path patterns to ignor
 ### Phoenix Schema: `lib/ex_gocd/pipelines/material.ex`
 
 ```elixir
-field :type, :string                          # ✅ CORRECT (material type)
-field :url, :string                           # ✅ MATCHES (for SCM materials)
-field :branch, :string                        # ✅ MATCHES (git/hg)
-field :username, :string                      # ✅ MATCHES (auth)
-field :destination, :string                   # ✅ MATCHES (folder)
-field :auto_update, :boolean                  # ✅ MATCHES (autoUpdate)
-field :filter_ignore, {:array, :string}       # ✅ MATCHES (filter ignore patterns)
-field :filter_include, {:array, :string}      # ✅ MATCHES (filter include patterns)
+field :type, :string                          #  CORRECT (material type)
+field :url, :string                           #  MATCHES (for SCM materials)
+field :branch, :string                        #  MATCHES (git/hg)
+field :username, :string                      #  MATCHES (auth)
+field :destination, :string                   #  MATCHES (folder)
+field :auto_update, :boolean                  #  MATCHES (autoUpdate)
+field :filter_ignore, {:array, :string}       #  MATCHES (filter ignore patterns)
+field :filter_include, {:array, :string}      #  MATCHES (filter include patterns)
 
-many_to_many :pipelines, Pipeline             # ✅ CORRECT (materials → pipelines)
+many_to_many :pipelines, Pipeline             #  CORRECT (materials → pipelines)
 ```
 
 ### Missing Fields (per material type)
 
 Git:
-- ❌ `shallow_clone` - boolean
-- ❌ `submodule_folder` - string
+
+- `shallow_clone` - boolean
+- `submodule_folder` - string
 
 SVN:
-- ❌ `check_externals` - boolean
-- ❌ `password` - encrypted
+
+- `check_externals` - boolean
+- `password` - encrypted
 
 P4/TFS:
-- ❌ Many specific fields
+
+- Many specific fields
 
 Dependency:
-- ❌ `pipeline_name` - string
-- ❌ `stage_name` - string
+
+- `pipeline_name` - string
+- `stage_name` - string
 
 Package/PluggableSCM:
-- ❌ `package_id` / `scm_id` - references
+
+- `package_id` / `scm_id` - references
 
 ### Approach
 
@@ -270,28 +277,28 @@ private Long id;
 ### Phoenix Schema: `lib/ex_gocd/pipelines/pipeline_instance.ex`
 
 ```elixir
-field :counter, :integer                      # ✅ MATCHES (counter)
-field :label, :string                         # ✅ MATCHES (pipelineLabel.toString())
+field :counter, :integer                      #  MATCHES (counter)
+field :label, :string                         #  MATCHES (pipelineLabel.toString())
 field :status, :string                        # ⚠️ NOT IN JAVA (computed from stages)
 field :triggered_by, :string                  # ⚠️ SIMPLIFIED (buildCause.approver)
 field :trigger_message, :string               # ⚠️ SIMPLIFIED (buildCause.message)
-field :natural_order, :float                  # ✅ MATCHES (naturalOrder)
+field :natural_order, :float                  #  MATCHES (naturalOrder)
 field :scheduled_at, :naive_datetime          # ⚠️ NOT EXPLICIT (from first stage createdTime)
 field :completed_at, :naive_datetime          # ⚠️ NOT EXPLICIT (from last stage completedTime)
 
-belongs_to :pipeline, Pipeline                # ✅ CORRECT (references config)
-has_many :stage_instances, StageInstance      # ✅ MATCHES (stages collection)
+belongs_to :pipeline, Pipeline                #  CORRECT (references config)
+has_many :stage_instances, StageInstance      #  MATCHES (stages collection)
 ```
 
 ### Missing Fields
 
-- ❌ `build_cause` - full BuildCause object (materials, trigger reason, etc.)
-- ❌ GoCD doesn't store status/scheduled_at/completed_at at pipeline level - computed from stages!
+- `build_cause` - full BuildCause object (materials, trigger reason, etc.)
+- GoCD doesn't store status/scheduled_at/completed_at at pipeline level - computed from stages!
 
 ### Field Issues
 
-- ❌ `status` - not in GoCD, computed from stage states
-- ❌ `triggered_by` + `trigger_message` - oversimplified, should be BuildCause
+- `status` - not in GoCD, computed from stage states
+- `triggered_by` + `trigger_message` - oversimplified, should be BuildCause
 - ⚠️ `scheduled_at` / `completed_at` - GoCD computes these from stages, we're duplicating
 
 ---
@@ -330,33 +337,33 @@ private Long id;
 ### Phoenix Schema: `lib/ex_gocd/pipelines/stage_instance.ex`
 
 ```elixir
-field :name, :string                          # ✅ MATCHES (name)
-field :counter, :integer                      # ✅ MATCHES (counter)
-field :state, :string                         # ✅ MATCHES (state)
-field :result, :string                        # ✅ MATCHES (result)
-field :approved_by, :string                   # ✅ MATCHES (approvedBy)
-field :cancelled_by, :string                  # ✅ MATCHES (cancelledBy)
-field :approval_type, :string                 # ✅ MATCHES (approvalType)
+field :name, :string                          #  MATCHES (name)
+field :counter, :integer                      #  MATCHES (counter)
+field :state, :string                         #  MATCHES (state)
+field :result, :string                        #  MATCHES (result)
+field :approved_by, :string                   #  MATCHES (approvedBy)
+field :cancelled_by, :string                  #  MATCHES (cancelledBy)
+field :approval_type, :string                 #  MATCHES (approvalType)
 field :scheduled_at, :naive_datetime          # ⚠️ MATCHES (createdTime)
 field :completed_at, :naive_datetime          # ⚠️ COMPUTED (from lastTransitionedTime)
 
-belongs_to :pipeline_instance, PipelineInstance  # ✅ MATCHES (pipelineId)
-has_many :job_instances, JobInstance          # ✅ MATCHES (jobInstances)
+belongs_to :pipeline_instance, PipelineInstance  #  MATCHES (pipelineId)
+has_many :job_instances, JobInstance          #  MATCHES (jobInstances)
 ```
 
 ### Missing Fields
 
-- ❌ `order_id` - order within pipeline
-- ❌ `last_transitioned_time` - when last state change happened
-- ❌ `fetch_materials` - copied from config
-- ❌ `identifier` - StageIdentifier (pipeline/counter/stage/counter)
-- ❌ `completed_by_transition_id` - internal tracking
-- ❌ `latest_run` - boolean flag
-- ❌ `clean_working_dir` - copied from config
-- ❌ `rerun_of_counter` - for stage reruns
-- ❌ `artifacts_deleted` - cleanup tracking
-- ❌ `config_version` - config hash at run time
-- ❌ `previous_stage` - reference to previous stage
+- `order_id` - order within pipeline
+- `last_transitioned_time` - when last state change happened
+- `fetch_materials` - copied from config
+- `identifier` - StageIdentifier (pipeline/counter/stage/counter)
+- `completed_by_transition_id` - internal tracking
+- `latest_run` - boolean flag
+- `clean_working_dir` - copied from config
+- `rerun_of_counter` - for stage reruns
+- `artifacts_deleted` - cleanup tracking
+- `config_version` - config hash at run time
+- `previous_stage` - reference to previous stage
 
 ### Field Issues
 
@@ -393,32 +400,32 @@ private Long id;
 ### Phoenix Schema: `lib/ex_gocd/pipelines/job_instance.ex`
 
 ```elixir
-field :name, :string                          # ✅ MATCHES (name)
-field :state, :string                         # ✅ MATCHES (state)
-field :result, :string                        # ✅ MATCHES (result)
-field :agent_uuid, :string                    # ✅ MATCHES (agentUuid)
-field :scheduled_at, :naive_datetime          # ✅ MATCHES (scheduledDate)
+field :name, :string                          #  MATCHES (name)
+field :state, :string                         #  MATCHES (state)
+field :result, :string                        #  MATCHES (result)
+field :agent_uuid, :string                    #  MATCHES (agentUuid)
+field :scheduled_at, :naive_datetime          #  MATCHES (scheduledDate)
 field :assigned_at, :naive_datetime           # ⚠️ COMPUTED (from stateTransitions)
 field :completed_at, :naive_datetime          # ⚠️ COMPUTED (from stateTransitions)
 
-belongs_to :stage_instance, StageInstance     # ✅ MATCHES (stageId)
+belongs_to :stage_instance, StageInstance     #  MATCHES (stageId)
 belongs_to :job, Job                          # ⚠️ MISSING IN GOCD (we added this - good!)
 ```
 
 ### Missing Fields
 
-- ❌ `ignored` - boolean flag
-- ❌ `identifier` - JobIdentifier (full path)
-- ❌ `run_on_all_agents` - from config
-- ❌ `run_multiple_instance` - from config
-- ❌ `original_job_id` - for reruns
-- ❌ `rerun` - boolean
-- ❌ `pipeline_still_configured` - validation flag
+- `ignored` - boolean flag
+- `identifier` - JobIdentifier (full path)
+- `run_on_all_agents` - from config
+- `run_multiple_instance` - from config
+- `original_job_id` - for reruns
+- `rerun` - boolean
+- `pipeline_still_configured` - validation flag
 
 ### Field Issues
 
 - ⚠️ `assigned_at` / `completed_at` - GoCD gets these from stateTransitions, we're denormalizing
-- ✅ `belongs_to :job` - we added this to link back to config, GoCD doesn't have it explicitly (resolves via name)
+- `belongs_to :job` - we added this to link back to config, GoCD doesn't have it explicitly (resolves via name)
 
 ---
 
@@ -465,4 +472,3 @@ belongs_to :job, Job                          # ⚠️ MISSING IN GOCD (we added
 3. Implement StateTransitions tracking
 4. Add all missing instance tracking fields
 5. Material type-specific schemas or enhanced polymorphism
-

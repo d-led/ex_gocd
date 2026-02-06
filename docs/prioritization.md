@@ -6,7 +6,7 @@
 
 ## Prioritization Strategy
 
-### Phase 0: Foundation ✅ (COMPLETE)
+### Phase 0: Foundation (COMPLETE)
 
 **Goal**: Establish basic Phoenix application with GoCD look and feel
 
@@ -22,18 +22,18 @@
 
 ---
 
-### Phase 1: Dashboard UI ✅ (COMPLETE)
+### Phase 1: Dashboard UI (COMPLETE)
 
 **Goal**: Complete visual parity with GoCD dashboard (no backend data yet)
 
-#### 1.1 Header & Navigation ✅
+#### 1.1 Header & Navigation
 
 - [x] Site header with correct menu items
 - [x] Active state indicators (purple bar)
 - [x] User dropdown menu (placeholder)
 - [x] Mobile responsive navigation
 
-#### 1.2 Dashboard Layout ✅
+#### 1.2 Dashboard Layout
 
 - [x] Dashboard LiveView shell
 - [x] Custom dropdown component (grouping selector)
@@ -42,14 +42,14 @@
 - [x] Search functionality (client-side filter)
 - [x] Empty state messaging
 
-#### 1.3 Testing Foundation ✅
+#### 1.3 Testing Foundation
 
 - [x] LiveView mount and render tests
 - [x] Component rendering tests
 - [x] Accessibility compliance tests
 - [x] Responsive design tests
 
-**Deliverable**: Pixel-perfect dashboard UI with mock data, fully tested ✅
+**Deliverable**: Pixel-perfect dashboard UI with mock data, fully tested
 
 ---
 
@@ -342,16 +342,16 @@
 
 | Milestone | Description              | Can Deploy? | Can Use?        |
 | --------- | ------------------------ | ----------- | --------------- |
-| **M1**    | Styled UI shell          | ✅          | View only       |
-| **M2**    | Dashboard with mock data | ✅          | Explore UI      |
-| **M3**    | Dashboard with DB data   | ✅          | View pipelines  |
-| **M4**    | Pipeline state tracking  | ✅          | Track status    |
-| **M5**    | Material polling         | ✅          | Auto-trigger    |
-| **M6**    | Agent registration       | ✅          | See agents      |
-| **M7**    | Job execution            | ✅          | **Full CI/CD**  |
-| **M8**    | Config UI                | ✅          | Self-service    |
-| **M9**    | Advanced features        | ✅          | Production-lite |
-| **M10**   | Production hardening     | ✅          | **Enterprise**  |
+| **M1**    | Styled UI shell          |             | View only       |
+| **M2**    | Dashboard with mock data |             | Explore UI      |
+| **M3**    | Dashboard with DB data   |             | View pipelines  |
+| **M4**    | Pipeline state tracking  |             | Track status    |
+| **M5**    | Material polling         |             | Auto-trigger    |
+| **M6**    | Agent registration       |             | See agents      |
+| **M7**    | Job execution            |             | **Full CI/CD**  |
+| **M8**    | Config UI                |             | Self-service    |
+| **M9**    | Advanced features        |             | Production-lite |
+| **M10**   | Production hardening     |             | **Enterprise**  |
 
 ## Testing Strategy
 
@@ -387,39 +387,42 @@
 
 ### Code Merge Requirements
 
-1. ✅ All tests pass
-2. ✅ No compiler warnings
-3. ✅ Code formatted (`mix format`)
-4. ✅ Credo checks pass
-5. ✅ Documentation updated
-6. ✅ status.md updated
+1.  All tests pass
+2.  No compiler warnings
+3.  Code formatted (`mix format`)
+4.  Credo checks pass
+5.  Documentation updated
+6.  status.md updated
 
 ### Phase Completion Requirements
 
-1. ✅ All deliverables complete
-2. ✅ Test coverage meets targets
-3. ✅ Documentation complete
-4. ✅ Demo/showcase prepared
-5. ✅ Performance acceptable
-6. ✅ No known critical bugs
+1.  All deliverables complete
+2.  Test coverage meets targets
+3.  Documentation complete
+4.  Demo/showcase prepared
+5.  Performance acceptable
+6.  No known critical bugs
 
 ## Current Focus
 
 **Phase 2: Domain Model - RESET & REPLANNING** (Week of Feb 6, 2026)
 
-Phase 1: COMPLETE! ✅
-- Dashboard UI with full test coverage ✅
+Phase 1: COMPLETE!
+
+- Dashboard UI with full test coverage
 
 Phase 2: IN PROGRESS - Schema Design
-- ⚠️  Initial schema attempt reset - didn't match GoCD model
-- ✅ Added comprehensive domain model documentation to rewrite.md
-- 📋 Key learnings:
-  - Task must be a separate entity (was embedded in Job)
-  - Need Instance tables for Pipeline, Stage, Job (for execution tracking)
-  - Must use exact GoCD terminology and status values
-  - Hierarchy: Task → Job → Stage → Pipeline
-  
+
+- ⚠️ Initial schema attempt reset - didn't match GoCD model
+- Added comprehensive domain model documentation to rewrite.md
+- Key learnings:
+- Task must be a separate entity (was embedded in Job)
+- Need Instance tables for Pipeline, Stage, Job (for execution tracking)
+- Must use exact GoCD terminology and status values
+- Hierarchy: Task → Job → Stage → Pipeline
+
 **Next Steps**:
+
 1. Review GoCD source code for exact schema
 2. Create schema following GoCD model precisely
 3. Implement with tests from the start

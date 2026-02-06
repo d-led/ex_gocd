@@ -23,6 +23,7 @@
 - Validate data properly. Users need to know what exactly is wrong and where. GoCD is optimized for immediate understandability and insight into failures.
 - Strictly follow the latest GoCD API spec and the DB schema and its connection to the conceps and the domain language of GoCD. It's what we must continuously check that we preserve it.
 - compared to the original with its static, versioned config, let's also make both the server and the agent a [12-factor app](https://12factor.net/config) and let it be configured via the environment. We can still version the resulting config when it changes upon e.g. restart.
+- the Agent in [../agent](../agent/) might profit from cross-checking with https://github.com/gocd-contrib/gocd-golang-agent but we'll use modern go approaches and libraries
 
 ## CRITICAL: Domain Language and Data Model Fidelity
 
@@ -178,6 +179,7 @@ Before implementing any schema:
 ### Reference Documentation
 
 Always refer to:
+
 - [GoCD Concepts](../../docs.go.cd/content/introduction/concepts_in_go.md)
 - [GoCD Configuration Reference](../../docs.go.cd/content/configuration/configuration_reference.html)
 - Original GoCD database schema (when available)

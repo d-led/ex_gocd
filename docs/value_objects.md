@@ -7,6 +7,7 @@ Not all GoCD domain classes should be mapped to Ecto schemas. Many are **value o
 ## Criteria for Ecto Schemas vs Structs
 
 ### Use Ecto Schema When:
+
 - Class has database persistence (tables, rows)
 - Has an `id` field auto-generated
 - Tracked across lifecycle changes
@@ -14,6 +15,7 @@ Not all GoCD domain classes should be mapped to Ecto schemas. Many are **value o
 - Examples: `Pipeline`, `Stage`, `Job`, `PipelineInstance`, `StageInstance`, `JobInstance`
 
 ### Use Elixir Struct When:
+
 - Class implements `Serializable` but not persisted separately
 - Composite identifier/locator (identifies entities)
 - Value object (immutable, no identity)
@@ -26,13 +28,14 @@ Not all GoCD domain classes should be mapped to Ecto schemas. Many are **value o
 
 These classes uniquely identify entities but aren't persisted separately:
 
-| GoCD Class | Purpose | Elixir Representation | Storage |
-|---|---|---|---|
-| `JobIdentifier` | Composite key: pipeline/stage/job | `defstruct` | Stored as string in `job_instances.identifier` |
-| `StageIdentifier` | Composite key: pipeline/stage | `defstruct` | Stored as string in `stage_instances.identifier` |
-| `PipelineIdentifier` | Composite key: pipeline name + counter | `defstruct` | Not separately stored |
+| GoCD Class           | Purpose                                | Elixir Representation | Storage                                          |
+| -------------------- | -------------------------------------- | --------------------- | ------------------------------------------------ |
+| `JobIdentifier`      | Composite key: pipeline/stage/job      | `defstruct`           | Stored as string in `job_instances.identifier`   |
+| `StageIdentifier`    | Composite key: pipeline/stage          | `defstruct`           | Stored as string in `stage_instances.identifier` |
+| `PipelineIdentifier` | Composite key: pipeline name + counter | `defstruct`           | Not separately stored                            |
 
 **Implementation:**
+
 ```elixir
 defmodule ExGoCD.Domain.JobIdentifier do
   @moduledoc """
@@ -75,15 +78,16 @@ end
 
 Classes that represent values without identity, often embedded in persistent entities:
 
-| GoCD Class | Purpose | Elixir Representation | Storage |
-|---|---|---|---|
-| `BuildCause` | Why pipeline was triggered | `map` | Stored as JSONB in `pipeline_instances.build_cause` |
-| `MaterialRevisions` | Collection of material changes | `list of maps` | Part of BuildCause JSON |
-| `EnvironmentVariables` | Key-value pairs | `map` | Stored as JSONB in various `_config` tables |
-| `JobStateTransitions` | State change history | `list of maps` | Not persisted separately (calculated) |
-| `Resources` | Agent resources | `list of strings` | Stored as array in `jobs.resources` |
+| GoCD Class             | Purpose                        | Elixir Representation | Storage                                             |
+| ---------------------- | ------------------------------ | --------------------- | --------------------------------------------------- |
+| `BuildCause`           | Why pipeline was triggered     | `map`                 | Stored as JSONB in `pipeline_instances.build_cause` |
+| `MaterialRevisions`    | Collection of material changes | `list of maps`        | Part of BuildCause JSON                             |
+| `EnvironmentVariables` | Key-value pairs                | `map`                 | Stored as JSONB in various `_config` tables         |
+| `JobStateTransitions`  | State change history           | `list of maps`        | Not persisted separately (calculated)               |
+| `Resources`            | Agent resources                | `list of strings`     | Stored as array in `jobs.resources`                 |
 
 **BuildCause Implementation:**
+
 ```elixir
 defmodule ExGoCD.Domain.BuildCause do
   @moduledoc """
@@ -133,13 +137,14 @@ end
 
 GoCD has collection classes that wrap lists with domain logic:
 
-| GoCD Class | Purpose | Elixir Representation | Notes |
-|---|---|---|---|---|
+| GoCD Class     | Purpose                   | Elixir Representation     | Notes                                      |
+| -------------- | ------------------------- | ------------------------- | ------------------------------------------ |
 | `JobInstances` | Collection of JobInstance | `list` + module functions | Use `ExGoCD.Pipelines.JobInstances` module |
-| `Stages` | Collection of Stage | `list` + module functions | Use `ExGoCD.Pipelines.Stages` module |
-| `Materials` | Collection of materials | `list` + module functions | Use `ExGoCD.Pipelines.Materials` module |
+| `Stages`       | Collection of Stage       | `list` + module functions | Use `ExGoCD.Pipelines.Stages` module       |
+| `Materials`    | Collection of materials   | `list` + module functions | Use `ExGoCD.Pipelines.Materials` module    |
 
 **Collection Module Pattern:**
+
 ```elixir
 defmodule ExGoCD.Pipelines.JobInstances do
   @moduledoc """
@@ -172,7 +177,7 @@ end
 
 ## Current Schema Status
 
-### Correctly Using Ecto Schemas ✅
+### Correctly Using Ecto Schemas
 
 - `ExGoCD.Pipelines.Pipeline` (PipelineConfig)
 - `ExGoCD.Pipelines.Stage` (StageConfig)
@@ -183,7 +188,7 @@ end
 - `ExGoCD.Pipelines.StageInstance` (Stage execution)
 - `ExGoCD.Pipelines.JobInstance` (Job execution)
 
-### Should Be Structs (NOT Ecto Schemas) ❌
+### Should Be Structs (NOT Ecto Schemas)
 
 Need to create these as plain Elixir structs:
 

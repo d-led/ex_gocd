@@ -2,15 +2,45 @@
 
 ## Overview
 
-This document tracks the incremental Phoenix rewrite of [GoCD](https://www.gocd.org/). The tables below map the original Java/Gradle modules to their Phoenix/Elixir equivalents.
+This document tracks the incremental Phoenix rewrite of [GoCD](https://www.gocd.org/).
 
-Legend:
+Legend: Not started | In progress | Complete | Not applicable
 
-- ❌ Not started
-- 🚧 In progress
-- Complete
-- 🔄 Partial / Under review
-- 🚫 Not applicable (infrastructure/build files)
+---
+
+## Agent Implementation Analysis
+
+**Status:** Phase 2a (Registration) in progress
+
+### Complexity Reduction vs Java
+
+| Metric       | Java      | Go      | Reduction |
+| ------------ | --------- | ------- | --------- |
+| Total LOC    | 5,310     | 700     | 87%       |
+| Modules      | 7         | 1       | 86%       |
+| Dependencies | 50+ JARs  | 2-3     | 96%       |
+| Binary Size  | 50MB      | 10MB    | 80%       |
+| Memory       | 200-300MB | 20-40MB | 87%       |
+| Startup      | 10-15s    | <1s     | 95%       |
+
+### Eliminated Components
+
+| Java Component     | LOC   | Go Replacement | Reason                    |
+| ------------------ | ----- | -------------- | ------------------------- |
+| Agent Bootstrapper | 480   | None           | Single binary deployment  |
+| Agent Launcher     | 350   | None           | Self-contained executable |
+| SSL Infrastructure | 180   | 20             | System cert pool          |
+| Upgrade Service    | 400   | None           | Container/package updates |
+| Spring DI          | 500   | 30             | Direct constructors       |
+| Plugin System      | 2,000 | Deferred       | External tools via exec   |
+
+**Total Eliminated:** 3,910 LOC eliminated, 1,580 LOC reduced to 400 LOC
+
+### Technology Decisions
+
+**Using:** Go (agent), Phoenix (server), PostgreSQL, REST/JSON, containers, environment variables
+
+**Not Using:** JARs, Spring, custom SSL, properties files, runtime upgrades, custom protocols
 
 ---
 
@@ -20,83 +50,86 @@ Legend:
 
 | GoCD Module                         | Purpose                 | Status | Phoenix Equivalent                  | Notes                              |
 | ----------------------------------- | ----------------------- | ------ | ----------------------------------- | ---------------------------------- |
-| `server/`                           | Main server application | ❌     | `lib/ex_gocd/`                      | Core domain logic, services        |
-| `domain/`                           | Domain models           | 🚧     | `lib/ex_gocd/pipelines/`            | Pipelines, Stages, Jobs, Materials |
-| `common/`                           | Shared utilities        | ❌     | `lib/ex_gocd/`                      | Shared utilities across modules    |
-| `config/config-api/`                | Configuration API       | 🚧     | `lib/ex_gocd/pipelines/`            | Config parsing, validation         |
-| `config/config-server/`             | Configuration server    | ❌     | `lib/ex_gocd/config/server.ex`      | Config management GenServer        |
-| `db/`                               | Database models         | ❌     | `lib/ex_gocd/repo.ex`, `priv/repo/` | Ecto schemas and migrations        |
-| `db-support/db-support-base/`       | DB abstraction          | 🚫     | N/A                                 | Ecto handles this                  |
-| `db-support/db-support-postgresql/` | PostgreSQL support      | ❌     | `config/runtime.exs`                | Ecto adapter config                |
-| `db-support/db-support-h2/`         | H2 DB (in-memory)       | ❌     | SQLite adapter                      | For dev/test                       |
-| `db-support/db-support-mysql/`      | MySQL support           | 🚫     | N/A                                 | Focus on PostgreSQL/SQLite         |
-| `db-support/db-migration/`          | DB migrations           | ❌     | `priv/repo/migrations/`             | Ecto migrations                    |
-| `base/`                             | Base classes            | 🚫     | N/A                                 | OOP pattern, not needed            |
-| `util/`                             | Utility classes         | ❌     | `lib/ex_gocd/utils/`                | General utilities                  |
+| `server/`                           | Main server application |        | `lib/ex_gocd/`                      | Core domain logic, services        |
+| `domain/`                           | Domain models           |        | `lib/ex_gocd/pipelines/`            | Pipelines, Stages, Jobs, Materials |
+| `common/`                           | Shared utilities        |        | `lib/ex_gocd/`                      | Shared utilities across modules    |
+| `config/config-api/`                | Configuration API       |        | `lib/ex_gocd/pipelines/`            | Config parsing, validation         |
+| `config/config-server/`             | Configuration server    |        | `lib/ex_gocd/config/server.ex`      | Config management GenServer        |
+| `db/`                               | Database models         |        | `lib/ex_gocd/repo.ex`, `priv/repo/` | Ecto schemas and migrations        |
+| `db-support/db-support-base/`       | DB abstraction          |        | N/A                                 | Ecto handles this                  |
+| `db-support/db-support-postgresql/` | PostgreSQL support      |        | `config/runtime.exs`                | Ecto adapter config                |
+| `db-support/db-support-h2/`         | H2 DB (in-memory)       |        | SQLite adapter                      | For dev/test                       |
+| `db-support/db-support-mysql/`      | MySQL support           |        | N/A                                 | Focus on PostgreSQL/SQLite         |
+| `db-support/db-migration/`          | DB migrations           |        | `priv/repo/migrations/`             | Ecto migrations                    |
+| `base/`                             | Base classes            |        | N/A                                 | OOP pattern, not needed            |
+| `util/`                             | Utility classes         |        | `lib/ex_gocd/utils/`                | General utilities                  |
 
 ### API Modules
 
 | GoCD Module                   | Purpose            | Status | Phoenix Equivalent                                          | Notes                  |
 | ----------------------------- | ------------------ | ------ | ----------------------------------------------------------- | ---------------------- |
-| `api/api-base/`               | API base           | ❌     | `lib/ex_gocd_web/controllers/`                              | Phoenix controllers    |
-| `api/api-dashboard-v4/`       | Dashboard API      | ❌     | `lib/ex_gocd_web/live/dashboard_live.ex`                    | LiveView               |
-| `api/api-pipeline-*`          | Pipeline APIs      | ❌     | `lib/ex_gocd_web/controllers/api/pipeline_controller.ex`    | REST API               |
-| `api/api-agents-v7/`          | Agents API         | ❌     | `lib/ex_gocd_web/controllers/api/agent_controller.ex`       | Agent management       |
-| `api/api-materials-v2/`       | Materials API      | ❌     | `lib/ex_gocd_web/controllers/api/material_controller.ex`    | SCM materials          |
-| `api/api-users-v3/`           | Users API          | ❌     | `lib/ex_gocd_web/controllers/api/user_controller.ex`        | User management        |
-| `api/api-environments-v3/`    | Environments API   | ❌     | `lib/ex_gocd_web/controllers/api/environment_controller.ex` | Environment config     |
-| `api/api-backup-config-v1/`   | Backup config      | ❌     | `lib/ex_gocd/backup/`                                       | Backup management      |
-| `api/api-plugin-infos-v7/`    | Plugin info        | 🚫     | N/A                                                         | Plugin system deferred |
-| `api/api-template-config-v7/` | Pipeline templates | ❌     | `lib/ex_gocd/config/template.ex`                            | Template support       |
-| `api/api-stage-*`             | Stage APIs         | ❌     | `lib/ex_gocd_web/controllers/api/stage_controller.ex`       | Stage operations       |
-| `api/api-job-instance-v1/`    | Job instance API   | ❌     | `lib/ex_gocd_web/controllers/api/job_controller.ex`         | Job management         |
-| `api/api-version-v1/`         | Version API        | ❌     | `lib/ex_gocd_web/controllers/api/version_controller.ex`     | Version info           |
+| `api/api-base/`               | API base           |        | `lib/ex_gocd_web/controllers/`                              | Phoenix controllers    |
+| `api/api-dashboard-v4/`       | Dashboard API      |        | `lib/ex_gocd_web/live/dashboard_live.ex`                    | LiveView               |
+| `api/api-pipeline-*`          | Pipeline APIs      |        | `lib/ex_gocd_web/controllers/api/pipeline_controller.ex`    | REST API               |
+| `api/api-agents-v7/`          | Agents API         |        | `lib/ex_gocd_web/controllers/api/agent_controller.ex`       | Agent management       |
+| `api/api-materials-v2/`       | Materials API      |        | `lib/ex_gocd_web/controllers/api/material_controller.ex`    | SCM materials          |
+| `api/api-users-v3/`           | Users API          |        | `lib/ex_gocd_web/controllers/api/user_controller.ex`        | User management        |
+| `api/api-environments-v3/`    | Environments API   |        | `lib/ex_gocd_web/controllers/api/environment_controller.ex` | Environment config     |
+| `api/api-backup-config-v1/`   | Backup config      |        | `lib/ex_gocd/backup/`                                       | Backup management      |
+| `api/api-plugin-infos-v7/`    | Plugin info        |        | N/A                                                         | Plugin system deferred |
+| `api/api-template-config-v7/` | Pipeline templates |        | `lib/ex_gocd/config/template.ex`                            | Template support       |
+| `api/api-stage-*`             | Stage APIs         |        | `lib/ex_gocd_web/controllers/api/stage_controller.ex`       | Stage operations       |
+| `api/api-job-instance-v1/`    | Job instance API   |        | `lib/ex_gocd_web/controllers/api/job_controller.ex`         | Job management         |
+| `api/api-version-v1/`         | Version API        |        | `lib/ex_gocd_web/controllers/api/version_controller.ex`     | Version info           |
 
 ### Agent Modules
 
-| GoCD Module               | Purpose            | Status | Phoenix Equivalent      | Notes                           |
-| ------------------------- | ------------------ | ------ | ----------------------- | ------------------------------- |
-| `agent/`                  | Main agent         | 🚧     | Go binary (`agent/`)    | Phase 2a: Registration in progress |
-| `agent-common/`           | Agent common code  | 🚧     | Go package              | Shared agent code               |
-| `api/api-agents-v7/`      | Agent API          | 🚧     | `API.AgentController`   | Registration, status, work APIs |
-| `domain/.../Agent.java`   | Agent config       | 🚧     | `Agents.Agent`          | Agent Ecto schema               |
-| `agent-launcher/`         | Agent launcher     | ❌     | Go binary               | Agent bootstrapping (Phase 2c)  |
-| `agent-bootstrapper/`     | Agent bootstrapper | ❌     | Go binary               | Agent initialization (Phase 2c) |
-| `agent-process-launcher/` | Process launcher   | ❌     | Go package              | Process management (Phase 2b)   |
+| GoCD Module                 | Purpose            | Status | Phoenix Equivalent    | Notes                                                  |
+| --------------------------- | ------------------ | ------ | --------------------- | ------------------------------------------------------ |
+| `agent/`                    | Main agent         |        | Go binary (`agent/`)  | Phase 2a: Registration in progress (87% LOC reduction) |
+| `agent-common/`             | Agent common code  |        | Go package            | Simplified with stdlib                                 |
+| `api/api-agents-v7/`        | Agent API          |        | `API.AgentController` | Registration, status, work APIs - **COMPLETE**         |
+| `domain/.../Agent.java`     | Agent config       |        | `Agents.Agent`        | Agent Ecto schema - **COMPLETE**                       |
+| `agent-launcher/`           | Agent launcher     |        | N/A                   | **ELIMINATED** - Go binary is self-contained           |
+| `agent-bootstrapper/`       | Agent bootstrapper |        | N/A                   | **ELIMINATED** - Containers handle this                |
+| `agent-process-launcher/`   | Process launcher   |        | N/A                   | **ELIMINATED** - exec.Command is sufficient            |
+| `service/SslInfrastructure` | SSL management     |        | N/A                   | **ELIMINATED** - System cert pool (89% LOC reduction)  |
+| `service/AgentUpgrade`      | JAR upgrade        |        | N/A                   | **ELIMINATED** - Containers/package managers           |
+| `plugin-infra/agent`        | Plugin system      |        | Future/External tools | **DEFERRED** - External tools via exec                 |
 
 ### Web/UI Modules
 
 | GoCD Module               | Purpose       | Status | Phoenix Equivalent            | Notes                       |
 | ------------------------- | ------------- | ------ | ----------------------------- | --------------------------- |
-| `server/src/main/webapp/` | Web assets    | ❌     | `assets/`, `lib/ex_gocd_web/` | Phoenix/LiveView UI         |
-| `spark/spark-spa/`        | SPA framework | ❌     | LiveView                      | No SPA needed with LiveView |
-| `spark/spark-base/`       | Web framework | 🚫     | N/A                           | Phoenix handles this        |
+| `server/src/main/webapp/` | Web assets    |        | `assets/`, `lib/ex_gocd_web/` | Phoenix/LiveView UI         |
+| `spark/spark-spa/`        | SPA framework |        | LiveView                      | No SPA needed with LiveView |
+| `spark/spark-base/`       | Web framework |        | N/A                           | Phoenix handles this        |
 
 ### Infrastructure Modules
 
 | GoCD Module         | Purpose            | Status | Phoenix Equivalent | Notes                |
 | ------------------- | ------------------ | ------ | ------------------ | -------------------- |
-| `jetty/`            | Jetty server       | 🚫     | N/A                | Phoenix uses Cowboy  |
-| `app-server/`       | Application server | 🚫     | N/A                | Phoenix handles this |
-| `server-launcher/`  | Server launcher    | 🚫     | N/A                | `mix phx.server`     |
-| `rack_hack/`        | Ruby Rack          | 🚫     | N/A                | Not needed           |
-| `commandline/`      | CLI utilities      | ❌     | Mix tasks          | `mix gocd.*` tasks   |
-| `jar-class-loader/` | JAR loading        | 🚫     | N/A                | Not applicable       |
+| `jetty/`            | Jetty server       |        | N/A                | Phoenix uses Cowboy  |
+| `app-server/`       | Application server |        | N/A                | Phoenix handles this |
+| `server-launcher/`  | Server launcher    |        | N/A                | `mix phx.server`     |
+| `rack_hack/`        | Ruby Rack          |        | N/A                | Not needed           |
+| `commandline/`      | CLI utilities      |        | Mix tasks          | `mix gocd.*` tasks   |
+| `jar-class-loader/` | JAR loading        |        | N/A                | Not applicable       |
 
 ### Plugin Infrastructure
 
 | GoCD Module                | Purpose       | Status | Phoenix Equivalent | Notes              |
 | -------------------------- | ------------- | ------ | ------------------ | ------------------ |
-| `plugin-infra/go-plugin-*` | Plugin system | 🚫     | Future             | Deferred for later |
+| `plugin-infra/go-plugin-*` | Plugin system |        | Future             | Deferred for later |
 
 ### Build/Test Infrastructure
 
 | GoCD Module        | Purpose             | Status | Phoenix Equivalent           | Notes              |
 | ------------------ | ------------------- | ------ | ---------------------------- | ------------------ |
-| `buildSrc/`        | Build scripts       | 🚫     | N/A                          | Mix handles builds |
-| `test/test-utils/` | Test utilities      | ❌     | `test/support/`              | Test helpers       |
-| `test/test-agent/` | Agent test fixtures | ❌     | `test/support/agent_case.ex` | Agent testing      |
-| `test/http-mocks/` | HTTP mocks          | ❌     | `test/support/`              | Use Bypass or Mox  |
+| `buildSrc/`        | Build scripts       |        | N/A                          | Mix handles builds |
+| `test/test-utils/` | Test utilities      |        | `test/support/`              | Test helpers       |
+| `test/test-agent/` | Agent test fixtures |        | `test/support/agent_case.ex` | Agent testing      |
+| `test/http-mocks/` | HTTP mocks          |        | `test/support/`              | Use Bypass or Mox  |
 
 ### Installers/Docker
 
@@ -108,21 +141,21 @@ Legend:
 
 | GoCD Java Class  | Location                                    | Phoenix Schema        | Location                            | Status | Notes                             |
 | ---------------- | ------------------------------------------- | --------------------- | ----------------------------------- | ------ | --------------------------------- |
-| `PipelineConfig` | `config/config-api/.../PipelineConfig.java` | `Pipeline`            | `lib/ex_gocd/pipelines/pipeline.ex` | 🚧     | Pipeline definition/configuration |
-| `StageConfig`    | `config/config-api/.../StageConfig.java`    | `Stage`               | `lib/ex_gocd/pipelines/stage.ex`    | 🚧     | Stage definition within pipeline  |
-| `JobConfig`      | `config/config-api/.../JobConfig.java`      | `Job`                 | `lib/ex_gocd/pipelines/job.ex`      | 🚧     | Job definition within stage       |
-| `ExecTask`       | `config/config-api/.../ExecTask.java`       | `Task`                | `lib/ex_gocd/pipelines/task.ex`     | 🚧     | Task definition (exec/ant/rake)   |
-| `AntTask`        | `config/config-api/.../AntTask.java`        | `Task` (type: "ant")  | `lib/ex_gocd/pipelines/task.ex`     | 🚧     | Ant build task                    |
-| `RakeTask`       | `config/config-api/.../RakeTask.java`       | `Task` (type: "rake") | `lib/ex_gocd/pipelines/task.ex`     | 🚧     | Rake task                         |
-| `MaterialConfig` | `config/config-api/.../materials/*.java`    | `Material`            | `lib/ex_gocd/pipelines/material.ex` | 🚧     | Material (Git/SVN/etc) config     |
+| `PipelineConfig` | `config/config-api/.../PipelineConfig.java` | `Pipeline`            | `lib/ex_gocd/pipelines/pipeline.ex` |        | Pipeline definition/configuration |
+| `StageConfig`    | `config/config-api/.../StageConfig.java`    | `Stage`               | `lib/ex_gocd/pipelines/stage.ex`    |        | Stage definition within pipeline  |
+| `JobConfig`      | `config/config-api/.../JobConfig.java`      | `Job`                 | `lib/ex_gocd/pipelines/job.ex`      |        | Job definition within stage       |
+| `ExecTask`       | `config/config-api/.../ExecTask.java`       | `Task`                | `lib/ex_gocd/pipelines/task.ex`     |        | Task definition (exec/ant/rake)   |
+| `AntTask`        | `config/config-api/.../AntTask.java`        | `Task` (type: "ant")  | `lib/ex_gocd/pipelines/task.ex`     |        | Ant build task                    |
+| `RakeTask`       | `config/config-api/.../RakeTask.java`       | `Task` (type: "rake") | `lib/ex_gocd/pipelines/task.ex`     |        | Rake task                         |
+| `MaterialConfig` | `config/config-api/.../materials/*.java`    | `Material`            | `lib/ex_gocd/pipelines/material.ex` |        | Material (Git/SVN/etc) config     |
 
 ### Execution Instances (Runtime Tracking)
 
 | GoCD Java Class | Location                      | Phoenix Schema     | Location                                     | Status | Notes                                   |
 | --------------- | ----------------------------- | ------------------ | -------------------------------------------- | ------ | --------------------------------------- |
-| `Pipeline`      | `domain/.../Pipeline.java`    | `PipelineInstance` | `lib/ex_gocd/pipelines/pipeline_instance.ex` | 🚧     | Single pipeline execution (has counter) |
-| `Stage`         | `domain/.../Stage.java`       | `StageInstance`    | `lib/ex_gocd/pipelines/stage_instance.ex`    | 🚧     | Single stage execution in pipeline run  |
-| `JobInstance`   | `domain/.../JobInstance.java` | `JobInstance`      | `lib/ex_gocd/pipelines/job_instance.ex`      | 🚧     | Single job execution in stage run       |
+| `Pipeline`      | `domain/.../Pipeline.java`    | `PipelineInstance` | `lib/ex_gocd/pipelines/pipeline_instance.ex` |        | Single pipeline execution (has counter) |
+| `Stage`         | `domain/.../Stage.java`       | `StageInstance`    | `lib/ex_gocd/pipelines/stage_instance.ex`    |        | Single stage execution in pipeline run  |
+| `JobInstance`   | `domain/.../JobInstance.java` | `JobInstance`      | `lib/ex_gocd/pipelines/job_instance.ex`      |        | Single job execution in stage run       |
 
 ### Key Field Mappings
 
@@ -139,9 +172,9 @@ Legend:
 
 **Current Phoenix Schema Issues:**
 
-- ❌ Currently `Pipeline` schema mixes Config + Instance concepts
-- ❌ Missing: counter, label, buildCause, naturalOrder
-- ❌ Wrong: has label_template (that's PipelineConfig)
+- Currently `Pipeline` schema mixes Config + Instance concepts
+- Missing: counter, label, buildCause, naturalOrder
+- Wrong: has label_template (that's PipelineConfig)
 
 **Required Split:**
 
@@ -183,8 +216,8 @@ Legend:
 
 **Current Phoenix Schema Issues:**
 
-- ❌ Currently `Stage` schema mixes Config + Instance concepts
-- ❌ Missing: orderId, createdTime, counter, state, result, latestRun, rerunOfCounter, completedByTransitionId
+- Currently `Stage` schema mixes Config + Instance concepts
+- Missing: orderId, createdTime, counter, state, result, latestRun, rerunOfCounter, completedByTransitionId
 
 **Required Split:**
 
@@ -198,7 +231,7 @@ Legend:
    - belongs_to :pipeline_instance
    - has_many :job_instances
 
-#### JobInstance (domain/JobInstance.java) → JobInstance ✅ (mostly correct)
+#### JobInstance (domain/JobInstance.java) → JobInstance (mostly correct)
 
 **GoCD Fields:**
 
@@ -220,9 +253,9 @@ Legend:
 
 **Current Phoenix Schema Issues:**
 
-- ❌ Missing: ignored, originalJobId, rerun
-- ❌ JobConfig fields (resources, environment_variables, timeout, run_instance_count) are in WRONG schema
-- ❌ Should reference a JobConfig, not duplicate config fields
+- Missing: ignored, originalJobId, rerun
+- JobConfig fields (resources, environment_variables, timeout, run_instance_count) are in WRONG schema
+- Should reference a JobConfig, not duplicate config fields
 
 **Required Split:**
 
@@ -248,9 +281,9 @@ Legend:
 
 **Current Phoenix Schema Issues:**
 
-- ✅ Using polymorphic `type` field is correct
-- ❌ Task is stored with Job - but in GoCD Tasks belong to JobConfig, not JobInstance
-- ❌ Tasks are executed as part of job run, but config is separate
+- Using polymorphic `type` field is correct
+- Task is stored with Job - but in GoCD Tasks belong to JobConfig, not JobInstance
+- Tasks are executed as part of job run, but config is separate
 
 **Required Approach:**
 
@@ -267,9 +300,9 @@ Legend:
 
 **Current Phoenix Schema Issues:**
 
-- ✅ Polymorphic approach is reasonable
-- ❌ Missing many material-specific fields
-- ❌ GoCD has MaterialInstance (separate from config)
+- Polymorphic approach is reasonable
+- Missing many material-specific fields
+- GoCD has MaterialInstance (separate from config)
 
 ---
 
@@ -302,9 +335,9 @@ Legend:
 
 | GoCD Module           | Purpose       | Status | Phoenix Equivalent    | Notes                       |
 | --------------------- | ------------- | ------ | --------------------- | --------------------------- |
-| `docker/gocd-server/` | Server Docker | ❌     | `docker-gocd-server/` | Already exists in workspace |
-| `docker/gocd-agent/`  | Agent Docker  | ❌     | TBD                   | Go agent Docker             |
-| `installers/`         | OS installers | 🚫     | N/A                   | Use Docker/releases         |
+| `docker/gocd-server/` | Server Docker |        | `docker-gocd-server/` | Already exists in workspace |
+| `docker/gocd-agent/`  | Agent Docker  |        | TBD                   | Go agent Docker             |
+| `installers/`         | OS installers |        | N/A                   | Use Docker/releases         |
 
 ---
 
@@ -314,50 +347,50 @@ Legend:
 
 | GoCD Test Module                         | Test Type | Status | Phoenix Test                            | Notes                 |
 | ---------------------------------------- | --------- | ------ | --------------------------------------- | --------------------- |
-| `domain/src/test/.../Pipeline*Test.java` | Unit      | ❌     | `test/ex_gocd/domain/pipeline_test.exs` | Pipeline domain logic |
-| `domain/src/test/.../Stage*Test.java`    | Unit      | ❌     | `test/ex_gocd/domain/stage_test.exs`    | Stage domain logic    |
-| `domain/src/test/.../Job*Test.java`      | Unit      | ❌     | `test/ex_gocd/domain/job_test.exs`      | Job domain logic      |
-| `domain/src/test/.../Material*Test.java` | Unit      | ❌     | `test/ex_gocd/domain/material_test.exs` | Material domain logic |
-| `domain/src/test/.../Agent*Test.java`    | Unit      | ❌     | `test/ex_gocd/domain/agent_test.exs`    | Agent domain logic    |
+| `domain/src/test/.../Pipeline*Test.java` | Unit      |        | `test/ex_gocd/domain/pipeline_test.exs` | Pipeline domain logic |
+| `domain/src/test/.../Stage*Test.java`    | Unit      |        | `test/ex_gocd/domain/stage_test.exs`    | Stage domain logic    |
+| `domain/src/test/.../Job*Test.java`      | Unit      |        | `test/ex_gocd/domain/job_test.exs`      | Job domain logic      |
+| `domain/src/test/.../Material*Test.java` | Unit      |        | `test/ex_gocd/domain/material_test.exs` | Material domain logic |
+| `domain/src/test/.../Agent*Test.java`    | Unit      |        | `test/ex_gocd/domain/agent_test.exs`    | Agent domain logic    |
 
 ### Config Tests
 
 | GoCD Test Module                               | Test Type   | Status | Phoenix Test                          | Notes                     |
 | ---------------------------------------------- | ----------- | ------ | ------------------------------------- | ------------------------- |
-| `config/config-api/src/test/.../*Test.java`    | Unit        | ❌     | `test/ex_gocd/config/*_test.exs`      | Config parsing/validation |
-| `config/config-server/src/test/.../*Test.java` | Integration | ❌     | `test/ex_gocd/config/server_test.exs` | Config server behavior    |
+| `config/config-api/src/test/.../*Test.java`    | Unit        |        | `test/ex_gocd/config/*_test.exs`      | Config parsing/validation |
+| `config/config-server/src/test/.../*Test.java` | Integration |        | `test/ex_gocd/config/server_test.exs` | Config server behavior    |
 
 ### Server Tests
 
 | GoCD Test Module                           | Test Type        | Status | Phoenix Test                        | Notes                     |
 | ------------------------------------------ | ---------------- | ------ | ----------------------------------- | ------------------------- |
-| `server/src/test/.../scheduler/*Test.java` | Unit             | ❌     | `test/ex_gocd/scheduler/*_test.exs` | Scheduler GenServer tests |
-| `server/src/test/.../service/*Test.java`   | Unit/Integration | ❌     | `test/ex_gocd/services/*_test.exs`  | Service layer tests       |
-| `server/src/test/.../database/*Test.java`  | Integration      | ❌     | `test/ex_gocd/repo_test.exs`        | Database integration      |
+| `server/src/test/.../scheduler/*Test.java` | Unit             |        | `test/ex_gocd/scheduler/*_test.exs` | Scheduler GenServer tests |
+| `server/src/test/.../service/*Test.java`   | Unit/Integration |        | `test/ex_gocd/services/*_test.exs`  | Service layer tests       |
+| `server/src/test/.../database/*Test.java`  | Integration      |        | `test/ex_gocd/repo_test.exs`        | Database integration      |
 
 ### API Tests
 
 | GoCD Test Module                               | Test Type  | Status | Phoenix Test                                                    | Notes              |
 | ---------------------------------------------- | ---------- | ------ | --------------------------------------------------------------- | ------------------ |
-| `api/api-dashboard-v4/src/test/.../*Test.java` | Controller | ❌     | `test/ex_gocd_web/live/dashboard_live_test.exs`                 | LiveView tests     |
-| `api/api-pipeline-*/src/test/.../*Test.java`   | Controller | ❌     | `test/ex_gocd_web/controllers/api/pipeline_controller_test.exs` | API endpoint tests |
-| `api/api-agents-v7/src/test/.../*Test.java`    | Controller | ❌     | `test/ex_gocd_web/controllers/api/agent_controller_test.exs`    | Agent API tests    |
+| `api/api-dashboard-v4/src/test/.../*Test.java` | Controller |        | `test/ex_gocd_web/live/dashboard_live_test.exs`                 | LiveView tests     |
+| `api/api-pipeline-*/src/test/.../*Test.java`   | Controller |        | `test/ex_gocd_web/controllers/api/pipeline_controller_test.exs` | API endpoint tests |
+| `api/api-agents-v7/src/test/.../*Test.java`    | Controller |        | `test/ex_gocd_web/controllers/api/agent_controller_test.exs`    | Agent API tests    |
 
 ### Agent Tests
 
 | GoCD Test Module                       | Test Type        | Status | Phoenix Test                 | Notes                      |
 | -------------------------------------- | ---------------- | ------ | ---------------------------- | -------------------------- |
-| `agent/src/test/.../*Test.java`        | Unit/Integration | ❌     | Go tests (`agent/*_test.go`) | Agent implementation in Go |
-| `agent-common/src/test/.../*Test.java` | Unit             | ❌     | Go tests                     | Common agent code          |
+| `agent/src/test/.../*Test.java`        | Unit/Integration |        | Go tests (`agent/*_test.go`) | Agent implementation in Go |
+| `agent-common/src/test/.../*Test.java` | Unit             |        | Go tests                     | Common agent code          |
 
 ### Integration/E2E Tests
 
 | GoCD Test Type           | Status | Phoenix Test                                   | Notes                  |
 | ------------------------ | ------ | ---------------------------------------------- | ---------------------- |
-| Server-Agent integration | ❌     | `test/integration/agent_registration_test.exs` | Agent communication    |
-| Pipeline execution E2E   | ❌     | `test/integration/pipeline_execution_test.exs` | Full pipeline flow     |
-| Material polling         | ❌     | `test/integration/material_polling_test.exs`   | SCM polling behavior   |
-| Config reload            | ❌     | `test/integration/config_reload_test.exs`      | Dynamic config changes |
+| Server-Agent integration |        | `test/integration/agent_registration_test.exs` | Agent communication    |
+| Pipeline execution E2E   |        | `test/integration/pipeline_execution_test.exs` | Full pipeline flow     |
+| Material polling         |        | `test/integration/material_polling_test.exs`   | SCM polling behavior   |
+| Config reload            |        | `test/integration/config_reload_test.exs`      | Dynamic config changes |
 
 ---
 
@@ -410,7 +443,7 @@ Legend:
 - All 38 tests passing with updated assertions for new structure
 - **Phase 1.4 Complete**: Schema alignment with GoCD source code (97 tests passing)
 - Examined GoCD Java source (domain/ and config/config-api/) for exact field mappings
-- Updated all 8 schemas to match GoCD exactly (Pipeline, Stage, Job, Material, *Instance)
+- Updated all 8 schemas to match GoCD exactly (Pipeline, Stage, Job, Material, \*Instance)
 - Fixed test failures based on GoCD constructors and validation rules
 - Created comprehensive test mapping documentation (GoCD Java tests → Phoenix tests)
 - Created value_objects.md documenting non-persistent domain objects (BuildCause, Identifiers)
@@ -425,6 +458,7 @@ Legend:
 See [AGENTS.md](../../../AGENTS.md) for comprehensive implementation plan.
 
 ### Goals
+
 1. Build Go-based agent with clean architecture
 2. Implement agent registration (Ecto API + REST API)
 3. Establish polling mechanism for work assignment
@@ -432,8 +466,9 @@ See [AGENTS.md](../../../AGENTS.md) for comprehensive implementation plan.
 5. Maintain comprehensive test coverage (>80%)
 
 ### Active Tasks
+
 - [ ] Create agents migration
-- [ ] Implement Agent Ecto schema  
+- [ ] Implement Agent Ecto schema
 - [ ] Implement Agents context module
 - [ ] Build agent registration API endpoint
 - [ ] Write agent registration tests
@@ -484,19 +519,19 @@ This section maps GoCD's Java test files to our corresponding Elixir test files,
 
 | GoCD Test File         | Location                                   | Phoenix Test File            | Location                                            | Status | Key Test Patterns                                         |
 | ---------------------- | ------------------------------------------ | ---------------------------- | --------------------------------------------------- | ------ | --------------------------------------------------------- |
-| `JobInstanceTest.java` | `domain/src/test/.../JobInstanceTest.java` | `job_instance_test.exs`      | `test/ex_gocd/pipelines/job_instance_test.exs`      | ✅     | State transitions, timing, agent assignment               |
-| `StageTest.java`       | `domain/src/test/.../StageTest.java`       | `stage_instance_test.exs`    | `test/ex_gocd/pipelines/stage_instance_test.exs`    | ✅     | State calculation, result aggregation, counter validation |
-| `PipelineTest.java`    | `domain/src/test/.../PipelineTest.java`    | `pipeline_instance_test.exs` | `test/ex_gocd/pipelines/pipeline_instance_test.exs` | ✅     | BuildCause tracking, natural ordering, label generation   |
+| `JobInstanceTest.java` | `domain/src/test/.../JobInstanceTest.java` | `job_instance_test.exs`      | `test/ex_gocd/pipelines/job_instance_test.exs`      |        | State transitions, timing, agent assignment               |
+| `StageTest.java`       | `domain/src/test/.../StageTest.java`       | `stage_instance_test.exs`    | `test/ex_gocd/pipelines/stage_instance_test.exs`    |        | State calculation, result aggregation, counter validation |
+| `PipelineTest.java`    | `domain/src/test/.../PipelineTest.java`    | `pipeline_instance_test.exs` | `test/ex_gocd/pipelines/pipeline_instance_test.exs` |        | BuildCause tracking, natural ordering, label generation   |
 
 ### Configuration Model Tests (Pipeline Definition)
 
 | GoCD Test File                      | Location                                                 | Phoenix Test File   | Location                                   | Status | Key Test Patterns                                         |
 | ----------------------------------- | -------------------------------------------------------- | ------------------- | ------------------------------------------ | ------ | --------------------------------------------------------- |
-| `PipelineConfigTest.java`           | `config/config-api/src/test/.../PipelineConfigTest.java` | `pipeline_test.exs` | `test/ex_gocd/pipelines/pipeline_test.exs` | ✅     | Config validation, template handling, params              |
-| `StageConfigTest.java`              | `config/config-api/src/test/.../StageConfigTest.java`    | `stage_test.exs`    | `test/ex_gocd/pipelines/stage_test.exs`    | ✅     | Approval types, fetch materials, cleanup artifacts        |
-| `JobConfigTest.java`                | `config/config-api/src/test/.../JobConfigTest.java`      | `job_test.exs`      | `test/ex_gocd/pipelines/job_test.exs`      | ✅     | Timeout validation, resource allocation, elastic profiles |
-| `TaskTest.java` (various)           | `config/config-api/src/test/.../tasks/*Test.java`        | `task_test.exs`     | `test/ex_gocd/pipelines/task_test.exs`     | ✅     | Task polymorphism, command validation                     |
-| `MaterialConfigTest.java` (various) | `config/config-api/src/test/.../materials/*Test.java`    | `material_test.exs` | `test/ex_gocd/pipelines/material_test.exs` | ✅     | Material types, auto-update, filters                      |
+| `PipelineConfigTest.java`           | `config/config-api/src/test/.../PipelineConfigTest.java` | `pipeline_test.exs` | `test/ex_gocd/pipelines/pipeline_test.exs` |        | Config validation, template handling, params              |
+| `StageConfigTest.java`              | `config/config-api/src/test/.../StageConfigTest.java`    | `stage_test.exs`    | `test/ex_gocd/pipelines/stage_test.exs`    |        | Approval types, fetch materials, cleanup artifacts        |
+| `JobConfigTest.java`                | `config/config-api/src/test/.../JobConfigTest.java`      | `job_test.exs`      | `test/ex_gocd/pipelines/job_test.exs`      |        | Timeout validation, resource allocation, elastic profiles |
+| `TaskTest.java` (various)           | `config/config-api/src/test/.../tasks/*Test.java`        | `task_test.exs`     | `test/ex_gocd/pipelines/task_test.exs`     |        | Task polymorphism, command validation                     |
+| `MaterialConfigTest.java` (various) | `config/config-api/src/test/.../materials/*Test.java`    | `material_test.exs` | `test/ex_gocd/pipelines/material_test.exs` |        | Material types, auto-update, filters                      |
 
 ### Key Test Insights from GoCD Source
 
@@ -525,15 +560,15 @@ This section maps GoCD's Java test files to our corresponding Elixir test files,
 
 ### Test Coverage Alignment
 
-**Current Status**: ✅ All core schema tests passing (97 tests, 0 failures)
+**Current Status**: All core schema tests passing (97 tests, 0 failures)
 
 **Alignment with GoCD**:
 
-- ✅ Required fields match GoCD constructors
-- ✅ Validation rules match GoCD constraints
-- ✅ State/result enums match exactly
-- ✅ Unique constraints match domain logic
-- ✅ Defaults match GoCD behavior
+- Required fields match GoCD constructors
+- Validation rules match GoCD constraints
+- State/result enums match exactly
+- Unique constraints match domain logic
+- Defaults match GoCD behavior
 
 **Test Fixtures**:
 
