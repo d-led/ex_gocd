@@ -20,6 +20,7 @@
 - Make sure to make the app still work for a variety of screens, touch screen and keep it accessible.
 - TEST at all levels that make sense! Try to stay close to the specification in the original GoCD repo. Test [LiveViews](https://hexdocs.pm/phoenix_live_view/Phoenix.LiveViewTest.html) and [Ecto](https://hexdocs.pm/ecto/testing-with-ecto.html) apart from the unit and integration tests of modules. Make sure the tests run in Github Actions and report a table of results.
 - For the API spec, we need to stick to the same spec but without the backward compatibility (just latest version): [api.go.cd](../../api.go.cd)
+- Validate data properly. Users need to know what exactly is wrong and where. GoCD is optimized for immediate understandability and insight into failures.
 
 ## CRITICAL: Domain Language and Data Model Fidelity
 

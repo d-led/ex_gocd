@@ -5,7 +5,7 @@ defmodule ExGoCD.Pipelines.Task do
   Tasks run sequentially within a job. Each task runs as an independent program,
   so environment variable changes don't carry over, but filesystem changes do.
 
-  Based on GoCD concepts: https://docs.gocd.org/current/introduction/concepts_in_go.html#task
+  Based on GoCD source: config/config-api/.../ExecTask.java, AntTask.java, etc. (Task interface)
   """
   use Ecto.Schema
   import Ecto.Changeset

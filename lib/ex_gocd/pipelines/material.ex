@@ -1,11 +1,11 @@
 defmodule ExGoCD.Pipelines.Material do
   @moduledoc """
-  A material is a cause for a pipeline to run (trigger).
+  A material is a trigger for a pipeline (source code repository, dependency, etc.).
 
   Materials include source code repositories (Git, SVN, etc.), pipeline dependencies,
   package repositories, and timer triggers. GoCD polls materials for changes.
 
-  Based on GoCD concepts: https://docs.gocd.org/current/introduction/concepts_in_go.html#materials
+  Based on GoCD source: domain/materials/Material.java (interface) + implementations
   """
   use Ecto.Schema
   import Ecto.Changeset
@@ -22,6 +22,7 @@ defmodule ExGoCD.Pipelines.Material do
           auto_update: boolean(),
           filter_ignore: [String.t()],
           filter_include: [String.t()],
+          type_specific_config: map(),
           pipelines: [Pipeline.t()],
           inserted_at: NaiveDateTime.t() | nil,
           updated_at: NaiveDateTime.t() | nil
@@ -36,6 +37,7 @@ defmodule ExGoCD.Pipelines.Material do
     field :auto_update, :boolean, default: true
     field :filter_ignore, {:array, :string}, default: []
     field :filter_include, {:array, :string}, default: []
+    field :type_specific_config, :map, default: %{}
 
     many_to_many :pipelines, Pipeline, join_through: "pipelines_materials"
 
@@ -56,7 +58,8 @@ defmodule ExGoCD.Pipelines.Material do
       :destination,
       :auto_update,
       :filter_ignore,
-      :filter_include
+      :filter_include,
+      :type_specific_config
     ])
     |> validate_required([:type])
     |> validate_inclusion(:type, [
@@ -67,7 +70,7 @@ defmodule ExGoCD.Pipelines.Material do
       "tfs",
       "dependency",
       "package",
-      "plugin"
+      "pluggable_scm"
     ])
   end
 end

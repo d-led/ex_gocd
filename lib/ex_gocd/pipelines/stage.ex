@@ -1,11 +1,12 @@
 defmodule ExGoCD.Pipelines.Stage do
   @moduledoc """
-  A stage consists of multiple jobs that can run independently in parallel.
+  A stage configuration defines a collection of jobs that can run in parallel.
 
+  This represents StageConfig in GoCD - the definition/template, not a running instance.
   Stages run sequentially within a pipeline. If any job fails, the stage fails,
   but other jobs in the stage continue to completion.
 
-  Based on GoCD concepts: https://docs.gocd.org/current/introduction/concepts_in_go.html#stage
+  Based on GoCD source: config/config-api/.../StageConfig.java
   """
   use Ecto.Schema
   import Ecto.Changeset
@@ -20,6 +21,7 @@ defmodule ExGoCD.Pipelines.Stage do
           never_cleanup_artifacts: boolean(),
           approval_type: String.t(),
           environment_variables: map(),
+          approval_authorization: map(),
           pipeline_id: integer() | nil,
           pipeline: Pipeline.t() | Ecto.Association.NotLoaded.t(),
           jobs: [Job.t()],
@@ -34,6 +36,7 @@ defmodule ExGoCD.Pipelines.Stage do
     field :never_cleanup_artifacts, :boolean, default: false
     field :approval_type, :string, default: "success"
     field :environment_variables, :map, default: %{}
+    field :approval_authorization, :map, default: %{}
 
     belongs_to :pipeline, Pipeline
     has_many :jobs, Job, on_delete: :delete_all
@@ -54,6 +57,7 @@ defmodule ExGoCD.Pipelines.Stage do
       :never_cleanup_artifacts,
       :approval_type,
       :environment_variables,
+      :approval_authorization,
       :pipeline_id
     ])
     |> validate_required([:name, :pipeline_id])

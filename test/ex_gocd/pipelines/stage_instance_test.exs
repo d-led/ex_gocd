@@ -1,61 +1,56 @@
 defmodule ExGoCD.Pipelines.StageInstanceTest do
   use ExGoCD.DataCase, async: true
 
-  alias ExGoCD.Pipelines.{Pipeline, Stage, PipelineInstance, StageInstance}
+  alias ExGoCD.Pipelines.{Pipeline, PipelineInstance, StageInstance}
 
   setup do
     pipeline =
       Pipeline.changeset(%Pipeline{}, %{name: "test-pipeline"})
       |> Repo.insert!()
 
-    stage =
-      Stage.changeset(%Stage{}, %{
-        name: "build",
-        pipeline_id: pipeline.id
-      })
-      |> Repo.insert!()
-
     pipeline_instance =
       PipelineInstance.changeset(%PipelineInstance{}, %{
         counter: 1,
         label: "1",
-        status: "Building",
-        triggered_by: "user",
+        natural_order: 1.0,
+        build_cause: %{"approver" => "user"},
         pipeline_id: pipeline.id
       })
       |> Repo.insert!()
 
-    %{stage: stage, pipeline_instance: pipeline_instance}
+    %{pipeline_instance: pipeline_instance}
   end
 
   describe "changeset/2" do
     test "valid changeset with required fields", %{
-      stage: stage,
       pipeline_instance: pipeline_instance
     } do
       changeset =
         StageInstance.changeset(%StageInstance{}, %{
           name: "build",
           counter: 1,
-          approval_type: "success",
-          result: "Unknown",
+          order_id: 1,
           state: "Building",
-          stage_id: stage.id,
+          result: "Unknown",
+          approval_type: "success",
+          created_time: DateTime.utc_now(),
           pipeline_instance_id: pipeline_instance.id
         })
 
       assert changeset.valid?
     end
 
-    test "requires name, counter, approval_type, stage_id, pipeline_instance_id" do
+    test "requires name, counter, order_id, state, approval_type, created_time, pipeline_instance_id" do
       changeset = StageInstance.changeset(%StageInstance{}, %{})
       errors = errors_on(changeset)
 
       assert %{
                name: ["can't be blank"],
                counter: ["can't be blank"],
+               order_id: ["can't be blank"],
+               state: ["can't be blank"],
                approval_type: ["can't be blank"],
-               stage_id: ["can't be blank"],
+               created_time: ["can't be blank"],
                pipeline_instance_id: ["can't be blank"]
              } = errors
     end
@@ -65,10 +60,11 @@ defmodule ExGoCD.Pipelines.StageInstanceTest do
         StageInstance.changeset(%StageInstance{}, %{
           name: "build",
           counter: 0,
-          approval_type: "success",
-          result: "Unknown",
+          order_id: 1,
           state: "Building",
-          stage_id: 1,
+          result: "Unknown",
+          approval_type: "success",
+          created_time: DateTime.utc_now(),
           pipeline_instance_id: 1
         })
 
@@ -80,26 +76,28 @@ defmodule ExGoCD.Pipelines.StageInstanceTest do
         StageInstance.changeset(%StageInstance{}, %{
           name: "build",
           counter: 1,
-          approval_type: "success",
-          result: "invalid",
+          order_id: 1,
           state: "Building",
-          stage_id: 1,
+          result: "invalid",
+          approval_type: "success",
+          created_time: DateTime.utc_now(),
           pipeline_instance_id: 1
         })
 
       assert %{result: ["is invalid"]} = errors_on(changeset)
     end
 
-    test "valid result values", %{stage: stage, pipeline_instance: pipeline_instance} do
+    test "valid result values", %{pipeline_instance: pipeline_instance} do
       for result <- ["Passed", "Failed", "Cancelled", "Unknown"] do
         changeset =
           StageInstance.changeset(%StageInstance{}, %{
             name: "build",
             counter: 1,
-            approval_type: "success",
-            result: result,
+            order_id: 1,
             state: "Building",
-            stage_id: stage.id,
+            result: result,
+            approval_type: "success",
+            created_time: DateTime.utc_now(),
             pipeline_instance_id: pipeline_instance.id
           })
 
@@ -113,26 +111,28 @@ defmodule ExGoCD.Pipelines.StageInstanceTest do
         StageInstance.changeset(%StageInstance{}, %{
           name: "build",
           counter: 1,
-          approval_type: "success",
-          result: "Unknown",
+          order_id: 1,
           state: "invalid",
-          stage_id: 1,
+          result: "Unknown",
+          approval_type: "success",
+          created_time: DateTime.utc_now(),
           pipeline_instance_id: 1
         })
 
       assert %{state: ["is invalid"]} = errors_on(changeset)
     end
 
-    test "valid state values", %{stage: stage, pipeline_instance: pipeline_instance} do
+    test "valid state values", %{pipeline_instance: pipeline_instance} do
       for state <- ["Building", "Completed", "Cancelled"] do
         changeset =
           StageInstance.changeset(%StageInstance{}, %{
             name: "build",
             counter: 1,
-            approval_type: "success",
-            result: "Unknown",
+            order_id: 1,
             state: state,
-            stage_id: stage.id,
+            result: "Unknown",
+            approval_type: "success",
+            created_time: DateTime.utc_now(),
             pipeline_instance_id: pipeline_instance.id
           })
 
@@ -144,16 +144,16 @@ defmodule ExGoCD.Pipelines.StageInstanceTest do
 
   describe "database constraints" do
     test "enforces unique name/counter per pipeline instance", %{
-      stage: stage,
       pipeline_instance: pipeline_instance
     } do
       StageInstance.changeset(%StageInstance{}, %{
         name: "build",
         counter: 1,
-        approval_type: "success",
-        result: "Unknown",
+        order_id: 1,
         state: "Building",
-        stage_id: stage.id,
+        result: "Unknown",
+        approval_type: "success",
+        created_time: DateTime.utc_now(),
         pipeline_instance_id: pipeline_instance.id
       })
       |> Repo.insert!()
@@ -161,10 +161,11 @@ defmodule ExGoCD.Pipelines.StageInstanceTest do
       changeset = StageInstance.changeset(%StageInstance{}, %{
         name: "build",
         counter: 1,
-        approval_type: "success",
-        result: "Unknown",
+        order_id: 2,
         state: "Building",
-        stage_id: stage.id,
+        result: "Unknown",
+        approval_type: "success",
+        created_time: DateTime.utc_now(),
         pipeline_instance_id: pipeline_instance.id
       })
       assert {:error, changeset} = Repo.insert(changeset)

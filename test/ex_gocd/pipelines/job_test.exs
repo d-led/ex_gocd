@@ -72,7 +72,7 @@ defmodule ExGoCD.Pipelines.JobTest do
 
       changeset = Job.changeset(%Job{}, %{name: "compile", stage_id: stage.id})
       assert {:error, changeset} = Repo.insert(changeset)
-      assert %{name: [_]} = errors_on(changeset)
+      assert %{stage_id: [_]} = errors_on(changeset)
     end
   end
 end

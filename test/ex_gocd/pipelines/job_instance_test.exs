@@ -27,8 +27,8 @@ defmodule ExGoCD.Pipelines.JobInstanceTest do
       PipelineInstance.changeset(%PipelineInstance{}, %{
         counter: 1,
         label: "1",
-        status: "Building",
-        triggered_by: "user",
+        natural_order: 1.0,
+        build_cause: %{"approver" => "user"},
         pipeline_id: pipeline.id
       })
       |> Repo.insert!()
@@ -37,10 +37,11 @@ defmodule ExGoCD.Pipelines.JobInstanceTest do
       StageInstance.changeset(%StageInstance{}, %{
         name: "build",
         counter: 1,
-        approval_type: "success",
-        result: "Unknown",
+        order_id: 1,
         state: "Building",
-        stage_id: stage.id,
+        result: "Unknown",
+        approval_type: "success",
+        created_time: DateTime.utc_now(),
         pipeline_instance_id: pipeline_instance.id
       })
       |> Repo.insert!()
@@ -49,26 +50,24 @@ defmodule ExGoCD.Pipelines.JobInstanceTest do
   end
 
   describe "changeset/2" do
-    test "valid changeset with required fields", %{job: job, stage_instance: stage_instance} do
+    test "valid changeset with required fields", %{stage_instance: stage_instance} do
       changeset =
         JobInstance.changeset(%JobInstance{}, %{
           name: "compile",
-          state: "Scheduled",
-          result: "Unknown",
-          job_id: job.id,
+          scheduled_at: ~N[2024-01-01 10:00:00],
           stage_instance_id: stage_instance.id
         })
 
       assert changeset.valid?
     end
 
-    test "requires name, job_id, stage_instance_id" do
+    test "requires name, scheduled_at, stage_instance_id" do
       changeset = JobInstance.changeset(%JobInstance{}, %{})
       errors = errors_on(changeset)
 
       assert %{
                name: ["can't be blank"],
-               job_id: ["can't be blank"],
+               scheduled_at: ["can't be blank"],
                stage_instance_id: ["can't be blank"]
              } = errors
     end

@@ -30,7 +30,7 @@ defmodule ExGoCD.Pipelines.MaterialTest do
     end
 
     test "valid material types" do
-      for type <- ["git", "svn", "hg", "p4", "tfs", "dependency", "package", "plugin"] do
+      for type <- ["git", "svn", "hg", "p4", "tfs", "dependency", "package", "pluggable_scm"] do
         changeset =
           Material.changeset(%Material{}, %{
             type: type

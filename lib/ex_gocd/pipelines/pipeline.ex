@@ -1,11 +1,11 @@
 defmodule ExGoCD.Pipelines.Pipeline do
   @moduledoc """
-  A pipeline consists of multiple stages that run sequentially.
+  A pipeline configuration defines how to build and deploy software.
 
-  If a stage fails, the pipeline fails and following stages won't run.
+  This represents PipelineConfig in GoCD - the definition/template, not a running instance.
   Pipelines are triggered by materials and each run creates a pipeline instance.
 
-  Based on GoCD concepts: https://docs.gocd.org/current/introduction/concepts_in_go.html#pipeline
+  Based on GoCD source: config/config-api/.../PipelineConfig.java
   """
   use Ecto.Schema
   import Ecto.Changeset
@@ -15,11 +15,15 @@ defmodule ExGoCD.Pipelines.Pipeline do
   @type t :: %__MODULE__{
           id: integer() | nil,
           name: String.t(),
-          group: String.t(),
+          group: String.t() | nil,
           label_template: String.t(),
           lock_behavior: String.t(),
           environment_variables: map(),
           timer: String.t() | nil,
+          params: map(),
+          tracking_tool: map() | nil,
+          template_name: String.t() | nil,
+          display_order_weight: integer(),
           stages: [Stage.t()],
           materials: [Material.t()],
           instances: [PipelineInstance.t()],
@@ -34,6 +38,10 @@ defmodule ExGoCD.Pipelines.Pipeline do
     field :lock_behavior, :string, default: "none"
     field :environment_variables, :map, default: %{}
     field :timer, :string
+    field :params, :map, default: %{}
+    field :tracking_tool, :map
+    field :template_name, :string
+    field :display_order_weight, :integer, default: -1
 
     has_many :stages, Stage, on_delete: :delete_all
     many_to_many :materials, Material, join_through: "pipelines_materials", on_delete: :delete_all
@@ -48,7 +56,18 @@ defmodule ExGoCD.Pipelines.Pipeline do
   @spec changeset(t(), map()) :: Ecto.Changeset.t()
   def changeset(pipeline, attrs) do
     pipeline
-    |> cast(attrs, [:name, :group, :label_template, :lock_behavior, :environment_variables, :timer])
+    |> cast(attrs, [
+      :name,
+      :group,
+      :label_template,
+      :lock_behavior,
+      :environment_variables,
+      :timer,
+      :params,
+      :tracking_tool,
+      :template_name,
+      :display_order_weight
+    ])
     |> validate_required([:name])
     |> validate_format(:name, ~r/^[a-zA-Z0-9_\-\.]+$/,
       message: "must contain only alphanumeric characters, hyphens, underscores, and periods"
