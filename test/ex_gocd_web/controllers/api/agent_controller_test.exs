@@ -164,10 +164,10 @@ defmodule ExGoCDWeb.API.AgentControllerTest do
     test "lists only active agents when active=true", %{conn: conn} do
       conn = get(conn, ~p"/api/agents?active=true")
 
-      assert %{"_embedded" => %{"agents" => agents}} = json_response(conn, 200)
       assert response = json_response(conn, 200)
-      agents = response["_embedded"]["agents"]
-      assert hd(agents)["uuid"] == @valid_uuid
+      _agents = response["_embedded"]["agents"]
+      assert length(response["_embedded"]["agents"]) == 1
+      assert hd(response["_embedded"]["agents"])["uuid"] == @valid_uuid
     end
   end
 
@@ -250,7 +250,7 @@ defmodule ExGoCDWeb.API.AgentControllerTest do
       {:ok, updated_agent} = Agents.update_agent(agent, %{resources: []})
 
       # Then make it elastic
-      {:ok, elastic_agent} =
+      {:ok, _elastic_agent} =
         Agents.update_agent(updated_agent, %{
           elastic_agent_id: "elastic-1",
           elastic_plugin_id: "plugin-1"

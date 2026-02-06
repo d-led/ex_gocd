@@ -137,7 +137,7 @@ defmodule ExGoCD.AgentsTest do
 
   describe "list_agents/0" do
     test "returns all agents including disabled and deleted" do
-      {:ok, agent1} =
+      {:ok, _agent1} =
         Agents.register_agent(%{uuid: @valid_uuid, hostname: "a1", ipaddress: "192.168.1.1"})
 
       {:ok, agent2} =
