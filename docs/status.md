@@ -21,9 +21,9 @@ Legend:
 | GoCD Module                         | Purpose                 | Status | Phoenix Equivalent                  | Notes                              |
 | ----------------------------------- | ----------------------- | ------ | ----------------------------------- | ---------------------------------- |
 | `server/`                           | Main server application | ❌     | `lib/ex_gocd/`                      | Core domain logic, services        |
-| `domain/`                           | Domain models           | ❌     | `lib/ex_gocd/domain/`               | Pipelines, Stages, Jobs, Materials |
+| `domain/`                           | Domain models           | 🚧     | `lib/ex_gocd/pipelines/`            | Pipelines, Stages, Jobs, Materials |
 | `common/`                           | Shared utilities        | ❌     | `lib/ex_gocd/`                      | Shared utilities across modules    |
-| `config/config-api/`                | Configuration API       | ❌     | `lib/ex_gocd/config/`               | Config parsing, validation         |
+| `config/config-api/`                | Configuration API       | 🚧     | `lib/ex_gocd/pipelines/`            | Config parsing, validation         |
 | `config/config-server/`             | Configuration server    | ❌     | `lib/ex_gocd/config/server.ex`      | Config management GenServer        |
 | `db/`                               | Database models         | ❌     | `lib/ex_gocd/repo.ex`, `priv/repo/` | Ecto schemas and migrations        |
 | `db-support/db-support-base/`       | DB abstraction          | 🚫     | N/A                                 | Ecto handles this                  |
@@ -97,6 +97,193 @@ Legend:
 | `test/http-mocks/` | HTTP mocks          | ❌     | `test/support/`              | Use Bypass or Mox  |
 
 ### Installers/Docker
+
+
+---
+
+## Domain Model Mapping (GoCD Java → Phoenix Elixir)
+
+### Configuration (Pipeline Definition)
+
+| GoCD Java Class | Location | Phoenix Schema | Location | Status | Notes |
+|---|---|---|---|---|---|
+| `PipelineConfig` | `config/config-api/.../PipelineConfig.java` | `Pipeline` | `lib/ex_gocd/pipelines/pipeline.ex` | 🚧 | Pipeline definition/configuration |
+| `StageConfig` | `config/config-api/.../StageConfig.java` | `Stage` | `lib/ex_gocd/pipelines/stage.ex` | 🚧 | Stage definition within pipeline |
+| `JobConfig` | `config/config-api/.../JobConfig.java` | `Job` | `lib/ex_gocd/pipelines/job.ex` | 🚧 | Job definition within stage |
+| `ExecTask` | `config/config-api/.../ExecTask.java` | `Task` | `lib/ex_gocd/pipelines/task.ex` | 🚧 | Task definition (exec/ant/rake) |
+| `AntTask` | `config/config-api/.../AntTask.java` | `Task` (type: "ant") | `lib/ex_gocd/pipelines/task.ex` | 🚧 | Ant build task |
+| `RakeTask` | `config/config-api/.../RakeTask.java` | `Task` (type: "rake") | `lib/ex_gocd/pipelines/task.ex` | 🚧 | Rake task |
+| `MaterialConfig` | `config/config-api/.../materials/*.java` | `Material` | `lib/ex_gocd/pipelines/material.ex` | 🚧 | Material (Git/SVN/etc) config |
+
+### Execution Instances (Runtime Tracking)
+
+| GoCD Java Class | Location | Phoenix Schema | Location | Status | Notes |
+|---|---|---|---|---|---|
+| `Pipeline` | `domain/.../Pipeline.java` | `PipelineInstance` | `lib/ex_gocd/pipelines/pipeline_instance.ex` | 🚧 | Single pipeline execution (has counter) |
+| `Stage` | `domain/.../Stage.java` | `StageInstance` | `lib/ex_gocd/pipelines/stage_instance.ex` | 🚧 | Single stage execution in pipeline run |
+| `JobInstance` | `domain/.../JobInstance.java` | `JobInstance` | `lib/ex_gocd/pipelines/job_instance.ex` | 🚧 | Single job execution in stage run |
+
+### Key Field Mappings
+
+#### Pipeline (domain/Pipeline.java) → ? (MIXED - needs split)
+
+**GoCD Fields:**
+- `pipelineName`: String
+- `counter`: int - increments with each run
+- `pipelineLabel`: PipelineLabel - display label (e.g., "1.2.3")
+- `stages`: Stages - collection of Stage instances
+- `buildCause`: BuildCause - what triggered this run
+- `naturalOrder`: double - ordering for display
+
+**Current Phoenix Schema Issues:**
+- ❌ Currently `Pipeline` schema mixes Config + Instance concepts
+- ❌ Missing: counter, label, buildCause, naturalOrder
+- ❌ Wrong: has label_template (that's PipelineConfig)
+
+**Required Split:**
+1. `Pipeline` should be the CONFIG (PipelineConfig in GoCD)
+   - name, group, label_template, lock_behavior, environment_variables, timer
+   - has_many :stages (StageConfig)
+   - many_to_many :materials
+
+2. `PipelineInstance` should track EXECUTION (Pipeline in GoCD)
+   - counter, label, status, triggered_by, trigger_message
+   - scheduled_at, completed_at, natural_order
+   - belongs_to :pipeline
+   - has_many :stage_instances
+
+#### Stage (domain/Stage.java) → ? (MIXED - needs split)
+
+**GoCD Fields:**
+- `pipelineId`: Long
+- `name`: String
+- `jobInstances`: JobInstances
+- `approvedBy`: String
+- `cancelledBy`: String
+- `orderId`: int
+- `createdTime`: Timestamp
+- `lastTransitionedTime`: Timestamp
+- `approvalType`: String
+- `fetchMaterials`: boolean
+- `result`: StageResult
+- `counter`: int
+- `identifier`: StageIdentifier
+- `completedByTransitionId`: Long
+- `state`: StageState
+- `latestRun`: boolean
+- `cleanWorkingDir`: boolean
+- `rerunOfCounter`: Integer
+- `artifactsDeleted`: boolean
+- `configVersion`: String
+
+**Current Phoenix Schema Issues:**
+- ❌ Currently `Stage` schema mixes Config + Instance concepts
+- ❌ Missing: orderId, createdTime, counter, state, result, latestRun, rerunOfCounter, completedByTransitionId
+
+**Required Split:**
+1. `Stage` should be the CONFIG (StageConfig in GoCD)
+   - name, fetch_materials, clean_working_directory, never_cleanup_artifacts, approval_type
+   - belongs_to :pipeline
+   - has_many :jobs
+
+2. `StageInstance` should track EXECUTION (Stage in GoCD)
+   - counter, state, result, approved_by, cancelled_by, scheduled_at, completed_at
+   - belongs_to :pipeline_instance
+   - has_many :job_instances
+
+#### JobInstance (domain/JobInstance.java) → JobInstance ✅ (mostly correct)
+
+**GoCD Fields:**
+- `stageId`: long
+- `name`: String
+- `state`: JobState (Scheduled/Assigned/Building/Completed/etc)
+- `result`: JobResult (Unknown/Passed/Failed/Cancelled)
+- `agentUuid`: String
+- `stateTransitions`: JobStateTransitions (not persisted separately)
+- `scheduledDate`: Date
+- `ignored`: boolean
+- `identifier`: JobIdentifier
+- `runOnAllAgents`: boolean
+- `runMultipleInstance`: boolean
+- `originalJobId`: Long
+- `rerun`: boolean
+- `pipelineStillConfigured`: boolean
+- `plan`: JobPlan
+
+**Current Phoenix Schema Issues:**
+- ❌ Missing: ignored, originalJobId, rerun
+- ❌ JobConfig fields (resources, environment_variables, timeout, run_instance_count) are in WRONG schema
+- ❌ Should reference a JobConfig, not duplicate config fields
+
+**Required Split:**
+1. `Job` should be the CONFIG (JobConfig in GoCD)
+   - name, timeout, resources, environment_variables, run_instance_count, elastic_profile_id
+   - belongs_to :stage
+   - has_many :tasks
+
+2. `JobInstance` should track EXECUTION (JobInstance in GoCD)
+   - name, state, result, agent_uuid, scheduled_at, assigned_at, completed_at
+   - run_on_all_agents, run_multiple_instance (flags from Job template)
+   - original_job_id (for reruns), rerun (boolean), ignored
+   - belongs_to :stage_instance
+   - belongs_to :job (the config/definition)
+
+#### Task Interface → Task Schema Issues
+
+**GoCD Structure:**
+- `Task` is an INTERFACE
+- Implementations: `ExecTask`, `AntTask`, `RakeTask`, `NantTask`, `FetchTask`, etc.
+- Each has different fields (ExecTask has command+args, AntTask has target+working_directory)
+
+**Current Phoenix Schema Issues:**
+- ✅ Using polymorphic `type` field is correct
+- ❌ Task is stored with Job - but in GoCD Tasks belong to JobConfig, not JobInstance
+- ❌ Tasks are executed as part of job run, but config is separate
+
+**Required Approach:**
+- `Task` schema is CONFIG (part of JobConfig)
+- Task execution is tracked separately (not yet in GoCD codebase visible here)
+
+#### Material (materials/Material.java interface) → Material
+
+**GoCD Structure:**
+- `Material` is an INTERFACE
+- Implementations: GitMaterial, SvnMaterial, HgMaterial, P4Material, TfsMaterial, DependencyMaterial, PackageMaterial, PluggableSCMMaterial
+- Each type has different config fields
+
+**Current Phoenix Schema Issues:**
+- ✅ Polymorphic approach is reasonable
+- ❌ Missing many material-specific fields
+- ❌ GoCD has MaterialInstance (separate from config)
+
+---
+
+## Schema Correction Plan
+
+### Critical Issues Identified
+
+1. **Config vs Instance Confusion**: Current schemas mix pipeline/stage/job DEFINITIONS with EXECUTION tracking
+2. **Missing Fields**: Many GoCD fields not present in Phoenix schemas
+3. **Wrong Relationships**: Some belongs_to/has_many relationships incorrect
+4. **Task Storage**: Tasks should only be in Job config, not duplicated to instances
+
+### Required Changes
+
+1. **Keep separate**: 
+   - `Pipeline` (config) + `PipelineInstance` (execution)
+   - `Stage` (config) + `StageInstance` (execution)  
+   - `Job` (config) + `JobInstance` (execution)
+   - `Task` (config only - no instance)
+   - `Material` (config only)
+
+2. **Add fields** to match GoCD exactly (see field mappings above)
+
+3. **Fix relationships**:
+   - PipelineInstance.belongs_to :pipeline
+   - StageInstance.belongs_to :pipeline_instance
+   - StageInstance.belongs_to :stage (the config)
+   - JobInstance.belongs_to :stage_instance
+   - JobInstance.belongs_to :job (the config)
 
 | GoCD Module           | Purpose       | Status | Phoenix Equivalent    | Notes                       |
 | --------------------- | ------------- | ------ | --------------------- | --------------------------- |

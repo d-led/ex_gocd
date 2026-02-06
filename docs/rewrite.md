@@ -19,6 +19,7 @@
 - When finishing each atomic task, add the most important entries in terse form in [status.md](./status.md) "Progress Log". Do not add something to the progress log if it's already part of it.
 - Make sure to make the app still work for a variety of screens, touch screen and keep it accessible.
 - TEST at all levels that make sense! Try to stay close to the specification in the original GoCD repo. Test [LiveViews](https://hexdocs.pm/phoenix_live_view/Phoenix.LiveViewTest.html) and [Ecto](https://hexdocs.pm/ecto/testing-with-ecto.html) apart from the unit and integration tests of modules. Make sure the tests run in Github Actions and report a table of results.
+- For the API spec, we need to stick to the same spec but without the backward compatibility (just latest version): [api.go.cd](../../api.go.cd)
 
 ## CRITICAL: Domain Language and Data Model Fidelity
 
@@ -27,6 +28,7 @@
 **We MUST use EXACTLY the same domain language and data model as the original GoCD.**
 
 This is not negotiable. GoCD's conceptual model is one of its greatest strengths, and users depend on this consistency. Any deviation will:
+
 - Break mental models that users have built over years
 - Make documentation and learning materials inconsistent
 - Create confusion during migration from original GoCD
@@ -162,6 +164,7 @@ When implementing schemas and database tables:
 ### Validation Checklist
 
 Before implementing any schema:
+
 - [ ] Check against concepts_in_go.md
 - [ ] Verify terminology matches GoCD exactly
 - [ ] Ensure hierarchy is preserved

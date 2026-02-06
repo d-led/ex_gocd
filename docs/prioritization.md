@@ -53,13 +53,13 @@
 
 ---
 
-### Phase 2: Core Domain Model (RESET - PLANNING)
+### Phase 2: Core Domain Model
 
 **Goal**: Implement foundational GoCD concepts in Ecto schemas
 
-**CRITICAL**: Must follow exact GoCD domain model and terminology. See [rewrite.md](./rewrite.md) for detailed requirements.
+**CRITICAL**: Must follow exact GoCD domain model and terminology. See [rewrite.md](./rewrite.md) and [schema_comparison.md](./schema_comparison.md) for detailed requirements.
 
-#### 2.1 Basic Schema (PLANNED)
+#### 2.1 Basic Schema
 
 ```elixir
 # Correct GoCD hierarchy - from smallest to largest:
@@ -73,26 +73,25 @@
 8. JobInstance (execution of job within stage instance)
 ```
 
-#### 2.2 Relationships (PLANNED)
+#### 2.2 Relationships
 
 - Pipeline → Stages (has_many)
 - Stage → Jobs (has_many)
-- Job → Tasks (has_many) **← was missing before**
+- Job → Tasks (has_many)
 - Pipeline → Materials (many_to_many)
 - Pipeline → PipelineInstances (has_many)
-- PipelineInstance → StageInstances (has_many) **← was missing before**
-- StageInstance → JobInstances (has_many) **← was missing before**
-- Job publishes Artifacts (one-to-many)
-- Agent and Job have Resources (array of strings)
+- PipelineInstance → StageInstances (has_many)
+- StageInstance → JobInstances (has_many)
+- Instance tracking for execution history
 
-#### 2.3 Testing (NOT STARTED)
+#### 2.3 Testing
 
-- [ ] Schema validation tests
-- [ ] Relationship integrity tests
-- [ ] Factory/fixture setup (ExMachina)
-- [ ] Database constraint tests
+- Schema validation tests
+- Relationship integrity tests
+- Changeset validation tests
+- Database constraint tests
 
-**Deliverable**: Core domain model with comprehensive Ecto tests
+**Deliverable**: Core domain model matching GoCD source code exactly
 
 ---
 
