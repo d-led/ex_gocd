@@ -75,7 +75,11 @@ function buildLoadPaths(baseDir) {
 
 async function processOne(entryPath, outPath, loadBaseDir) {
   const loadPaths = buildLoadPaths(loadBaseDir);
-  const result = sass.compile(entryPath, { style: 'expanded', loadPaths });
+  const result = sass.compile(entryPath, {
+    style: 'expanded',
+    loadPaths,
+    quietDeps: true
+  });
   let css = result.css;
   const post = await postcss([autoprefixer]).process(css, { from: undefined });
   css = post.css;

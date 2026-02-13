@@ -2,8 +2,8 @@
  * Stub mixins for GoCD SCSS conversion (no Foundation/FA).
  * Provides: rem-calc, image-url, animation, truncate-*, icon-before/after (placeholder), etc.
  */
-@import "go-variables";
-@import "variables";
+@use "go-variables" as *;
+@use "variables" as *;
 
 // Rails/Foundation helpers so shared/header and others compile without Rails/Foundation
 @function rem-calc($values) {

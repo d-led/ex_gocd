@@ -1,4 +1,4 @@
-@import "../variables";
+@use "../variables" as *;
 
 .agents-page {
   color: $site-header;
