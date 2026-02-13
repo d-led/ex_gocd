@@ -1,7 +1,7 @@
-@import "variables";
+@import "../variables";
 
 .site-header {
-  background: $site-header; // #000728
+  background: $site-header;
   @media (min-width: $screen-md) {
     height: 40px;
   }

@@ -107,8 +107,8 @@ function entryPointMode() {
   const targetMixins = path.join(tmpDir, 'shared', '_mixins.scss');
   mkdirp.sync(path.dirname(targetMixins));
   fs.copyFileSync(stubMixins, targetMixins);
-  // Root-level stubs so "font-awesome-sprockets" etc. resolve from single_page_apps/
-  for (const name of ['_font-awesome-sprockets.scss', '_font-awesome-glyphs.scss', 'foundation_and_overrides.scss']) {
+  // Root-level stubs so "font-awesome-sprockets", "go-variables", etc. resolve
+  for (const name of ['_go-variables.scss', '_font-awesome-sprockets.scss', '_font-awesome-glyphs.scss', 'foundation_and_overrides.scss']) {
     const src = path.join(stubsDir, name);
     if (fs.existsSync(src)) fs.copyFileSync(src, path.join(tmpDir, name));
   }

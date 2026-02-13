@@ -6,10 +6,17 @@ defmodule Mix.Tasks.Convert.Gocd.Css do
   @moduledoc """
   mix convert.gocd.css [INPUT_DIR] [OUTPUT_DIR]
 
-  Runs the Node-based SCSS → CSS converter.
+  Runs the Node-based SCSS → CSS converter in entry-point mode, matching GoCD's
+  WebpackAssetsService (single_page_apps/new_dashboard, single_page_apps/agents).
 
   If `tools/converter/node_modules` is missing, the task will run `npm ci` in `tools/converter`.
   """
+
+  # Entry points aligned with GoCD WebpackAssetsServiceTest (getCSSAssetPathsFor)
+  @gocd_entry_points [
+    "single_page_apps/new_dashboard.scss",
+    "single_page_apps/agents.scss"
+  ]
 
   def run(args) do
     Mix.Task.run("app.start", [])
@@ -34,8 +41,9 @@ defmodule Mix.Tasks.Convert.Gocd.Css do
       Mix.shell().info(out)
     end
 
-    Mix.shell().info("Running converter...")
-    {out, status} = System.cmd("node", ["css-convert.js", input, output], cd: converter_dir, stderr_to_stdout: true)
+    cmd_args = ["css-convert.js", input, output] ++ @gocd_entry_points
+    Mix.shell().info("Running converter (entry-point mode)...")
+    {out, status} = System.cmd("node", cmd_args, cd: converter_dir, stderr_to_stdout: true)
 
     Mix.shell().info(out)
 

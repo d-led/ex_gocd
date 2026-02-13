@@ -64,6 +64,15 @@ Stub load path is prepended so our stubs override the real files where we want (
 - Keep matching GoCD's DOM structure and class names so converted CSS applies without change (see rewrite.md "Component Mapping").
 - Prefer LiveView and `phx-*` over custom JS; use phx-hooks only where necessary (e.g. dropdown close on outside click already done in LiveView).
 
+## Test coverage (GoCD-aligned)
+
+Tests in `test/mix/tasks/convert_gocd_css_test.exs` are specified to match GoCD’s behaviour:
+
+- **GoCD spec**: `WebpackAssetsServiceTest.shouldGetCSSAssetPathsFromManifestJson` expects CSS for entry points `single_page_apps/agents` and `single_page_apps/new_dashboard` → `agents.css`, `new_dashboard.css`. Our converter uses the same entry points and output basenames.
+- **Tests**: (1) Entry-point mode produces exactly those two CSS files. (2) Compiled output contains expanded variables and header comment. (3) Idempotency: second run yields the same output set. (4) Missing entry point causes non-zero exit.
+
+When adding or removing entry points, update `ENTRY_POINT_OUTPUT_BASENAMES` in `css-convert.js`, `@gocd_entry_points` in the Mix task, and `convert_gocd_css.sh` ENTRIES so script, Mix task, and tests stay in sync.
+
 ## Success criteria
 
 - `./scripts/convert_gocd_css.sh` runs without error.
