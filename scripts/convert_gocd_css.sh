@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Convert GoCD SCSS to CSS (entry-point mode). Idempotent: safe to run on each GoCD update.
 # Directory of this script
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONVERTER_DIR="$SCRIPT_DIR/../tools/converter"
@@ -31,3 +32,12 @@ ENTRIES=(
 )
 echo "Converting SCSS entry points from $INPUT_DIR → $OUTPUT_DIR"
 node "$CONVERTER_DIR/css-convert.js" "$INPUT_DIR" "$OUTPUT_DIR" "${ENTRIES[@]}"
+
+# Show diff so you can see what changed (idempotent run → diff after each GoCD update)
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+ABS_OUTPUT="$(cd "$CONVERTER_DIR" && cd "$OUTPUT_DIR" && pwd)"
+if git -C "$REPO_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  echo ""
+  echo "--- Git diff of converted CSS ---"
+  git -C "$REPO_ROOT" diff --no-ext-diff -- "$ABS_OUTPUT" || true
+fi

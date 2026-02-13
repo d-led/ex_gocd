@@ -15,6 +15,13 @@ defmodule ExGoCDWeb.Endpoint do
     websocket: [connect_info: [session: @session_options]],
     longpoll: [connect_info: [session: @session_options]]
 
+  # GoCD agent protocol: WebSocket at /agent-websocket with action/data JSON (see docs/rewrite.md)
+  socket "/agent-websocket", ExGoCDWeb.AgentSocket,
+    websocket: [
+      serializer: {ExGoCDWeb.AgentSerializer, []},
+      connect_info: [:peer_data]
+    ]
+
   # Serve at "/" the static files from "priv/static" directory.
   #
   # When code reloading is disabled (e.g., in production),

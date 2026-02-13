@@ -21,12 +21,27 @@ function copyRecursiveSync(src, dest) {
   }
 }
 
+// In entry-point mode we only produce these basenames; remove them before writing so the run is idempotent
+// and stale files are dropped when an entry is removed. Update this when adding/removing entries.
+const ENTRY_POINT_OUTPUT_BASENAMES = ['new_dashboard.css', 'agents.css'];
+
 function usage() {
   console.log('Usage: node css-convert.js <input_dir> <output_dir> [entry1 [entry2 ...]]');
   console.log('  If entries are given (paths relative to input_dir), only those are compiled.');
+  console.log('  Idempotent: safe to run on each GoCD update; removes known outputs before writing.');
   console.log('  Example: node css-convert.js ../../gocd/.../new_stylesheets ../assets/css/gocd single_page_apps/new_dashboard.scss single_page_apps/agents.scss');
   console.log('  Without entries: globs all .scss except frameworks.scss (and files that import Rails-only deps).');
   process.exit(1);
+}
+
+function removeKnownOutputs(dir) {
+  ENTRY_POINT_OUTPUT_BASENAMES.forEach((name) => {
+    const p = path.join(dir, name);
+    if (fs.existsSync(p)) {
+      fs.unlinkSync(p);
+      console.log('Removed (for idempotent run): ' + p);
+    }
+  });
 }
 
 const args = process.argv.slice(2);
@@ -97,6 +112,8 @@ function entryPointMode() {
     const src = path.join(stubsDir, name);
     if (fs.existsSync(src)) fs.copyFileSync(src, path.join(tmpDir, name));
   }
+  mkdirp.sync(outputDir);
+  removeKnownOutputs(outputDir);
   console.log(`Compiling ${entries.length} entry point(s)...`);
   return Promise.all(
     entries.map((entryPath, i) => {

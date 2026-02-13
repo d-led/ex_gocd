@@ -14,8 +14,9 @@ defmodule Mix.Tasks.Convert.Gocd.Css do
   def run(args) do
     Mix.Task.run("app.start", [])
 
-    input = args |> Enum.at(0, "tools/converter/fixtures/source")
-    output = args |> Enum.at(1, "assets/css/gocd")
+    root = File.cwd!()
+    input = args |> Enum.at(0, "tools/converter/fixtures/source") |> Path.expand(root)
+    output = args |> Enum.at(1, "assets/css/gocd") |> Path.expand(root)
 
     unless File.dir?(input) do
       Mix.raise("Input directory does not exist: #{input}")

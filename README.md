@@ -12,6 +12,8 @@ This server MUST be **100% compatible** with original GoCD:
 
 **Validation**: Both original GoCD agents AND our Go agent must work with this server.
 
+**Compatibility**: The REST API, usage (URLs, headers), and agent protocols (registration + WebSocket) MUST stay compatible with GoCD. See [docs/rewrite.md](docs/rewrite.md) and [api.go.cd](../api.go.cd).
+
 ### Domain Fidelity
 Use **exact** GoCD terminology and data model:
 - Pipeline → Stage → Job → Task hierarchy

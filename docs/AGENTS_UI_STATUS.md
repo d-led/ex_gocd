@@ -121,7 +121,7 @@
 
 ### WebSocket Endpoint for Agents
 
-- [ ] Create `/agent-websocket` endpoint
+- [x] Create `/agent-websocket` endpoint (GoCD protocol: setCookie on join, ping/acknowledge)
 - [ ] Implement WebSocket handler for agent heartbeats
 - [ ] Handle real-time agent state updates
 - [ ] Update agent working_dir, operating_system, free_space from WebSocket messages
