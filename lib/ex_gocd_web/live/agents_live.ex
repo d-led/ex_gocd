@@ -20,6 +20,8 @@ defmodule ExGoCDWeb.AgentsLive do
        selected_agents: MapSet.new(),
        agent_type: :static,
        filter: "",
+       sort_column: "hostname",
+       sort_order: :asc,
        page_title: "Agents",
        current_path: "/agents"
      )}
@@ -77,6 +79,22 @@ defmodule ExGoCDWeb.AgentsLive do
 
   def handle_event("switch_tab", %{"type" => "elastic"}, socket) do
     {:noreply, assign(socket, agent_type: :elastic, selected_agents: MapSet.new())}
+  end
+
+  def handle_event("filter", %{"value" => value}, socket) do
+    {:noreply, assign(socket, filter: String.trim(value))}
+  end
+
+  def handle_event("sort", %{"column" => column}, socket) do
+    {sort_column, sort_order} =
+      if socket.assigns.sort_column == column do
+        order = if socket.assigns.sort_order == :asc, do: :desc, else: :asc
+        {column, order}
+      else
+        {column, :asc}
+      end
+
+    {:noreply, assign(socket, sort_column: sort_column, sort_order: sort_order)}
   end
 
   def handle_event("bulk_delete", _params, socket) do
@@ -233,7 +251,15 @@ defmodule ExGoCDWeb.AgentsLive do
 
         <div class="search-box">
           <i class="fa fa-search" aria-hidden="true"></i>
-          <input type="text" placeholder="Filter Agents" />
+          <input
+            type="text"
+            name="filter"
+            placeholder="Filter Agents"
+            value={@filter}
+            phx-change="filter"
+            phx-debounce="200"
+            aria-label="Filter agents by name, IP, resources, or environments"
+          />
         </div>
       </div>
       
@@ -246,40 +272,40 @@ defmodule ExGoCDWeb.AgentsLive do
                 <input
                   type="checkbox"
                   checked={
-                    MapSet.size(@selected_agents) > 0 &&
-                      MapSet.size(@selected_agents) == length(filtered_agents(@agents, @agent_type))
+                    (agents = displayed_agents(@agents, @agent_type, @filter, @sort_column, @sort_order)) != [] &&
+                      MapSet.size(@selected_agents) == length(agents)
                   }
                   phx-click="toggle_select_all"
                 />
               </th>
-              <th class="sortable">
-                AGENT NAME <i class="fa fa-sort" aria-hidden="true"></i>
+              <th class="sortable" phx-click="sort" phx-value-column="hostname" role="button" tabindex="0">
+                AGENT NAME <i class={sort_icon_class("hostname", @sort_column, @sort_order)} aria-hidden="true"></i>
               </th>
-              <th class="sortable">
-                SANDBOX <i class="fa fa-sort" aria-hidden="true"></i>
+              <th class="sortable" phx-click="sort" phx-value-column="working_dir" role="button" tabindex="0">
+                SANDBOX <i class={sort_icon_class("working_dir", @sort_column, @sort_order)} aria-hidden="true"></i>
               </th>
-              <th class="sortable">
-                OS <i class="fa fa-sort" aria-hidden="true"></i>
+              <th class="sortable" phx-click="sort" phx-value-column="operating_system" role="button" tabindex="0">
+                OS <i class={sort_icon_class("operating_system", @sort_column, @sort_order)} aria-hidden="true"></i>
               </th>
-              <th class="sortable">
-                IP ADDRESS <i class="fa fa-sort" aria-hidden="true"></i>
+              <th class="sortable" phx-click="sort" phx-value-column="ipaddress" role="button" tabindex="0">
+                IP ADDRESS <i class={sort_icon_class("ipaddress", @sort_column, @sort_order)} aria-hidden="true"></i>
               </th>
-              <th class="sortable">
-                STATUS <i class="fa fa-sort" aria-hidden="true"></i>
+              <th class="sortable" phx-click="sort" phx-value-column="state" role="button" tabindex="0">
+                STATUS <i class={sort_icon_class("state", @sort_column, @sort_order)} aria-hidden="true"></i>
               </th>
-              <th class="sortable">
-                FREE SPACE <i class="fa fa-sort" aria-hidden="true"></i>
+              <th class="sortable" phx-click="sort" phx-value-column="free_space" role="button" tabindex="0">
+                FREE SPACE <i class={sort_icon_class("free_space", @sort_column, @sort_order)} aria-hidden="true"></i>
               </th>
-              <th class="sortable">
-                RESOURCES <i class="fa fa-sort" aria-hidden="true"></i>
+              <th class="sortable" phx-click="sort" phx-value-column="resources" role="button" tabindex="0">
+                RESOURCES <i class={sort_icon_class("resources", @sort_column, @sort_order)} aria-hidden="true"></i>
               </th>
-              <th class="sortable">
-                ENVIRONMENTS <i class="fa fa-sort" aria-hidden="true"></i>
+              <th class="sortable" phx-click="sort" phx-value-column="environments" role="button" tabindex="0">
+                ENVIRONMENTS <i class={sort_icon_class("environments", @sort_column, @sort_order)} aria-hidden="true"></i>
               </th>
             </tr>
           </thead>
           <tbody>
-            <%= for agent <- filtered_agents(@agents, @agent_type) do %>
+            <%= for agent <- displayed_agents(@agents, @agent_type, @filter, @sort_column, @sort_order) do %>
               <tr class={if agent.disabled, do: "disabled-row", else: ""}>
                 <td class="checkbox-cell">
                   <input
@@ -342,6 +368,44 @@ defmodule ExGoCDWeb.AgentsLive do
   defp filtered_agents(agents, :elastic) do
     Enum.filter(agents, &(&1.elastic_agent_id || &1.elastic_plugin_id))
   end
+
+  defp displayed_agents(agents, type, filter, sort_column, sort_order) do
+    agents
+    |> filtered_agents(type)
+    |> filter_by_search(filter)
+    |> sort_agents(sort_column, sort_order)
+  end
+
+  defp filter_by_search(agents, ""), do: agents
+
+  defp filter_by_search(agents, term) do
+    term_lower = String.downcase(term)
+
+    Enum.filter(agents, fn agent ->
+      String.contains?(String.downcase(agent.hostname || ""), term_lower) or
+        String.contains?(String.downcase(agent.ipaddress || ""), term_lower) or
+        Enum.any?(agent.resources || [], &String.contains?(String.downcase(&1), term_lower)) or
+        Enum.any?(agent.environments || [], &String.contains?(String.downcase(&1), term_lower))
+    end)
+  end
+
+  defp sort_agents(agents, column, order) do
+    Enum.sort_by(agents, fn agent -> sort_key(agent, column) end, order)
+  end
+
+  defp sort_key(agent, "hostname"), do: agent.hostname || ""
+  defp sort_key(agent, "working_dir"), do: agent.working_dir || ""
+  defp sort_key(agent, "operating_system"), do: agent.operating_system || ""
+  defp sort_key(agent, "ipaddress"), do: agent.ipaddress || ""
+  defp sort_key(agent, "state"), do: agent_status_text(agent)
+  defp sort_key(agent, "free_space"), do: agent.free_space || 0
+  defp sort_key(agent, "resources"), do: Enum.join(agent.resources || [], " ")
+  defp sort_key(agent, "environments"), do: Enum.join(agent.environments || [], " ")
+  defp sort_key(_agent, _), do: ""
+
+  defp sort_icon_class(column, current_column, _order) when column != current_column, do: "fa fa-sort"
+  defp sort_icon_class(_column, _current, :asc), do: "fa fa-sort-up"
+  defp sort_icon_class(_column, _current, :desc), do: "fa fa-sort-down"
 
   defp total_count(agents, type) do
     length(filtered_agents(agents, type))

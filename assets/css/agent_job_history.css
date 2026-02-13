@@ -123,13 +123,16 @@
   text-decoration: underline;
 }
 
-/* State transition icon */
+/* State transition icon (button) */
 .state-transition-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 40px;
   height: 22px;
+  padding: 0;
+  border: none;
+  background: none;
   cursor: pointer;
   color: #555;
   font-size: 16px;
@@ -137,6 +140,65 @@
 
 .state-transition-icon:hover {
   color: #333;
+}
+
+/* Job state transitions modal */
+.job-transitions-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.job-transitions-modal {
+  background: #fff;
+  border-radius: 6px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  max-width: 420px;
+  width: 90%;
+}
+
+.job-transitions-modal-content {
+  padding: 20px;
+}
+
+.job-transitions-modal-content h3 {
+  margin: 0 0 12px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+}
+
+.job-transitions-list {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+  font-size: 13px;
+}
+
+.job-transitions-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 6px 0;
+  border-bottom: 1px solid #eee;
+}
+
+.job-transitions-list li:last-child {
+  border-bottom: none;
+}
+
+.transition-state {
+  font-weight: 500;
+  color: #333;
+}
+
+.transition-time {
+  color: #666;
+  font-family: monospace;
 }
 
 /* Result Status */
