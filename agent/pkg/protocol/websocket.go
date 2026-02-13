@@ -62,7 +62,7 @@ type Build struct {
 	BuildId                 string         `json:"buildId"`
 	BuildLocator            string         `json:"buildLocator"`
 	BuildLocatorForDisplay  string         `json:"buildLocatorForDisplay"`
-	ConsoleUrl              string         `json:"consoleURI"`
+	ConsoleUrl              string         `json:"consoleURI"` // GoCD sends consoleURI
 	ArtifactUploadBaseUrl   string         `json:"artifactUploadBaseUrl"`
 	PropertyBaseUrl         string         `json:"propertyBaseUrl,omitempty"`
 	BuildCommand            *BuildCommand  `json:"buildCommand"`
@@ -161,3 +161,10 @@ func ReportCompletingMessage(report *Report) *Message {
 func ReportCurrentStatusMessage(report *Report) *Message {
 	return ReportMessage(ReportCurrentStatusAction, report)
 }
+
+// Build command name constants (GoCD BuildCommand protocol)
+const (
+	CommandCompose = "compose" // Runs SubCommands in order
+	CommandExec    = "exec"    // Runs Command with Args (exec task)
+	CommandGit     = "git"     // Clone and checkout (URL, Branch, Dest)
+)

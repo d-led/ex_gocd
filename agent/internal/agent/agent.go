@@ -8,13 +8,18 @@ import (
 	"crypto/tls"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
+	"path/filepath"
 	"runtime"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/d-led/ex_gocd/agent/internal/config"
+	"github.com/d-led/ex_gocd/agent/internal/console"
 	"github.com/d-led/ex_gocd/agent/internal/registration"
+	"github.com/d-led/ex_gocd/agent/internal/remoting"
 	"github.com/d-led/ex_gocd/agent/internal/websocket"
 	"github.com/d-led/ex_gocd/agent/pkg/protocol"
 	"github.com/google/uuid"
@@ -25,6 +30,7 @@ type Agent struct {
 	config     *config.Config
 	registrar  *registration.Registrar
 	conn       *websocket.Connection
+	httpClient *http.Client
 	cookie     string
 	state      string
 }
@@ -43,73 +49,125 @@ func New(cfg *config.Config) (*Agent, error) {
 	}, nil
 }
 
-// Start runs the agent lifecycle with automatic reconnection:
+// Start runs the agent lifecycle:
 // 1. Register with server
-// 2. Connect WebSocket (with reconnection)
-// 3. Send ping heartbeats
-// 4. Process incoming messages
+// 2. By default use remoting API (get_cookie, get_work polling) for compatibility with real GoCD
+// 3. If AGENT_USE_WEBSOCKET=true, use WebSocket instead (new feature, e.g. for ex_gocd)
 func (a *Agent) Start(ctx context.Context) error {
 	log.Printf("Starting agent %s", a.config.UUID)
 	log.Printf("Server: %s", a.config.ServerURL.String())
 	log.Printf("Working directory: %s", a.config.WorkingDir)
-	
+	if a.config.UseWebSocket {
+		log.Println("Mode: WebSocket (AGENT_USE_WEBSOCKET=true)")
+	} else {
+		log.Println("Mode: remoting API (polling) — compatible with real GoCD")
+	}
+
 	// Register with server
 	log.Println("Registering with server...")
 	if err := a.registrar.Register(); err != nil {
 		return fmt.Errorf("registration failed: %w", err)
 	}
 	log.Println("Registration successful")
-	
-	// Create TLS config for WebSocket
+
 	tlsConfig, err := a.registrar.CreateTLSConfig()
 	if err != nil {
 		return fmt.Errorf("failed to create TLS config: %w", err)
 	}
-	
-	// Main reconnection loop
-	retryDelay := 2 * time.Second
-	maxRetryDelay := 60 * time.Second
-	
+
+	if a.config.UseWebSocket {
+		return a.runWithConnection(ctx, tlsConfig)
+	}
+	return a.runWithRemoting(ctx, tlsConfig)
+}
+
+// runWithRemoting runs the polling loop: get_cookie, then get_work periodically and execute builds.
+func (a *Agent) runWithRemoting(ctx context.Context, tlsConfig *tls.Config) error {
+	a.httpClient = &http.Client{
+		Transport: &http.Transport{TLSClientConfig: tlsConfig},
+		Timeout:   30 * time.Second,
+	}
+	remotingClient, err := remoting.NewClient(a.config, a.httpClient)
+	if err != nil {
+		return fmt.Errorf("remoting client: %w", err)
+	}
+	runtimeInfo := a.getRuntimeInfo()
+	if a.cookie == "" {
+		cookie, err := remotingClient.GetCookie(runtimeInfo)
+		if err != nil {
+			return fmt.Errorf("get_cookie: %w", err)
+		}
+		a.cookie = cookie
+		runtimeInfo.Cookie = cookie
+		log.Println("Got cookie from server (remoting)")
+	}
+	workTicker := time.NewTicker(a.config.WorkPollInterval)
+	defer workTicker.Stop()
+	pingTicker := time.NewTicker(a.config.HeartbeatInterval)
+	defer pingTicker.Stop()
+	log.Println("Polling for work (remoting)...")
 	for {
 		select {
 		case <-ctx.Done():
-			log.Println("Agent shutting down...")
 			return nil
-		default:
-		}
-		
-		// Try to connect and run
-		err := a.runWithConnection(ctx, tlsConfig)
-		if err == nil {
-			return nil // Clean shutdown
-		}
-		
-		// Check if context was cancelled
-		if ctx.Err() != nil {
-			log.Println("Agent shutting down...")
-			return nil
-		}
-		
-		// Log error and retry with backoff
-		log.Printf("Connection lost: %v", err)
-		log.Printf("Reconnecting in %v...", retryDelay)
-		
-		select {
-		case <-time.After(retryDelay):
-			// Exponential backoff with max
-			retryDelay = retryDelay * 2
-			if retryDelay > maxRetryDelay {
-				retryDelay = maxRetryDelay
+		case <-pingTicker.C:
+			if _, err := remotingClient.Ping(runtimeInfo); err != nil {
+				log.Printf("ping error: %v", err)
 			}
-		case <-ctx.Done():
-			log.Println("Agent shutting down...")
-			return nil
+		case <-workTicker.C:
+			if a.state != "Idle" {
+				continue
+			}
+			work, err := remotingClient.GetWork(runtimeInfo)
+			if err != nil {
+				log.Printf("get_work error: %v", err)
+				continue
+			}
+			if work == nil {
+				continue
+			}
+			build := work.ToBuild(a.config.ServerURL.String())
+			if build == nil || build.BuildCommand == nil {
+				continue
+			}
+			jobID := work.Assignment.JobIdentifier
+			sendRemoting := func(msg *protocol.Message) {
+				a.sendRemotingReport(remotingClient, jobID, msg)
+			}
+			a.handleBuildWithSend(build, sendRemoting)
 		}
+	}
+}
+
+func (a *Agent) sendRemotingReport(c *remoting.Client, jobID *remoting.JobIdentifier, msg *protocol.Message) {
+	if jobID == nil {
+		return
+	}
+	r := msg.Report()
+	if r == nil {
+		return
+	}
+	ri := r.AgentRuntimeInfo
+	if ri == nil {
+		ri = a.getRuntimeInfo()
+	}
+	switch msg.Action {
+	case protocol.ReportCurrentStatusAction:
+		_ = c.ReportCurrentStatus(ri, jobID, r.JobState)
+	case protocol.ReportCompletingAction:
+		_ = c.ReportCompleting(ri, jobID, r.Result)
+	case protocol.ReportCompletedAction:
+		_ = c.ReportCompleted(ri, jobID, r.Result)
 	}
 }
 
 // runWithConnection establishes WebSocket and runs until disconnection
 func (a *Agent) runWithConnection(ctx context.Context, tlsConfig *tls.Config) error {
+	// HTTP client for console/artifact uploads (same TLS as WebSocket)
+	a.httpClient = &http.Client{
+		Transport: &http.Transport{TLSClientConfig: tlsConfig},
+		Timeout:   30 * time.Second,
+	}
 	// Connect WebSocket
 	log.Println("Connecting to server via WebSocket...")
 	conn, err := websocket.Connect(ctx, a.config, tlsConfig)
@@ -170,8 +228,8 @@ func (a *Agent) handleMessage(msg *protocol.Message) error {
 	case protocol.BuildAction:
 		build := msg.DataBuild()
 		log.Printf("Build assigned: %s", build.BuildId)
-		// TODO: Execute build
-		a.handleBuild(build)
+		send := func(m *protocol.Message) { a.conn.Send(m) }
+		a.handleBuildWithSend(build, send)
 		
 	default:
 		log.Printf("Unknown message action: %s", msg.Action)
@@ -210,46 +268,70 @@ func (a *Agent) getRuntimeInfo() *protocol.AgentRuntimeInfo {
 	}
 }
 
-// handleBuild executes a build
-func (a *Agent) handleBuild(build *protocol.Build) {
+// handleBuildWithSend executes a build with a given send function for status reports (WebSocket or remoting).
+func (a *Agent) handleBuildWithSend(build *protocol.Build, send func(*protocol.Message)) {
 	a.state = "Building"
 	defer func() { a.state = "Idle" }()
-	
-	// TODO: Implement full build execution
-	// For now, just report completion
-	
+
+	reportStatus := func(buildID, jobState, result string) {
+		r := &protocol.Report{
+			BuildId:          buildID,
+			JobState:         jobState,
+			Result:           result,
+			AgentRuntimeInfo: a.getRuntimeInfo(),
+		}
+		var msg *protocol.Message
+		switch jobState {
+		case "Completed":
+			msg = protocol.ReportCompletedMessage(r)
+		case "Completing":
+			msg = protocol.ReportCompletingMessage(r)
+		default:
+			msg = protocol.ReportCurrentStatusMessage(r)
+		}
+		send(msg)
+	}
+
 	log.Printf("Executing build: %s", build.BuildId)
-	
-	// Report building
-	a.reportStatus(build.BuildId, "Building", "")
-	
-	// Simulate work
-	time.Sleep(2 * time.Second)
-	
-	// Report completion
-	a.reportStatus(build.BuildId, "Completed", "Passed")
+	if build.BuildCommand == nil {
+		log.Printf("Build %s has no command", build.BuildId)
+		reportStatus(build.BuildId, "Completed", "Passed")
+		return
+	}
+
+	rootDir := filepath.Join(a.config.WorkingDir, sanitizeBuildDir(build.BuildId))
+	if err := os.MkdirAll(rootDir, 0755); err != nil {
+		log.Printf("Failed to create build dir: %v", err)
+		reportStatus(build.BuildId, "Completed", "Failed")
+		return
+	}
+
+	con, err := console.NewWriter(a.httpClient, a.config.ServerURL, build.ConsoleUrl)
+	if err != nil {
+		log.Printf("Failed to create console writer: %v", err)
+		reportStatus(build.BuildId, "Completed", "Failed")
+		return
+	}
+
+	getReport := func(buildID, jobState, result string) *protocol.Report {
+		return &protocol.Report{
+			BuildId:          buildID,
+			JobState:         jobState,
+			Result:           result,
+			AgentRuntimeInfo: a.getRuntimeInfo(),
+		}
+	}
+	session := NewBuildSessionWithConsole(build.BuildId, build.BuildCommand, rootDir, con, send, getReport, nil)
+	session.Run()
 }
 
-// reportStatus reports job status to server
-func (a *Agent) reportStatus(buildID, jobState, result string) {
-	report := &protocol.Report{
-		BuildId:          buildID,
-		JobState:         jobState,
-		Result:           result,
-		AgentRuntimeInfo: a.getRuntimeInfo(),
+func sanitizeBuildDir(s string) string {
+	s = strings.ReplaceAll(s, "/", "_")
+	s = strings.ReplaceAll(s, "\\", "_")
+	if s == "" {
+		return "default"
 	}
-	
-	var msg *protocol.Message
-	switch jobState {
-	case "Completed":
-		msg = protocol.ReportCompletedMessage(report)
-	case "Completing":
-		msg = protocol.ReportCompletingMessage(report)
-	default:
-		msg = protocol.ReportCurrentStatusMessage(report)
-	}
-	
-	a.conn.Send(msg)
+	return s
 }
 
 // loadOrGenerateUUID loads existing UUID or generates a new one

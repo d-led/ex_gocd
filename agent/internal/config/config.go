@@ -40,6 +40,9 @@ type Config struct {
 	// Polling intervals
 	HeartbeatInterval time.Duration
 	WorkPollInterval  time.Duration
+
+	// UseWebSocket: if true, use WebSocket for work (new feature, e.g. ex_gocd). Default false = remoting API (compatible with real GoCD).
+	UseWebSocket bool
 }
 
 // Load creates a Config from environment variables with sensible defaults
@@ -67,6 +70,7 @@ func Load() (*Config, error) {
 		Environments:      viper.GetString("auto.register.environments"),
 		ElasticAgentID:    viper.GetString("auto.register.elastic.agent.id"),
 		ElasticPluginID:   viper.GetString("auto.register.elastic.plugin.id"),
+		UseWebSocket:      viper.GetBool("use.websocket"),
 	}
 	
 	// Derive ConfigDir from WorkDir
@@ -88,7 +92,8 @@ func Load() (*Config, error) {
 	
 	cfg.IPAddress, err = detectIPAddress()
 	if err != nil {
-		return nil, fmt.Errorf("failed to detect IP address: %w", err)
+		// Sandbox/restricted env may block net.InterfaceAddrs(); fallback so agent can run
+		cfg.IPAddress = "127.0.0.1"
 	}
 	
 	return cfg, nil
@@ -117,6 +122,7 @@ func setupViper() {
 	viper.SetDefault("auto.register.environments", "")
 	viper.SetDefault("auto.register.elastic.agent.id", "")
 	viper.SetDefault("auto.register.elastic.plugin.id", "")
+	viper.SetDefault("use.websocket", false)
 }
 
 // UUIDFile returns path to the agent UUID file
@@ -136,6 +142,13 @@ func (c *Config) TokenURL() string {
 	u := *c.ServerURL
 	u.Path = filepath.Join(u.Path, "admin/agent/token")
 	u.RawQuery = fmt.Sprintf("uuid=%s", c.UUID)
+	return u.String()
+}
+
+// RemotingBaseURL returns the base URL for the remoting API (polling: get_work, get_cookie, etc.)
+func (c *Config) RemotingBaseURL() string {
+	u := *c.ServerURL
+	u.Path = filepath.Join(u.Path, "remoting/api/agent")
 	return u.String()
 }
 
