@@ -10,7 +10,9 @@ defmodule ExGoCDWeb.AgentChannel do
   """
   @impl Phoenix.Channel
   def join("agent", %{"identifier" => identifier} = params, socket) do
-    uuid = get_in(identifier, ["uuid"]) || get_in(identifier, ["identifier", "uuid"]) || params["uuid"]
+    uuid =
+      get_in(identifier, ["uuid"]) || get_in(identifier, ["identifier", "uuid"]) || params["uuid"]
+
     socket = assign(socket, :agent_uuid, uuid)
     socket = assign(socket, :agent_identifier, identifier)
 

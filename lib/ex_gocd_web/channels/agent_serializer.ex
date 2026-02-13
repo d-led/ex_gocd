@@ -52,17 +52,24 @@ defmodule ExGoCDWeb.AgentSerializer do
   end
 
   def encode!(%Phoenix.Socket.Reply{status: :error, payload: payload}) do
-    json = Phoenix.json_library().encode!(%{"action" => "phx_reply", "data" => %{"status" => "error", "response" => payload}})
+    json =
+      Phoenix.json_library().encode!(%{
+        "action" => "phx_reply",
+        "data" => %{"status" => "error", "response" => payload}
+      })
+
     {:socket_push, :text, json}
   end
 
   def encode!(%Phoenix.Socket.Message{event: event, payload: payload, ref: ref}) do
     # GoCD format: action, data; optional messageId for acks (setCookie sends data as string)
-    data = cond do
-      is_binary(payload) -> payload
-      is_map(payload) -> payload
-      true -> payload || %{}
-    end
+    data =
+      cond do
+        is_binary(payload) -> payload
+        is_map(payload) -> payload
+        true -> payload || %{}
+      end
+
     map = %{"action" => event, "data" => data}
     map = if ref && ref != "", do: Map.put(map, "messageId", ref), else: map
     json = Phoenix.json_library().encode!(map)

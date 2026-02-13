@@ -36,6 +36,7 @@ defmodule Mix.Tasks.Convert.Gocd.CssTest do
 
       # No extra CSS files beyond what we generate (idempotent set)
       out_files = @output_dir |> File.ls!() |> Enum.filter(&String.ends_with?(&1, ".css"))
+
       assert Enum.sort(out_files) == Enum.sort(@gocd_expected_css_basenames),
              "output should contain only GoCD entry-point CSS files, got: #{inspect(out_files)}"
     end
@@ -74,6 +75,7 @@ defmodule Mix.Tasks.Convert.Gocd.CssTest do
 
       assert second_run_files == first_run_files,
              "second run must produce the same set of files (idempotent)"
+
       assert first_run_files == Enum.sort(@gocd_expected_css_basenames)
     end
   end
@@ -84,7 +86,14 @@ defmodule Mix.Tasks.Convert.Gocd.CssTest do
       input = Path.expand(@input_dir, File.cwd!())
       output = Path.expand(@output_dir, File.cwd!())
       # Pass a non-existent entry along with a valid one
-      args = ["css-convert.js", input, output, "single_page_apps/new_dashboard.scss", "single_page_apps/nonexistent.scss"]
+      args = [
+        "css-convert.js",
+        input,
+        output,
+        "single_page_apps/new_dashboard.scss",
+        "single_page_apps/nonexistent.scss"
+      ]
+
       {_out, status} = System.cmd("node", args, cd: @converter_dir, stderr_to_stdout: true)
       assert status != 0, "converter should fail when an entry point is missing"
     end
