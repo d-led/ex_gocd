@@ -47,7 +47,18 @@ make test
 
 ## Running
 
-### Standalone
+The agent can **auto-register** with the ex_gocd Phoenix server. Use it when ready.
+
+### With ex_gocd (this server)
+```bash
+# Server running at http://localhost:4000
+./bin/gocd-agent --server-url http://localhost:4000 --work-dir ./work
+
+# Or with go run
+AGENT_SERVER_URL="http://localhost:4000" go run .
+```
+
+### Standalone (any GoCD-compatible server)
 ```bash
 ./bin/gocd-agent --server-url http://localhost:4000 --work-dir ./work
 ```
@@ -114,33 +125,18 @@ On first run, the agent creates a `.agent-id.json` file in the work directory co
 
 ## Implementation Status
 
-### 🚧 Phase 1: WebSocket Protocol (TODO - REQUIRED FOR COMPATIBILITY)
-- [ ] WebSocket connection to `/agent-websocket`
-- [ ] Form-based registration at `/admin/agent` with token flow
-- [ ] Custom protocol message parsing (ping, build, setCookie, reregister, etc.)
-- [ ] Proper TLS/certificate handling
-- [ ] Connection retry and reconnection logic
+### ✅ Basics ready (use with ex_gocd server)
+- [x] Form-based registration at `POST /admin/agent` with token flow
+- [x] WebSocket connection to `/agent-websocket`
+- [x] Custom protocol messages (ping, setCookie, reregister, build, etc.)
+- [x] Auto-registration with our Phoenix instance (HTTP; HTTPS with cert download supported for other servers)
+- [x] Config (12-factor env vars), executor (exec, go-git), console buffering, binary (no cgo)
 
-### ⚠️ Current State: REST/JSON (INCOMPATIBLE - NEEDS REWRITE)
-- [x] ~~REST registration~~ (uses `/api/agents` - wrong endpoint!)
-- [x] ~~JSON polling~~ (should use WebSocket, not HTTP polling!)
-- [x] Task execution (exec, go-git) - ✅ Keep this
-- [x] Console log buffering - ✅ Keep this, adapt upload to HTTP POST
-- [x] Artifact handling structure - ✅ Keep this, adapt to multipart
-
-### 🎯 What to Keep
-- Config package (12-factor env vars) ✅
-- Executor (exec, go-git for Git operations) ✅
-- Console log buffering (change upload to match protocol) ✅
-- Task execution logic ✅
-- Binary build (no cgo, statically linked) ✅
-
-### 🔄 What to Rewrite
-- Replace REST client with WebSocket connection
-- Replace JSON protocol with custom message types
-- Change registration from JSON to form POST
-- Implement ping/heartbeat via WebSocket messages
-- Get work via WebSocket `build` messages (not HTTP polling)
+### 🔄 In progress / next
+- [ ] Job execution end-to-end (build → run tasks → report completed)
+- [ ] Console log upload (HTTP POST) and artifact upload (multipart)
+- [ ] Connection retry and reconnection polish
+- [ ] Full TLS/certificate handling for HTTPS servers
 
 ## Testing
 

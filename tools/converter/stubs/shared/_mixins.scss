@@ -1,0 +1,137 @@
+/*
+ * Stub mixins for GoCD SCSS conversion (no Foundation/FA).
+ * Provides: rem-calc, image-url, animation, truncate-*, icon-before/after (placeholder), etc.
+ */
+@import "go-variables";
+@import "variables";
+
+// Rails/Foundation helpers so shared/header and others compile without Rails/Foundation
+@function rem-calc($values) {
+  $list: ();
+  @if type-of($values) == "number" {
+    @return ($values / 16) * 1rem;
+  }
+  @each $v in $values {
+    $list: append($list, ($v / 16) * 1rem, space);
+  }
+  @return $list;
+}
+
+@function image-url($path) {
+  @return url("/images/#{$path}");
+}
+
+/* Skip full _settings (pulls in Foundation util); bourbon provides ellipsis, clearfix */
+@import "bourbon/core/bourbon";
+
+@mixin animation($animations...) {
+  animation: $animations;
+}
+
+@mixin truncate-to-lines($line-count) {
+  $font-size: 12px;
+  $line-height: 1.6em;
+  @include ellipsis;
+  white-space: pre-wrap;
+  line-height: $line-height;
+  font-size: $font-size;
+  max-height: $line-height * $line-count;
+}
+
+@mixin truncate-to-width($max) {
+  max-width: $max;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow-x: hidden;
+}
+
+@mixin commit-message($line-count) {
+  @include truncate-to-lines($line-count: $line-count);
+}
+
+@mixin sort-cursor {
+  cursor: grab;
+}
+
+@mixin sort-cursor-active {
+  cursor: grabbing;
+}
+
+@mixin grip-icon($color: #ccc, $shadow-color: #333) {
+  @include unselectable;
+  display: inline-block;
+  width: 1em;
+  height: 2.2em;
+  line-height: 0.45em;
+  letter-spacing: 0.15em;
+  color: #9b9b9b;
+  vertical-align: middle;
+  text-align: center;
+  font-family: sans-serif;
+  overflow: hidden;
+  white-space: normal;
+  &::after {
+    content: ".. .. .. ..";
+  }
+}
+
+@mixin unselectable {
+  user-select: none !important;
+}
+
+/* Placeholder: real icons in ex_gocd via Heroicons/FA */
+@mixin icon-before(
+  $type,
+  $size: auto,
+  $margin: 5px,
+  $line-height: 1em,
+  $color: auto,
+  $top: auto,
+  $shadow: none,
+  $font: "FontAwesome",
+  $progress-spinner: false
+) {
+  &::before {
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+    margin: $margin;
+    line-height: $line-height;
+    @if $color != auto {
+      color: $color;
+    }
+    @if $size != auto {
+      font-size: $size;
+    }
+    content: "";
+    vertical-align: middle;
+  }
+}
+
+@mixin icon-after(
+  $type,
+  $size: auto,
+  $margin: 5px,
+  $line-height: 1em,
+  $color: auto,
+  $top: auto,
+  $shadow: none,
+  $font: "FontAwesome",
+  $progress-spinner: false
+) {
+  &::after {
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+    margin: $margin;
+    line-height: $line-height;
+    @if $color != auto {
+      color: $color;
+    }
+    @if $size != auto {
+      font-size: $size;
+    }
+    content: "";
+    vertical-align: middle;
+  }
+}

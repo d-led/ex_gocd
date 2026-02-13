@@ -10,7 +10,7 @@ Legend: Not started | In progress | Complete | Not applicable
 
 ## Agent Implementation Analysis
 
-**Status:** Phase 2a (Registration) in progress
+**Status:** Phase 2a (Registration) — basics ready; Go agent can auto-register with our Phoenix instance.
 
 ### Complexity Reduction vs Java
 
@@ -86,7 +86,7 @@ Legend: Not started | In progress | Complete | Not applicable
 
 | GoCD Module                 | Purpose            | Status | Phoenix Equivalent    | Notes                                                  |
 | --------------------------- | ------------------ | ------ | --------------------- | ------------------------------------------------------ |
-| `agent/`                    | Main agent         |        | Go binary (`agent/`)  | Phase 2a: Registration in progress (87% LOC reduction) |
+| `agent/`                    | Main agent         |        | Go binary (`agent/`)  | Registration with our server working; use when ready (87% LOC reduction) |
 | `agent-common/`             | Agent common code  |        | Go package            | Simplified with stdlib                                 |
 | `api/api-agents-v7/`        | Agent API          |        | `API.AgentController` | Registration, status, work APIs - **COMPLETE**         |
 | `domain/.../Agent.java`     | Agent config       |        | `Agents.Agent`        | Agent Ecto schema - **COMPLETE**                       |
@@ -475,6 +475,7 @@ Legend: Not started | In progress | Complete | Not applicable
   - Full CSS styling from agent_job_history.css
   - Ready for data integration when job execution system is implemented
 - All 166 tests passing
+- **Go agent**: Basics prepared; can auto-register with our Phoenix instance. Use it when ready (see README and agent/README.md).
 
 ---
 
@@ -484,34 +485,26 @@ See [AGENTS.md](../../../AGENTS.md) for comprehensive implementation plan.
 
 ### Goals
 
-1. Build Go-based agent with clean architecture
-2. Implement agent registration (Ecto API + REST API)
+1. ~~Build Go-based agent with clean architecture~~ ✅
+2. ~~Implement agent registration (Ecto API + REST API)~~ ✅ (basics ready; use Go agent when ready)
 3. Establish polling mechanism for work assignment
 4. Execute simple jobs and stream console output
 5. Maintain comprehensive test coverage (>80%)
 
 ### Active Tasks
 
-- [ ] Create agents migration
-- [ ] Implement Agent Ecto schema
-- [ ] Implement Agents context module
-- [ ] Build agent registration API endpoint
-- [ ] Write agent registration tests
-- [ ] Bootstrap Go agent project structure
-- [ ] Implement agent registration in Go
-- [ ] Write Go agent integration tests
-- [ ] Verify end-to-end registration flow
+- [ ] Job queue and work assignment (server)
+- [ ] Go agent: handle `build` messages and run tasks
+- [ ] Console log upload and artifact upload
+- [ ] End-to-end job execution tests
 
 ---
 
 ## Next Steps
 
-1. **Phase 2a: Agent Registration** (Current):
-   - Complete Phoenix server-side agent management (schema, context, API)
-   - Build Go agent with registration capability
-   - Verify end-to-end registration flow with tests
+1. **Phase 2a: Agent Registration** — ✅ Basics done: Go agent can auto-register with our Phoenix instance.
 
-2. **Phase 2b: Work Polling & Execution**:
+2. **Phase 2b: Work Polling & Execution** (Current):
    - Implement job queue and work assignment
    - Build Go agent polling mechanism
    - Implement task executor with console streaming

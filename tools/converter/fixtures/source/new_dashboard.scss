@@ -1,0 +1,6 @@
+.site-header {
+  background: $site-header; // #000728
+  @media (min-width: $screen-md) {
+    height: 40px;
+  }
+}

@@ -32,16 +32,23 @@ mix phx.server
 iex -S mix phx.server
 ```
 
+The server reloads automatically on code/config changes unless there are unrecoverable config or compile errors.
+
 Visit [`localhost:4000`](http://localhost:4000)
 
-### With Agent
+### With Go agent (auto-registration)
+
+The Go-based agent can register itself automatically with this server. Use it when you're ready to run work on agents.
+
 ```bash
 # Terminal 1: Phoenix server
 mix phx.server
 
-# Terminal 2: Go agent
+# Terminal 2: Go agent (point at our instance)
 cd agent && go run . --server-url http://localhost:4000
 ```
+
+Optional: set `AGENT_AUTO_REGISTER_KEY` (and optionally resources/environments) to match server config if you use auto-approval. See [agent/README.md](agent/README.md).
 
 ## Documentation
 
