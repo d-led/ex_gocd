@@ -23,7 +23,15 @@ function copyRecursiveSync(src, dest) {
 
 // In entry-point mode we only produce these basenames; remove them before writing so the run is idempotent
 // and stale files are dropped when an entry is removed. Update this when adding/removing entries.
-const ENTRY_POINT_OUTPUT_BASENAMES = ['new_dashboard.css', 'agents.css'];
+// Entry base name (e.g. new_dashboard) may map to a different output name (e.g. dashboard) for app imports.
+const ENTRY_POINT_OUTPUT_BASENAMES = ['dashboard.css', 'agents.css'];
+const ENTRY_TO_OUTPUT_BASENAME = {
+  'new_dashboard': 'dashboard',
+  'agents': 'agents'
+};
+function getOutputBasename(entryBase) {
+  return (ENTRY_TO_OUTPUT_BASENAME[entryBase] || entryBase) + '.css';
+}
 
 function usage() {
   console.log('Usage: node css-convert.js <input_dir> <output_dir> [entry1 [entry2 ...]]');
@@ -73,7 +81,7 @@ function buildLoadPaths(baseDir) {
   ].filter(p => fs.existsSync(p));
 }
 
-async function processOne(entryPath, outPath, loadBaseDir) {
+async function processOne(entryPath, outPath, loadBaseDir, sourceLabel) {
   const loadPaths = buildLoadPaths(loadBaseDir);
   const result = sass.compile(entryPath, {
     style: 'expanded',
@@ -83,7 +91,8 @@ async function processOne(entryPath, outPath, loadBaseDir) {
   let css = result.css;
   const post = await postcss([autoprefixer]).process(css, { from: undefined });
   css = post.css;
-  const header = `/* Converted from: ${path.relative(inputDir, entryPath)} */\n`;
+  const from = sourceLabel !== undefined ? sourceLabel : path.relative(inputDir, entryPath);
+  const header = `/* Converted from: ${from} */\n`;
   const outDir = path.dirname(outPath);
   mkdirp.sync(outDir);
   fs.writeFileSync(outPath, header + css, 'utf8');
@@ -123,10 +132,11 @@ function entryPointMode() {
     entries.map((entryPath, i) => {
       const rel = path.relative(inputDir, entryPath);
       const base = path.basename(entryPath, '.scss');
-      console.log(`  [${i + 1}/${entries.length}] ${base}.scss`);
+      const outBasename = getOutputBasename(base);
+      console.log(`  [${i + 1}/${entries.length}] ${base}.scss → ${outBasename}`);
       const entryInTmp = path.join(tmpDir, rel);
-      const outPath = path.join(outputDir, `${base}.css`);
-      return processOne(entryInTmp, outPath, tmpDir);
+      const outPath = path.join(outputDir, outBasename);
+      return processOne(entryInTmp, outPath, tmpDir, rel);
     })
   ).then(() => {
     console.log('Cleaning up temp dir...');

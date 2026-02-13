@@ -108,7 +108,7 @@
 @import "./gocd/site_header.css";
 @import "./gocd/dropdown.css";
 @import "./gocd/dashboard.css";
-@import "./agents.css";
+@import "./gocd/agents.css";
 @import "./agent_job_history.css";
 
 /* GoCD global styles */

@@ -71,7 +71,27 @@ Tests in `test/mix/tasks/convert_gocd_css_test.exs` are specified to match GoCD�
 - **GoCD spec**: `WebpackAssetsServiceTest.shouldGetCSSAssetPathsFromManifestJson` expects CSS for entry points `single_page_apps/agents` and `single_page_apps/new_dashboard` → `agents.css`, `new_dashboard.css`. Our converter uses the same entry points and output basenames.
 - **Tests**: (1) Entry-point mode produces exactly those two CSS files. (2) Compiled output contains expanded variables and header comment. (3) Idempotency: second run yields the same output set. (4) Missing entry point causes non-zero exit.
 
-When adding or removing entry points, update `ENTRY_POINT_OUTPUT_BASENAMES` in `css-convert.js`, `@gocd_entry_points` in the Mix task, and `convert_gocd_css.sh` ENTRIES so script, Mix task, and tests stay in sync.
+When adding or removing entry points, update `ENTRY_POINT_OUTPUT_BASENAMES` and `ENTRY_TO_OUTPUT_BASENAME` in `css-convert.js`, `@gocd_entry_points` in the Mix task, and `convert_gocd_css.sh` ENTRIES so script, Mix task, and tests stay in sync. Output names: `new_dashboard.scss` → `dashboard.css`, `agents.scss` → `agents.css` (for app imports).
+
+## Checked-in converted CSS (see if anything changes)
+
+Converted CSS is committed under `assets/css/gocd/`:
+
+- `dashboard.css` — from `single_page_apps/new_dashboard.scss`
+- `agents.css` — from `single_page_apps/agents.scss`
+
+`app.css` imports these via `./gocd/dashboard.css` and `./gocd/agents.css`.
+
+**To see if conversion output changed** (e.g. after a GoCD or converter update):
+
+1. Run conversion (fixtures or real GoCD source):
+   - `mix convert.gocd.css` → uses fixtures, writes to `assets/css/gocd`
+   - `mix convert.gocd.css /path/to/gocd/.../new_stylesheets` → uses real GoCD SCSS
+   - Or `./scripts/convert_gocd_css.sh` (defaults to gocd repo path and shows git diff)
+2. Run `git diff assets/css/gocd` (or `git diff -- assets/css/gocd/dashboard.css assets/css/gocd/agents.css`).
+3. If there are changes, review and commit the updated CSS.
+
+So we can always diff converted output against the last committed version.
 
 ## Success criteria
 

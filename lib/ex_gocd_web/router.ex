@@ -22,10 +22,12 @@ defmodule ExGoCDWeb.Router do
   scope "/", ExGoCDWeb do
     pipe_through :browser
 
-    live "/", DashboardLive, :index
-    live "/pipelines", DashboardLive, :index
-    live "/agents", AgentsLive, :index
-    live "/agents/:uuid/job_run_history", AgentJobHistoryLive, :index
+    live_session :gocd, layout: {ExGoCDWeb.Layouts, :gocd} do
+      live "/", DashboardLive, :index
+      live "/pipelines", DashboardLive, :index
+      live "/agents", AgentsLive, :index
+      live "/agents/:uuid/job_run_history", AgentJobHistoryLive, :index
+    end
   end
 
   # Original GoCD agent registration endpoints (backward compatibility)

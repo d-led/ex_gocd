@@ -1,9 +1,9 @@
 defmodule Mix.Tasks.Convert.Gocd.CssTest do
   use ExUnit.Case, async: false
 
-  # Aligned with GoCD WebpackAssetsServiceTest: getCSSAssetPathsFor("single_page_apps/agents", "single_page_apps/new_dashboard")
-  # expects agents.css and new_dashboard.css. Our converter uses the same entry points.
-  @gocd_expected_css_basenames ["agents.css", "new_dashboard.css"]
+  # Aligned with GoCD WebpackAssetsServiceTest: getCSSAssetPathsFor("single_page_apps/agents", "single_page_apps/new_dashboard").
+  # We output dashboard.css (from new_dashboard.scss) and agents.css for app imports (see docs/css_conversion_plan.md).
+  @gocd_expected_css_basenames ["agents.css", "dashboard.css"]
 
   @output_dir "tmp/test_assets"
   @input_dir "tools/converter/fixtures/source"
@@ -22,7 +22,7 @@ defmodule Mix.Tasks.Convert.Gocd.CssTest do
   end
 
   describe "entry-point mode (GoCD-aligned)" do
-    test "produces exactly the CSS files GoCD expects: new_dashboard.css and agents.css" do
+    test "produces exactly the CSS files we use: dashboard.css and agents.css" do
       ensure_node_deps()
       input = Path.expand(@input_dir, File.cwd!())
       output = Path.expand(@output_dir, File.cwd!())
@@ -45,7 +45,7 @@ defmodule Mix.Tasks.Convert.Gocd.CssTest do
       ensure_node_deps()
       Mix.Tasks.Convert.Gocd.Css.run([@input_dir, @output_dir])
 
-      content = File.read!(Path.join(@output_dir, "new_dashboard.css"))
+      content = File.read!(Path.join(@output_dir, "dashboard.css"))
       assert content =~ "Converted from", "contains header comment"
       assert content =~ "background: #000728", "variable $site-header expanded"
       assert content =~ ~r/@media \(min-width: 768px\)/, "media query variable expanded"

@@ -476,6 +476,8 @@ Legend: Not started | In progress | Complete | Not applicable
   - Ready for data integration when job execution system is implemented
 - All 166 tests passing
 - **Go agent**: Basics prepared; can auto-register with our Phoenix instance. Use it when ready (see README and agent/README.md).
+- **CSS conversion**: Converted CSS (dashboard.css, agents.css) is checked in under assets/css/gocd; output names aligned with app imports; run `mix convert.gocd.css` or script and `git diff assets/css/gocd` to see changes (see docs/css_conversion_plan.md).
+- **Agent task execution**: Go agent runs real tasks: exec (command + args), compose (subcommands in order); build session creates work dir, runs command tree, reports Building → Completing → Completed; console log buffered with timestamp prefix, HTTP POST to server every 5s. Test with original GoCD server (see agent/README.md). Next: scheduling on Phoenix server (assign work, send build messages).
 
 ---
 
@@ -493,10 +495,10 @@ See [AGENTS.md](../../../AGENTS.md) for comprehensive implementation plan.
 
 ### Active Tasks
 
-- [ ] Job queue and work assignment (server)
-- [ ] Go agent: handle `build` messages and run tasks
-- [ ] Console log upload and artifact upload
-- [ ] End-to-end job execution tests
+- [x] Go agent: handle `build` messages and run tasks (exec, compose; console upload)
+- [ ] Job queue and work assignment (server) — **scheduling**: assign jobs to agents, send `build` message
+- [ ] Artifact upload and fetch-artifact
+- [ ] End-to-end job execution tests (e.g. agent + original GoCD server)
 
 ---
 

@@ -191,14 +191,14 @@ defmodule ExGoCDWeb.DashboardLive do
       </div>
       <ul class="pipeline_stages">
         <%= for stage <- @pipeline.stages do %>
-          <div class="pipeline_stage_manual_gate_wrapper">
+          <li class="pipeline_stage_manual_gate_wrapper">
             <a
               class={stage_class(stage.status)}
               title={stage_title(stage)}
               aria-label={stage_title(stage)}
             >
             </a>
-          </div>
+          </li>
         <% end %>
       </ul>
     </div>

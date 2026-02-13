@@ -1,9 +1,22 @@
 /*
  * Stub mixins for GoCD SCSS conversion (no Foundation/FA).
  * Provides: rem-calc, image-url, animation, truncate-*, icon-before/after (placeholder), etc.
+ * Use @import (not @use) so we don't duplicate go-variables in the module graph and trigger
+ * "This module and the new module both define a variable named $transition" when _common imports us.
  */
-@use "go-variables" as *;
-@use "variables" as *;
+@import "go-variables";
+@import "variables";
+
+// Variables expected by shared/_common, shared/_modal etc. that normally come from Foundation _settings
+$white: $go-white;
+$body-background: $page-body-background;
+$foundation-palette: (
+  "primary": $go-primary,
+  "secondary": #777,
+  "success": #3adb76,
+  "warning": #ffae00,
+  "alert": #ec5840,
+);
 
 // Rails/Foundation helpers so shared/header and others compile without Rails/Foundation
 @function rem-calc($values) {
