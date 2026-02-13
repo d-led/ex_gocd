@@ -45,28 +45,28 @@ func runAgent(cmd *cobra.Command, args []string) {
 		fmt.Fprintf(os.Stderr, "Failed to load config: %v\n", err)
 		os.Exit(1)
 	}
-	
+
 	// Create agent
 	agt, err := agent.New(cfg)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create agent: %v\n", err)
 		os.Exit(1)
 	}
-	
+
 	// Setup context with cancellation
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	
+
 	// Handle graceful shutdown
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-	
+
 	// Start agent in goroutine
 	errChan := make(chan error, 1)
 	go func() {
 		errChan <- agt.Start(ctx)
 	}()
-	
+
 	// Wait for shutdown signal or error
 	select {
 	case <-sigChan:
@@ -74,19 +74,17 @@ func runAgent(cmd *cobra.Command, args []string) {
 		cancel()
 		// Wait for agent to stop
 		<-errChan
-		
+
 	case err := <-errChan:
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Agent error: %v\n", err)
 			os.Exit(1)
 		}
 	}
-	
+
 	fmt.Println("Agent stopped")
 }
 
 func init() {
 	// No flags needed - everything is configured via environment variables
 }
-
-

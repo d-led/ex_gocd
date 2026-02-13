@@ -1,5 +1,8 @@
 <a href="#main-content" class="skip-to-main">Skip to main content</a>
-<.site_header current_path={Map.get(assigns, :current_path, "/")} />
+<.site_header
+  current_path={Map.get(assigns, :current_path, "/")}
+  is_user_admin={Map.get(assigns, :is_user_admin, false)}
+/>
 <main id="main-content" class="main-container" role="main">
   <.flash_group flash={@flash} />
   {@inner_content}

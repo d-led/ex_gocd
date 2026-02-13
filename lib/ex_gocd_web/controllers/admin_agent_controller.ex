@@ -39,8 +39,12 @@ defmodule ExGoCDWeb.AdminAgentController do
   def register(conn, params) do
     Logger.info("Agent registration request: #{inspect(params)}")
 
-    # Map form parameters to agent attributes
-    attrs = %{
+    # Auto-enable new agents in dev/demo (default true in dev, or when EX_GOCD_AUTO_ENABLE_AGENTS=true)
+    auto_enable =
+      System.get_env("EX_GOCD_AUTO_ENABLE_AGENTS") in ["1", "true", "TRUE"] or
+        (dev_env?() and System.get_env("EX_GOCD_AUTO_ENABLE_AGENTS") != "0")
+
+    base_attrs = %{
       "uuid" => params["uuid"],
       "hostname" => params["hostname"] || params["agentAutoRegisterHostname"],
       "ipaddress" => params["ipAddress"],
@@ -54,6 +58,8 @@ defmodule ExGoCDWeb.AdminAgentController do
       "cookie" => params["token"],
       "state" => "Idle"
     }
+
+    attrs = if auto_enable, do: Map.put(base_attrs, "disabled", false), else: base_attrs
 
     # Validate required fields
     unless attrs["uuid"] && attrs["hostname"] do
@@ -93,8 +99,14 @@ defmodule ExGoCDWeb.AdminAgentController do
   def token(conn, %{"uuid" => uuid}) do
     Logger.info("Token request for agent: #{uuid}")
 
-    # Generate a simple token (in production, this would be more secure)
-    token = "agent-token-#{uuid}-#{:os.system_time(:millisecond)}"
+    # Demo/dev: shared cookie so phx.server + start-agent and docker-compose always match
+    token =
+      case System.get_env("EX_GOCD_DEMO_COOKIE") do
+        nil ->
+          if dev_env?(), do: "ex-gocd-demo-cookie", else: "agent-token-#{uuid}-#{:os.system_time(:millisecond)}"
+        demo ->
+          String.trim(demo)
+      end
 
     conn
     |> put_resp_content_type("text/plain")
@@ -105,6 +117,10 @@ defmodule ExGoCDWeb.AdminAgentController do
     conn
     |> put_status(:bad_request)
     |> json(%{error: "Missing uuid parameter"})
+  end
+
+  defp dev_env? do
+    Code.ensure_loaded?(Mix) and function_exported?(Mix, :env, 0) and Mix.env() == :dev
   end
 
   @doc """

@@ -1,22 +1,42 @@
-/* Agents Page Styles - GoCD Theme */
+/* Agents Page Styles - GoCD Theme (responsive with same look) */
 
 .agents-page {
-  padding: 20px;
+  padding: 12px;
   background-color: #f5f5f5;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+@media (min-width: 768px) {
+  .agents-page {
+    padding: 20px;
+  }
 }
 
 /* Page Header */
 .page-header {
-  margin-bottom: 20px;
+  margin-bottom: 16px;
+}
+
+@media (min-width: 768px) {
+  .page-header {
+    margin-bottom: 20px;
+  }
 }
 
 .page-header_title {
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 600;
   color: #333;
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+@media (min-width: 768px) {
+  .page-header_title {
+    font-size: 24px;
+  }
 }
 
 .tooltip-wrapper {
@@ -32,10 +52,11 @@
   gap: 4px;
   margin-bottom: 16px;
   border-bottom: 2px solid #ddd;
+  flex-wrap: wrap;
 }
 
 .tab-button {
-  padding: 12px 24px;
+  padding: 10px 16px;
   background: #fff;
   border: 1px solid #ddd;
   border-bottom: none;
@@ -45,6 +66,14 @@
   color: #666;
   cursor: pointer;
   transition: all 0.2s;
+  font-size: 12px;
+}
+
+@media (min-width: 768px) {
+  .tab-button {
+    padding: 12px 24px;
+    font-size: inherit;
+  }
 }
 
 .tab-button:hover {
@@ -59,23 +88,38 @@
   margin-bottom: -2px;
 }
 
-/* Controls Bar */
+/* Controls Bar: wrap on small screens so stats/search don't squeeze */
 .agents-controls {
   display: flex;
-  justify-content: space-between;
+  flex-wrap: wrap;
+  justify-content: flex-start;
   align-items: center;
   background: #fff;
   padding: 12px 16px;
   border: 1px solid #ddd;
   border-radius: 4px;
   margin-bottom: 16px;
-  gap: 16px;
+  gap: 12px;
+}
+
+@media (min-width: 992px) {
+  .agents-controls {
+    justify-content: space-between;
+    gap: 16px;
+  }
 }
 
 /* Bulk Actions */
 .bulk-actions {
   display: flex;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+@media (min-width: 768px) {
+  .bulk-actions {
+    gap: 8px;
+  }
 }
 
 .btn-small {
@@ -111,18 +155,32 @@
   border-color: #ac2925;
 }
 
-/* Stats */
+/* Stats: wrap on narrow so they don't overflow */
 .agents-stats {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-  font-size: 13px;
+  gap: 4px 8px;
+  font-size: 12px;
   color: #666;
 }
 
+@media (min-width: 768px) {
+  .agents-stats {
+    font-size: 13px;
+    gap: 8px;
+  }
+}
+
 .stats-label {
-  margin-left: 16px;
+  margin-left: 4px;
   color: #666;
+}
+
+@media (min-width: 768px) {
+  .stats-label {
+    margin-left: 16px;
+  }
 }
 
 .stats-separator {
@@ -147,6 +205,8 @@
   position: relative;
   display: flex;
   align-items: center;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .search-box .fa-search {
@@ -161,7 +221,15 @@
   border: 1px solid #ccc;
   border-radius: 4px;
   font-size: 13px;
-  min-width: 200px;
+  min-width: 120px;
+  width: 100%;
+  max-width: 280px;
+}
+
+@media (min-width: 768px) {
+  .search-box input {
+    min-width: 200px;
+  }
 }
 
 .search-box input:focus {
@@ -170,18 +238,28 @@
   box-shadow: 0 0 0 2px rgba(102, 175, 233, 0.2);
 }
 
-/* Table */
+/* Table: horizontal scroll on small screens, same look */
 .agents-table-container {
   background: #fff;
   border: 1px solid #ddd;
   border-radius: 4px;
   overflow-x: auto;
+  overflow-y: visible;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
 }
 
 .agents-table {
   width: 100%;
+  min-width: 720px;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: 12px;
+}
+
+@media (min-width: 768px) {
+  .agents-table {
+    font-size: 13px;
+  }
 }
 
 .agents-table thead {

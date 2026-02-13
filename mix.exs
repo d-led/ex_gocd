@@ -27,7 +27,12 @@ defmodule ExGoCD.MixProject do
 
   def cli do
     [
-      preferred_envs: [precommit: :test]
+      preferred_envs: [
+        precommit: :test,
+        test_no_db: :test,
+        "test.no_db": :test,
+        "test.with_db": :test
+      ]
     ]
   end
 
@@ -81,7 +86,9 @@ defmodule ExGoCD.MixProject do
       setup: ["deps.get", "ecto.setup", "assets.setup", "assets.build"],
       "ecto.setup": ["ecto.create", "ecto.migrate", "run priv/repo/seeds.exs"],
       "ecto.reset": ["ecto.drop", "ecto.setup"],
-      test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
+      test: ["test.with_db"],
+      # Run tests without Postgres (skips ecto.create). Use: EX_GOCD_TEST_NO_DB=1 mix test_no_db [path]
+      test_no_db: ["test.no_db"],
       "assets.setup": ["tailwind.install --if-missing", "esbuild.install --if-missing"],
       "assets.build": ["compile", "tailwind ex_gocd", "esbuild ex_gocd"],
       "assets.deploy": [

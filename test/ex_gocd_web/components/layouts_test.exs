@@ -37,14 +37,23 @@ defmodule ExGoCDWeb.LayoutsTest do
       assert html =~ ~s(aria-label="Main navigation")
     end
 
-    test "renders all navigation menu items" do
+    test "renders navigation menu items (Dashboard, Agents, Materials always; Admin when is_user_admin)" do
       assigns = %{}
       html = render_component(&Layouts.site_header/1, assigns)
 
       assert html =~ ~s(Dashboard)
       assert html =~ ~s(Agents)
       assert html =~ ~s(Materials)
+      # Admin is hidden when is_user_admin is false (default)
+      refute html =~ ~s(Admin)
+    end
+
+    test "renders Admin link when is_user_admin is true" do
+      assigns = %{is_user_admin: true}
+      html = render_component(&Layouts.site_header/1, assigns)
+
       assert html =~ ~s(Admin)
+      assert html =~ ~s(href="/admin")
     end
 
     test "marks Dashboard as active page" do
@@ -63,9 +72,9 @@ defmodule ExGoCDWeb.LayoutsTest do
 
       assert html =~ ~s(role="menubar")
       assert html =~ ~s(role="menuitem")
-      # Should have multiple menuitem roles (one per link)
+      # At least 3 menuitems (Dashboard, Agents, Materials); Admin shown only when is_user_admin
       menuitem_count = html |> String.split(~s(role="menuitem")) |> length() |> Kernel.-(1)
-      assert menuitem_count >= 4
+      assert menuitem_count >= 3
     end
 
     test "renders Need Help link" do
@@ -85,9 +94,9 @@ defmodule ExGoCDWeb.LayoutsTest do
 
       # All navigation links should have tabindex="0"
       assert html =~ ~s(tabindex="0")
-      # Count tabindex occurrences (logo + 4 menu items + help link = 6)
+      # Logo + menu items (3 without admin) + Need Help
       tabindex_count = html |> String.split(~s(tabindex="0")) |> length() |> Kernel.-(1)
-      assert tabindex_count >= 5
+      assert tabindex_count >= 4
     end
 
     test "header has semantic banner role" do

@@ -8,8 +8,8 @@ defmodule ExGoCDWeb.AgentSerializer do
   @doc """
   Decodes a GoCD-format JSON frame into a Phoenix.Socket.Message.
 
-  GoCD format: `{"action": "ping", "data": {...}, "ackId": "..."}` (ackId optional).
-  First message from agent is typically "ping" — we treat it as phx_join so the channel joins.
+  GoCD format: `{"action": "join" | "ping", "data": {...}, "ackId": "..."}` (ackId optional).
+  First message from agent must be "join" so the channel is established; "ping" is used for heartbeats.
   """
   def decode!(raw, _opts) do
     payload = Phoenix.json_library().decode!(raw)
@@ -18,13 +18,13 @@ defmodule ExGoCDWeb.AgentSerializer do
     data = payload["data"] || %{}
     ack_id = payload["ackId"] || payload["messageId"]
 
-    # GoCD agents send "ping" first; we treat it as join so the channel is established
-    event = if action == "ping", do: "phx_join", else: action
+    # Only "join" establishes the channel; "ping" and others are handle_in events (avoids duplicate-join phx_close)
+    event = if action == "join", do: "phx_join", else: action
 
     # Wrap data so channel receives a map (identifier for join, or raw data for other events)
     payload_map =
       if event == "phx_join" do
-        %{"identifier" => data, "action" => "ping"}
+        %{"identifier" => data}
       else
         Map.put(data || %{}, "ackId", ack_id)
       end

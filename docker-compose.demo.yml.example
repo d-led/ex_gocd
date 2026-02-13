@@ -1,0 +1,27 @@
+# Example: run server + agent with shared demo cookie so they always find each other.
+# Copy to docker-compose.demo.yml and adjust, or merge into your compose file.
+#
+# Usage with postgres:
+#   docker compose -f docker-compose.yml -f docker-compose.demo.yml up -d
+#
+# Shared cookie: set the same value on both server and agent.
+# Auto-enable: new agents are enabled on first registration (dev/demo).
+
+# services:
+#   app:
+#     build: .
+#     environment:
+#       - EX_GOCD_DEMO_COOKIE=ex-gocd-demo-cookie
+#       - EX_GOCD_AUTO_ENABLE_AGENTS=true
+#     ports:
+#       - "4000:4000"
+#     depends_on:
+#       - postgres
+#
+#   agent:
+#     build: ./agent
+#     environment:
+#       - AGENT_SERVER_URL=http://app:4000
+#       - EX_GOCD_DEMO_COOKIE=ex-gocd-demo-cookie
+#     depends_on:
+#       - app

@@ -6,13 +6,10 @@ A clean, modern Go implementation using libraries instead of CLI tools (go-git, 
 
 ## Protocol Compatibility
 
-This agent supports **both** communication modes; **remoting API is the default** for compatibility with real GoCD:
-- **Registration**: `POST /admin/agent` (form-based, with token from `GET /admin/agent/token?uuid=...`)
-- **Default — Remoting API (real GoCD compatible):**
-  - `POST /remoting/api/agent/get_cookie` then `POST /remoting/api/agent/get_work` on an interval
-  - Auth: `X-Agent-GUID` + `Authorization` (token from registration)
-  - Report: `report_current_status`, `report_completing`, `report_completed`
-- **Optional — WebSocket** (new feature, e.g. for ex_gocd): set `AGENT_USE_WEBSOCKET=true` to use `/agent-websocket` and the same message types
+This agent implements the **exact same WebSocket + custom protocol** as original GoCD:
+- Registration: `POST /admin/agent` (form-based, with token)
+- Communication: WebSocket at `/agent-websocket`
+- Messages: `ping`, `build`, `reportCurrentStatus`, `reportCompleted`, etc.
 - Console logs: HTTP POST with timestamped streaming
 - Artifacts: multipart/form-data upload with MD5 checksum
 
@@ -50,21 +47,7 @@ make test
 
 ## Running
 
-The agent can **auto-register** with the ex_gocd Phoenix server. Use it when ready.
-
-### With ex_gocd (this server)
-```bash
-# Server running at http://localhost:4000 — use remoting (default) or WebSocket when supported
-./bin/gocd-agent --server-url http://localhost:4000 --work-dir ./work
-
-# Or with go run (remoting API by default)
-AGENT_SERVER_URL="http://localhost:4000" go run .
-
-# Use WebSocket when the server supports it (new feature)
-AGENT_SERVER_URL="http://localhost:4000" AGENT_USE_WEBSOCKET=true go run .
-```
-
-### Standalone (any GoCD-compatible server)
+### Standalone
 ```bash
 ./bin/gocd-agent --server-url http://localhost:4000 --work-dir ./work
 ```
@@ -94,9 +77,7 @@ All configuration uses the `AGENT_` prefix. Configuration keys with dots are con
 | `AGENT_AUTO_REGISTER_ENVIRONMENTS` | - | Comma-separated environments |
 | `AGENT_AUTO_REGISTER_ELASTIC_AGENT_ID` | - | Elastic agent ID |
 | `AGENT_AUTO_REGISTER_ELASTIC_PLUGIN_ID` | - | Elastic plugin ID |
-| `AGENT_USE_WEBSOCKET` | `false` | If `true`, use WebSocket for work (new feature). Default `false` = remoting API (compatible with real GoCD). |
-
-**Communication mode:** By default the agent uses the **remoting API** (get_cookie, get_work polling), which is what real GoCD expects. Set `AGENT_USE_WEBSOCKET=true` to use WebSocket instead (e.g. for ex_gocd when it supports it).
+| `EX_GOCD_DEMO_COOKIE` or `AGENT_DEMO_COOKIE` | - | Shared demo cookie: use this token for registration so server and agent always match (set same value on server in docker-compose or use dev server default) |
 
 **Examples:**
 
@@ -134,29 +115,33 @@ On first run, the agent creates a `.agent-id.json` file in the work directory co
 
 ## Implementation Status
 
-### ✅ Basics ready (use with ex_gocd or original GoCD server)
-- [x] Form-based registration at `POST /admin/agent` with token flow
-- [x] WebSocket connection to `/agent-websocket`
-- [x] Custom protocol messages (ping, setCookie, reregister, build, etc.)
-- [x] Auto-registration with our Phoenix instance (HTTP; HTTPS with cert download supported for other servers)
-- [x] Config (12-factor env vars), binary (no cgo)
-- [x] **Task execution**: `exec` (run command + args) and `compose` (run subcommands in order)
-- [x] Build session: create work dir, run command tree, report Building → Completing → Completed
-- [x] Console log upload: buffered, timestamp prefix (HH:mm:ss.SSS), HTTP POST every 5s
+### 🚧 Phase 1: WebSocket Protocol (TODO - REQUIRED FOR COMPATIBILITY)
+- [ ] WebSocket connection to `/agent-websocket`
+- [ ] Form-based registration at `/admin/agent` with token flow
+- [ ] Custom protocol message parsing (ping, build, setCookie, reregister, etc.)
+- [ ] Proper TLS/certificate handling
+- [ ] Connection retry and reconnection logic
 
-### 🔄 In progress / next
-- [ ] Artifact upload (multipart) and fetch-artifact
-- [ ] Cancel build (kill running process when server sends cancelBuild)
-- [x] Git material / checkout (`git` executor: clone with optional branch)
-- [ ] Full TLS/certificate handling for HTTPS servers
+### ⚠️ Current State: REST/JSON (INCOMPATIBLE - NEEDS REWRITE)
+- [x] ~~REST registration~~ (uses `/api/agents` - wrong endpoint!)
+- [x] ~~JSON polling~~ (should use WebSocket, not HTTP polling!)
+- [x] Task execution (exec, go-git) - ✅ Keep this
+- [x] Console log buffering - ✅ Keep this, adapt upload to HTTP POST
+- [x] Artifact handling structure - ✅ Keep this, adapt to multipart
 
-### Testing with the original GoCD server
-You can run this agent against the **original GoCD server** to run real pipelines:
-1. Start original GoCD server (e.g. Docker: `docker run -d -p 8153:8153 -p 8154:8154 gocd/gocd-server`).
-2. Run agent: `AGENT_SERVER_URL=http://localhost:8153/go ./bin/gocd-agent` (use the server’s URL and port).
-3. In GoCD UI, add a pipeline with a job that uses an **exec task** (e.g. command `echo`, args `hello`).
-4. The server will assign the job to the agent; the agent runs the task and reports back. Console output is POSTed to the server.
-**Note:** The **real GoCD server uses remoting (polling), not WebSocket.** This agent registers over HTTP, then tries WebSocket; when that returns 404 it automatically switches to **remoting**: it calls `get_cookie` and then polls `get_work` and runs jobs. Use `AGENT_AUTO_REGISTER_KEY=<key>` if the server has auto-register enabled.
+### 🎯 What to Keep
+- Config package (12-factor env vars) ✅
+- Executor (exec, go-git for Git operations) ✅
+- Console log buffering (change upload to match protocol) ✅
+- Task execution logic ✅
+- Binary build (no cgo, statically linked) ✅
+
+### 🔄 What to Rewrite
+- Replace REST client with WebSocket connection
+- Replace JSON protocol with custom message types
+- Change registration from JSON to form POST
+- Implement ping/heartbeat via WebSocket messages
+- Get work via WebSocket `build` messages (not HTTP polling)
 
 ## Testing
 

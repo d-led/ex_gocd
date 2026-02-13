@@ -12,6 +12,7 @@ defmodule ExGoCDWeb.Router do
 
   pipeline :api do
     plug :accepts, ["json"]
+    plug ExGoCDWeb.Plugs.GoCDAPIHeaders
   end
 
   pipeline :form do
@@ -22,13 +23,12 @@ defmodule ExGoCDWeb.Router do
   scope "/", ExGoCDWeb do
     pipe_through :browser
 
-    live_session :gocd, layout: {ExGoCDWeb.Layouts, :gocd} do
+    live_session :gocd, on_mount: [{ExGoCDWeb.LiveSession, :assign_current_user}] do
       live "/", DashboardLive, :index
       live "/pipelines", DashboardLive, :index
       live "/agents", AgentsLive, :index
       live "/agents/:uuid/job_run_history", AgentJobHistoryLive, :index
-      live "/materials", MaterialsLive, :index
-      live "/admin", AdminLive, :index
+      live "/agents/:uuid/job_run_history/:build_id", AgentJobRunDetailLive, :show
     end
   end
 
@@ -42,7 +42,8 @@ defmodule ExGoCDWeb.Router do
     get "/agent/root_certificate", AdminAgentController, :root_certificate
   end
 
-  # API routes for agents and other resources
+  # API routes for agents and other resources (GoCD spec: api.go.cd)
+  # Served at both /api and /go/api for compatibility with GoCD clients.
   scope "/api", ExGoCDWeb.API do
     pipe_through :api
 
@@ -54,6 +55,26 @@ defmodule ExGoCDWeb.Router do
     delete "/agents/:uuid", AgentController, :delete
     put "/agents/:uuid/enable", AgentController, :enable
     put "/agents/:uuid/disable", AgentController, :disable
+
+    # Build console log upload (agent streams stdout/stderr here)
+    post "/builds/:build_id/console", BuildConsoleController, :append
+
+    # Schedule a job (enqueue for next idle agent; GoCD-style pipeline/stage/job)
+    post "/jobs/schedule", JobController, :schedule
+  end
+
+  scope "/go/api", ExGoCDWeb.API do
+    pipe_through :api
+
+    post "/agents/register", AgentController, :register
+    get "/agents", AgentController, :index
+    get "/agents/:uuid", AgentController, :show
+    patch "/agents/:uuid", AgentController, :update
+    delete "/agents/:uuid", AgentController, :delete
+    put "/agents/:uuid/enable", AgentController, :enable
+    put "/agents/:uuid/disable", AgentController, :disable
+    post "/builds/:build_id/console", BuildConsoleController, :append
+    post "/jobs/schedule", JobController, :schedule
   end
 
   # Enable LiveDashboard and Swoosh mailbox preview in development

@@ -85,10 +85,12 @@ defmodule ExGoCDWeb.API.AgentControllerTest do
 
       conn = post(conn, ~p"/api/agents/register", params)
 
-      assert %{
-               "environments" => ["production", "testing"],
-               "resources" => ["linux", "docker", "nodejs"]
-             } = json_response(conn, 201)
+      response = json_response(conn, 201)
+      assert response["resources"] == ["linux", "docker", "nodejs"]
+      assert length(response["environments"]) == 2
+      env_names = Enum.map(response["environments"], & &1["name"])
+      assert Enum.sort(env_names) == ["production", "testing"]
+      assert hd(response["environments"])["origin"]["type"] == "gocd"
     end
 
     test "rejects invalid UUID format", %{conn: conn} do
@@ -192,10 +194,11 @@ defmodule ExGoCDWeb.API.AgentControllerTest do
       assert response["uuid"] == @valid_uuid
       assert response["hostname"] == "agent-1"
       assert response["ip_address"] == "192.168.1.100"
-      assert response["environments"] == ["production"]
+      assert [%{"name" => "production", "origin" => %{"type" => "gocd"}}] = response["environments"]
       assert response["resources"] == ["linux", "docker"]
       assert response["_links"]["self"]["href"]
       assert response["_links"]["doc"]["href"]
+      assert response["_links"]["find"]["href"]
     end
 
     test "returns 404 for non-existent agent", %{conn: conn} do
@@ -223,7 +226,9 @@ defmodule ExGoCDWeb.API.AgentControllerTest do
       conn =
         patch(conn, ~p"/api/agents/#{@valid_uuid}", %{environments: ["production", "staging"]})
 
-      assert %{"environments" => ["production", "staging"]} = json_response(conn, 200)
+      response = json_response(conn, 200)
+      env_names = Enum.map(response["environments"], & &1["name"]) |> Enum.sort()
+      assert env_names == ["production", "staging"]
     end
 
     test "updates agent resources", %{conn: conn} do
@@ -233,10 +238,22 @@ defmodule ExGoCDWeb.API.AgentControllerTest do
       assert %{"resources" => ["linux", "docker", "nodejs"]} = json_response(conn, 200)
     end
 
-    test "updates agent disabled state", %{conn: conn} do
+    test "updates agent disabled state via disabled param", %{conn: conn} do
       conn = patch(conn, ~p"/api/agents/#{@valid_uuid}", %{disabled: true})
 
-      assert %{"agent_state" => "Disabled"} = json_response(conn, 200)
+      response = json_response(conn, 200)
+      assert response["agent_config_state"] == "Disabled"
+      assert response["agent_state"] in ["Idle", "Building", "LostContact", "Unknown"]
+    end
+
+    test "updates agent via GoCD spec agent_config_state", %{conn: conn} do
+      conn = patch(conn, ~p"/api/agents/#{@valid_uuid}", %{"agent_config_state" => "Disabled"})
+
+      response = json_response(conn, 200)
+      assert response["agent_config_state"] == "Disabled"
+
+      conn = patch(conn, ~p"/api/agents/#{@valid_uuid}", %{"agent_config_state" => "Enabled"})
+      assert json_response(conn, 200)["agent_config_state"] == "Enabled"
     end
 
     test "returns 404 for non-existent agent", %{conn: conn} do
@@ -277,9 +294,11 @@ defmodule ExGoCDWeb.API.AgentControllerTest do
     end
 
     test "soft deletes an agent", %{conn: conn} do
-      conn = delete(conn, ~p"/api/agents/#{@valid_uuid}")
+      conn = put(conn, ~p"/api/agents/#{@valid_uuid}/disable")
+      assert response(conn, 200)
 
-      assert response(conn, 204)
+      conn = delete(conn, ~p"/api/agents/#{@valid_uuid}")
+      assert %{"message" => "Deleted 1 agent(s)."} = json_response(conn, 200)
 
       # Verify agent is marked as deleted but still in database
       agent = Agents.get_agent_by_uuid(@valid_uuid)
@@ -313,8 +332,9 @@ defmodule ExGoCDWeb.API.AgentControllerTest do
     test "enables a disabled agent", %{conn: conn} do
       conn = put(conn, ~p"/api/agents/#{@valid_uuid}/enable")
 
-      assert %{"agent_state" => agent_state} = json_response(conn, 200)
-      assert agent_state in ["Idle", "Building"]
+      response = json_response(conn, 200)
+      assert response["agent_config_state"] == "Enabled"
+      assert response["agent_state"] in ["Idle", "Building", "LostContact", "Unknown"]
 
       # Verify agent is enabled in database
       agent = Agents.get_agent_by_uuid(@valid_uuid)
@@ -343,7 +363,8 @@ defmodule ExGoCDWeb.API.AgentControllerTest do
     test "disables an enabled agent", %{conn: conn} do
       conn = put(conn, ~p"/api/agents/#{@valid_uuid}/disable")
 
-      assert %{"agent_state" => "Disabled"} = json_response(conn, 200)
+      response = json_response(conn, 200)
+      assert response["agent_config_state"] == "Disabled"
 
       # Verify agent is disabled in database
       agent = Agents.get_agent_by_uuid(@valid_uuid)

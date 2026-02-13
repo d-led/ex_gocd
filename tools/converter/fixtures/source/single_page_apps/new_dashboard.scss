@@ -1,8 +1,0 @@
-@use "../variables" as *;
-
-.site-header {
-  background: $site-header;
-  @media (min-width: $screen-md) {
-    height: 40px;
-  }
-}

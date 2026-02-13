@@ -26,7 +26,8 @@ defmodule ExGoCD.Agents do
   end
 
   @doc """
-  Subscribes to agent updates for real-time notifications.
+  Subscribes to agent updates (PubSub topic `agents:updates`).
+  Prefer the Phoenix channel `agents:updates` for UI; this is for processes that need raw PubSub.
   """
   def subscribe do
     Phoenix.PubSub.subscribe(ExGoCD.PubSub, @agents_topic)
@@ -130,26 +131,145 @@ defmodule ExGoCD.Agents do
   end
 
   @doc """
+  Effective status for display: disabled, lost_contact (no recent ping), building, idle, or unknown.
+  Uses updated_at vs now to derive LostContact when no heartbeat within opts[:lost_contact_seconds].
+  """
+  @spec effective_status(Agent.t(), keyword()) :: :disabled | :lost_contact | :building | :idle | :unknown
+  def effective_status(agent, opts \\ [])
+  def effective_status(%Agent{disabled: true}, _opts), do: :disabled
+  def effective_status(agent, opts) do
+    threshold_sec = Keyword.get(opts, :lost_contact_seconds, 90)
+    if stale?(agent.updated_at, threshold_sec) do
+      :lost_contact
+    else
+      state_to_status(agent.state)
+    end
+  end
+
+  defp stale?(nil, _), do: false
+  defp stale?(updated_at, threshold_sec) do
+    seconds_ago = NaiveDateTime.diff(NaiveDateTime.utc_now(), updated_at, :second)
+    seconds_ago > threshold_sec
+  end
+
+  defp state_to_status("Idle"), do: :idle
+  defp state_to_status("Building"), do: :building
+  defp state_to_status("LostContact"), do: :lost_contact
+  defp state_to_status(_), do: :unknown
+
+  @doc """
+  Updates agent runtime fields from a heartbeat/ping when the agent proves identity with its cookie.
+  Prevents impersonation: if the agent has a persisted cookie (from registration), the ping must
+  include the same cookie or we do not update.
+  """
+  @spec touch_agent_on_heartbeat(String.t(), map()) :: :ok | {:error, :not_found | :cookie_mismatch}
+  def touch_agent_on_heartbeat(uuid, runtime_attrs) when is_binary(uuid) do
+    case get_agent_by_uuid(uuid) do
+      nil ->
+        {:error, :not_found}
+
+      agent ->
+        supplied_cookie = runtime_attrs["cookie"] || runtime_attrs["Cookie"]
+        if agent_identity_ok?(agent, supplied_cookie) do
+          attrs =
+            %{}
+            |> maybe_put(:working_dir, runtime_attrs["location"])
+            |> maybe_put(:free_space, parse_usable_space(runtime_attrs["usableSpace"]))
+            |> maybe_put(:state, runtime_attrs["runtimeStatus"])
+            |> maybe_put(:operating_system, runtime_attrs["operatingSystemName"])
+
+          # Always update so updated_at is refreshed (avoids LostContact when agent is connected).
+          attrs = if attrs == %{}, do: %{state: agent.state}, else: attrs
+          update_agent(agent, attrs)
+          :ok
+        else
+          {:error, :cookie_mismatch}
+        end
+    end
+  end
+
+  # When the agent has a stored cookie (from registration), the ping must supply the same cookie.
+  defp agent_identity_ok?(agent, supplied_cookie) do
+    case agent.cookie do
+      nil -> true
+      stored -> Plug.Crypto.secure_compare(to_string(stored), to_string(supplied_cookie || ""))
+    end
+  end
+
+  defp maybe_put(acc, _key, nil), do: acc
+  defp maybe_put(acc, key, value), do: Map.put(acc, key, value)
+
+  defp parse_usable_space(nil), do: nil
+  defp parse_usable_space(n) when is_integer(n), do: n
+  defp parse_usable_space(s) when is_binary(s) do
+    case Integer.parse(s) do
+      {n, _} -> n
+      :error -> nil
+    end
+  end
+
+  @doc """
   Updates an agent.
   """
   @spec update_agent(Agent.t(), map()) :: {:ok, Agent.t()} | {:error, Ecto.Changeset.t()}
   def update_agent(%Agent{} = agent, attrs) do
+    attrs = maybe_add_approval_cookie(agent, attrs)
     agent
     |> Agent.changeset(attrs)
     |> Repo.update()
     |> broadcast(:agent_updated)
   end
 
+  defp maybe_add_approval_cookie(agent, attrs) when is_map(attrs) do
+    disabled = attrs["disabled"] || attrs[:disabled]
+    if disabled == false and (is_nil(agent.cookie) or agent.cookie == "") do
+      Map.put(attrs, :cookie, approval_cookie())
+    else
+      attrs
+    end
+  end
+
   @doc """
-  Enables an agent.
+  Marks an agent as LostContact when the WebSocket connection is closed (channel process exits).
+  Mirrors GoCD's AgentInstance.lostContact(): only updates when agent is enabled (not disabled/pending).
+  Presence automatically removes the agent from the presence list; this updates DB so the UI shows LostContact.
+  """
+  @spec mark_lost_contact(String.t()) :: :ok | {:error, :not_found}
+  def mark_lost_contact(agent_uuid) when is_binary(agent_uuid) do
+    case get_agent_by_uuid(agent_uuid) do
+      nil -> {:error, :not_found}
+      %{disabled: true} -> :ok
+      agent ->
+        _ = update_agent(agent, %{state: "LostContact"})
+        :ok
+    end
+  end
+
+  @doc """
+  Updates an agent's runtime state (e.g. from reportCurrentStatus/reportCompleted).
+  Use so the UI shows Building/Idle without waiting for the next ping.
+  """
+  @spec update_agent_runtime_state(String.t(), String.t()) :: :ok | {:error, :not_found}
+  def update_agent_runtime_state(agent_uuid, state) when is_binary(agent_uuid) and is_binary(state) do
+    case get_agent_by_uuid(agent_uuid) do
+      nil -> {:error, :not_found}
+      agent -> _ = update_agent(agent, %{state: state}); :ok
+    end
+  end
+  def update_agent_runtime_state(_, _), do: :ok
+
+  @doc """
+  Enables an agent. Sets a cookie when missing so API reports agent_config_state as Enabled (approved).
   """
   @spec enable_agent(Agent.t() | String.t()) :: {:ok, Agent.t()} | {:error, Ecto.Changeset.t()}
   def enable_agent(%Agent{} = agent) do
     if use_mock?() do
       Mock.enable_agent(agent.uuid)
     else
+      attrs = %{disabled: false}
+      attrs = if is_nil(agent.cookie) or agent.cookie == "", do: Map.put(attrs, :cookie, approval_cookie()), else: attrs
       agent
-      |> Agent.changeset(%{disabled: false})
+      |> Agent.changeset(attrs)
       |> Repo.update()
       |> broadcast(:agent_enabled)
     end
@@ -164,6 +284,13 @@ defmodule ExGoCD.Agents do
         agent -> enable_agent(agent)
       end
     end
+  end
+
+  @doc """
+  Generates a token used when approving an agent (so agent_config_state becomes Enabled).
+  """
+  def approval_cookie do
+    32 |> :crypto.strong_rand_bytes() |> Base.url_encode64(padding: false)
   end
 
   @doc """
@@ -193,17 +320,14 @@ defmodule ExGoCD.Agents do
   end
 
   @doc """
-  Soft deletes an agent.
+  Soft deletes an agent. Fails unless the agent is disabled (matches GoCD: delete only after disable).
   """
-  @spec delete_agent(Agent.t() | String.t()) :: {:ok, Agent.t()} | {:error, Ecto.Changeset.t()}
+  @spec delete_agent(Agent.t() | String.t()) :: {:ok, Agent.t()} | {:error, Ecto.Changeset.t() | :agent_not_disabled | :not_found}
   def delete_agent(%Agent{} = agent) do
-    if use_mock?() do
-      Mock.delete_agent(agent.uuid)
+    if agent.disabled do
+      do_delete_agent(agent)
     else
-      agent
-      |> Agent.changeset(%{deleted: true})
-      |> Repo.update()
-      |> broadcast(:agent_deleted)
+      {:error, :agent_not_disabled}
     end
   end
 
@@ -215,6 +339,17 @@ defmodule ExGoCD.Agents do
         nil -> {:error, :not_found}
         agent -> delete_agent(agent)
       end
+    end
+  end
+
+  defp do_delete_agent(agent) do
+    if use_mock?() do
+      Mock.delete_agent(agent.uuid)
+    else
+      agent
+      |> Agent.changeset(%{deleted: true})
+      |> Repo.update()
+      |> broadcast(:agent_deleted)
     end
   end
 

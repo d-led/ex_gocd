@@ -73,16 +73,14 @@ defmodule ExGoCDWeb.API.AgentController do
   @doc """
   PATCH /api/agents/:uuid
 
-  Updates an agent's configuration.
-
-  Supported fields:
-    - disabled: Enable/disable agent
-    - environments: Array of environment names
-    - resources: Array of resource tags
+  Updates an agent's configuration. Accepts GoCD spec fields:
+  hostname, resources, environments, agent_config_state (Enabled|Disabled).
+  Also accepts disabled (boolean) for compatibility.
   """
   def update(conn, %{"uuid" => uuid} = params) do
     with agent when not is_nil(agent) <- Agents.get_agent_by_uuid(uuid),
-         {:ok, updated_agent} <- Agents.update_agent(agent, params) do
+         attrs <- add_approval_cookie_if_enabling(agent, normalize_patch_params(params)),
+         {:ok, updated_agent} <- Agents.update_agent(agent, attrs) do
       render(conn, :show, agent: updated_agent)
     else
       nil ->
@@ -100,12 +98,14 @@ defmodule ExGoCDWeb.API.AgentController do
   @doc """
   DELETE /api/agents/:uuid
 
-  Soft deletes an agent.
+  Soft deletes an agent. Returns 200 with message body per GoCD API spec.
   """
   def delete(conn, %{"uuid" => uuid}) do
     with agent when not is_nil(agent) <- Agents.get_agent_by_uuid(uuid),
          {:ok, _agent} <- Agents.delete_agent(agent) do
-      send_resp(conn, :no_content, "")
+      conn
+      |> put_status(:ok)
+      |> json(%{message: "Deleted 1 agent(s)."})
     else
       nil ->
         conn
@@ -160,6 +160,31 @@ defmodule ExGoCDWeb.API.AgentController do
         conn
         |> put_status(:unprocessable_entity)
         |> render(:errors, changeset: changeset)
+    end
+  end
+
+  # GoCD spec uses agent_config_state (Enabled|Disabled); we store disabled (boolean).
+  defp normalize_patch_params(params) do
+    params
+    |> Map.drop(["uuid", "controller", "action"])
+    |> maybe_put_disabled_from_agent_config_state()
+  end
+
+  defp add_approval_cookie_if_enabling(agent, attrs) do
+    if attrs["disabled"] == false and (is_nil(agent.cookie) or agent.cookie == "") do
+      Map.put(attrs, "cookie", Agents.approval_cookie())
+    else
+      attrs
+    end
+  end
+
+  defp maybe_put_disabled_from_agent_config_state(params) do
+    case params do
+      %{"agent_config_state" => "Enabled"} -> params |> Map.delete("agent_config_state") |> Map.put("disabled", false)
+      %{"agent_config_state" => "Disabled"} -> params |> Map.delete("agent_config_state") |> Map.put("disabled", true)
+      %{"agent_config_state" => "enabled"} -> params |> Map.delete("agent_config_state") |> Map.put("disabled", false)
+      %{"agent_config_state" => "disabled"} -> params |> Map.delete("agent_config_state") |> Map.put("disabled", true)
+      _ -> params
     end
   end
 end

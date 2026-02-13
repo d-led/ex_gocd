@@ -120,6 +120,11 @@ This ensures:
 - Copy registration flow
 - Use modern Go libraries for everything else (go-git, etc.)
 
+**Reverse-engineering from gocd source** (this repo's `gocd/`):
+- **Remoting**: Original Java agent uses HTTP POST to `/remoting/ping`, `/remoting/get_work`, etc. (`RemotingClient`, `BuildRepositoryRemoteImpl`). We use WebSocket + JSON (gocd-golang-agent style) for the rewrite; semantics (ping → update runtime, report status, etc.) match.
+- **LostContact**: In gocd, `AgentInstance` has `lastHeardTime`; `refresh()` sets runtime status to `LostContact` when `isTimeout(lastHeardTime)`. We have a live WebSocket: when the agent's **channel process** exits, we call `Agents.mark_lost_contact(uuid)` from `AgentChannel.terminate/2`, so the DB state becomes "LostContact" and the UI updates immediately. Presence also removes the agent from the presence list when the channel process exits (we track the channel pid).
+- **Scheduling**: In gocd, `BuildAssignmentService` holds a queue of `JobPlan` (from `orderedScheduledBuilds()`); `WorkFinder` reacts to idle agents and calls `assignWorkToAgent`; the agent gets work via `get_work` (HTTP) or we push over WebSocket. We implement the same idea with `ExGoCD.Scheduler`: an in-memory queue of job specs; when an agent pings with `runtimeStatus` "Idle", we call `Scheduler.try_assign_work(uuid)`, which finds a matching job (by resources/environments), creates the run, and pushes a `build` message to the agent. Jobs are enqueued via `Scheduler.schedule_job(spec)` (e.g. from the UI "Schedule test job").
+
 ## CRITICAL: Domain Language and Data Model Fidelity
 
 ### Absolute Requirements

@@ -7,16 +7,25 @@ defmodule ExGoCD.Application do
 
   @impl true
   def start(_type, _args) do
-    children = [
+    # Allow running tests without Postgres (e.g. CI or converter-only tests)
+    skip_db? = System.get_env("EX_GOCD_TEST_NO_DB") == "1"
+
+    base = [
       ExGoCDWeb.Telemetry,
-      ExGoCD.Repo,
       {DNSCluster, query: Application.get_env(:ex_gocd, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: ExGoCD.PubSub},
-      # Start a worker by calling: ExGoCD.Worker.start_link(arg)
-      # {ExGoCD.Worker, arg},
-      # Start to serve requests, typically the last entry
+      ExGoCDWeb.AgentPresence,
+      ExGoCD.Scheduler,
+      ExGoCD.AgentRegistry,
       ExGoCDWeb.Endpoint
     ]
+
+    children =
+      if skip_db? do
+        base
+      else
+        [ExGoCDWeb.Telemetry, ExGoCD.Repo | Enum.drop(base, 1)]
+      end
 
     # See https://hexdocs.pm/elixir/Supervisor.html
     # for other strategies and supported options

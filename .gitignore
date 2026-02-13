@@ -46,3 +46,5 @@ npm-debug.log
 /priv/static/cache_manifest.json
 *.log
 node_modules/
+agent/gocd-agent
+agent/gocd-agent.exe

@@ -112,93 +112,54 @@
   background: #fafafa;
 }
 
-/* Links in table - only job name is a link */
+/* Job name cell: link must be the click target so left/right-click work (no overlay capturing) */
+.job-history-table .job-name-cell {
+  position: relative;
+}
+
 .job-link {
   color: #337ab7;
   text-decoration: none;
   font-weight: 500;
+  display: inline-block;
+  position: relative;
+  z-index: 1;
 }
 
 .job-link:hover {
   text-decoration: underline;
 }
 
-/* State transition icon (button) */
+/* State transition: link so it's clickable and right-clickable (open in new tab, copy link) */
+.state-transition-cell {
+  position: relative;
+}
+
+.state-transition-link,
 .state-transition-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 40px;
   height: 22px;
-  padding: 0;
-  border: none;
-  background: none;
-  cursor: pointer;
   color: #555;
   font-size: 16px;
+  text-decoration: none;
 }
 
-.state-transition-icon:hover {
-  color: #333;
+.state-transition-link {
+  position: relative;
+  z-index: 1;
+  cursor: pointer;
 }
 
-/* Job state transitions modal */
-.job-transitions-modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
+.state-transition-link:hover {
+  color: #337ab7;
 }
 
-.job-transitions-modal {
-  background: #fff;
-  border-radius: 6px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
-  max-width: 420px;
-  width: 90%;
-}
-
-.job-transitions-modal-content {
-  padding: 20px;
-}
-
-.job-transitions-modal-content h3 {
-  margin: 0 0 12px;
-  font-size: 16px;
-  font-weight: 600;
-  color: #333;
-}
-
-.job-transitions-list {
-  list-style: none;
-  margin: 0 0 16px;
-  padding: 0;
-  font-size: 13px;
-}
-
-.job-transitions-list li {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 6px 0;
-  border-bottom: 1px solid #eee;
-}
-
-.job-transitions-list li:last-child {
-  border-bottom: none;
-}
-
-.transition-state {
-  font-weight: 500;
-  color: #333;
-}
-
-.transition-time {
-  color: #666;
-  font-family: monospace;
+.state-transition-icon {
+  cursor: default;
+  opacity: 0.6;
 }
 
 /* Result Status */
@@ -228,4 +189,57 @@
   padding: 40px 20px !important;
   color: #999;
   font-style: italic;
+}
+
+/* Agent Job Run Detail (Console) Page */
+.agent-job-run-detail-page {
+  padding: 20px;
+  background-color: #f5f5f5;
+}
+
+.agent-job-run-detail-page .page-header {
+  margin-bottom: 16px;
+}
+
+.agent-job-run-detail-page .page-header_title {
+  font-size: 20px;
+  font-weight: 600;
+  color: #333;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.agent-job-run-detail-page .back-link {
+  color: #337ab7;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.agent-job-run-detail-page .back-link:hover {
+  text-decoration: underline;
+}
+
+.agent-job-run-detail-page .run-meta {
+  font-size: 13px;
+  color: #666;
+  margin-top: 8px;
+  display: flex;
+  gap: 16px;
+}
+
+.agent-job-run-detail-page .console-log {
+  background: #1e1e1e;
+  color: #d4d4d4;
+  padding: 16px;
+  border-radius: 4px;
+  font-family: ui-monospace, monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  margin: 0;
+  min-height: 200px;
 }

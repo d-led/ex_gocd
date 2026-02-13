@@ -17,6 +17,8 @@ config :ex_gocd, ExGoCD.Repo,
 # watchers to your application. For example, we can use it
 # to bundle .js and .css sources.
 config :ex_gocd, ExGoCDWeb.Endpoint,
+  # URL used when building links (e.g. console log upload URL for agents)
+  url: [host: "localhost", port: 4000],
   # Binding to loopback ipv4 address prevents access from other machines.
   # Change to `ip: {0, 0, 0, 0}` to allow access from other machines.
   http: [ip: {127, 0, 0, 1}],

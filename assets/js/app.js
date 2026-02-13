@@ -25,11 +25,31 @@ import {LiveSocket} from "phoenix_live_view"
 import {hooks as colocatedHooks} from "phoenix-colocated/ex_gocd"
 import topbar from "../vendor/topbar"
 
+const AgentsUpdates = {
+  mounted() {
+    // Path only: Phoenix Socket builds full URL and appends /websocket transport itself.
+    // Using a full ws:// URL can cause the client to request /socket/websocket/websocket.
+    this.agentsSocket = new Socket("/socket", {params: {}})
+    this.agentsSocket.connect()
+    this.agentsChannel = this.agentsSocket.channel("agents:updates", {})
+    this.agentsChannel.on("agents_updated", () => {
+      this.pushEvent("refresh_agents", {})
+    })
+    this.agentsChannel.join()
+      .receive("ok", () => {})
+      .receive("error", () => {})
+  },
+  destroyed() {
+    if (this.agentsChannel) this.agentsChannel.leave()
+    if (this.agentsSocket) this.agentsSocket.disconnect()
+  }
+}
+
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {...colocatedHooks},
+  hooks: {AgentsUpdates, ...colocatedHooks},
 })
 
 // Show progress bar on live navigation and form submits

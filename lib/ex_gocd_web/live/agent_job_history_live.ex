@@ -5,23 +5,25 @@ defmodule ExGoCDWeb.AgentJobHistoryLive do
   """
   use ExGoCDWeb, :live_view
   alias ExGoCD.Agents
+  alias ExGoCD.AgentJobRuns
 
   @impl true
   def mount(%{"uuid" => uuid}, _session, socket) do
     agent = Agents.get_agent_by_uuid(uuid)
 
     if agent do
+      AgentJobRuns.subscribe_job_runs(uuid)
+
       {:ok,
        socket
        |> assign(
          agent: agent,
-         job_history: fetch_job_history(uuid),
+         job_history: AgentJobRuns.list_runs_for_agent(uuid),
          page: 1,
          page_size: 50,
          total_pages: 1,
          page_title: "Agent Job Run History",
-         current_path: "/agents/#{uuid}/job_run_history",
-         transition_modal_job: nil
+         current_path: "/agents/#{uuid}/job_run_history"
        )}
     else
       {:ok,
@@ -29,6 +31,13 @@ defmodule ExGoCDWeb.AgentJobHistoryLive do
        |> put_flash(:error, "Agent not found")
        |> push_navigate(to: "/agents")}
     end
+  end
+
+  @impl true
+  def handle_info({event, _agent_uuid}, socket)
+      when event in [:run_created, :run_updated] do
+    uuid = socket.assigns.agent.uuid
+    {:noreply, assign(socket, job_history: AgentJobRuns.list_runs_for_agent(uuid))}
   end
 
   @impl true
@@ -43,29 +52,10 @@ defmodule ExGoCDWeb.AgentJobHistoryLive do
     {:noreply, assign(socket, page: new_page)}
   end
 
-  def handle_event("show_transitions", %{"index" => index}, socket) do
-    job = Enum.at(socket.assigns.job_history, String.to_integer(index))
-    {:noreply, assign(socket, transition_modal_job: job)}
-  end
-
-  def handle_event("close_transitions", _params, socket) do
-    {:noreply, assign(socket, transition_modal_job: nil)}
-  end
-
-  def handle_event("close_transitions_escape", %{"key" => "Escape"}, socket) do
-    if socket.assigns.transition_modal_job do
-      {:noreply, assign(socket, transition_modal_job: nil)}
-    else
-      {:noreply, socket}
-    end
-  end
-
-  def handle_event("close_transitions_escape", _params, socket), do: {:noreply, socket}
-
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="agent-job-history-page" phx-window-keydown="close_transitions_escape">
+    <div class="agent-job-history-page">
       <div class="page-header">
         <h1 class="page-header_title">
           <span>Agent Job Run History</span>
@@ -74,7 +64,7 @@ defmodule ExGoCDWeb.AgentJobHistoryLive do
           <span class="agent-hostname">{@agent.hostname}</span>
         </div>
       </div>
-      
+
     <!-- Pagination Top -->
       <div class="pagination-controls">
         <button
@@ -94,7 +84,7 @@ defmodule ExGoCDWeb.AgentJobHistoryLive do
           Next
         </button>
       </div>
-      
+
     <!-- Job History Table -->
       <div class="job-history-table-container">
         <table class="job-history-table">
@@ -123,35 +113,51 @@ defmodule ExGoCDWeb.AgentJobHistoryLive do
                 </td>
               </tr>
             <% else %>
-              <%= for {job, idx} <- Enum.with_index(@job_history) do %>
+              <%= for job <- @job_history do %>
                 <tr>
-                  <td>{job.pipeline_name}</td>
-                  <td>{job.stage_name}</td>
-                  <td>
-                    <a
-                      href="#"
-                      class="job-link"
-                      title="Build detail (not yet implemented)"
-                    >
-                      {job.job_name}
-                    </a>
+                  <td>{display_pipeline(job)}</td>
+                  <td>{display_stage(job)}</td>
+                  <td class="job-name-cell">
+                    <%= if linkable_job?(job) do %>
+                      <a
+                        href={
+                          "/go/tab/build/detail/#{job.pipeline_name}/#{job.pipeline_counter || 1}/#{job.stage_name}/#{job.stage_counter || 1}/#{job.job_name}"
+                        }
+                        class="job-link"
+                      >
+                        {display_name(job.job_name)}
+                      </a>
+                    <% else %>
+                      <a
+                        href={"/agents/#{@agent.uuid}/job_run_history/#{job.build_id}"}
+                        class="job-link"
+                        title="View console log"
+                      >
+                        {display_name(job.job_name)}
+                      </a>
+                    <% end %>
                   </td>
                   <td>
                     <span class={result_class(job.result)}>
-                      {job.result}
+                      {job.result || job.state || "—"}
                     </span>
                   </td>
-                  <td>
-                    <button
-                      type="button"
-                      class="state-transition-icon"
-                      title="View job state transitions"
-                      phx-click="show_transitions"
-                      phx-value-index={to_string(idx)}
-                      aria-label="View state transitions for #{job.job_name}"
-                    >
-                      <i class="fa fa-history" aria-hidden="true"></i>
-                    </button>
+                  <td class="state-transition-cell">
+                    <%= if linkable_job?(job) do %>
+                      <a
+                        href={
+                          "/go/tab/build/detail/#{job.pipeline_name}/#{job.pipeline_counter || 1}/#{job.stage_name}/#{job.stage_counter || 1}/#{job.job_name}"
+                        }
+                        class="state-transition-link"
+                        title="View job state transitions"
+                      >
+                        <i class="fa fa-history" aria-hidden="true"></i>
+                      </a>
+                    <% else %>
+                      <span class="state-transition-icon" title="No pipeline (ad hoc job)">
+                        <i class="fa fa-history" aria-hidden="true"></i>
+                      </span>
+                    <% end %>
                   </td>
                 </tr>
               <% end %>
@@ -159,7 +165,7 @@ defmodule ExGoCDWeb.AgentJobHistoryLive do
           </tbody>
         </table>
       </div>
-      
+
     <!-- Pagination Bottom -->
       <div class="pagination-controls">
         <button
@@ -179,94 +185,33 @@ defmodule ExGoCDWeb.AgentJobHistoryLive do
           Next
         </button>
       </div>
-
-      <%= if @transition_modal_job do %>
-        <div
-          class="job-transitions-modal-overlay"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Job state transitions"
-        >
-          <div class="job-transitions-modal">
-            <div class="job-transitions-modal-content">
-              <h3>Job State Transitions — {@transition_modal_job.job_name}</h3>
-              <ul class="job-transitions-list">
-                <%= for t <- @transition_modal_job.job_state_transitions || [] do %>
-                  <li>
-                    <span class="transition-state">{t.state}</span>
-                    <span class="transition-time">{format_transition_time(t.state_change_time)}</span>
-                  </li>
-                <% end %>
-              </ul>
-              <button type="button" class="btn-small" phx-click="close_transitions">Close</button>
-            </div>
-          </div>
-        </div>
-      <% end %>
     </div>
     """
   end
 
-  defp fetch_job_history(uuid) do
-    # When job execution is implemented, query job instances by agent_uuid from Pipelines context.
-    # For now return mock data so the page demonstrates the full UI (table + state transitions).
-    mock_job_history(uuid)
+  defp display_name(nil), do: "—"
+  defp display_name(""), do: "—"
+  defp display_name("unknown"), do: "—"
+  defp display_name(name), do: name
+
+  # Ad hoc test jobs (Run test job) have no real pipeline; only link when we have a real pipeline.
+  defp linkable_job?(job) do
+    real_pipeline? = job.pipeline_name && job.pipeline_name != "" &&
+      job.pipeline_name != "unknown" && job.pipeline_name != "test-pipeline"
+    real_stage? = job.stage_name && job.stage_name != "" &&
+      job.stage_name != "unknown" && job.stage_name != "test-stage"
+    real_job? = job.job_name && job.job_name != "" && job.job_name != "unknown"
+    real_pipeline? && real_stage? && real_job?
   end
 
-  defp mock_job_history(_uuid) do
-    [
-      %{
-        pipeline_name: "build-linux",
-        pipeline_counter: 145,
-        stage_name: "build",
-        stage_counter: 1,
-        job_name: "compile",
-        result: "Passed",
-        job_state_transitions: [
-          %{state: "Scheduled", state_change_time: ~N[2026-02-05 10:00:00]},
-          %{state: "Assigned", state_change_time: ~N[2026-02-05 10:00:05]},
-          %{state: "Preparing", state_change_time: ~N[2026-02-05 10:00:10]},
-          %{state: "Building", state_change_time: ~N[2026-02-05 10:00:15]},
-          %{state: "Completing", state_change_time: ~N[2026-02-05 10:05:22]},
-          %{state: "Completed", state_change_time: ~N[2026-02-05 10:05:25]}
-        ]
-      },
-      %{
-        pipeline_name: "build-linux",
-        pipeline_counter: 145,
-        stage_name: "build",
-        stage_counter: 1,
-        job_name: "test",
-        result: "Passed",
-        job_state_transitions: [
-          %{state: "Scheduled", state_change_time: ~N[2026-02-05 10:05:30]},
-          %{state: "Assigned", state_change_time: ~N[2026-02-05 10:05:35]},
-          %{state: "Building", state_change_time: ~N[2026-02-05 10:05:40]},
-          %{state: "Completed", state_change_time: ~N[2026-02-05 10:08:00]}
-        ]
-      },
-      %{
-        pipeline_name: "deploy-staging",
-        pipeline_counter: 234,
-        stage_name: "deploy",
-        stage_counter: 1,
-        job_name: "deploy",
-        result: "Passed",
-        job_state_transitions: [
-          %{state: "Scheduled", state_change_time: ~N[2026-02-05 09:00:00]},
-          %{state: "Assigned", state_change_time: ~N[2026-02-05 09:00:02]},
-          %{state: "Building", state_change_time: ~N[2026-02-05 09:00:05]},
-          %{state: "Completed", state_change_time: ~N[2026-02-05 09:02:10]}
-        ]
-      }
-    ]
+  # Show "—" for pipeline/stage when it's an ad hoc test job (no pipeline in the system).
+  defp display_pipeline(job) do
+    if job.pipeline_name in [nil, "", "unknown", "test-pipeline"], do: "—", else: job.pipeline_name
   end
 
-  defp format_transition_time(naive_dt) when is_struct(naive_dt, NaiveDateTime) do
-    Calendar.strftime(naive_dt, "%Y-%m-%d %H:%M:%S")
+  defp display_stage(job) do
+    if job.stage_name in [nil, "", "unknown", "test-stage"], do: "—", else: job.stage_name
   end
-
-  defp format_transition_time(_), do: "—"
 
   defp result_class("Passed"), do: "result-passed"
   defp result_class("Failed"), do: "result-failed"

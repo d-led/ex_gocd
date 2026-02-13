@@ -1,17 +1,18 @@
 defmodule ExGoCDWeb.AgentsLive do
   @moduledoc """
   LiveView for displaying and managing agents.
-  Based on GoCD's AgentsPage with real-time updates via PubSub.
+  Real-time updates via Phoenix channel (agents:updates); hook pushes refresh_agents.
+  Admin-only actions (enable/disable/delete, bulk actions, job history link) are
+  gated by is_user_admin (from AgentPolicy).
   """
   use ExGoCDWeb, :live_view
   alias ExGoCD.Agents
+  alias ExGoCD.Scheduler
 
   @impl true
   def mount(_params, _session, socket) do
-    if connected?(socket) do
-      # Subscribe to real-time agent updates
-      Agents.subscribe()
-    end
+    # Subscribe so any agent registration/update is broadcast to this LiveView
+    Agents.subscribe()
 
     {:ok,
      socket
@@ -23,54 +24,67 @@ defmodule ExGoCDWeb.AgentsLive do
        sort_column: "hostname",
        sort_order: :asc,
        page_title: "Agents",
-       current_path: "/agents"
+       current_path: "/agents",
+       pending_scheduled: pending_scheduled_count()
      )}
   end
 
   @impl true
-  def handle_info({:agent_registered, _agent}, socket) do
-    {:noreply, assign(socket, agents: fetch_agents())}
+  def handle_info({event, _agent}, socket)
+      when event in [:agent_registered, :agent_updated, :agent_enabled, :agent_disabled, :agent_deleted] do
+    new_agents = fetch_agents()
+    selected =
+      if socket.assigns[:selected_agents] do
+        MapSet.intersection(socket.assigns.selected_agents, MapSet.new(Enum.map(new_agents, & &1.uuid)))
+      else
+        MapSet.new()
+      end
+    {:noreply, assign(socket, agents: new_agents, selected_agents: selected)}
   end
 
-  def handle_info({:agent_updated, _agent}, socket) do
-    {:noreply, assign(socket, agents: fetch_agents())}
-  end
-
-  def handle_info({:agent_enabled, _agent}, socket) do
-    {:noreply, assign(socket, agents: fetch_agents())}
-  end
-
-  def handle_info({:agent_disabled, _agent}, socket) do
-    {:noreply, assign(socket, agents: fetch_agents())}
-  end
-
-  def handle_info({:agent_deleted, _agent}, socket) do
-    {:noreply, assign(socket, agents: fetch_agents(), selected_agents: MapSet.new())}
+  @impl true
+  def handle_event("refresh_agents", _params, socket) do
+    new_agents = fetch_agents()
+    selected =
+      if socket.assigns[:selected_agents] do
+        MapSet.intersection(socket.assigns.selected_agents, MapSet.new(Enum.map(new_agents, & &1.uuid)))
+      else
+        MapSet.new()
+      end
+    {:noreply, assign(socket, agents: new_agents, selected_agents: selected)}
   end
 
   @impl true
   def handle_event("toggle_select", %{"uuid" => uuid}, socket) do
-    selected =
-      if MapSet.member?(socket.assigns.selected_agents, uuid) do
-        MapSet.delete(socket.assigns.selected_agents, uuid)
-      else
-        MapSet.put(socket.assigns.selected_agents, uuid)
-      end
+    if socket.assigns[:is_user_admin] do
+      selected =
+        if MapSet.member?(socket.assigns.selected_agents, uuid) do
+          MapSet.delete(socket.assigns.selected_agents, uuid)
+        else
+          MapSet.put(socket.assigns.selected_agents, uuid)
+        end
 
-    {:noreply, assign(socket, selected_agents: selected)}
+      {:noreply, assign(socket, selected_agents: selected)}
+    else
+      return_forbidden(socket)
+    end
   end
 
   def handle_event("toggle_select_all", _params, socket) do
-    agent_uuids = Enum.map(socket.assigns.agents, & &1.uuid) |> MapSet.new()
+    if socket.assigns[:is_user_admin] do
+      agent_uuids = Enum.map(socket.assigns.agents, & &1.uuid) |> MapSet.new()
 
-    selected =
-      if MapSet.size(socket.assigns.selected_agents) == length(socket.assigns.agents) do
-        MapSet.new()
-      else
-        agent_uuids
-      end
+      selected =
+        if MapSet.size(socket.assigns.selected_agents) == length(socket.assigns.agents) do
+          MapSet.new()
+        else
+          agent_uuids
+        end
 
-    {:noreply, assign(socket, selected_agents: selected)}
+      {:noreply, assign(socket, selected_agents: selected)}
+    else
+      return_forbidden(socket)
+    end
   end
 
   def handle_event("switch_tab", %{"type" => "static"}, socket) do
@@ -98,72 +112,113 @@ defmodule ExGoCDWeb.AgentsLive do
   end
 
   def handle_event("bulk_delete", _params, socket) do
-    Enum.each(socket.assigns.selected_agents, fn uuid ->
-      Agents.delete_agent(uuid)
-    end)
+    if socket.assigns[:is_user_admin] do
+      Enum.each(socket.assigns.selected_agents, fn uuid ->
+        Agents.delete_agent(uuid)
+      end)
 
-    {:noreply,
-     socket
-     |> put_flash(:info, "Selected agents deleted")
-     |> assign(selected_agents: MapSet.new())}
+      {:noreply,
+       socket
+       |> put_flash(:info, "Selected agents deleted")
+       |> assign(selected_agents: MapSet.new())}
+    else
+      return_forbidden(socket)
+    end
   end
 
   def handle_event("bulk_enable", _params, socket) do
-    Enum.each(socket.assigns.selected_agents, fn uuid ->
-      Agents.enable_agent(uuid)
-    end)
+    if socket.assigns[:is_user_admin] do
+      Enum.each(socket.assigns.selected_agents, fn uuid ->
+        Agents.enable_agent(uuid)
+      end)
 
-    {:noreply,
-     socket
-     |> put_flash(:info, "Selected agents enabled")
-     |> assign(selected_agents: MapSet.new())}
+      {:noreply,
+       socket
+       |> put_flash(:info, "Selected agents enabled")
+       |> assign(selected_agents: MapSet.new())}
+    else
+      return_forbidden(socket)
+    end
   end
 
   def handle_event("bulk_disable", _params, socket) do
-    Enum.each(socket.assigns.selected_agents, fn uuid ->
-      Agents.disable_agent(uuid)
-    end)
+    if socket.assigns[:is_user_admin] do
+      Enum.each(socket.assigns.selected_agents, fn uuid ->
+        Agents.disable_agent(uuid)
+      end)
 
-    {:noreply,
-     socket
-     |> put_flash(:info, "Selected agents disabled")
-     |> assign(selected_agents: MapSet.new())}
+      {:noreply,
+       socket
+       |> put_flash(:info, "Selected agents disabled")
+       |> assign(selected_agents: MapSet.new())}
+    else
+      return_forbidden(socket)
+    end
   end
 
   def handle_event("enable", %{"uuid" => uuid}, socket) do
-    case Agents.enable_agent(uuid) do
-      {:ok, _agent} ->
-        {:noreply, put_flash(socket, :info, "Agent enabled")}
+    if socket.assigns[:is_user_admin] do
+      case Agents.enable_agent(uuid) do
+        {:ok, _agent} ->
+          {:noreply, put_flash(socket, :info, "Agent enabled")}
 
-      {:error, _} ->
-        {:noreply, put_flash(socket, :error, "Failed to enable agent")}
+        {:error, _} ->
+          {:noreply, put_flash(socket, :error, "Failed to enable agent")}
+      end
+    else
+      return_forbidden(socket)
     end
   end
 
   def handle_event("disable", %{"uuid" => uuid}, socket) do
-    case Agents.disable_agent(uuid) do
-      {:ok, _agent} ->
-        {:noreply, put_flash(socket, :info, "Agent disabled")}
+    if socket.assigns[:is_user_admin] do
+      case Agents.disable_agent(uuid) do
+        {:ok, _agent} ->
+          {:noreply, put_flash(socket, :info, "Agent disabled")}
 
-      {:error, _} ->
-        {:noreply, put_flash(socket, :error, "Failed to disable agent")}
+        {:error, _} ->
+          {:noreply, put_flash(socket, :error, "Failed to disable agent")}
+      end
+    else
+      return_forbidden(socket)
+    end
+  end
+
+  def handle_event("schedule_test_job", _params, socket) do
+    if socket.assigns[:is_user_admin] do
+      case Scheduler.schedule_job(%{}) do
+        {:ok, _id} ->
+          {:noreply,
+           socket
+           |> put_flash(:info, "Job scheduled. Next idle agent will pick it up.")
+           |> assign(pending_scheduled: pending_scheduled_count())}
+
+        {:error, _} ->
+          {:noreply, put_flash(socket, :error, "Failed to schedule job")}
+      end
+    else
+      return_forbidden(socket)
     end
   end
 
   def handle_event("delete", %{"uuid" => uuid}, socket) do
-    case Agents.delete_agent(uuid) do
-      {:ok, _} ->
-        {:noreply, put_flash(socket, :info, "Agent deleted")}
+    if socket.assigns[:is_user_admin] do
+      case Agents.delete_agent(uuid) do
+        {:ok, _} ->
+          {:noreply, put_flash(socket, :info, "Agent deleted")}
 
-      {:error, _} ->
-        {:noreply, put_flash(socket, :error, "Failed to delete agent")}
+        {:error, _} ->
+          {:noreply, put_flash(socket, :error, "Failed to delete agent")}
+      end
+    else
+      return_forbidden(socket)
     end
   end
 
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="agents-page">
+    <div class="agents-page" id="agents-page" phx-hook="AgentsUpdates">
       <div class="page-header">
         <h1 class="page-header_title">
           <span>Agents</span>
@@ -172,7 +227,7 @@ defmodule ExGoCDWeb.AgentsLive do
           </span>
         </h1>
       </div>
-      
+
     <!-- Tabs -->
       <div class="agents-tabs">
         <button
@@ -192,42 +247,52 @@ defmodule ExGoCDWeb.AgentsLive do
           ELASTIC
         </button>
       </div>
-      
+
     <!-- Bulk Actions & Stats -->
       <div class="agents-controls">
-        <div class="bulk-actions">
-          <button
-            type="button"
-            class="btn-small btn-danger"
-            phx-click="bulk_delete"
-            disabled={MapSet.size(@selected_agents) == 0}
-            data-confirm="Are you sure you want to delete the selected agents?"
-          >
-            DELETE
-          </button>
-          <button
-            type="button"
-            class="btn-small"
-            phx-click="bulk_enable"
-            disabled={MapSet.size(@selected_agents) == 0}
-          >
-            ENABLE
-          </button>
-          <button
-            type="button"
-            class="btn-small"
-            phx-click="bulk_disable"
-            disabled={MapSet.size(@selected_agents) == 0}
-          >
-            DISABLE
-          </button>
-          <button type="button" class="btn-small" disabled={MapSet.size(@selected_agents) == 0}>
-            ENVIRONMENTS
-          </button>
-          <button type="button" class="btn-small" disabled={MapSet.size(@selected_agents) == 0}>
-            RESOURCES
-          </button>
-        </div>
+        <%= if @is_user_admin do %>
+          <div class="bulk-actions">
+            <button
+              type="button"
+              class="btn-small btn-danger"
+              phx-click="bulk_delete"
+              disabled={MapSet.size(@selected_agents) == 0}
+              data-confirm="Are you sure you want to delete the selected agents?"
+            >
+              DELETE
+            </button>
+            <button
+              type="button"
+              class="btn-small"
+              phx-click="bulk_enable"
+              disabled={MapSet.size(@selected_agents) == 0}
+            >
+              ENABLE
+            </button>
+            <button
+              type="button"
+              class="btn-small"
+              phx-click="bulk_disable"
+              disabled={MapSet.size(@selected_agents) == 0}
+            >
+              DISABLE
+            </button>
+            <button type="button" class="btn-small" disabled={MapSet.size(@selected_agents) == 0}>
+              ENVIRONMENTS
+            </button>
+            <button type="button" class="btn-small" disabled={MapSet.size(@selected_agents) == 0}>
+              RESOURCES
+            </button>
+            <button
+              type="button"
+              class="btn-small btn-primary"
+              phx-click="schedule_test_job"
+              title="Add a test job to the queue; next idle agent will run it (GoCD-style scheduling)"
+            >
+              SCHEDULE TEST JOB
+            </button>
+          </div>
+        <% end %>
 
         <div class="agents-stats">
           <span>Total</span>
@@ -247,6 +312,10 @@ defmodule ExGoCDWeb.AgentsLive do
           <span class="stats-value stats-disabled">
             {disabled_count(@agents, @agent_type)}
           </span>
+
+          <span class="stats-label">Queued jobs</span>
+          <span class="stats-separator">:</span>
+          <span class="stats-value">{@pending_scheduled}</span>
         </div>
 
         <div class="search-box">
@@ -262,22 +331,24 @@ defmodule ExGoCDWeb.AgentsLive do
           />
         </div>
       </div>
-      
+
     <!-- Agents Table -->
       <div class="agents-table-container">
         <table class="agents-table">
           <thead>
             <tr>
-              <th class="checkbox-cell">
-                <input
-                  type="checkbox"
-                  checked={
-                    (agents = displayed_agents(@agents, @agent_type, @filter, @sort_column, @sort_order)) != [] &&
-                      MapSet.size(@selected_agents) == length(agents)
-                  }
-                  phx-click="toggle_select_all"
-                />
-              </th>
+              <%= if @is_user_admin do %>
+                <th class="checkbox-cell">
+                  <input
+                    type="checkbox"
+                    checked={
+                      (agents = displayed_agents(@agents, @agent_type, @filter, @sort_column, @sort_order)) != [] &&
+                        MapSet.size(@selected_agents) == length(agents)
+                    }
+                    phx-click="toggle_select_all"
+                  />
+                </th>
+              <% end %>
               <th class="sortable" phx-click="sort" phx-value-column="hostname" role="button" tabindex="0">
                 AGENT NAME <i class={sort_icon_class("hostname", @sort_column, @sort_order)} aria-hidden="true"></i>
               </th>
@@ -307,29 +378,35 @@ defmodule ExGoCDWeb.AgentsLive do
           <tbody>
             <%= for agent <- displayed_agents(@agents, @agent_type, @filter, @sort_column, @sort_order) do %>
               <tr class={if agent.disabled, do: "disabled-row", else: ""}>
-                <td class="checkbox-cell">
-                  <input
-                    type="checkbox"
-                    checked={MapSet.member?(@selected_agents, agent.uuid)}
-                    phx-click="toggle_select"
-                    phx-value-uuid={agent.uuid}
-                  />
-                </td>
+                <%= if @is_user_admin do %>
+                  <td class="checkbox-cell">
+                    <input
+                      type="checkbox"
+                      checked={MapSet.member?(@selected_agents, agent.uuid)}
+                      phx-click="toggle_select"
+                      phx-value-uuid={agent.uuid}
+                    />
+                  </td>
+                <% end %>
                 <td>
-                  <a
-                    href={"/agents/#{agent.uuid}/job_run_history"}
-                    title={agent.uuid}
-                    class="agent-name"
-                  >
-                    {agent.hostname}
-                  </a>
+                  <%= if @is_user_admin do %>
+                    <a
+                      href={"/agents/#{agent.uuid}/job_run_history"}
+                      title={agent.uuid}
+                      class="agent-name"
+                    >
+                      {agent.hostname}
+                    </a>
+                  <% else %>
+                    <span class="agent-name">{agent.hostname}</span>
+                  <% end %>
                 </td>
                 <td>{agent.working_dir || ""}</td>
                 <td>{agent.operating_system || ""}</td>
                 <td>{agent.ipaddress}</td>
                 <td>
-                  <span class={agent_status_class(agent)}>
-                    {agent_status_text(agent)}
+                  <span class={status_class(Agents.effective_status(agent))}>
+                    {status_text(Agents.effective_status(agent))}
                   </span>
                 </td>
                 <td>{format_bytes(agent.free_space)}</td>
@@ -397,7 +474,7 @@ defmodule ExGoCDWeb.AgentsLive do
   defp sort_key(agent, "working_dir"), do: agent.working_dir || ""
   defp sort_key(agent, "operating_system"), do: agent.operating_system || ""
   defp sort_key(agent, "ipaddress"), do: agent.ipaddress || ""
-  defp sort_key(agent, "state"), do: agent_status_text(agent)
+  defp sort_key(agent, "state"), do: status_text(Agents.effective_status(agent))
   defp sort_key(agent, "free_space"), do: agent.free_space || 0
   defp sort_key(agent, "resources"), do: Enum.join(agent.resources || [], " ")
   defp sort_key(agent, "environments"), do: Enum.join(agent.environments || [], " ")
@@ -422,21 +499,25 @@ defmodule ExGoCDWeb.AgentsLive do
   end
 
   defp pending_count(_agents, _type) do
-    # TODO: Implement pending logic (agents waiting for approval)
+    # Agents in Pending config state (awaiting approval)
     0
   end
 
-  defp agent_status_text(%{disabled: true}), do: "Disabled"
-  defp agent_status_text(%{state: "LostContact"}), do: "LostContact"
-  defp agent_status_text(%{state: "Building"}), do: "Building"
-  defp agent_status_text(%{state: "Idle"}), do: "Idle"
-  defp agent_status_text(_), do: "Unknown"
+  defp pending_scheduled_count do
+    if Process.whereis(ExGoCD.Scheduler), do: ExGoCD.Scheduler.pending_count(), else: 0
+  end
 
-  defp agent_status_class(%{disabled: true}), do: "status-disabled"
-  defp agent_status_class(%{state: "LostContact"}), do: "status-lost-contact"
-  defp agent_status_class(%{state: "Building"}), do: "status-building"
-  defp agent_status_class(%{state: "Idle"}), do: "status-idle"
-  defp agent_status_class(_), do: "status-unknown"
+  defp status_text(:disabled), do: "Disabled"
+  defp status_text(:lost_contact), do: "LostContact"
+  defp status_text(:building), do: "Building"
+  defp status_text(:idle), do: "Idle"
+  defp status_text(:unknown), do: "Unknown"
+
+  defp status_class(:disabled), do: "status-disabled"
+  defp status_class(:lost_contact), do: "status-lost-contact"
+  defp status_class(:building), do: "status-building"
+  defp status_class(:idle), do: "status-idle"
+  defp status_class(:unknown), do: "status-unknown"
 
   defp format_bytes(nil), do: "Unknown"
   defp format_bytes(bytes) when bytes < 1024, do: "#{bytes} B"
@@ -448,4 +529,8 @@ defmodule ExGoCDWeb.AgentsLive do
     do: "#{Float.round(bytes / (1024 * 1024), 1)} MB"
 
   defp format_bytes(bytes), do: "#{Float.round(bytes / (1024 * 1024 * 1024), 1)} GB"
+
+  defp return_forbidden(socket) do
+    {:noreply, put_flash(socket, :error, "You are not authorized to perform this action.")}
+  end
 end

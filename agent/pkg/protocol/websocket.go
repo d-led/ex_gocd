@@ -14,6 +14,7 @@ const (
 	CancelBuildAction         = "cancelBuild"
 	ReregisterAction          = "reregister"
 	BuildAction               = "build"
+	JoinAction                = "join"
 	PingAction                = "ping"
 	AckAction                 = "acknowledge"
 	ReportCurrentStatusAction = "reportCurrentStatus"
@@ -59,33 +60,33 @@ type AgentRuntimeInfo struct {
 
 // Build represents a job to execute
 type Build struct {
-	BuildId                 string         `json:"buildId"`
-	BuildLocator            string         `json:"buildLocator"`
-	BuildLocatorForDisplay  string         `json:"buildLocatorForDisplay"`
-	ConsoleUrl              string         `json:"consoleURI"` // GoCD sends consoleURI
-	ArtifactUploadBaseUrl   string         `json:"artifactUploadBaseUrl"`
-	PropertyBaseUrl         string         `json:"propertyBaseUrl,omitempty"`
-	BuildCommand            *BuildCommand  `json:"buildCommand"`
+	BuildId                string        `json:"buildId"`
+	BuildLocator           string        `json:"buildLocator"`
+	BuildLocatorForDisplay string        `json:"buildLocatorForDisplay"`
+	ConsoleUrl             string        `json:"consoleURI"`
+	ArtifactUploadBaseUrl  string        `json:"artifactUploadBaseUrl"`
+	PropertyBaseUrl        string        `json:"propertyBaseUrl,omitempty"`
+	BuildCommand           *BuildCommand `json:"buildCommand"`
 }
 
 // BuildCommand contains the tasks to execute
 type BuildCommand struct {
-	Name         string                   `json:"name"`
-	SubCommands  []*BuildCommand          `json:"subCommands,omitempty"`
-	RunIf        string                   `json:"runIfConfig,omitempty"`
-	OnCancelCmd  *BuildCommand            `json:"onCancelCommand,omitempty"`
-	WorkingDir   string                   `json:"workingDirectory,omitempty"`
-	Command      string                   `json:"command,omitempty"`
-	Args         []string                 `json:"args,omitempty"`
-	Test         map[string]string        `json:"test,omitempty"`
-	Src          string                   `json:"src,omitempty"`
-	Dest         string                   `json:"dest,omitempty"`
-	URL          string                   `json:"url,omitempty"`
-	Branch       string                   `json:"branch,omitempty"`
-	Attributes   map[string]interface{}   `json:"attributes,omitempty"`
+	Name        string                 `json:"name"`
+	SubCommands []*BuildCommand        `json:"subCommands,omitempty"`
+	RunIf       string                 `json:"runIfConfig,omitempty"`
+	OnCancelCmd *BuildCommand          `json:"onCancelCommand,omitempty"`
+	WorkingDir  string                 `json:"workingDirectory,omitempty"`
+	Command     string                 `json:"command,omitempty"`
+	Args        []string               `json:"args,omitempty"`
+	Test        map[string]string      `json:"test,omitempty"`
+	Src         string                 `json:"src,omitempty"`
+	Dest        string                 `json:"dest,omitempty"`
+	URL         string                 `json:"url,omitempty"`
+	Branch      string                 `json:"branch,omitempty"`
+	Attributes  map[string]interface{} `json:"attributes,omitempty"`
 }
 
-// Report contains job execution status  
+// Report contains job execution status
 type Report struct {
 	BuildId          string            `json:"buildId"`
 	Result           string            `json:"result,omitempty"` // "Passed", "Failed", "Cancelled"
@@ -127,6 +128,14 @@ func (m *Message) DataString() string {
 
 // Message constructors
 
+func JoinMessage(info *AgentRuntimeInfo) *Message {
+	data, _ := json.Marshal(info)
+	return &Message{
+		Action: JoinAction,
+		Data:   data,
+	}
+}
+
 func PingMessage(info *AgentRuntimeInfo) *Message {
 	data, _ := json.Marshal(info)
 	return &Message{
@@ -161,10 +170,3 @@ func ReportCompletingMessage(report *Report) *Message {
 func ReportCurrentStatusMessage(report *Report) *Message {
 	return ReportMessage(ReportCurrentStatusAction, report)
 }
-
-// Build command name constants (GoCD BuildCommand protocol)
-const (
-	CommandCompose = "compose" // Runs SubCommands in order
-	CommandExec    = "exec"    // Runs Command with Args (exec task)
-	CommandGit     = "git"     // Clone and checkout (URL, Branch, Dest)
-)

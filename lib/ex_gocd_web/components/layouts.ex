@@ -13,7 +13,12 @@ defmodule ExGoCDWeb.Layouts do
 
   @doc """
   Renders the GoCD site header.
+
+  Pass `is_user_admin` to show/hide admin-only UI (e.g. Admin nav).
   """
+  attr :current_path, :string, default: "/"
+  attr :is_user_admin, :boolean, default: false
+
   def site_header(assigns) do
     ~H"""
     <header class="site-header" role="banner">
@@ -66,16 +71,18 @@ defmodule ExGoCDWeb.Layouts do
                 Materials
               </a>
             </li>
-            <li role="none" class={if active_tab?(assigns, :admin), do: "active", else: ""}>
-              <a
-                href="/admin"
-                role="menuitem"
-                tabindex="0"
-                aria-current={if active_tab?(assigns, :admin), do: "page", else: "false"}
-              >
-                Admin
-              </a>
-            </li>
+            <%= if @is_user_admin do %>
+              <li role="none" class={if active_tab?(assigns, :admin), do: "active", else: ""}>
+                <a
+                  href="/admin"
+                  role="menuitem"
+                  tabindex="0"
+                  aria-current={if active_tab?(assigns, :admin), do: "page", else: "false"}
+                >
+                  Admin
+                </a>
+              </li>
+            <% end %>
           </ul>
         </div>
         <div class="site-header_right">

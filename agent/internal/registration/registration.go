@@ -77,7 +77,7 @@ func (r *Registrar) readServerCACert() error {
 	}
 
 	serverURL := r.config.ServerURL
-	
+
 	// Only get CA cert if using HTTPS
 	if serverURL.Scheme != "https" {
 		// For HTTP servers, create a dummy CA file for consistency
@@ -86,8 +86,8 @@ func (r *Registrar) readServerCACert() error {
 		}
 		return os.WriteFile(caFile, []byte("# Not using TLS\n"), 0644)
 	}
-	
-	// Create insecure client to download CA cert  
+
+	// Create insecure client to download CA cert
 	client := &http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{
@@ -95,7 +95,7 @@ func (r *Registrar) readServerCACert() error {
 			},
 		},
 	}
-	
+
 	caCertURL := serverURL.String() + "/admin/agent/root_certificate"
 
 	resp, err := client.Get(caCertURL)
@@ -121,9 +121,33 @@ func (r *Registrar) readServerCACert() error {
 	return os.WriteFile(caFile, caCert, 0644)
 }
 
-// requestToken requests an agent token from the server
+// requestToken requests an agent token from the server, or uses a shared demo cookie when set.
 func (r *Registrar) requestToken() error {
 	tokenFile := r.config.AgentTokenFile()
+
+	// Demo/dev: use shared cookie so phx.server + start-agent and docker-compose always match
+	if demo := os.Getenv("EX_GOCD_DEMO_COOKIE"); demo != "" {
+		token := strings.TrimSpace(demo)
+		if err := os.MkdirAll(filepath.Dir(tokenFile), 0755); err != nil {
+			return err
+		}
+		if err := os.WriteFile(tokenFile, []byte(token), 0600); err != nil {
+			return err
+		}
+		log.Println("Using shared demo cookie from EX_GOCD_DEMO_COOKIE")
+		return nil
+	}
+	if demo := os.Getenv("AGENT_DEMO_COOKIE"); demo != "" {
+		token := strings.TrimSpace(demo)
+		if err := os.MkdirAll(filepath.Dir(tokenFile), 0755); err != nil {
+			return err
+		}
+		if err := os.WriteFile(tokenFile, []byte(token), 0600); err != nil {
+			return err
+		}
+		log.Println("Using shared demo cookie from AGENT_DEMO_COOKIE")
+		return nil
+	}
 
 	// Skip if token file already exists
 	if _, err := os.Stat(tokenFile); err == nil {
@@ -131,7 +155,7 @@ func (r *Registrar) requestToken() error {
 	}
 
 	tokenURL := r.config.TokenURL()
-	
+
 	resp, err := r.httpClient.Get(tokenURL)
 	if err != nil {
 		return fmt.Errorf("failed to request token from %s: %w", tokenURL, err)
@@ -253,7 +277,7 @@ func (r *Registrar) registerAndDownloadCerts() error {
 	// Save private key and certificate
 	privateKeyFile := r.config.AgentPrivateKeyFile()
 	certFile := r.config.AgentCertFile()
-	
+
 	if err := os.WriteFile(privateKeyFile, []byte(registration.AgentPrivateKey), 0600); err != nil {
 		return fmt.Errorf("failed to write private key: %w", err)
 	}
@@ -269,7 +293,7 @@ func (r *Registrar) registerAndDownloadCerts() error {
 // registrationData prepares the form data for registration
 func (r *Registrar) registrationData() url.Values {
 	cfg := r.config
-	
+
 	return url.Values{
 		"hostname":                      {cfg.Hostname},
 		"uuid":                          {cfg.UUID},
@@ -307,7 +331,7 @@ func (r *Registrar) createTLSConfig(withClientCert bool) (*tls.Config, error) {
 	if r.config.ServerURL.Scheme != "https" && r.config.ServerURL.Scheme != "wss" {
 		return nil, nil
 	}
-	
+
 	// Load server CA certificate
 	caCert, err := os.ReadFile(r.config.GoServerCAFile())
 	if err != nil {
@@ -382,13 +406,13 @@ func (r *Registrar) registerWithRetry() error {
 	// For HTTPS servers, retry if agent approval is pending
 	maxRetries := 5
 	baseDelay := 2 * time.Second
-	
+
 	for attempt := 0; attempt < maxRetries; attempt++ {
 		err := r.registerAndGetCerts()
 		if err == nil {
 			return nil
 		}
-		
+
 		// Check if it's a pending approval error
 		if strings.Contains(err.Error(), "pending") || strings.Contains(err.Error(), "empty") {
 			if attempt < maxRetries-1 {
@@ -398,10 +422,10 @@ func (r *Registrar) registerWithRetry() error {
 				continue
 			}
 		}
-		
+
 		return err
 	}
-	
+
 	return fmt.Errorf("registration failed after %d attempts", maxRetries)
 }
 

@@ -11,14 +11,17 @@ defmodule ExGoCDWeb.Endpoint do
     same_site: "Lax"
   ]
 
+  socket "/socket", ExGoCDWeb.UserSocket, websocket: true
+
   socket "/live", Phoenix.LiveView.Socket,
     websocket: [connect_info: [session: @session_options]],
     longpoll: [connect_info: [session: @session_options]]
 
-  # GoCD agent protocol: WebSocket at /agent-websocket with action/data JSON (see docs/rewrite.md)
+  # GoCD agent protocol: WebSocket at /agent-websocket with action/data JSON (see docs/rewrite.md).
+  # Serializer must be a list of {module, vsn} so Phoenix.negotiate_serializer/2 matches client vsn (e.g. "1.0.0").
   socket "/agent-websocket", ExGoCDWeb.AgentSocket,
     websocket: [
-      serializer: {ExGoCDWeb.AgentSerializer, []},
+      serializer: [{ExGoCDWeb.AgentSerializer, "1.0.0"}],
       connect_info: [:peer_data]
     ]
 

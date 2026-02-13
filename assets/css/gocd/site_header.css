@@ -32,11 +32,11 @@
   margin: 10px 0 10px 20px;
   background: url("/images/go_logo.svg") no-repeat 0 0;
   flex-shrink: 0;
-  @media (min-width: 768px) {
+}
+
+@media (min-width: 768px) {
+  .gocd_logo {
     margin: 10px 0 10px 0;
-  }
-  @media (min-width: 992px) {
-    margin-right: 10px;
   }
 }
 
