@@ -27,6 +27,8 @@ defmodule ExGoCDWeb.Router do
       live "/pipelines", DashboardLive, :index
       live "/agents", AgentsLive, :index
       live "/agents/:uuid/job_run_history", AgentJobHistoryLive, :index
+      live "/materials", MaterialsLive, :index
+      live "/admin", AdminLive, :index
     end
   end
 

@@ -478,6 +478,7 @@ Legend: Not started | In progress | Complete | Not applicable
 - **Go agent**: Basics prepared; can auto-register with our Phoenix instance. Use it when ready (see README and agent/README.md).
 - **CSS conversion**: Converted CSS (dashboard.css, agents.css) is checked in under assets/css/gocd; output names aligned with app imports; run `mix convert.gocd.css` or script and `git diff assets/css/gocd` to see changes (see docs/css_conversion_plan.md).
 - **Agent task execution**: Go agent runs real tasks: exec (command + args), compose (subcommands in order); build session creates work dir, runs command tree, reports Building → Completing → Completed; console log buffered with timestamp prefix, HTTP POST to server every 5s. Test with original GoCD server (see agent/README.md). Next: scheduling on Phoenix server (assign work, send build messages).
+- **Dashboard layout fix**: Pipelines/Agents (and all GoCD UI routes) now use `live_session :gocd` with layout `{Layouts, :gocd}`, so the site header and `.main-container` wrapper render correctly. Pipeline stage list markup fixed (`<ul>` now has `<li>` children). Materials and Admin nav links no longer 404: placeholder LiveViews (`MaterialsLive`, `AdminLive`) show “Coming later” content.
 
 ---
 
