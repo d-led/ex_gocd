@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os/exec"
 	"path/filepath"
+	"time"
 
 	"github.com/d-led/ex_gocd/agent/pkg/protocol"
 )
@@ -33,12 +34,22 @@ func Exec(session Session, cmd *protocol.BuildCommand) error {
 	done := make(chan error, 1)
 	go func() { done <- c.Wait() }()
 
-	select {
-	case err := <-done:
-		if err != nil {
-			return fmt.Errorf("exec: %w", err)
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		select {
+		case err := <-done:
+			if err != nil {
+				return fmt.Errorf("exec: %w", err)
+			}
+			return nil
+		case <-ticker.C:
+			if session.Canceled() {
+				_ = c.Process.Kill()
+				<-done
+				return fmt.Errorf("exec: canceled")
+			}
 		}
-		return nil
 	}
 }
 

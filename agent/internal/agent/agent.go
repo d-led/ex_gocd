@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -105,14 +106,21 @@ func (a *Agent) runWithRemoting(ctx context.Context, tlsConfig *tls.Config) erro
 	defer workTicker.Stop()
 	pingTicker := time.NewTicker(a.config.HeartbeatInterval)
 	defer pingTicker.Stop()
+	var cancelRequested atomic.Bool
 	log.Println("Polling for work (remoting)...")
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
 		case <-pingTicker.C:
-			if _, err := remotingClient.Ping(runtimeInfo); err != nil {
+			instruction, err := remotingClient.Ping(runtimeInfo)
+			if err != nil {
 				log.Printf("ping error: %v", err)
+				continue
+			}
+			if instruction == "CANCEL" || instruction == "KILL_RUNNING_TASKS" {
+				log.Printf("Server instruction %q: requesting build cancel", instruction)
+				cancelRequested.Store(true)
 			}
 		case <-workTicker.C:
 			if a.state != "Idle" {
@@ -130,11 +138,17 @@ func (a *Agent) runWithRemoting(ctx context.Context, tlsConfig *tls.Config) erro
 			if build == nil || build.BuildCommand == nil {
 				continue
 			}
+			cancelRequested.Store(false)
 			jobID := work.Assignment.JobIdentifier
 			sendRemoting := func(msg *protocol.Message) {
 				a.sendRemotingReport(remotingClient, jobID, msg)
 			}
-			a.handleBuildWithSend(build, sendRemoting)
+			canceled := func() bool { return cancelRequested.Load() }
+			a.state = "Building"
+			go func() {
+				defer func() { a.state = "Idle" }()
+				a.handleBuildWithSend(build, sendRemoting, canceled)
+			}()
 		}
 	}
 }
@@ -229,7 +243,7 @@ func (a *Agent) handleMessage(msg *protocol.Message) error {
 		build := msg.DataBuild()
 		log.Printf("Build assigned: %s", build.BuildId)
 		send := func(m *protocol.Message) { a.conn.Send(m) }
-		a.handleBuildWithSend(build, send)
+		a.handleBuildWithSend(build, send, nil)
 		
 	default:
 		log.Printf("Unknown message action: %s", msg.Action)
@@ -269,9 +283,8 @@ func (a *Agent) getRuntimeInfo() *protocol.AgentRuntimeInfo {
 }
 
 // handleBuildWithSend executes a build with a given send function for status reports (WebSocket or remoting).
-func (a *Agent) handleBuildWithSend(build *protocol.Build, send func(*protocol.Message)) {
-	a.state = "Building"
-	defer func() { a.state = "Idle" }()
+// canceled is optional; when non-nil and returns true, the build should stop (e.g. from server ping CANCEL/KILL_RUNNING_TASKS).
+func (a *Agent) handleBuildWithSend(build *protocol.Build, send func(*protocol.Message), canceled func() bool) {
 
 	reportStatus := func(buildID, jobState, result string) {
 		r := &protocol.Report{
@@ -321,7 +334,7 @@ func (a *Agent) handleBuildWithSend(build *protocol.Build, send func(*protocol.M
 			AgentRuntimeInfo: a.getRuntimeInfo(),
 		}
 	}
-	session := NewBuildSessionWithConsole(build.BuildId, build.BuildCommand, rootDir, con, send, getReport, nil)
+	session := NewBuildSessionWithConsole(build.BuildId, build.BuildCommand, rootDir, con, send, getReport, canceled)
 	session.Run()
 }
 

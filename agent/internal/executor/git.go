@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os/exec"
 	"path/filepath"
+	"time"
 
 	"github.com/d-led/ex_gocd/agent/pkg/protocol"
 )
@@ -36,8 +37,26 @@ func Git(session Session, cmd *protocol.BuildCommand) error {
 	c.Env = session.Env()
 	c.Stdout = session.Console()
 	c.Stderr = session.Console()
-	if err := c.Run(); err != nil {
-		return fmt.Errorf("git clone: %w", err)
+	if err := c.Start(); err != nil {
+		return fmt.Errorf("git clone start: %w", err)
 	}
-	return nil
+	done := make(chan error, 1)
+	go func() { done <- c.Wait() }()
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		select {
+		case err := <-done:
+			if err != nil {
+				return fmt.Errorf("git clone: %w", err)
+			}
+			return nil
+		case <-ticker.C:
+			if session.Canceled() {
+				_ = c.Process.Kill()
+				<-done
+				return fmt.Errorf("git: canceled")
+			}
+		}
+	}
 }
