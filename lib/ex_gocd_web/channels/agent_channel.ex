@@ -20,6 +20,16 @@ defmodule ExGoCDWeb.AgentChannel do
   """
   def run_test_job(agent_uuid), do: AgentRegistry.request_test_job(agent_uuid)
 
+  @doc """
+  Requests cancellation of a build on an agent. Broadcasts to the agent's topic;
+  the channel process for that agent will push cancelBuild to the WebSocket.
+  Call from LiveView or API. Does not check if the build is actually running.
+  """
+  def request_cancel_build(agent_uuid, build_id) when is_binary(agent_uuid) and is_binary(build_id) do
+    Phoenix.PubSub.broadcast(ExGoCD.PubSub, @agent_topic_prefix <> agent_uuid, {:cancel_build, build_id})
+    :ok
+  end
+
   @impl true
   def join("agent", payload, socket) do
     uuid = get_uuid(payload)
@@ -60,6 +70,11 @@ defmodule ExGoCDWeb.AgentChannel do
 
   def handle_info({:build, payload}, socket) do
     push(socket, "build", payload)
+    {:noreply, socket}
+  end
+
+  def handle_info({:cancel_build, build_id}, socket) do
+    push(socket, "cancelBuild", %{"buildId" => build_id})
     {:noreply, socket}
   end
 
@@ -121,31 +136,20 @@ defmodule ExGoCDWeb.AgentChannel do
 
   @impl true
   def handle_in("reportCurrentStatus", payload, socket) do
-    apply_report(socket.assigns.agent_uuid, payload, nil)
+    AgentJobRuns.handle_agent_report(socket.assigns.agent_uuid, payload)
     {:noreply, socket}
   end
 
   @impl true
   def handle_in("reportCompleting", payload, socket) do
-    apply_report(socket.assigns.agent_uuid, payload, nil)
+    AgentJobRuns.handle_agent_report(socket.assigns.agent_uuid, payload)
     {:noreply, socket}
   end
 
   @impl true
   def handle_in("reportCompleted", payload, socket) do
-    result = payload["result"]
-    apply_report(socket.assigns.agent_uuid, payload, result)
+    AgentJobRuns.handle_agent_report(socket.assigns.agent_uuid, payload)
     {:noreply, socket}
-  end
-
-  defp apply_report(agent_uuid, payload, result) do
-    build_id = payload["buildId"]
-    job_state = payload["jobState"]
-    if build_id && job_state, do: AgentJobRuns.report_status(agent_uuid, build_id, job_state, result)
-    # So the UI shows Building/Idle immediately without waiting for the next ping
-    if runtime_status = get_in(payload, ["agentRuntimeInfo", "runtimeStatus"]) do
-      Agents.update_agent_runtime_state(agent_uuid, runtime_status)
-    end
   end
 
   @impl true

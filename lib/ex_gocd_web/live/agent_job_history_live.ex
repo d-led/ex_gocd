@@ -12,7 +12,7 @@ defmodule ExGoCDWeb.AgentJobHistoryLive do
     agent = Agents.get_agent_by_uuid(uuid)
 
     if agent do
-      AgentJobRuns.subscribe_job_runs(uuid)
+      if connected?(socket), do: AgentJobRuns.subscribe_job_runs(uuid)
 
       {:ok,
        socket

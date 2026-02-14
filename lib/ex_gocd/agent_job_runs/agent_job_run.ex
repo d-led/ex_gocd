@@ -18,16 +18,19 @@ defmodule ExGoCD.AgentJobRuns.AgentJobRun do
     field :state, :string, default: "Scheduled"
     field :console_log, :string, default: ""
 
+    belongs_to :job_instance, ExGoCD.Pipelines.JobInstance
+
     timestamps(type: :utc_datetime)
   end
 
   @required [:agent_uuid, :build_id, :pipeline_name, :stage_name, :job_name]
-  @optional [:result, :state, :pipeline_counter, :stage_counter, :console_log]
+  @optional [:result, :state, :pipeline_counter, :stage_counter, :console_log, :job_instance_id]
 
   def changeset(run, attrs) do
     run
     |> cast(attrs, @required ++ @optional)
     |> validate_required(@required)
     |> unique_constraint([:agent_uuid, :build_id])
+    |> foreign_key_constraint(:job_instance_id, name: :agent_job_runs_job_instance_id_fkey)
   end
 end

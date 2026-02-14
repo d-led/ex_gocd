@@ -85,9 +85,44 @@ defmodule ExGoCD.AgentJobRunsTest do
       assert run.result == "Failed"
     end
 
+    test "stores Cancelled result when agent reports cancelled build" do
+      {:ok, _} = AgentJobRuns.create_run(@agent_uuid, "build-3", "p", "s", "j")
+      {:ok, _} = AgentJobRuns.report_status(@agent_uuid, "build-3", "Building", nil)
+      {:ok, _} = AgentJobRuns.report_status(@agent_uuid, "build-3", "Completed", "Cancelled")
+
+      run = get_run(@agent_uuid, "build-3")
+      assert run.state == "Completed"
+      assert run.result == "Cancelled"
+    end
+
     test "returns {:error, :run_not_found} when no run exists for build_id" do
       assert {:error, :run_not_found} =
                AgentJobRuns.report_status(@agent_uuid, "nonexistent-build", "Building", nil)
+    end
+  end
+
+  describe "handle_agent_report/2" do
+    test "updates run and agent runtime state from report payload" do
+      {:ok, _} = AgentJobRuns.create_run(@agent_uuid, "build-hr", "p", "s", "j")
+
+      payload = %{
+        "buildId" => "build-hr",
+        "jobState" => "Completed",
+        "result" => "Passed",
+        "agentRuntimeInfo" => %{"runtimeStatus" => "Idle"}
+      }
+
+      assert :ok = AgentJobRuns.handle_agent_report(@agent_uuid, payload)
+
+      run = get_run(@agent_uuid, "build-hr")
+      assert run.state == "Completed"
+      assert run.result == "Passed"
+      agent = Agents.get_agent_by_uuid(@agent_uuid)
+      assert agent.state == "Idle"
+    end
+
+    test "no-op when buildId or jobState missing" do
+      assert :ok = AgentJobRuns.handle_agent_report(@agent_uuid, %{"agentRuntimeInfo" => %{"runtimeStatus" => "Idle"}})
     end
   end
 

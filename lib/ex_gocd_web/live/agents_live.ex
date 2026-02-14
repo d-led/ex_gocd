@@ -11,8 +11,10 @@ defmodule ExGoCDWeb.AgentsLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    # Subscribe so any agent registration/update is broadcast to this LiveView
-    Agents.subscribe()
+    if connected?(socket) do
+      Agents.subscribe()
+      ExGoCD.Scheduler.subscribe()
+    end
 
     {:ok,
      socket
@@ -40,6 +42,10 @@ defmodule ExGoCDWeb.AgentsLive do
         MapSet.new()
       end
     {:noreply, assign(socket, agents: new_agents, selected_agents: selected)}
+  end
+
+  def handle_info({:pending_count, count}, socket) do
+    {:noreply, assign(socket, pending_scheduled: count)}
   end
 
   @impl true

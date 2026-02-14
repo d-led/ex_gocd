@@ -7,13 +7,23 @@ defmodule ExGoCD.Scheduler do
 
   alias ExGoCD.Agents
   alias ExGoCD.AgentJobRuns
+  alias ExGoCD.Pipelines
   alias ExGoCD.PubSub
   alias ExGoCDWeb.AgentPresence
 
   @agent_topic_prefix "agent:"
   @presence_topic "agent"
+  @scheduler_topic "scheduler:updates"
 
   # Client API
+
+  @doc """
+  Subscribes to scheduler queue updates (topic `scheduler:updates`).
+  Events: `{:pending_count, count}`. LiveViews use this to update "Queued jobs" in real time.
+  """
+  def subscribe do
+    Phoenix.PubSub.subscribe(PubSub, @scheduler_topic)
+  end
 
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
@@ -47,6 +57,14 @@ defmodule ExGoCD.Scheduler do
     GenServer.call(__MODULE__, :pending_count)
   end
 
+  @doc """
+  Clears the pending queue. For test use only (ensures resource/environment matching
+  tests see only the job they enqueue).
+  """
+  def clear_queue do
+    GenServer.call(__MODULE__, :clear_queue)
+  end
+
   # Server
 
   @impl true
@@ -58,7 +76,9 @@ defmodule ExGoCD.Scheduler do
   def handle_call({:schedule_job, spec}, _from, %{queue: queue} = state) do
     id = "sched-#{System.unique_integer([:positive])}"
     entry = Map.put(spec, :id, id)
-    {:reply, {:ok, id}, %{state | queue: queue ++ [entry]}}
+    new_queue = queue ++ [entry]
+    broadcast_pending_count(length(new_queue))
+    {:reply, {:ok, id}, %{state | queue: new_queue}}
   end
 
   def handle_call({:try_assign_work, agent_uuid}, _from, %{queue: queue} = state) do
@@ -80,6 +100,7 @@ defmodule ExGoCD.Scheduler do
 
             {job_spec, rest} ->
               assign_and_send(agent_uuid, agent, job_spec)
+              broadcast_pending_count(length(rest))
               {:reply, :assigned, %{state | queue: rest}}
           end
         end
@@ -90,8 +111,13 @@ defmodule ExGoCD.Scheduler do
     {:reply, length(queue), state}
   end
 
+  def handle_call(:clear_queue, _from, state) do
+    broadcast_pending_count(0)
+    {:reply, :ok, %{state | queue: []}}
+  end
+
   defp normalize_job_spec(spec) do
-    %{
+    base = %{
       pipeline: spec["pipeline"] || spec[:pipeline] || "default-pipeline",
       stage: spec["stage"] || spec[:stage] || "default-stage",
       job: spec["job"] || spec[:job] || "default-job",
@@ -99,6 +125,10 @@ defmodule ExGoCD.Scheduler do
       environments: spec["environments"] || spec[:environments] || [],
       build_command: spec["build_command"] || spec[:build_command]
     }
+    case spec["job_instance_id"] || spec[:job_instance_id] do
+      id when is_integer(id) -> Map.put(base, :job_instance_id, id)
+      _ -> base
+    end
   end
 
   defp find_matching_job(agent, queue) do
@@ -152,8 +182,10 @@ defmodule ExGoCD.Scheduler do
       "consoleURI" => console_uri
     }
 
-    case AgentJobRuns.create_run(agent_uuid, build_id, pipeline, stage, job) do
+    opts = if ji_id = job_spec[:job_instance_id], do: [job_instance_id: ji_id], else: []
+    case AgentJobRuns.create_run(agent_uuid, build_id, pipeline, stage, job, opts) do
       {:ok, _} ->
+        if ji_id = job_spec[:job_instance_id], do: Pipelines.assign_job_instance(ji_id, agent_uuid)
         Agents.update_agent_runtime_state(agent_uuid, "Building")
         topic = @agent_topic_prefix <> agent_uuid
         Phoenix.PubSub.broadcast(PubSub, topic, {:build, payload})
@@ -161,6 +193,10 @@ defmodule ExGoCD.Scheduler do
       {:error, _} ->
         :ok
     end
+  end
+
+  defp broadcast_pending_count(count) do
+    Phoenix.PubSub.broadcast(PubSub, @scheduler_topic, {:pending_count, count})
   end
 
   defp maybe_put_working_dir(cmd, agent) when is_map(cmd) do

@@ -5,7 +5,7 @@ defmodule ExGoCD.AgentJobRuns do
 
   PubSub topics for LiveView updates:
   - `agent_job_runs:{agent_uuid}` — list of runs changed; payload `{:run_created | :run_updated, agent_uuid}`.
-  - `agent_job_run_console:{build_id}` — console log appended; payload `{:console_append, chunk}`.
+  - `agent_job_run_console:{build_id}` — console log appended `{:console_append, chunk}`; run state/result `{:run_updated, run}`.
   """
   import Ecto.Query
   alias ExGoCD.PubSub
@@ -41,24 +41,30 @@ defmodule ExGoCD.AgentJobRuns do
   end
 
   @doc """
-  Creates a job run when a build is sent to an agent (e.g. Run test job).
+  Creates a job run when a build is sent to an agent (e.g. Run test job or pipeline trigger).
   Call before broadcasting the build so the run exists when the agent reports back.
+  Options: :job_instance_id (integer) — when set, links this run to a pipeline JobInstance.
   """
-  def create_run(agent_uuid, build_id, pipeline_name, stage_name, job_name)
+  def create_run(agent_uuid, build_id, pipeline_name, stage_name, job_name, opts \\ [])
       when is_binary(agent_uuid) and is_binary(build_id) do
+    job_instance_id = Keyword.get(opts, :job_instance_id)
+    # Only link to job_instance if it exists (avoids FK violation when e.g. pipeline test rolled back but queue persists)
+    job_instance_id = if job_instance_id && Repo.get(ExGoCD.Pipelines.JobInstance, job_instance_id), do: job_instance_id, else: nil
     case Agents.get_agent_by_uuid(agent_uuid) do
       nil -> {:error, :agent_not_found}
       _agent ->
+        attrs = %{
+          agent_uuid: agent_uuid,
+          build_id: build_id,
+          pipeline_name: pipeline_name,
+          stage_name: stage_name,
+          job_name: job_name,
+          state: "Assigned"
+        }
+        attrs = if job_instance_id, do: Map.put(attrs, :job_instance_id, job_instance_id), else: attrs
         result =
           %AgentJobRun{}
-          |> AgentJobRun.changeset(%{
-            agent_uuid: agent_uuid,
-            build_id: build_id,
-            pipeline_name: pipeline_name,
-            stage_name: stage_name,
-            job_name: job_name,
-            state: "Assigned"
-          })
+          |> AgentJobRun.changeset(attrs)
           |> Repo.insert()
 
         if match?({:ok, _}, result), do: broadcast_job_runs(agent_uuid, :run_created)
@@ -80,12 +86,38 @@ defmodule ExGoCD.AgentJobRuns do
     if run do
       attrs = %{state: job_state}
       attrs = if result, do: Map.put(attrs, :result, result), else: attrs
-      result = run |> AgentJobRun.changeset(attrs) |> Repo.update()
-      if match?({:ok, _}, result), do: broadcast_job_runs(agent_uuid, :run_updated)
-      result
+      case run |> AgentJobRun.changeset(attrs) |> Repo.update() do
+        {:ok, updated} ->
+          broadcast_job_runs(agent_uuid, :run_updated)
+          broadcast_run_updated_for_console(build_id, updated)
+          if updated.job_instance_id && job_state == "Completed" && result do
+            ExGoCD.Pipelines.complete_job_instance(updated.job_instance_id, result)
+          end
+          {:ok, updated}
+        error ->
+          error
+      end
     else
       {:error, :run_not_found}
     end
+  end
+
+  @doc """
+  Handles agent report messages (reportCurrentStatus, reportCompleting, reportCompleted).
+  Updates job run state and agent runtime state. Call from the agent channel to keep channel thin.
+  """
+  def handle_agent_report(agent_uuid, payload) when is_binary(agent_uuid) and is_map(payload) do
+    build_id = payload["buildId"]
+    job_state = payload["jobState"]
+    result = payload["result"]
+    if build_id && job_state, do: report_status(agent_uuid, build_id, job_state, result)
+    runtime_status = payload["agentRuntimeInfo"] && payload["agentRuntimeInfo"]["runtimeStatus"]
+    if runtime_status, do: Agents.update_agent_runtime_state(agent_uuid, runtime_status)
+    :ok
+  end
+
+  defp broadcast_run_updated_for_console(build_id, run) when is_binary(build_id) do
+    Phoenix.PubSub.broadcast(PubSub, @console_topic_prefix <> build_id, {:run_updated, run})
   end
 
   @doc """

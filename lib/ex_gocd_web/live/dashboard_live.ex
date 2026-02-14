@@ -2,6 +2,7 @@ defmodule ExGoCDWeb.DashboardLive do
   use ExGoCDWeb, :live_view
 
   alias ExGoCD.MockData
+  alias ExGoCD.Pipelines
 
   @impl true
   def mount(_params, _session, socket) do
@@ -51,25 +52,67 @@ defmodule ExGoCDWeb.DashboardLive do
      |> load_pipelines()}
   end
 
+  @impl true
+  def handle_event("trigger_pipeline", %{"name" => name}, socket) do
+    case Pipelines.trigger_pipeline(name) do
+      {:ok, _instance} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "Pipeline #{name} triggered. Jobs will run on idle agents.")
+         |> load_pipelines()}
+
+      {:error, :pipeline_not_found} ->
+        {:noreply, put_flash(socket, :error, "Pipeline not found.")}
+
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, "Failed to trigger pipeline.")}
+    end
+  end
+
   # Private functions
 
   defp load_pipelines(socket) do
-    all_pipelines = MockData.pipelines()
+    {all_pipelines, from_db} = pipeline_list(socket)
     filtered = MockData.filter_pipelines(all_pipelines, socket.assigns.search_text)
-
-    grouped =
-      case socket.assigns.grouping_scheme do
-        "environment" -> group_pipelines(filtered, MockData.pipelines_by_environment())
-        "pipeline_group" -> group_pipelines(filtered, MockData.pipelines_by_group())
-        _ -> group_pipelines(filtered, MockData.pipelines_by_environment())
-      end
+    grouped_data = grouping_data(all_pipelines, socket.assigns.grouping_scheme, from_db)
+    grouped = group_pipelines(filtered, grouped_data)
 
     socket
     |> assign(:pipeline_groups, grouped)
     |> assign(:has_pipelines, length(filtered) > 0)
   end
 
-  defp group_pipelines(filtered_pipelines, grouped_data) do
+  # Use DB pipelines when available, else mock data (same shape: name, group, counter, status, etc.)
+  defp pipeline_list(_socket) do
+    case Pipelines.list_for_dashboard() do
+      [] -> {MockData.pipelines(), false}
+      list -> {list, true}
+    end
+  end
+
+  defp grouping_data(_all_pipelines, "pipeline_group", false) do
+    MockData.pipelines_by_group()
+    |> Map.new()
+  end
+
+  defp grouping_data(_all_pipelines, "environment", false) do
+    MockData.pipelines_by_environment()
+    |> Map.new()
+  end
+
+  defp grouping_data(all_pipelines, "pipeline_group", true) do
+    Enum.group_by(all_pipelines, & &1.group)
+    |> Enum.sort_by(fn {k, _} -> k || "" end)
+    |> Map.new()
+  end
+
+  defp grouping_data(all_pipelines, _scheme, true) do
+    Enum.group_by(all_pipelines, fn p -> p[:group] || p.group || "Default" end)
+    |> Enum.sort_by(fn {k, _} -> k end)
+    |> Map.new()
+  end
+
+  defp group_pipelines(filtered_pipelines, grouped_data) when is_map(grouped_data) do
     filtered_names = MapSet.new(filtered_pipelines, & &1.name)
 
     grouped_data
@@ -125,6 +168,8 @@ defmodule ExGoCDWeb.DashboardLive do
                 aria-label="Trigger Pipeline"
                 title="Trigger Pipeline"
                 class="button pipeline_btn play"
+                phx-click="trigger_pipeline"
+                phx-value-name={@pipeline.name}
               >
               </button>
             </li>
@@ -222,10 +267,12 @@ defmodule ExGoCDWeb.DashboardLive do
     "#{stage.name} (#{stage.status})"
   end
 
+  defp format_local_time(nil), do: "—"
   defp format_local_time(datetime) do
     Calendar.strftime(datetime, "%d %b, %Y at %H:%M:%S Local Time")
   end
 
+  defp format_server_time(nil), do: "—"
   defp format_server_time(datetime) do
     Calendar.strftime(datetime, "%d %b, %Y at %H:%M:%S +00:00 Server Time")
   end

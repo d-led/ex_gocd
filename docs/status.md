@@ -478,6 +478,9 @@ Legend: Not started | In progress | Complete | Not applicable
 - **Go agent**: Basics prepared; can auto-register with our Phoenix instance. Use it when ready (see README and agent/README.md).
 - **CSS conversion**: Converted CSS (dashboard.css, agents.css) is checked in under assets/css/gocd; output names aligned with app imports; run `mix convert.gocd.css` or script and `git diff assets/css/gocd` to see changes (see docs/css_conversion_plan.md).
 - **Agent task execution**: Go agent runs real tasks: exec (command + args), compose (subcommands in order); build session creates work dir, runs command tree, reports Building → Completing → Completed; console log buffered with timestamp prefix, HTTP POST to server every 5s. Test with original GoCD server (see agent/README.md). Next: scheduling on Phoenix server (assign work, send build messages).
+- **PubSub and thin LiveViews**: Scheduler broadcasts `{:pending_count, count}` on queue change; AgentsLive subscribes when connected and shows queued jobs in real time. AgentJobRuns.handle_agent_report centralizes report handling (channel delegates to context). Console topic broadcasts `{:run_updated, run}` so job run detail view shows Passed/Failed in real time. All LiveViews subscribe only when `connected?(socket)`.
+- **Cancel build**: Go agent tracks current build with context; on `cancelBuild` (buildId in payload) kills process and reports Completed/Cancelled. Server: AgentChannel.request_cancel_build/2 broadcasts to agent topic; channel pushes cancelBuild to WebSocket. AgentJobRunDetailLive shows Cancel button for Assigned/Building/Completing runs; result Cancelled styled in console detail.
+- **Pipeline-backed dashboard**: Pipelines context (list_pipelines, get_pipeline_by_name, trigger_pipeline, list_for_dashboard). Trigger creates PipelineInstance, StageInstance(s), JobInstances for first stage and enqueues jobs to Scheduler; agent_job_runs.job_instance_id links to JobInstance; report_status completes JobInstance and StageInstance when all jobs in stage done. Dashboard loads from DB via list_for_dashboard when any pipelines exist (else MockData); Play button triggers pipeline. Seed: demo pipeline (stage build, job default, exec echo).
 - **Dashboard layout fix**: Pipelines/Agents (and all GoCD UI routes) now use `live_session :gocd` with layout `{Layouts, :gocd}`, so the site header and `.main-container` wrapper render correctly. Pipeline stage list markup fixed (`<ul>` now has `<li>` children). Materials and Admin nav links no longer 404: placeholder LiveViews (`MaterialsLive`, `AdminLive`) show “Coming later” content.
 
 ---
@@ -497,7 +500,9 @@ See [AGENTS.md](../../../AGENTS.md) for comprehensive implementation plan.
 ### Active Tasks
 
 - [x] Go agent: handle `build` messages and run tasks (exec, compose; console upload)
-- [ ] Job queue and work assignment (server) — **scheduling**: assign jobs to agents, send `build` message
+- [x] Job queue and work assignment (server) — **scheduling**: Scheduler GenServer, assign on idle ping, send `build` message
+- [x] Cancel build: Go agent handles `cancelBuild` (kill process, report Cancelled); server broadcasts to agent; Cancel button on job run detail
+- [x] Pipeline trigger from dashboard: Pipelines context (list, get_by_name, trigger_pipeline), dashboard loads from DB when pipelines exist (else mock), Play button triggers pipeline; job_instance_id links agent runs to JobInstance; stage completes when all jobs done
 - [ ] Artifact upload and fetch-artifact
 - [ ] End-to-end job execution tests (e.g. agent + original GoCD server)
 

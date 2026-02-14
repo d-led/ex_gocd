@@ -35,6 +35,11 @@ type Agent struct {
 	conn      *websocket.Connection
 	cookie    string
 	state     string
+
+	// Current build cancellation: guarded by buildMu
+	buildMu       sync.Mutex
+	currentBuild  string             // buildId of running build, or ""
+	cancelBuildFn context.CancelFunc  // call to cancel current build
 }
 
 // New creates a new Agent
@@ -158,11 +163,14 @@ func (a *Agent) runWithConnection(ctx context.Context, tlsConfig *tls.Config) er
 
 // handleMessage processes incoming messages from server
 func (a *Agent) handleMessage(msg *protocol.Message) error {
-	log.Printf("Received message: %s", msg.Action)
-
 	switch msg.Action {
 	case "phx_reply":
-		// Phoenix channel reply (join ack or heartbeat reply). Connection is active; repeated every ping interval.
+		// Phoenix channel reply to our ping (heartbeat ack). Connection is active.
+		log.Printf("Heartbeat acknowledged")
+
+	case "presence_diff":
+		// Phoenix Presence broadcast (server tracks who is on the channel). No action needed.
+		// Ignore silently to avoid log noise.
 
 	case protocol.SetCookieAction:
 		cookie := msg.DataString()
@@ -172,7 +180,7 @@ func (a *Agent) handleMessage(msg *protocol.Message) error {
 		if len(preview) > 8 {
 			preview = preview[:8] + "..."
 		}
-		log.Printf("Cookie set: %s", preview)
+		log.Printf("Server set agent cookie: %s", preview)
 
 	case protocol.ReregisterAction:
 		log.Println("Server requested re-registration")
@@ -180,14 +188,26 @@ func (a *Agent) handleMessage(msg *protocol.Message) error {
 		return fmt.Errorf("re-registration requested")
 
 	case protocol.CancelBuildAction:
-		log.Println("Build cancellation requested")
-		// TODO: Cancel running build
+		buildID := msg.BuildIdFromData()
+		a.buildMu.Lock()
+		cancelFn := a.cancelBuildFn
+		matches := a.currentBuild == buildID
+		a.buildMu.Unlock()
+		if matches && cancelFn != nil {
+			log.Printf("Cancelling build: %s", buildID)
+			cancelFn()
+		} else if buildID != "" {
+			log.Printf("Cancel requested for build %s (current build: %q)", buildID, a.currentBuild)
+		}
 
 	case protocol.BuildAction:
 		build := msg.DataBuild()
-		log.Printf("Build assigned: %s", build.BuildId)
-		// TODO: Execute build
-		a.handleBuild(build)
+		if build != nil {
+			log.Printf("Build assigned: %s (%s)", build.BuildId, build.BuildLocatorForDisplay)
+			a.handleBuild(build)
+		} else {
+			log.Printf("Build assigned but failed to parse payload")
+		}
 
 	case "phx_close":
 		// Server closed the channel (e.g. duplicate join or intentional close); treat as normal close so we reconnect once
@@ -195,6 +215,7 @@ func (a *Agent) handleMessage(msg *protocol.Message) error {
 		return fmt.Errorf("channel closed by server")
 
 	default:
+		// Unhandled action: likely a bug (new server message we don't support, or typo).
 		log.Printf("Unknown message action: %s", msg.Action)
 	}
 
@@ -243,19 +264,39 @@ func (a *Agent) handleBuild(build *protocol.Build) {
 	a.state = "Building"
 	defer func() { a.state = "Idle" }()
 
-	log.Printf("Executing build: %s", build.BuildId)
+	ctx, cancel := context.WithCancel(context.Background())
+	a.buildMu.Lock()
+	a.currentBuild = build.BuildId
+	a.cancelBuildFn = cancel
+	a.buildMu.Unlock()
+	defer func() {
+		a.buildMu.Lock()
+		a.currentBuild = ""
+		a.cancelBuildFn = nil
+		a.buildMu.Unlock()
+	}()
 
+	log.Printf("Executing build: %s", build.BuildId)
 	a.reportStatus(build.BuildId, "Building", "")
 
 	result := "Passed"
 	if build.BuildCommand != nil && build.BuildCommand.Command != "" {
-		if err := a.runBuildCommand(build); err != nil {
-			log.Printf("Build command failed: %v", err)
-			result = "Failed"
+		if err := a.runBuildCommand(ctx, build); err != nil {
+			if err == context.Canceled {
+				result = "Cancelled"
+				log.Printf("Build %s was cancelled", build.BuildId)
+			} else {
+				log.Printf("Build command failed: %v", err)
+				result = "Failed"
+			}
 		}
 	} else {
 		// No command: minimal success (e.g. server sent build without buildCommand)
-		time.Sleep(500 * time.Millisecond)
+		select {
+		case <-time.After(500 * time.Millisecond):
+		case <-ctx.Done():
+			result = "Cancelled"
+		}
 	}
 
 	a.reportStatus(build.BuildId, "Completing", result)
@@ -264,24 +305,26 @@ func (a *Agent) handleBuild(build *protocol.Build) {
 
 // runBuildCommand runs the build's command (or subCommands in sequence) in the agent working dir.
 // When build.ConsoleUrl is set, stdout/stderr are captured and streamed to that URL with timestamp prefix.
-func (a *Agent) runBuildCommand(build *protocol.Build) error {
+// ctx can be cancelled to abort the build (e.g. cancelBuild from server).
+func (a *Agent) runBuildCommand(ctx context.Context, build *protocol.Build) error {
 	cmd := build.BuildCommand
 	if cmd == nil {
 		return nil
 	}
 	if len(cmd.SubCommands) > 0 {
 		for _, sub := range cmd.SubCommands {
-			if err := a.runOneCommand(build, sub); err != nil {
+			if err := a.runOneCommand(ctx, build, sub); err != nil {
 				return err
 			}
 		}
 		return nil
 	}
-	return a.runOneCommand(build, cmd)
+	return a.runOneCommand(ctx, build, cmd)
 }
 
 // runOneCommand runs a single BuildCommand (command + args), streaming output to build.ConsoleUrl when set.
-func (a *Agent) runOneCommand(build *protocol.Build, cmd *protocol.BuildCommand) error {
+// ctx can be cancelled to kill the process (returns context.Canceled).
+func (a *Agent) runOneCommand(ctx context.Context, build *protocol.Build, cmd *protocol.BuildCommand) error {
 	path := cmd.Command
 	if path == "" {
 		return nil
@@ -295,7 +338,7 @@ func (a *Agent) runOneCommand(build *protocol.Build, cmd *protocol.BuildCommand)
 		return fmt.Errorf("working dir: %w", err)
 	}
 
-	c := exec.Command(path, cmd.Args...)
+	c := exec.CommandContext(ctx, path, cmd.Args...)
 	c.Dir = absDir
 
 	if build.ConsoleUrl != "" {
@@ -314,12 +357,20 @@ func (a *Agent) runOneCommand(build *protocol.Build, cmd *protocol.BuildCommand)
 		go streamToConsole("", stdoutPipe)
 		go streamToConsole("stderr: ", stderrPipe)
 		wg.Wait()
-		return c.Wait()
+		err := c.Wait()
+		if err != nil && ctx.Err() == context.Canceled {
+			return context.Canceled
+		}
+		return err
 	}
 
 	c.Stdout = os.Stdout
 	c.Stderr = os.Stderr
-	return c.Run()
+	err = c.Run()
+	if err != nil && ctx.Err() == context.Canceled {
+		return context.Canceled
+	}
+	return err
 }
 
 // streamReaderToConsole reads lines from r, prefixes each with "HH:mm:ss.SSS [prefix]", and POSTs to consoleURL.

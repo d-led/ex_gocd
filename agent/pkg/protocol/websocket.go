@@ -126,6 +126,15 @@ func (m *Message) DataString() string {
 	return s
 }
 
+// BuildIdFromData parses payload that contains {"buildId": "..."} (e.g. cancelBuild).
+func (m *Message) BuildIdFromData() string {
+	var o struct {
+		BuildId string `json:"buildId"`
+	}
+	json.Unmarshal(m.Data, &o)
+	return o.BuildId
+}
+
 // Message constructors
 
 func JoinMessage(info *AgentRuntimeInfo) *Message {
