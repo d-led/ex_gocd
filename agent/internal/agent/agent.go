@@ -4,13 +4,17 @@
 package agent
 
 import (
+	"archive/zip"
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/md5"
 	"crypto/tls"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"log"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"os/exec"
@@ -325,6 +329,13 @@ func (a *Agent) runBuildCommand(ctx context.Context, build *protocol.Build) erro
 // runOneCommand runs a single BuildCommand (command + args), streaming output to build.ConsoleUrl when set.
 // ctx can be cancelled to kill the process (returns context.Canceled).
 func (a *Agent) runOneCommand(ctx context.Context, build *protocol.Build, cmd *protocol.BuildCommand) error {
+	switch cmd.Name {
+	case "uploadArtifact":
+		return a.runUploadArtifact(ctx, build, cmd)
+	case "fetchArtifact":
+		return a.runFetchArtifact(ctx, build, cmd)
+	}
+
 	path := cmd.Command
 	if path == "" {
 		return nil
@@ -371,6 +382,383 @@ func (a *Agent) runOneCommand(ctx context.Context, build *protocol.Build, cmd *p
 		return context.Canceled
 	}
 	return err
+}
+
+func (a *Agent) httpClient() (*http.Client, error) {
+	tlsConfig, err := a.registrar.CreateTLSConfig()
+	if err != nil {
+		return nil, err
+	}
+	return &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: tlsConfig,
+		},
+	}, nil
+}
+
+func (a *Agent) runUploadArtifact(ctx context.Context, build *protocol.Build, cmd *protocol.BuildCommand) error {
+	log.Printf("Executing uploadArtifact: Src=%q, Dest=%q", cmd.Src, cmd.Dest)
+	dir := a.config.WorkingDir
+	if cmd.WorkingDir != "" {
+		dir = cmd.WorkingDir
+	}
+	absDir, err := filepath.Abs(dir)
+	if err != nil {
+		return fmt.Errorf("working dir: %w", err)
+	}
+
+	srcPath := cmd.Src
+	if !filepath.IsAbs(srcPath) {
+		srcPath = filepath.Join(absDir, srcPath)
+	}
+
+	if _, err := os.Stat(srcPath); err != nil {
+		return fmt.Errorf("artifact source path %q does not exist: %w", srcPath, err)
+	}
+
+	return a.uploadArtifact(ctx, build, cmd, srcPath)
+}
+
+func (a *Agent) uploadArtifact(ctx context.Context, build *protocol.Build, cmd *protocol.BuildCommand, srcPath string) error {
+	msg := fmt.Sprintf("Uploading artifact %s to %s on server...\n", cmd.Src, cmd.Dest)
+	_ = postConsole(build.ConsoleUrl, time.Now().Format("15:04:05.000")+" "+msg)
+
+	zipPath, err := zipSource(srcPath)
+	if err != nil {
+		return fmt.Errorf("zip source failed: %w", err)
+	}
+	defer os.Remove(zipPath)
+
+	checksum, err := fileMD5(zipPath)
+	if err != nil {
+		return fmt.Errorf("calculate md5 failed: %w", err)
+	}
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+
+	zipFile, err := os.Open(zipPath)
+	if err != nil {
+		return err
+	}
+	defer zipFile.Close()
+
+	part, err := writer.CreateFormFile("zipfile", filepath.Base(zipPath))
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(part, zipFile); err != nil {
+		return err
+	}
+
+	checksumKey := cmd.Dest
+	if checksumKey == "" {
+		checksumKey = filepath.Base(srcPath)
+	}
+	checksumLine := fmt.Sprintf("%s:%s\n", checksumKey, checksum)
+
+	checksumPart, err := writer.CreateFormFile("file_checksum", "cruise-output/md5.checksum")
+	if err != nil {
+		return err
+	}
+	if _, err := io.WriteString(checksumPart, checksumLine); err != nil {
+		return err
+	}
+
+	if err := writer.Close(); err != nil {
+		return err
+	}
+
+	uploadURL := build.ArtifactUploadBaseUrl
+	if !strings.HasSuffix(uploadURL, "/") {
+		uploadURL += "/"
+	}
+	uploadURL += cmd.Dest
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, uploadURL, body)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+
+	client, err := a.httpClient()
+	if err != nil {
+		return fmt.Errorf("create HTTP client failed: %w", err)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("http upload request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		respBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("upload artifact failed: status %s, body: %q", resp.Status, string(respBody))
+	}
+
+	successMsg := fmt.Sprintf("Successfully uploaded artifact %s to %s.\n", cmd.Src, cmd.Dest)
+	_ = postConsole(build.ConsoleUrl, time.Now().Format("15:04:05.000")+" "+successMsg)
+	return nil
+}
+
+func (a *Agent) runFetchArtifact(ctx context.Context, build *protocol.Build, cmd *protocol.BuildCommand) error {
+	log.Printf("Executing fetchArtifact: Src=%q, Dest=%q", cmd.Src, cmd.Dest)
+	dir := a.config.WorkingDir
+	if cmd.WorkingDir != "" {
+		dir = cmd.WorkingDir
+	}
+	absDir, err := filepath.Abs(dir)
+	if err != nil {
+		return fmt.Errorf("working dir: %w", err)
+	}
+
+	destPath := cmd.Dest
+	if !filepath.IsAbs(destPath) {
+		destPath = filepath.Join(absDir, destPath)
+	}
+
+	return a.fetchArtifact(ctx, build, cmd, destPath)
+}
+
+func (a *Agent) fetchArtifact(ctx context.Context, build *protocol.Build, cmd *protocol.BuildCommand, destPath string) error {
+	msg := fmt.Sprintf("Fetching artifact %s to %s...\n", cmd.Src, cmd.Dest)
+	_ = postConsole(build.ConsoleUrl, time.Now().Format("15:04:05.000")+" "+msg)
+
+	downloadURL := cmd.Src
+	if !strings.HasPrefix(downloadURL, "http://") && !strings.HasPrefix(downloadURL, "https://") {
+		cleanedSrc := strings.TrimPrefix(cmd.Src, "/")
+		parts := strings.Split(cleanedSrc, "/")
+		if len(parts) >= 5 {
+			filesBase := getFilesBaseURL(build.ArtifactUploadBaseUrl)
+			downloadURL = filesBase + "/" + cleanedSrc
+		} else {
+			downloadURL = build.ArtifactUploadBaseUrl
+			if !strings.HasSuffix(downloadURL, "/") {
+				downloadURL += "/"
+			}
+			downloadURL += cleanedSrc
+		}
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, downloadURL, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Accept", "application/zip")
+
+	client, err := a.httpClient()
+	if err != nil {
+		return err
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("fetch artifact failed with status %s: %s", resp.Status, string(respBody))
+	}
+
+	contentType := resp.Header.Get("Content-Type")
+	isZip := contentType == "application/zip" || strings.HasSuffix(downloadURL, ".zip")
+
+	if isZip {
+		tmpFile, err := os.CreateTemp("", "gocd-fetch-*.zip")
+		if err != nil {
+			return err
+		}
+		defer os.Remove(tmpFile.Name())
+		defer tmpFile.Close()
+
+		if _, err := io.Copy(tmpFile, resp.Body); err != nil {
+			return err
+		}
+		_ = tmpFile.Close()
+
+		if err := unzipSecurely(tmpFile.Name(), destPath); err != nil {
+			return fmt.Errorf("unzip failed: %w", err)
+		}
+	} else {
+		if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
+			return err
+		}
+		out, err := os.Create(destPath)
+		if err != nil {
+			return err
+		}
+		defer out.Close()
+
+		if _, err := io.Copy(out, resp.Body); err != nil {
+			return err
+		}
+	}
+
+	successMsg := fmt.Sprintf("Successfully fetched artifact to %s.\n", cmd.Dest)
+	_ = postConsole(build.ConsoleUrl, time.Now().Format("15:04:05.000")+" "+successMsg)
+	return nil
+}
+
+func getFilesBaseURL(uploadURL string) string {
+	for _, pattern := range []string{"/files", "/go/files", "/remoting/files"} {
+		if idx := strings.Index(uploadURL, pattern); idx != -1 {
+			return uploadURL[:idx] + pattern
+		}
+	}
+	return uploadURL
+}
+
+func fileMD5(path string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	h := md5.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+func zipSource(srcPath string) (string, error) {
+	fi, err := os.Stat(srcPath)
+	if err != nil {
+		return "", err
+	}
+
+	tmpFile, err := os.CreateTemp("", "gocd-upload-*.zip")
+	if err != nil {
+		return "", err
+	}
+
+	success := false
+	defer func() {
+		if !success {
+			tmpFile.Close()
+			os.Remove(tmpFile.Name())
+		}
+	}()
+
+	zw := zip.NewWriter(tmpFile)
+
+	if !fi.IsDir() {
+		f, err := os.Open(srcPath)
+		if err != nil {
+			return "", err
+		}
+		defer f.Close()
+
+		w, err := zw.Create(filepath.Base(srcPath))
+		if err != nil {
+			return "", err
+		}
+		if _, err := io.Copy(w, f); err != nil {
+			return "", err
+		}
+	} else {
+		err = filepath.Walk(srcPath, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if info.IsDir() {
+				return nil
+			}
+
+			rel, err := filepath.Rel(srcPath, path)
+			if err != nil {
+				return err
+			}
+
+			f, err := os.Open(path)
+			if err != nil {
+				return err
+			}
+			defer f.Close()
+
+			w, err := zw.Create(rel)
+			if err != nil {
+				return err
+			}
+			if _, err := io.Copy(w, f); err != nil {
+				return err
+			}
+			return nil
+		})
+		if err != nil {
+			return "", err
+		}
+	}
+
+	if err := zw.Close(); err != nil {
+		return "", err
+	}
+	if err := tmpFile.Close(); err != nil {
+		return "", err
+	}
+
+	success = true
+	return tmpFile.Name(), nil
+}
+
+func unzipSecurely(zipPath string, destDir string) error {
+	destDir, err := filepath.Abs(destDir)
+	if err != nil {
+		return err
+	}
+
+	r, err := zip.OpenReader(zipPath)
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+
+	for _, f := range r.File {
+		cleanedPath := filepath.Clean(f.Name)
+		if filepath.IsAbs(cleanedPath) || strings.HasPrefix(cleanedPath, "..") {
+			return fmt.Errorf("illegal file path in zip (Zip Slip detected): %s", f.Name)
+		}
+
+		targetPath := filepath.Join(destDir, cleanedPath)
+		if !strings.HasPrefix(targetPath, destDir+string(filepath.Separator)) && targetPath != destDir {
+			return fmt.Errorf("illegal file path in zip (Zip Slip boundary escape): %s", f.Name)
+		}
+
+		if f.FileInfo().IsDir() {
+			if err := os.MkdirAll(targetPath, 0755); err != nil {
+				return err
+			}
+			continue
+		}
+
+		if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
+			return err
+		}
+
+		outFile, err := os.OpenFile(targetPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
+		if err != nil {
+			return err
+		}
+
+		rc, err := f.Open()
+		if err != nil {
+			outFile.Close()
+			return err
+		}
+
+		_, err = io.Copy(outFile, rc)
+		rc.Close()
+		outFile.Close()
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // streamReaderToConsole reads lines from r, prefixes each with "HH:mm:ss.SSS [prefix]", and POSTs to consoleURL.

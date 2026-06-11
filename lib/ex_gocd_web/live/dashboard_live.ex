@@ -13,7 +13,15 @@ defmodule ExGoCDWeb.DashboardLive do
      |> assign(:search_text, "")
      |> assign(:grouping_scheme, "environment")
      |> assign(:grouping_text, "Environment")
-     |> assign(:dropdown_open, false)
+     |> assign(:dropdown_open, false)}
+  end
+
+  @impl true
+  def handle_params(params, _uri, socket) do
+    search_text = params["search"] || ""
+    {:noreply,
+     socket
+     |> assign(:search_text, search_text)
      |> load_pipelines()}
   end
 
@@ -54,7 +62,14 @@ defmodule ExGoCDWeb.DashboardLive do
 
   @impl true
   def handle_event("trigger_pipeline", %{"name" => name}, socket) do
-    case Pipelines.trigger_pipeline(name) do
+    result =
+      if use_mock?() do
+        {:ok, %{name: name}}
+      else
+        Pipelines.trigger_pipeline(name)
+      end
+
+    case result do
       {:ok, _instance} ->
         {:noreply,
          socket
@@ -82,11 +97,19 @@ defmodule ExGoCDWeb.DashboardLive do
     |> assign(:has_pipelines, length(filtered) > 0)
   end
 
+  defp use_mock? do
+    System.get_env("USE_MOCK_DATA") == "true"
+  end
+
   # Use DB pipelines when available, else mock data (same shape: name, group, counter, status, etc.)
   defp pipeline_list(_socket) do
-    case Pipelines.list_for_dashboard() do
-      [] -> {MockData.pipelines(), false}
-      list -> {list, true}
+    if use_mock?() do
+      {MockData.pipelines(), false}
+    else
+      case Pipelines.list_for_dashboard() do
+        [] -> {MockData.pipelines(), false}
+        list -> {list, true}
+      end
     end
   end
 

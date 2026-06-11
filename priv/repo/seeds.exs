@@ -72,3 +72,26 @@ unless Repo.get_by(Pipeline, name: "ci") do
 else
   IO.puts("Pipeline 'ci' already exists, skipping seed")
 end
+
+alias ExGoCD.AgentJobRuns.AgentJobRun
+
+unless Repo.get_by(AgentJobRun, build_id: "demo-build-1") do
+  %AgentJobRun{}
+  |> AgentJobRun.changeset(%{
+    agent_uuid: "00000000-0000-0000-0000-000000000001",
+    build_id: "demo-build-1",
+    pipeline_name: "demo",
+    pipeline_counter: 1,
+    stage_name: "build",
+    stage_counter: 1,
+    job_name: "default",
+    state: "Completed",
+    result: "Passed",
+    console_log: "Hello, this is a mock console log from the seeds script!\n"
+  })
+  |> Repo.insert!()
+
+  IO.puts("Seeded mock agent job run for build-agent-01.example.com")
+else
+  IO.puts("Mock job run already exists, skipping seed")
+end

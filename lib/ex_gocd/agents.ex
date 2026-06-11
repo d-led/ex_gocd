@@ -139,7 +139,7 @@ defmodule ExGoCD.Agents do
   def effective_status(%Agent{disabled: true}, _opts), do: :disabled
   def effective_status(agent, opts) do
     threshold_sec = Keyword.get(opts, :lost_contact_seconds, 90)
-    if stale?(agent.updated_at, threshold_sec) do
+    if not use_mock?() and stale?(agent.updated_at, threshold_sec) do
       :lost_contact
     else
       state_to_status(agent.state)

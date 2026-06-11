@@ -11,7 +11,7 @@ defmodule ExGoCDWeb.AgentJobRunDetailLive do
   @impl true
   def mount(%{"uuid" => uuid, "build_id" => build_id}, _session, socket) do
     agent = Agents.get_agent_by_uuid(uuid)
-    run = AgentJobRuns.get_run(uuid, build_id)
+    run = get_run(uuid, build_id)
 
     cond do
       is_nil(agent) ->
@@ -104,5 +104,30 @@ defmodule ExGoCDWeb.AgentJobRunDetailLive do
 
   defp run_cancellable?(run) do
     run.state in ["Assigned", "Building", "Completing"]
+  end
+
+  defp use_mock? do
+    System.get_env("USE_MOCK_DATA") == "true"
+  end
+
+  defp get_run(uuid, build_id) do
+    if use_mock?() do
+      %ExGoCD.AgentJobRuns.AgentJobRun{
+        id: 1,
+        agent_uuid: uuid,
+        build_id: build_id,
+        pipeline_name: "demo",
+        pipeline_counter: 1,
+        stage_name: "build",
+        stage_counter: 1,
+        job_name: "default",
+        state: "Completed",
+        result: "Passed",
+        console_log: "Hello, this is a mock console log from static mock data!\n",
+        inserted_at: ~N[2026-02-05 10:30:00]
+      }
+    else
+      AgentJobRuns.get_run(uuid, build_id)
+    end
   end
 end

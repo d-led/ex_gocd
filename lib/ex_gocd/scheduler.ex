@@ -119,7 +119,9 @@ defmodule ExGoCD.Scheduler do
   defp normalize_job_spec(spec) do
     base = %{
       pipeline: spec["pipeline"] || spec[:pipeline] || "default-pipeline",
+      pipeline_counter: spec["pipeline_counter"] || spec[:pipeline_counter] || 1,
       stage: spec["stage"] || spec[:stage] || "default-stage",
+      stage_counter: spec["stage_counter"] || spec[:stage_counter] || 1,
       job: spec["job"] || spec[:job] || "default-job",
       resources: spec["resources"] || spec[:resources] || [],
       environments: spec["environments"] || spec[:environments] || [],
@@ -164,25 +166,33 @@ defmodule ExGoCD.Scheduler do
   defp assign_and_send(agent_uuid, agent, job_spec) do
     build_id = "build-#{System.unique_integer([:positive])}"
     pipeline = job_spec.pipeline
+    pipeline_counter = job_spec.pipeline_counter
     stage = job_spec.stage
+    stage_counter = job_spec.stage_counter
     job = job_spec.job
-    build_locator = "#{pipeline}/1/#{stage}/1/#{job}/1"
+    build_locator = "#{pipeline}/#{pipeline_counter}/#{stage}/#{stage_counter}/#{job}/1"
 
     build_command =
       (job_spec.build_command || %{"name" => "default", "command" => "echo", "args" => ["scheduled job ok"]})
       |> maybe_put_working_dir(agent)
 
     console_uri = ExGoCDWeb.Endpoint.url() <> "/api/builds/" <> build_id <> "/console"
+    artifact_upload_base_url = ExGoCDWeb.Endpoint.url() <> "/files/#{pipeline}/#{pipeline_counter}/#{stage}/#{stage_counter}/#{job}"
 
     payload = %{
       "buildId" => build_id,
       "buildLocator" => build_locator,
       "buildLocatorForDisplay" => build_locator,
       "buildCommand" => build_command,
-      "consoleURI" => console_uri
+      "consoleURI" => console_uri,
+      "artifactUploadBaseUrl" => artifact_upload_base_url
     }
 
-    opts = if ji_id = job_spec[:job_instance_id], do: [job_instance_id: ji_id], else: []
+    opts = [
+      job_instance_id: job_spec[:job_instance_id],
+      pipeline_counter: pipeline_counter,
+      stage_counter: stage_counter
+    ]
     case AgentJobRuns.create_run(agent_uuid, build_id, pipeline, stage, job, opts) do
       {:ok, _} ->
         if ji_id = job_spec[:job_instance_id], do: Pipelines.assign_job_instance(ji_id, agent_uuid)

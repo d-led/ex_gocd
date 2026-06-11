@@ -84,7 +84,10 @@ defmodule ExGoCDWeb.AgentChannel do
     |> assign(:agent_topic, @agent_topic_prefix <> uuid)
     |> then(fn s ->
       Phoenix.PubSub.subscribe(ExGoCD.PubSub, s.assigns.agent_topic)
-      AgentPresence.track(self(), @presence_topic, uuid, %{})
+      AgentPresence.track(self(), @presence_topic, uuid, %{
+        pid: inspect(self()),
+        joined_at: System.system_time(:second)
+      })
       s
     end)
   end
@@ -155,10 +158,20 @@ defmodule ExGoCDWeb.AgentChannel do
   @impl true
   def terminate(_reason, socket) do
     # When the agent WebSocket disconnects (process exits), Presence auto-removes the agent.
-    # Mark DB state as LostContact so the UI shows it immediately (same idea as GoCD's
-    # AgentInstance.lostContact() / refresh() when lastHeardTime times out).
+    # To prevent race conditions during reconnect, only mark as lost contact
+    # if there are no other active channels for this agent.
     if uuid = socket.assigns[:agent_uuid] do
-      Agents.mark_lost_contact(uuid)
+      active_connections =
+        case ExGoCDWeb.AgentPresence.list("agent")[uuid] do
+          nil -> []
+          %{metas: list} ->
+            # Filter out this process
+            Enum.reject(list, fn meta -> meta[:pid] == inspect(self()) end)
+        end
+
+      if Enum.empty?(active_connections) do
+        Agents.mark_lost_contact(uuid)
+      end
     end
     :ok
   end

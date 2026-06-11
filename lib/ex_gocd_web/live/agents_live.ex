@@ -326,15 +326,16 @@ defmodule ExGoCDWeb.AgentsLive do
 
         <div class="search-box">
           <i class="fa fa-search" aria-hidden="true"></i>
-          <input
-            type="text"
-            name="filter"
-            placeholder="Filter Agents"
-            value={@filter}
-            phx-change="filter"
-            phx-debounce="200"
-            aria-label="Filter agents by name, IP, resources, or environments"
-          />
+          <form phx-change="filter" phx-submit="filter" id="agents-filter-form">
+            <input
+              type="text"
+              name="value"
+              placeholder="Filter Agents"
+              value={@filter}
+              phx-debounce="200"
+              aria-label="Filter agents by name, IP, resources, or environments"
+            />
+          </form>
         </div>
       </div>
 

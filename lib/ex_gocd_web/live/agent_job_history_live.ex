@@ -16,14 +16,14 @@ defmodule ExGoCDWeb.AgentJobHistoryLive do
 
       {:ok,
        socket
-       |> assign(
-         agent: agent,
-         job_history: AgentJobRuns.list_runs_for_agent(uuid),
-         page: 1,
-         page_size: 50,
-         total_pages: 1,
-         page_title: "Agent Job Run History",
-         current_path: "/agents/#{uuid}/job_run_history"
+         |> assign(
+           agent: agent,
+           job_history: list_runs(uuid),
+           page: 1,
+           page_size: 50,
+           total_pages: 1,
+           page_title: "Agent Job Run History",
+           current_path: "/agents/#{uuid}/job_run_history"
        )}
     else
       {:ok,
@@ -37,7 +37,7 @@ defmodule ExGoCDWeb.AgentJobHistoryLive do
   def handle_info({event, _agent_uuid}, socket)
       when event in [:run_created, :run_updated] do
     uuid = socket.assigns.agent.uuid
-    {:noreply, assign(socket, job_history: AgentJobRuns.list_runs_for_agent(uuid))}
+    {:noreply, assign(socket, job_history: list_runs(uuid))}
   end
 
   @impl true
@@ -196,12 +196,16 @@ defmodule ExGoCDWeb.AgentJobHistoryLive do
 
   # Ad hoc test jobs (Run test job) have no real pipeline; only link when we have a real pipeline.
   defp linkable_job?(job) do
-    real_pipeline? = job.pipeline_name && job.pipeline_name != "" &&
-      job.pipeline_name != "unknown" && job.pipeline_name != "test-pipeline"
-    real_stage? = job.stage_name && job.stage_name != "" &&
-      job.stage_name != "unknown" && job.stage_name != "test-stage"
-    real_job? = job.job_name && job.job_name != "" && job.job_name != "unknown"
-    real_pipeline? && real_stage? && real_job?
+    if System.get_env("USE_MOCK_DATA") == "true" do
+      false
+    else
+      real_pipeline? = job.pipeline_name && job.pipeline_name != "" &&
+        job.pipeline_name != "unknown" && job.pipeline_name != "test-pipeline"
+      real_stage? = job.stage_name && job.stage_name != "" &&
+        job.stage_name != "unknown" && job.stage_name != "test-stage"
+      real_job? = job.job_name && job.job_name != "" && job.job_name != "unknown"
+      real_pipeline? && real_stage? && real_job?
+    end
   end
 
   # Show "—" for pipeline/stage when it's an ad hoc test job (no pipeline in the system).
@@ -218,4 +222,31 @@ defmodule ExGoCDWeb.AgentJobHistoryLive do
   defp result_class("Cancelled"), do: "result-cancelled"
   defp result_class("Unknown"), do: "result-unknown"
   defp result_class(_), do: "result-unknown"
+
+  defp use_mock? do
+    System.get_env("USE_MOCK_DATA") == "true"
+  end
+
+  defp list_runs(uuid) do
+    if use_mock?() do
+      [
+        %ExGoCD.AgentJobRuns.AgentJobRun{
+          id: 1,
+          agent_uuid: uuid,
+          build_id: "demo-build-1",
+          pipeline_name: "demo",
+          pipeline_counter: 1,
+          stage_name: "build",
+          stage_counter: 1,
+          job_name: "default",
+          state: "Completed",
+          result: "Passed",
+          console_log: "Hello, this is a mock console log from static mock data!\n",
+          inserted_at: ~N[2026-02-05 10:30:00]
+        }
+      ]
+    else
+      AgentJobRuns.list_runs_for_agent(uuid)
+    end
+  end
 end

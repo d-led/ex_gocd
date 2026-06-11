@@ -48,6 +48,9 @@ defmodule ExGoCD.AgentJobRuns do
   def create_run(agent_uuid, build_id, pipeline_name, stage_name, job_name, opts \\ [])
       when is_binary(agent_uuid) and is_binary(build_id) do
     job_instance_id = Keyword.get(opts, :job_instance_id)
+    pipeline_counter = Keyword.get(opts, :pipeline_counter, 1)
+    stage_counter = Keyword.get(opts, :stage_counter, 1)
+
     # Only link to job_instance if it exists (avoids FK violation when e.g. pipeline test rolled back but queue persists)
     job_instance_id = if job_instance_id && Repo.get(ExGoCD.Pipelines.JobInstance, job_instance_id), do: job_instance_id, else: nil
     case Agents.get_agent_by_uuid(agent_uuid) do
@@ -57,7 +60,9 @@ defmodule ExGoCD.AgentJobRuns do
           agent_uuid: agent_uuid,
           build_id: build_id,
           pipeline_name: pipeline_name,
+          pipeline_counter: pipeline_counter,
           stage_name: stage_name,
+          stage_counter: stage_counter,
           job_name: job_name,
           state: "Assigned"
         }

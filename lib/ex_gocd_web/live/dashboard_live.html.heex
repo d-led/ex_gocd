@@ -59,18 +59,19 @@
     </div>
 
     <div class="pipeline-search_dashboard">
-      <label for="pipeline-search" class="sr-only">Search pipelines</label>
-      <input
-        id="pipeline-search"
-        type="search"
-        placeholder="Search pipelines"
-        value={@search_text}
-        phx-change="search"
-        phx-debounce="300"
-        name="value"
-        aria-label="Search pipelines"
-        autocomplete="off"
-      />
+      <form phx-change="search" phx-submit="search" id="pipeline-search-form">
+        <label for="pipeline-search" class="sr-only">Search pipelines</label>
+        <input
+          id="pipeline-search"
+          type="search"
+          placeholder="Search pipelines"
+          value={@search_text}
+          phx-debounce="300"
+          name="value"
+          aria-label="Search pipelines"
+          autocomplete="off"
+        />
+      </form>
     </div>
   </section>
 

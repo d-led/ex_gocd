@@ -146,7 +146,9 @@ defmodule ExGoCD.Pipelines do
           spec =
             %{
               "pipeline" => pipeline.name,
+              "pipeline_counter" => counter,
               "stage" => first_stage.name,
+              "stage_counter" => 1,
               "job" => job_config.name,
               "resources" => job_config.resources || [],
               "environments" => [],
@@ -322,5 +324,14 @@ defmodule ExGoCD.Pipelines do
     end)
 
     :ok
+  end
+
+  @doc """
+  Lists all SCM materials config from database with preloaded pipelines.
+  """
+  def list_materials do
+    ExGoCD.Pipelines.Material
+    |> Repo.all()
+    |> Repo.preload(:pipelines)
   end
 end

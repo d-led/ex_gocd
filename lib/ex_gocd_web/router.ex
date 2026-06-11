@@ -20,15 +20,33 @@ defmodule ExGoCDWeb.Router do
     plug :fetch_session
   end
 
+  pipeline :files_api do
+    # Simple pipeline for raw file transfer without content negotiation or session dependencies
+  end
+
   scope "/", ExGoCDWeb do
     pipe_through :browser
+
+    get "/api_json/pipelines/value_stream_map/:pipeline_name/:pipeline_counter", ValueStreamMapController, :show
+    get "/api_json/materials/value_stream_map/:material_fingerprint/:revision", ValueStreamMapController, :show_material
+    get "/api_json/go/pipelines/value_stream_map/:pipeline_name/:pipeline_counter", ValueStreamMapController, :show
+    get "/api_json/go/materials/value_stream_map/:material_fingerprint/:revision", ValueStreamMapController, :show_material
 
     live_session :gocd, on_mount: [{ExGoCDWeb.LiveSession, :assign_current_user}] do
       live "/", DashboardLive, :index
       live "/pipelines", DashboardLive, :index
       live "/agents", AgentsLive, :index
+      live "/materials", MaterialsLive, :index
       live "/agents/:uuid/job_run_history", AgentJobHistoryLive, :index
       live "/agents/:uuid/job_run_history/:build_id", AgentJobRunDetailLive, :show
+      live "/pipelines/value_stream_map/:pipeline_name/:pipeline_counter", ValueStreamMapLive, :show
+      live "/materials/value_stream_map/:material_fingerprint/:revision", ValueStreamMapLive, :show_material
+      live "/go/pipelines/value_stream_map/:pipeline_name/:pipeline_counter", ValueStreamMapLive, :show
+      live "/go/materials/value_stream_map/:material_fingerprint/:revision", ValueStreamMapLive, :show_material
+      live "/pipeline/activity/:pipeline_name", PipelineActivityLive, :index
+      live "/go/pipeline/activity/:pipeline_name", PipelineActivityLive, :index
+      live "/pipelines/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter", StageDetailsLive, :show
+      live "/go/pipelines/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter", StageDetailsLive, :show
     end
   end
 
@@ -75,6 +93,57 @@ defmodule ExGoCDWeb.Router do
     put "/agents/:uuid/disable", AgentController, :disable
     post "/builds/:build_id/console", BuildConsoleController, :append
     post "/jobs/schedule", JobController, :schedule
+  end
+
+  # GoCD internal agent remoting API (HTTP-based, used by official Go agent)
+  # Matches InternalAgentControllerV1.java in GoCD: POST /remoting/api/agent/*
+  scope "/remoting/api/agent", ExGoCDWeb do
+    pipe_through :api
+
+    post "/ping", AgentRemotingController, :ping
+    post "/get_work", AgentRemotingController, :get_work
+    post "/get_cookie", AgentRemotingController, :get_cookie
+    post "/report_current_status", AgentRemotingController, :report_current_status
+    post "/report_completing", AgentRemotingController, :report_completing
+    post "/report_completed", AgentRemotingController, :report_completed
+    post "/is_ignored", AgentRemotingController, :is_ignored
+  end
+
+  scope "/go/remoting/api/agent", ExGoCDWeb do
+    pipe_through :api
+
+    post "/ping", AgentRemotingController, :ping
+    post "/get_work", AgentRemotingController, :get_work
+    post "/get_cookie", AgentRemotingController, :get_cookie
+    post "/report_current_status", AgentRemotingController, :report_current_status
+    post "/report_completing", AgentRemotingController, :report_completing
+    post "/report_completed", AgentRemotingController, :report_completed
+    post "/is_ignored", AgentRemotingController, :is_ignored
+  end
+
+  # Files/Artifacts API endpoints used by agents and downstream stages
+  scope "/files", ExGoCDWeb do
+    pipe_through :files_api
+
+    get "/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/:job_name/*file_path", ArtifactsController, :show
+    post "/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/:job_name/*file_path", ArtifactsController, :create
+    put "/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/:job_name/*file_path", ArtifactsController, :update
+  end
+
+  scope "/go/files", ExGoCDWeb do
+    pipe_through :files_api
+
+    get "/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/:job_name/*file_path", ArtifactsController, :show
+    post "/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/:job_name/*file_path", ArtifactsController, :create
+    put "/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/:job_name/*file_path", ArtifactsController, :update
+  end
+
+  scope "/remoting/files", ExGoCDWeb do
+    pipe_through :files_api
+
+    get "/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/:job_name/*file_path", ArtifactsController, :show
+    post "/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/:job_name/*file_path", ArtifactsController, :create
+    put "/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/:job_name/*file_path", ArtifactsController, :update
   end
 
   # Enable LiveDashboard and Swoosh mailbox preview in development
