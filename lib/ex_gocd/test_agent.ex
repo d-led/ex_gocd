@@ -7,6 +7,7 @@ defmodule ExGoCD.TestAgent do
 
   alias ExGoCD.Agents
   alias ExGoCD.Scheduler
+  alias ExGoCD.TestAgent.UUID
   alias ExGoCDWeb.AgentPresence
 
   require Logger
@@ -21,7 +22,7 @@ defmodule ExGoCD.TestAgent do
 
   @impl true
   def init(opts) do
-    uuid = opts[:uuid] || ExGoCD.TestAgent.UUID.uuid4()
+    uuid = opts[:uuid] || UUID.uuid4()
     hostname = opts[:hostname] || "mock-agent-#{String.slice(uuid, 0, 8)}"
     ip_address = opts[:ip_address] || "127.0.0.1"
     ping_interval = opts[:ping_interval] || 5000

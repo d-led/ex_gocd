@@ -762,12 +762,8 @@ defmodule ExGoCDWeb.AdminLive do
       if cleaned == "" do
         socket.assigns.pipeline_groups
       else
-        Enum.map(socket.assigns.pipeline_groups, fn group ->
-          filtered_pipelines = Enum.filter(group.pipelines, fn pipe ->
-            String.contains?(String.downcase(pipe.name), String.downcase(cleaned))
-          end)
-          %{group | pipelines: filtered_pipelines}
-        end)
+        socket.assigns.pipeline_groups
+        |> Enum.map(&filter_group_pipelines(&1, cleaned))
         |> Enum.reject(&Enum.empty?(&1.pipelines))
       end
 
@@ -775,6 +771,14 @@ defmodule ExGoCDWeb.AdminLive do
      socket
      |> assign(:search_query, cleaned)
      |> assign(:filtered_groups, filtered)}
+  end
+
+  defp filter_group_pipelines(group, cleaned) do
+    %{group | pipelines: Enum.filter(group.pipelines, &pipeline_name_match?(&1, cleaned))}
+  end
+
+  defp pipeline_name_match?(pipe, cleaned) do
+    String.contains?(String.downcase(pipe.name), String.downcase(cleaned))
   end
 
   @impl true

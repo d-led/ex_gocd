@@ -6,10 +6,12 @@ defmodule Mix.Tasks.Test.WithDb do
   """
   use Mix.Task
 
+  alias Mix.Tasks.Test
+
   def run(args) do
     Mix.Task.run("ecto.create", ["--quiet"])
     Mix.Task.run("ecto.migrate", ["--quiet"])
     # Call the test task module directly so we don't re-trigger the "test" alias
-    Mix.Tasks.Test.run(args)
+    Test.run(args)
   end
 end

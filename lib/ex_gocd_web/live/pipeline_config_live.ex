@@ -870,89 +870,108 @@ defmodule ExGoCDWeb.PipelineConfigLive do
 
   @impl true
   def handle_event("save_modal", params, socket) do
+    case save_modal_result(params, socket) do
+      {:ok, updated_socket} ->
+        {:noreply, updated_socket}
+
+      {:error, _reason} ->
+        {:noreply, assign(socket, :flash_info, "Error saving configuration: invalid values provided.")}
+    end
+  end
+
+  defp save_modal_result(params, socket) do
+    case save_modal_change(params, socket) do
+      {:ok, _} -> {:ok, reload_saved_pipeline(socket)}
+      {:error, _changeset} -> {:error, :invalid_values}
+    end
+  end
+
+  defp save_modal_change(params, socket) do
+    save_modal_for_type(socket.assigns.modal_type, params, socket)
+  end
+
+  defp save_modal_for_type(:add_stage, params, socket) do
+    Pipelines.create_stage(%{
+      name: params["name"],
+      approval_type: params["approval_type"] || "success",
+      pipeline_id: socket.assigns.pipeline.id
+    })
+  end
+
+  defp save_modal_for_type(:add_job, params, socket) do
+    Pipelines.create_job(%{
+      name: params["name"],
+      stage_id: socket.assigns.active_stage.id
+    })
+  end
+
+  defp save_modal_for_type(:add_task, params, socket) do
+    Pipelines.create_task(%{
+      type: params["type"] || "exec",
+      command: params["command"],
+      arguments: parse_arguments(params["arguments"]),
+      job_id: socket.assigns.active_job.id
+    })
+  end
+
+  defp save_modal_for_type(:edit_task, params, _socket) do
+    task_id = params["_id"] || params["id"]
+    task = Repo.get!(Task, task_id)
+
+    Pipelines.update_task(task, %{
+      type: params["type"] || "exec",
+      command: params["command"],
+      arguments: parse_arguments(params["arguments"])
+    })
+  end
+
+  defp save_modal_for_type(:add_material, params, socket) do
+    Pipelines.create_material_for_pipeline(socket.assigns.pipeline, material_attributes(params))
+  end
+
+  defp save_modal_for_type(:edit_material, params, _socket) do
+    material_id = params["_id"] || params["id"]
+    material = Repo.get!(Material, material_id)
+
+    material
+    |> Material.changeset(%{
+      url: params["url"],
+      branch: params["branch"]
+    })
+    |> Repo.update()
+  end
+
+  defp save_modal_for_type(_modal_type, _params, _socket), do: {:error, :unsupported_modal}
+
+  defp parse_arguments(arguments) do
+    (arguments || "")
+    |> String.split(["\n", "\r\n"], trim: true)
+    |> Enum.map(&String.trim/1)
+  end
+
+  defp material_attributes(params) do
+    %{
+      "type" => params["type"] || "git",
+      "url" => params["url"],
+      "branch" => params["branch"] || "master"
+    }
+  end
+
+  defp reload_saved_pipeline(socket) do
     pipeline = socket.assigns.pipeline
     stage = socket.assigns.active_stage
     job = socket.assigns.active_job
 
-    result =
-      case socket.assigns.modal_type do
-        :add_stage ->
-          Pipelines.create_stage(%{
-            name: params["name"],
-            approval_type: params["approval_type"] || "success",
-            pipeline_id: pipeline.id
-          })
+    new_pipeline = Pipelines.get_pipeline_by_name!(pipeline.name)
+    new_stage = if stage, do: Enum.find(new_pipeline.stages || [], &(&1.name == stage.name))
+    new_job = if new_stage && job, do: Enum.find(new_stage.jobs || [], &(&1.name == job.name))
 
-        :add_job ->
-          Pipelines.create_job(%{
-            name: params["name"],
-            stage_id: stage.id
-          })
-
-        :add_task ->
-          args_list =
-            (params["arguments"] || "")
-            |> String.split(["\n", "\r\n"], trim: true)
-            |> Enum.map(&String.trim/1)
-
-          Pipelines.create_task(%{
-            type: params["type"] || "exec",
-            command: params["command"],
-            arguments: args_list,
-            job_id: job.id
-          })
-
-        :edit_task ->
-          task_id = params["_id"] || params["id"]
-          task = Repo.get!(Task, task_id)
-          args_list =
-            (params["arguments"] || "")
-            |> String.split(["\n", "\r\n"], trim: true)
-            |> Enum.map(&String.trim/1)
-
-          Pipelines.update_task(task, %{
-            type: params["type"] || "exec",
-            command: params["command"],
-            arguments: args_list
-          })
-
-        :add_material ->
-          # Check URL
-          material_attrs = %{
-            "type" => params["type"] || "git",
-            "url" => params["url"],
-            "branch" => params["branch"] || "master"
-          }
-          Pipelines.create_material_for_pipeline(pipeline, material_attrs)
-
-        :edit_material ->
-          material_id = params["_id"] || params["id"]
-          material = Repo.get!(Material, material_id)
-          material
-          |> Material.changeset(%{
-            url: params["url"],
-            branch: params["branch"]
-          })
-          |> Repo.update()
-      end
-
-    case result do
-      {:ok, _} ->
-        # Reload pipeline config
-        new_pipeline = Pipelines.get_pipeline_by_name!(pipeline.name)
-        new_stage = if stage, do: Enum.find(new_pipeline.stages || [], & &1.name == stage.name)
-        new_job = if new_stage && job, do: Enum.find(new_stage.jobs || [], & &1.name == job.name)
-
-        {:noreply,
-         socket
-         |> assign(:pipeline, new_pipeline)
-         |> assign(:active_stage, new_stage)
-         |> assign(:active_job, new_job)
-         |> assign(:show_add_modal, false)
-         |> assign(:modal_type, nil)
-         |> assign(:flash_info, "Configuration saved successfully.")}
-      {:error, _changeset} ->
-        {:noreply, assign(socket, :flash_info, "Error saving configuration: invalid values provided.")}
-    end
+    socket
+    |> assign(:pipeline, new_pipeline)
+    |> assign(:active_stage, new_stage)
+    |> assign(:active_job, new_job)
+    |> assign(:show_add_modal, false)
+    |> assign(:modal_type, nil)
+    |> assign(:flash_info, "Configuration saved successfully.")
   end
 end

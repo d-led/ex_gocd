@@ -2,9 +2,10 @@ defmodule ExGoCDWeb.Plugs.AuthHeaderPlugTest do
   use ExGoCDWeb.ConnCase
   alias ExGoCD.Accounts
   alias ExGoCDWeb.Plugs.AuthHeaderPlug
+  alias Ecto.Adapters.SQL.Sandbox
 
   setup do
-    :ok = Ecto.Adapters.SQL.Sandbox.checkout(ExGoCD.Repo)
+    :ok = Sandbox.checkout(ExGoCD.Repo)
   end
 
   test "ignores connection if auth headers are missing", %{conn: conn} do

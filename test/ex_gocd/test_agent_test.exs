@@ -8,6 +8,7 @@ defmodule ExGoCD.TestAgentTest do
   alias ExGoCD.Agents
   alias ExGoCD.Scheduler
   alias ExGoCD.TestAgentSupervisor
+  alias ExGoCD.TestAgent.UUID
   alias ExGoCDWeb.AgentPresence
 
   setup do
@@ -19,7 +20,7 @@ defmodule ExGoCD.TestAgentTest do
     TestAgentSupervisor.stop_all_agents()
 
     # Create a unique uuid for test
-    uuid = ExGoCD.TestAgent.UUID.uuid4()
+    uuid = UUID.uuid4()
 
     # Start the test agent
     {:ok, pid} = TestAgentSupervisor.start_agent(

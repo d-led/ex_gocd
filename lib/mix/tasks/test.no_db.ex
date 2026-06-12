@@ -9,8 +9,10 @@ defmodule Mix.Tasks.Test.NoDb do
   """
   use Mix.Task
 
+  alias Mix.Tasks.Test
+
   def run(args) do
     # Call the test task module directly so we don't trigger the "test" alias (ecto.create, ecto.migrate)
-    Mix.Tasks.Test.run(args)
+    Test.run(args)
   end
 end

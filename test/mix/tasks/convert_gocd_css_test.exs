@@ -1,6 +1,8 @@
 defmodule Mix.Tasks.Convert.Gocd.CssTest do
   use ExUnit.Case, async: false
 
+  alias Mix.Tasks.Convert.Gocd.Css
+
   @output_dir "tmp/test_assets"
   @input_dir "tools/converter/fixtures/source"
 
@@ -19,7 +21,7 @@ defmodule Mix.Tasks.Convert.Gocd.CssTest do
       IO.puts(out)
     end
 
-    Mix.Tasks.Convert.Gocd.Css.run([@input_dir, @output_dir])
+    Css.run([@input_dir, @output_dir])
 
     out_file = Path.join(@output_dir, "new_dashboard.css")
     assert File.exists?(out_file), "expected output file exists"
