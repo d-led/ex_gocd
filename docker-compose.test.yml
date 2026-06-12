@@ -24,6 +24,7 @@ services:
       - EX_GOCD_TEST_MODE=1
       - PORT=4000
       - PHX_SERVER=true
+      - PHX_HOST=web
     # Run migrations first, then start Phoenix server
     command: sh -c "/app/bin/ex_gocd eval \"ExGoCD.Release.migrate\" && /app/bin/ex_gocd start"
 

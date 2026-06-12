@@ -7,15 +7,10 @@ import Config
 # before starting your production server.
 config :ex_gocd, ExGoCDWeb.Endpoint, cache_static_manifest: "priv/static/cache_manifest.json"
 
-# Force using SSL in production. This also sets the "strict-security-transport" header,
-# known as HSTS. If you have a health check endpoint, you may want to exclude it below.
-# Note `:force_ssl` is required to be set at compile-time.
-config :ex_gocd, ExGoCDWeb.Endpoint,
-  force_ssl: [rewrite_on: [:x_forwarded_proto]],
-  exclude: [
-    # paths: ["/health"],
-    hosts: ["localhost", "127.0.0.1"]
-  ]
+# SSL termination is handled at the reverse proxy / load-balancer layer.
+# Do NOT set force_ssl here — the same Docker image is used for E2E tests
+# over plain HTTP. If you need HSTS or SSL redirection, configure it in
+# your proxy (nginx, Caddy, ALB, etc.).
 
 # Configure Swoosh API Client
 config :swoosh, api_client: Swoosh.ApiClient.Req
