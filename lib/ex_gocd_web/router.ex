@@ -19,6 +19,8 @@ defmodule ExGoCDWeb.Router do
   pipeline :form do
     plug :accepts, ["html", "json"]
     plug :fetch_session
+    plug :protect_from_forgery
+    plug :put_secure_browser_headers
   end
 
   pipeline :files_api do
