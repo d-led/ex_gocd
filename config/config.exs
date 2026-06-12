@@ -11,7 +11,8 @@ config :ex_gocd,
   namespace: ExGoCD,
   ecto_repos: [ExGoCD.Repo],
   generators: [timestamp_type: :utc_datetime],
-  env: config_env()
+  env: config_env(),
+  scheduler_reload_interval: 5000
 
 # Configure the endpoint
 config :ex_gocd, ExGoCDWeb.Endpoint,

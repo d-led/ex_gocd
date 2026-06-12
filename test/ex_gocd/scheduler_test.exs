@@ -10,6 +10,11 @@ defmodule ExGoCD.SchedulerTest do
   @uuid_b "660e8400-e29b-41d4-a716-446655440001"
 
   setup do
+    pid = Process.whereis(ExGoCD.Scheduler)
+    if pid do
+      Ecto.Adapters.SQL.Sandbox.allow(ExGoCD.Repo, self(), pid)
+    end
+    Scheduler.clear_queue()
     wait_for_scheduler()
     :ok
   end
@@ -53,12 +58,11 @@ defmodule ExGoCD.SchedulerTest do
 
     test "one idle agent receives one job from queue" do
       {:ok, _} = Agents.register_agent(%{uuid: @uuid, hostname: "agent-a", ipaddress: "127.0.0.1"})
-      AgentPresence.track(self(), @presence_topic, @uuid, %{})
-
       n0 = Scheduler.pending_count()
       assert {:ok, _} = Scheduler.schedule_job(%{"pipeline" => "p", "stage" => "s", "job" => "j1"})
       assert Scheduler.pending_count() == n0 + 1
 
+      AgentPresence.track(self(), @presence_topic, @uuid, %{})
       assert Scheduler.try_assign_work(@uuid) == :assigned
       assert Scheduler.pending_count() == n0
     end
@@ -66,6 +70,11 @@ defmodule ExGoCD.SchedulerTest do
     test "two idle agents each receive one job when queue has two (GoCD-style work distribution)" do
       {:ok, _} = Agents.register_agent(%{uuid: @uuid, hostname: "agent-a", ipaddress: "127.0.0.1"})
       {:ok, _} = Agents.register_agent(%{uuid: @uuid_b, hostname: "agent-b", ipaddress: "127.0.0.2"})
+
+      n0 = Scheduler.pending_count()
+      assert {:ok, _} = Scheduler.schedule_job(%{"pipeline" => "p", "stage" => "s", "job" => "j1"})
+      assert {:ok, _} = Scheduler.schedule_job(%{"pipeline" => "p", "stage" => "s", "job" => "j2"})
+      assert Scheduler.pending_count() == n0 + 2
 
       # Two distinct processes must track so Presence has two entries (one per agent)
       parent = self()
@@ -83,11 +92,6 @@ defmodule ExGoCD.SchedulerTest do
       receive do {^ref, :a} -> :ok end
       receive do {^ref, :b} -> :ok end
 
-      n0 = Scheduler.pending_count()
-      assert {:ok, _} = Scheduler.schedule_job(%{"pipeline" => "p", "stage" => "s", "job" => "j1"})
-      assert {:ok, _} = Scheduler.schedule_job(%{"pipeline" => "p", "stage" => "s", "job" => "j2"})
-      assert Scheduler.pending_count() == n0 + 2
-
       assert Scheduler.try_assign_work(@uuid) == :assigned
       assert Scheduler.try_assign_work(@uuid_b) == :assigned
       assert Scheduler.pending_count() == n0
@@ -100,10 +104,11 @@ defmodule ExGoCD.SchedulerTest do
   describe "resource matching (GoCD BuildAssignmentService semantics)" do
     test "job with no resources is assigned to any idle agent" do
       {:ok, _} = Agents.register_agent(%{uuid: @uuid, hostname: "agent-a", ipaddress: "127.0.0.1"})
-      AgentPresence.track(self(), @presence_topic, @uuid, %{})
-
       n0 = Scheduler.pending_count()
       assert {:ok, _} = Scheduler.schedule_job(%{"pipeline" => "p", "stage" => "s", "job" => "j"})
+      assert Scheduler.pending_count() == n0 + 1
+
+      AgentPresence.track(self(), @presence_topic, @uuid, %{})
       assert Scheduler.try_assign_work(@uuid) == :assigned
       assert Scheduler.pending_count() == n0
     end
@@ -111,13 +116,14 @@ defmodule ExGoCD.SchedulerTest do
     test "job requiring resources is not assigned to agent without those resources" do
       Scheduler.clear_queue()
       {:ok, _} = Agents.register_agent(%{uuid: @uuid, hostname: "agent-a", ipaddress: "127.0.0.1"})
-      AgentPresence.track(self(), @presence_topic, @uuid, %{})
-
       n0 = Scheduler.pending_count()
       assert {:ok, _} = Scheduler.schedule_job(%{
         "pipeline" => "p", "stage" => "s", "job" => "j",
         "resources" => ["linux"]
       })
+      assert Scheduler.pending_count() == n0 + 1
+
+      AgentPresence.track(self(), @presence_topic, @uuid, %{})
       assert Scheduler.try_assign_work(@uuid) == :no_work
       assert Scheduler.pending_count() == n0 + 1
     end
@@ -125,13 +131,14 @@ defmodule ExGoCD.SchedulerTest do
     test "job requiring one resource is assigned to agent that has it" do
       {:ok, agent} = Agents.register_agent(%{uuid: @uuid, hostname: "agent-a", ipaddress: "127.0.0.1"})
       Agents.update_agent(agent, %{resources: ["linux"]})
-      AgentPresence.track(self(), @presence_topic, @uuid, %{})
-
       n0 = Scheduler.pending_count()
       assert {:ok, _} = Scheduler.schedule_job(%{
         "pipeline" => "p", "stage" => "s", "job" => "j",
         "resources" => ["linux"]
       })
+      assert Scheduler.pending_count() == n0 + 1
+
+      AgentPresence.track(self(), @presence_topic, @uuid, %{})
       assert Scheduler.try_assign_work(@uuid) == :assigned
       assert Scheduler.pending_count() == n0
     end
@@ -142,6 +149,13 @@ defmodule ExGoCD.SchedulerTest do
       Agents.update_agent(agent_linux, %{resources: ["linux"]})
       {:ok, agent_both} = Agents.register_agent(%{uuid: @uuid_b, hostname: "agent-b", ipaddress: "127.0.0.2"})
       Agents.update_agent(agent_both, %{resources: ["linux", "docker"]})
+
+      n0 = Scheduler.pending_count()
+      assert {:ok, _} = Scheduler.schedule_job(%{
+        "pipeline" => "p", "stage" => "s", "job" => "integration",
+        "resources" => ["linux", "docker"]
+      })
+      assert Scheduler.pending_count() == n0 + 1
 
       parent = self()
       ref = make_ref()
@@ -158,11 +172,6 @@ defmodule ExGoCD.SchedulerTest do
       receive do {^ref, :a} -> :ok end
       receive do {^ref, :b} -> :ok end
 
-      n0 = Scheduler.pending_count()
-      assert {:ok, _} = Scheduler.schedule_job(%{
-        "pipeline" => "p", "stage" => "s", "job" => "integration",
-        "resources" => ["linux", "docker"]
-      })
       # Only agent with both resources should get the job
       assert Scheduler.try_assign_work(@uuid) == :no_work
       assert Scheduler.try_assign_work(@uuid_b) == :assigned
@@ -176,10 +185,11 @@ defmodule ExGoCD.SchedulerTest do
   describe "environment matching (GoCD semantics)" do
     test "job with no environments matches any agent" do
       {:ok, _} = Agents.register_agent(%{uuid: @uuid, hostname: "agent-a", ipaddress: "127.0.0.1"})
-      AgentPresence.track(self(), @presence_topic, @uuid, %{})
-
       n0 = Scheduler.pending_count()
       assert {:ok, _} = Scheduler.schedule_job(%{"pipeline" => "p", "stage" => "s", "job" => "j"})
+      assert Scheduler.pending_count() == n0 + 1
+
+      AgentPresence.track(self(), @presence_topic, @uuid, %{})
       assert Scheduler.try_assign_work(@uuid) == :assigned
       assert Scheduler.pending_count() == n0
     end
@@ -187,13 +197,14 @@ defmodule ExGoCD.SchedulerTest do
     test "job requiring environment is not assigned to agent not in that environment" do
       Scheduler.clear_queue()
       {:ok, _} = Agents.register_agent(%{uuid: @uuid, hostname: "agent-a", ipaddress: "127.0.0.1"})
-      AgentPresence.track(self(), @presence_topic, @uuid, %{})
-
       n0 = Scheduler.pending_count()
       assert {:ok, _} = Scheduler.schedule_job(%{
         "pipeline" => "p", "stage" => "s", "job" => "j",
         "environments" => ["prod"]
       })
+      assert Scheduler.pending_count() == n0 + 1
+
+      AgentPresence.track(self(), @presence_topic, @uuid, %{})
       assert Scheduler.try_assign_work(@uuid) == :no_work
       assert Scheduler.pending_count() == n0 + 1
     end
@@ -201,13 +212,14 @@ defmodule ExGoCD.SchedulerTest do
     test "job requiring environment is assigned to agent in that environment" do
       {:ok, agent} = Agents.register_agent(%{uuid: @uuid, hostname: "agent-a", ipaddress: "127.0.0.1"})
       Agents.update_agent(agent, %{environments: ["prod"]})
-      AgentPresence.track(self(), @presence_topic, @uuid, %{})
-
       n0 = Scheduler.pending_count()
       assert {:ok, _} = Scheduler.schedule_job(%{
         "pipeline" => "p", "stage" => "s", "job" => "j",
         "environments" => ["prod"]
       })
+      assert Scheduler.pending_count() == n0 + 1
+
+      AgentPresence.track(self(), @presence_topic, @uuid, %{})
       assert Scheduler.try_assign_work(@uuid) == :assigned
       assert Scheduler.pending_count() == n0
     end

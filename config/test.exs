@@ -1,5 +1,8 @@
 import Config
 
+config :ex_gocd,
+  scheduler_reload_interval: :none
+
 # Configure your database
 #
 # The MIX_TEST_PARTITION environment variable can be used

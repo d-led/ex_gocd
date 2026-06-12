@@ -12,6 +12,15 @@ defmodule ExGoCD.PipelinesTest do
   alias ExGoCD.Repo
   alias ExGoCD.Scheduler
 
+  setup do
+    pid = Process.whereis(ExGoCD.Scheduler)
+    if pid do
+      Ecto.Adapters.SQL.Sandbox.allow(ExGoCD.Repo, self(), pid)
+    end
+    Scheduler.clear_queue()
+    :ok
+  end
+
   describe "trigger_pipeline/1" do
     test "pipeline not found returns error" do
       assert Pipelines.trigger_pipeline("nonexistent") == {:error, :pipeline_not_found}

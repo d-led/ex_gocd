@@ -12,6 +12,10 @@ defmodule ExGoCD.TestAgentTest do
   alias ExGoCDWeb.AgentPresence
 
   setup do
+    pid = Process.whereis(ExGoCD.Scheduler)
+    if pid do
+      Ecto.Adapters.SQL.Sandbox.allow(ExGoCD.Repo, self(), pid)
+    end
     # Wait for Scheduler GenServer to be alive if it restarted
     wait_for_scheduler()
     # Clear scheduler queue
@@ -59,7 +63,8 @@ defmodule ExGoCD.TestAgentTest do
     {:ok, _job_id} = Scheduler.schedule_job(%{
       pipeline: "test-pipeline",
       stage: "test-stage",
-      job: "test-job"
+      job: "test-job",
+      environments: ["test"]
     })
 
     # Trigger try_assign_work manually or wait for ping heartbeat
@@ -93,7 +98,8 @@ defmodule ExGoCD.TestAgentTest do
     {:ok, _job_id} = Scheduler.schedule_job(%{
       pipeline: "test-pipeline",
       stage: "test-stage",
-      job: "test-job"
+      job: "test-job",
+      environments: ["test"]
     })
 
     Scheduler.try_assign_work(uuid)

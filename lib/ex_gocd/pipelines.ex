@@ -78,78 +78,126 @@ defmodule ExGoCD.Pipelines do
     if is_nil(pipeline), do: {:error, :pipeline_not_found}, else: do_trigger_pipeline(pipeline)
   end
 
+  defp resolve_material_revisions(pipeline) do
+    Enum.map(pipeline.materials || [], fn material ->
+      revision =
+        if material.type == "git" and is_binary(material.url) and material.url != "" and System.find_executable("git") do
+          branch = material.branch || "HEAD"
+          case System.cmd("git", ["ls-remote", material.url, branch]) do
+            {output, 0} ->
+              case String.split(output) do
+                [sha, _ref | _] -> sha
+                _ -> "HEAD"
+              end
+            _ ->
+              "HEAD"
+          end
+        else
+          "HEAD"
+        end
+
+      %{
+        "material" => %{
+          "id" => material.id,
+          "type" => material.type,
+          "url" => material.url,
+          "branch" => material.branch || "master",
+          "destination" => material.destination || ""
+        },
+        "changed" => true,
+        "modifications" => [
+          %{
+            "revision" => revision,
+            "modifiedTime" => DateTime.utc_now() |> DateTime.to_iso8601(),
+            "comment" => "Triggered commit",
+            "username" => "gocd"
+          }
+        ]
+      }
+    end)
+  end
+
   defp do_trigger_pipeline(pipeline) do
     counter = next_counter(pipeline.id)
     now = DateTime.utc_now()
     label = String.replace(pipeline.label_template, "${COUNT}", to_string(counter))
     natural_order = counter * 1.0
 
+    material_revisions = resolve_material_revisions(pipeline)
+
     build_cause = %{
       "approver" => "anonymous",
       "triggerMessage" => "Triggered from dashboard",
       "triggerForced" => false,
-      "materialRevisions" => []
+      "materialRevisions" => material_revisions
     }
 
-    Repo.transaction(fn ->
-      instance =
-        %PipelineInstance{}
-        |> PipelineInstance.changeset(%{
-          pipeline_id: pipeline.id,
-          counter: counter,
-          label: label,
-          natural_order: natural_order,
-          build_cause: build_cause
-        })
-        |> Repo.insert!()
-
-      stages_ordered = Enum.sort_by(pipeline.stages, & &1.id)
-      first_stage = List.first(stages_ordered)
-      if is_nil(first_stage), do: raise("Pipeline has no stages")
-
-      # Create stage instance for first stage (Building); others we skip for single-stage trigger
-      stage_instance =
-        %StageInstance{}
-        |> StageInstance.changeset(%{
-          pipeline_instance_id: instance.id,
-          name: first_stage.name,
-          counter: 1,
-          order_id: 1,
-          state: "Building",
-          result: "Unknown",
-          approval_type: first_stage.approval_type,
-          created_time: now,
-          fetch_materials: first_stage.fetch_materials,
-          clean_working_dir: first_stage.clean_working_directory
-        })
-        |> Repo.insert!()
-
-      scheduled_at = DateTime.to_naive(now)
-      job_instances =
-        Enum.map(first_stage.jobs, fn job ->
-          %JobInstance{}
-          |> JobInstance.changeset(%{
-            stage_instance_id: stage_instance.id,
-            job_id: job.id,
-            name: job.name,
-            state: "Scheduled",
-            result: "Unknown",
-            scheduled_at: scheduled_at,
-            run_on_all_agents: job.run_on_all_agents || false,
-            run_multiple_instance: false,
-            identifier: "#{pipeline.name}/#{counter}/#{first_stage.name}/1/#{job.name}/1"
+    result =
+      Repo.transaction(fn ->
+        instance =
+          %PipelineInstance{}
+          |> PipelineInstance.changeset(%{
+            pipeline_id: pipeline.id,
+            counter: counter,
+            label: label,
+            natural_order: natural_order,
+            build_cause: build_cause
           })
           |> Repo.insert!()
-        end)
 
-      # Enqueue each job to Scheduler with spec from job config and job_instance_id
-      for ji <- job_instances do
-        job_config = Enum.find(first_stage.jobs, &(&1.id == ji.job_id))
-        schedule_job_if_config(pipeline, counter, first_stage, job_config, ji)
-      end
+        stages_ordered = Enum.sort_by(pipeline.stages, & &1.id)
+        first_stage = List.first(stages_ordered)
+        if is_nil(first_stage), do: raise("Pipeline has no stages")
 
-      instance
-    end)
+        # Create stage instance for first stage (Building); others we skip for single-stage trigger
+        stage_instance =
+          %StageInstance{}
+          |> StageInstance.changeset(%{
+            pipeline_instance_id: instance.id,
+            name: first_stage.name,
+            counter: 1,
+            order_id: 1,
+            state: "Building",
+            result: "Unknown",
+            approval_type: first_stage.approval_type,
+            created_time: now,
+            fetch_materials: first_stage.fetch_materials,
+            clean_working_dir: first_stage.clean_working_directory
+          })
+          |> Repo.insert!()
+
+        scheduled_at = DateTime.to_naive(now)
+        job_instances =
+          Enum.map(first_stage.jobs, fn job ->
+            %JobInstance{}
+            |> JobInstance.changeset(%{
+              stage_instance_id: stage_instance.id,
+              job_id: job.id,
+              name: job.name,
+              state: "Scheduled",
+              result: "Unknown",
+              scheduled_at: scheduled_at,
+              run_on_all_agents: job.run_on_all_agents || false,
+              run_multiple_instance: false,
+              identifier: "#{pipeline.name}/#{counter}/#{first_stage.name}/1/#{job.name}/1"
+            })
+            |> Repo.insert!()
+          end)
+
+        {instance, first_stage, job_instances}
+      end)
+
+    case result do
+      {:ok, {instance, first_stage, job_instances}} ->
+        for ji <- job_instances do
+          job_config = Enum.find(first_stage.jobs, &(&1.id == ji.job_id))
+          schedule_job_if_config(pipeline, counter, first_stage, job_config, ji)
+        end
+        {:ok, instance}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
   end
 
   defp schedule_job_if_config(_pipeline, _counter, _stage, nil, _ji), do: :noop
