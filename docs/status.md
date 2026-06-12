@@ -46,6 +46,8 @@ Legend: Not started | In progress | Complete | Not applicable
 
 ## Module Mapping
 
+**File-level mapping:** See [module_mapping.md](./module_mapping.md) for Elixir/Phoenix modules → GoCD source file paths. The tables below are the high-level view; the doc is the reference when implementing against the legacy codebase.
+
 ### Core Server Modules
 
 | GoCD Module                         | Purpose                 | Status | Phoenix Equivalent                  | Notes                              |
@@ -65,6 +67,8 @@ Legend: Not started | In progress | Complete | Not applicable
 | `util/`                             | Utility classes         |        | `lib/ex_gocd/utils/`                | General utilities                  |
 
 ### API Modules
+
+For a detailed analysis of all 50 GoCD API endpoints, media types, and compatibility status, see the dedicated [GoCD API Compatibility & Coverage Status](file:///Users/dmitryledentsov/src/gocd-rewrite/ex_gocd/docs/gocd_api_coverage.md) document.
 
 | GoCD Module                   | Purpose            | Status | Phoenix Equivalent                                          | Notes                  |
 | ----------------------------- | ------------------ | ------ | ----------------------------------------------------------- | ---------------------- |
@@ -481,13 +485,14 @@ Legend: Not started | In progress | Complete | Not applicable
 - **PubSub and thin LiveViews**: Scheduler broadcasts `{:pending_count, count}` on queue change; AgentsLive subscribes when connected and shows queued jobs in real time. AgentJobRuns.handle_agent_report centralizes report handling (channel delegates to context). Console topic broadcasts `{:run_updated, run}` so job run detail view shows Passed/Failed in real time. All LiveViews subscribe only when `connected?(socket)`.
 - **Cancel build**: Go agent tracks current build with context; on `cancelBuild` (buildId in payload) kills process and reports Completed/Cancelled. Server: AgentChannel.request_cancel_build/2 broadcasts to agent topic; channel pushes cancelBuild to WebSocket. AgentJobRunDetailLive shows Cancel button for Assigned/Building/Completing runs; result Cancelled styled in console detail.
 - **Pipeline-backed dashboard**: Pipelines context (list_pipelines, get_pipeline_by_name, trigger_pipeline, list_for_dashboard). Trigger creates PipelineInstance, StageInstance(s), JobInstances for first stage and enqueues jobs to Scheduler; agent_job_runs.job_instance_id links to JobInstance; report_status completes JobInstance and StageInstance when all jobs in stage done. Dashboard loads from DB via list_for_dashboard when any pipelines exist (else MockData); Play button triggers pipeline. Seed: demo pipeline (stage build, job default, exec echo).
-- **Dashboard layout fix**: Pipelines/Agents (and all GoCD UI routes) now use `live_session :gocd` with layout `{Layouts, :gocd}`, so the site header and `.main-container` wrapper render correctly. Pipeline stage list markup fixed (`<ul>` now has `<li>` children). Materials and Admin nav links no longer 404: placeholder LiveViews (`MaterialsLive`, `AdminLive`) show “Coming later” content.
+- **Dashboard layout fix**: Pipelines/Agents (and all GoCD UI routes) now use `live_session :gocd` with layout `{Layouts, :gocd}`, so the site header and `.main-container` wrapper render correctly. Pipeline stage list markup fixed (`<ul>` now has `<li>` children). Materials and Admin nav links no longer 404: placeholder LiveViews (`MaterialsLive`, `AdminLive`) show "Coming later" content.
+- **Module mapping**: Added [docs/module_mapping.md](./module_mapping.md) with Elixir/Phoenix → GoCD source file mapping (domain, config, scheduler, API, LiveView, agent channel). Use for implementing features against the legacy codebase.
 
 ---
 
 ## Current Focus: Phase 2 - Agent Communication & Job Execution
 
-See [AGENTS.md](../../../AGENTS.md) for comprehensive implementation plan.
+See [AGENTS.md](../../../AGENTS.md) for comprehensive implementation plan. File-level Elixir→GoCD mapping: [module_mapping.md](./module_mapping.md).
 
 ### Goals
 

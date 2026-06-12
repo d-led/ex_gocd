@@ -14,9 +14,9 @@ defmodule ExGoCD.Agents do
   """
 
   import Ecto.Query, warn: false
-  alias ExGoCD.Repo
   alias ExGoCD.Agents.Agent
   alias ExGoCD.Agents.Mock
+  alias ExGoCD.Repo
 
   @agents_topic "agents:updates"
 
@@ -139,7 +139,7 @@ defmodule ExGoCD.Agents do
   def effective_status(%Agent{disabled: true}, _opts), do: :disabled
   def effective_status(agent, opts) do
     threshold_sec = Keyword.get(opts, :lost_contact_seconds, 90)
-    if stale?(agent.updated_at, threshold_sec) do
+    if not use_mock?() and stale?(agent.updated_at, threshold_sec) do
       :lost_contact
     else
       state_to_status(agent.state)
@@ -162,29 +162,30 @@ defmodule ExGoCD.Agents do
   Prevents impersonation: if the agent has a persisted cookie (from registration), the ping must
   include the same cookie or we do not update.
   """
-  @spec touch_agent_on_heartbeat(String.t(), map()) :: :ok | {:error, :not_found | :cookie_mismatch}
   def touch_agent_on_heartbeat(uuid, runtime_attrs) when is_binary(uuid) do
     case get_agent_by_uuid(uuid) do
-      nil ->
-        {:error, :not_found}
+      nil -> {:error, :not_found}
+      agent -> update_agent_on_heartbeat(agent, runtime_attrs)
+    end
+  end
 
-      agent ->
-        supplied_cookie = runtime_attrs["cookie"] || runtime_attrs["Cookie"]
-        if agent_identity_ok?(agent, supplied_cookie) do
-          attrs =
-            %{}
-            |> maybe_put(:working_dir, runtime_attrs["location"])
-            |> maybe_put(:free_space, parse_usable_space(runtime_attrs["usableSpace"]))
-            |> maybe_put(:state, runtime_attrs["runtimeStatus"])
-            |> maybe_put(:operating_system, runtime_attrs["operatingSystemName"])
+  defp update_agent_on_heartbeat(agent, runtime_attrs) do
+    supplied_cookie = runtime_attrs["cookie"] || runtime_attrs["Cookie"]
 
-          # Always update so updated_at is refreshed (avoids LostContact when agent is connected).
-          attrs = if attrs == %{}, do: %{state: agent.state}, else: attrs
-          update_agent(agent, attrs)
-          :ok
-        else
-          {:error, :cookie_mismatch}
-        end
+    if agent_identity_ok?(agent, supplied_cookie) do
+      attrs =
+        %{}
+        |> maybe_put(:working_dir, runtime_attrs["location"])
+        |> maybe_put(:free_space, parse_usable_space(runtime_attrs["usableSpace"]))
+        |> maybe_put(:state, runtime_attrs["runtimeStatus"])
+        |> maybe_put(:operating_system, runtime_attrs["operatingSystemName"])
+
+      # Always update so updated_at is refreshed (avoids LostContact when agent is connected).
+      attrs = if attrs == %{}, do: %{state: agent.state}, else: attrs
+      update_agent(agent, attrs)
+      :ok
+    else
+      {:error, :cookie_mismatch}
     end
   end
 
@@ -253,7 +254,9 @@ defmodule ExGoCD.Agents do
   def update_agent_runtime_state(agent_uuid, state) when is_binary(agent_uuid) and is_binary(state) do
     case get_agent_by_uuid(agent_uuid) do
       nil -> {:error, :not_found}
-      agent -> _ = update_agent(agent, %{state: state}); :ok
+      agent ->
+        update_agent(agent, %{state: state})
+        :ok
     end
   end
   def update_agent_runtime_state(_, _), do: :ok
@@ -322,7 +325,8 @@ defmodule ExGoCD.Agents do
   @doc """
   Soft deletes an agent. Fails unless the agent is disabled (matches GoCD: delete only after disable).
   """
-  @spec delete_agent(Agent.t() | String.t()) :: {:ok, Agent.t()} | {:error, Ecto.Changeset.t() | :agent_not_disabled | :not_found}
+  @spec delete_agent(Agent.t() | String.t()) ::
+          {:ok, Agent.t()} | {:error, Ecto.Changeset.t() | :agent_not_disabled | :not_found}
   def delete_agent(%Agent{} = agent) do
     if agent.disabled do
       do_delete_agent(agent)

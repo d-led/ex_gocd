@@ -1,52 +1,130 @@
 defmodule ExGoCD.Accounts do
   @moduledoc """
-  Account and current-user helpers for authorization.
-
-  No login flow yet: `get_current_user/1` builds a user from session or
-  returns a default (e.g. admin in dev). When auth is added, load the user
-  from the DB here.
+  Account and current-user helpers for authorization backed by PostgreSQL.
   """
+  import Ecto.Query, warn: false
   alias ExGoCD.Accounts.User
+  alias ExGoCD.Repo
 
   @doc """
-  Returns the current user from the session.
+  Returns all users ordered by username.
+  """
+  def list_users do
+    User
+    |> order_by(asc: :username)
+    |> Repo.all()
+  end
 
-  Session keys used: `"user_id"`, `"username"`, `"roles"` (list of atoms).
-  If session has no user, returns a default user (e.g. admin in dev) so
-  policies can be exercised. Replace with real auth when needed.
+  @doc """
+  Retrieves a user by ID.
+  """
+  def get_user!(id), do: Repo.get!(User, id)
+
+  @doc """
+  Retrieves a user by username.
+  """
+  def get_user_by_username(username) when is_binary(username) do
+    Repo.get_by(User, username: username)
+  end
+  def get_user_by_username(_), do: nil
+
+  @doc """
+  Creates a user.
+  """
+  def create_user(attrs \\ %{}) do
+    %User{}
+    |> User.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  @doc """
+  Updates a user.
+  """
+  def update_user(%User{} = user, attrs) do
+    user
+    |> User.changeset(attrs)
+    |> Repo.update()
+  end
+
+  @doc """
+  Deletes a user.
+  """
+  def delete_user(%User{} = user) do
+    Repo.delete(user)
+  end
+
+  @doc """
+  Returns an %Ecto.Changeset{} for tracking user changes.
+  """
+  def change_user(%User{} = user, attrs \\ %{}) do
+    User.changeset(user, attrs)
+  end
+
+  @doc """
+  Returns the current user from the session, loading from the DB when available.
   """
   @spec get_current_user(map()) :: User.t()
   def get_current_user(session) when is_map(session) do
-    case {session["user_id"], session["username"], session["roles"]} do
-      {nil, _, _} ->
-        default_user()
+    username = session["username"]
 
-      {id, username, roles} when is_list(roles) ->
-        %User{
-          id: id,
-          username: username,
-          roles: Enum.map(roles, &to_atom/1)
-        }
+    case get_user_by_username(username) do
+      nil ->
+        # Fallback to session values if user is not in DB (or DB is empty)
+        case {session["user_id"], session["username"], session["roles"]} do
+          {nil, _, _} ->
+            default_user()
 
-      {id, username, _} ->
-        %User{id: id, username: username, roles: []}
+          {id, name, roles} when is_list(roles) ->
+            %User{
+              id: id,
+              username: name,
+              display_name: name,
+              roles: Enum.map(roles, &to_string/1),
+              status: "Active"
+            }
+
+          {id, name, _} ->
+            %User{
+              id: id,
+              username: name,
+              display_name: name,
+              roles: [],
+              status: "Active"
+            }
+        end
+
+      %User{} = user ->
+        if user.status == "Active" do
+          user
+        else
+          # Disabled user: empty roles
+          %{user | roles: []}
+        end
     end
   end
 
   def get_current_user(_), do: default_user()
 
   defp default_user do
-    # No auth enabled: treat everyone as admin (matches original GoCD behavior).
-    # When auth is added, return a non-admin guest here and set session on login.
-    %User{
-      id: nil,
-      username: "guest",
-      roles: [:admin]
-    }
+    # Bootstrapping helper: if the DB is empty, default guest is admin.
+    # Otherwise, unauthenticated guest has empty roles.
+    case Repo.aggregate(User, :count, :id) do
+      0 ->
+        %User{
+          id: nil,
+          username: "guest",
+          display_name: "Guest Admin",
+          roles: ["admin"],
+          status: "Active"
+        }
+      _ ->
+        %User{
+          id: nil,
+          username: "guest",
+          display_name: "Guest Viewer",
+          roles: [],
+          status: "Active"
+        }
+    end
   end
-
-  defp to_atom(x) when is_atom(x), do: x
-  defp to_atom("admin"), do: :admin
-  defp to_atom("user"), do: :user
-  defp to_atom(_), do: :user
 end

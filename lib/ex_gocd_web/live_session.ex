@@ -13,7 +13,12 @@ defmodule ExGoCDWeb.LiveSession do
   @doc "Assigns current_user and is_user_admin from session."
   def on_mount(:assign_current_user, _params, session, socket) do
     user = Accounts.get_current_user(session)
-    is_user_admin = ExGoCD.Policies.permit?(AgentPolicy, :manage_agents, user)
+    is_user_admin =
+      if System.get_env("USE_MOCK_DATA") == "true" do
+        true
+      else
+        ExGoCD.Policies.permit?(AgentPolicy, :manage_agents, user)
+      end
 
     {:cont,
      socket

@@ -220,7 +220,7 @@ defmodule ExGoCD.Agents.Mock do
   """
   def register_agent(attrs) do
     agent = %Agent{
-      id: :rand.uniform(10000),
+      id: :rand.uniform(10_000),
       uuid: attrs["uuid"] || Ecto.UUID.generate(),
       hostname: attrs["hostname"] || "mock-agent",
       ipaddress: attrs["ipaddress"] || "127.0.0.1",

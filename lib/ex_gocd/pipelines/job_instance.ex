@@ -14,25 +14,25 @@ defmodule ExGoCD.Pipelines.JobInstance do
 
   @type t :: %__MODULE__{
           id: integer() | nil,
-          name: String.t(),
-          state: String.t(),
-          result: String.t(),
+          name: String.t() | nil,
+          state: String.t() | nil,
+          result: String.t() | nil,
           agent_uuid: String.t() | nil,
-          scheduled_at: NaiveDateTime.t(),
-          assigned_at: NaiveDateTime.t() | nil,
-          completed_at: NaiveDateTime.t() | nil,
-          run_on_all_agents: boolean(),
-          run_multiple_instance: boolean(),
-          ignored: boolean(),
+          scheduled_at: DateTime.t() | nil,
+          assigned_at: DateTime.t() | nil,
+          completed_at: DateTime.t() | nil,
+          run_on_all_agents: boolean() | nil,
+          run_multiple_instance: boolean() | nil,
+          ignored: boolean() | nil,
           identifier: String.t() | nil,
           original_job_id: integer() | nil,
-          rerun: boolean(),
+          rerun: boolean() | nil,
           job_id: integer() | nil,
           stage_instance_id: integer() | nil,
-          job: Job.t() | Ecto.Association.NotLoaded.t(),
-          stage_instance: StageInstance.t() | Ecto.Association.NotLoaded.t(),
-          inserted_at: NaiveDateTime.t() | nil,
-          updated_at: NaiveDateTime.t() | nil
+          job: Job.t() | nil | Ecto.Association.NotLoaded.t(),
+          stage_instance: StageInstance.t() | nil | Ecto.Association.NotLoaded.t(),
+          inserted_at: DateTime.t() | nil,
+          updated_at: DateTime.t() | nil
         }
 
   schema "job_instances" do

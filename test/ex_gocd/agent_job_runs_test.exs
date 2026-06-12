@@ -5,9 +5,9 @@ defmodule ExGoCD.AgentJobRunsTest do
   """
   use ExGoCD.DataCase, async: true
 
-  alias ExGoCD.Agents
   alias ExGoCD.AgentJobRuns
   alias ExGoCD.AgentJobRuns.AgentJobRun
+  alias ExGoCD.Agents
 
   @agent_uuid "550e8400-e29b-41d4-a716-446655440000"
 

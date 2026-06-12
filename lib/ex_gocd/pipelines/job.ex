@@ -15,20 +15,20 @@ defmodule ExGoCD.Pipelines.Job do
 
   @type t :: %__MODULE__{
           id: integer() | nil,
-          name: String.t(),
+          name: String.t() | nil,
           run_instance_count: String.t() | nil,
           timeout: String.t() | nil,
-          resources: [String.t()],
-          environment_variables: map(),
-          run_on_all_agents: boolean(),
+          resources: [String.t()] | nil,
+          environment_variables: map() | nil,
+          run_on_all_agents: boolean() | nil,
           elastic_profile_id: String.t() | nil,
-          tabs: map(),
-          artifact_configs: map(),
+          tabs: map() | nil,
+          artifact_configs: map() | nil,
           stage_id: integer() | nil,
-          stage: Stage.t() | Ecto.Association.NotLoaded.t(),
-          tasks: [Task.t()],
-          inserted_at: NaiveDateTime.t() | nil,
-          updated_at: NaiveDateTime.t() | nil
+          stage: Stage.t() | nil | Ecto.Association.NotLoaded.t(),
+          tasks: [Task.t()] | Ecto.Association.NotLoaded.t(),
+          inserted_at: DateTime.t() | nil,
+          updated_at: DateTime.t() | nil
         }
 
   schema "jobs" do

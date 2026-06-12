@@ -1,7 +1,7 @@
 defmodule ExGoCD.Pipelines.TaskTest do
   use ExGoCD.DataCase, async: true
 
-  alias ExGoCD.Pipelines.{Pipeline, Stage, Job, Task}
+  alias ExGoCD.Pipelines.{Job, Pipeline, Stage, Task}
 
   setup do
     pipeline =

@@ -42,19 +42,41 @@ type Config struct {
 	WorkPollInterval  time.Duration
 }
 
+// getEnvWithLegacyFallback fetches configuration with fallback to legacy GOCD_ env var
+func getEnvWithLegacyFallback(key string, legacyEnv string) string {
+	val := viper.GetString(key)
+	if val == "" || val == defaultOf(key) {
+		if legacyVal := os.Getenv(legacyEnv); legacyVal != "" {
+			return legacyVal
+		}
+	}
+	return val
+}
+
+func defaultOf(key string) string {
+	switch key {
+	case "server.url":
+		return "http://localhost:8153/go"
+	case "work.dir":
+		return "./work"
+	default:
+		return ""
+	}
+}
+
 // Load creates a Config from environment variables with sensible defaults
 // Uses viper for 12-factor app configuration with AGENT_ prefix
 func Load() (*Config, error) {
 	// Setup viper with AGENT_ prefix for environment variables
 	setupViper()
 
-	serverURLStr := viper.GetString("server.url")
+	serverURLStr := getEnvWithLegacyFallback("server.url", "GOCD_SERVER_URL")
 	serverURL, err := url.Parse(serverURLStr)
 	if err != nil {
 		return nil, fmt.Errorf("invalid server URL: %w", err)
 	}
 
-	workDir := viper.GetString("work.dir")
+	workDir := getEnvWithLegacyFallback("work.dir", "GOCD_AGENT_WORK_DIR")
 
 	cfg := &Config{
 		ServerURL:         serverURL,
@@ -62,9 +84,9 @@ func Load() (*Config, error) {
 		WorkingDir:        workDir,
 		HeartbeatInterval: viper.GetDuration("heartbeat.interval"),
 		WorkPollInterval:  viper.GetDuration("work.poll.interval"),
-		AutoRegisterKey:   viper.GetString("auto.register.key"),
-		Resources:         viper.GetString("auto.register.resources"),
-		Environments:      viper.GetString("auto.register.environments"),
+		AutoRegisterKey:   getEnvWithLegacyFallback("auto.register.key", "GOCD_AUTO_REGISTER_KEY"),
+		Resources:         getEnvWithLegacyFallback("auto.register.resources", "GOCD_AUTO_REGISTER_RESOURCES"),
+		Environments:      getEnvWithLegacyFallback("auto.register.environments", "GOCD_AUTO_REGISTER_ENVIRONMENTS"),
 		ElasticAgentID:    viper.GetString("auto.register.elastic.agent.id"),
 		ElasticPluginID:   viper.GetString("auto.register.elastic.plugin.id"),
 	}
@@ -142,6 +164,7 @@ func (c *Config) TokenURL() string {
 
 // WebSocketURL returns the WebSocket URL for agent communication.
 // Phoenix mounts the transport at /agent-websocket/websocket (not /agent-websocket).
+// If connecting to the original GoCD server (detected via path suffix /go), we connect to /agent-websocket instead.
 func (c *Config) WebSocketURL() string {
 	u := *c.ServerURL
 	if u.Scheme == "https" {
@@ -149,10 +172,12 @@ func (c *Config) WebSocketURL() string {
 	} else {
 		u.Scheme = "ws"
 	}
-	if u.Path == "" {
-		u.Path = "/"
+	trimmedPath := strings.TrimSuffix(u.Path, "/")
+	if trimmedPath == "/go" || strings.HasSuffix(trimmedPath, "/go") {
+		u.Path = trimmedPath + "/agent-websocket"
+	} else {
+		u.Path = trimmedPath + "/agent-websocket/websocket"
 	}
-	u.Path = strings.TrimSuffix(u.Path, "/") + "/agent-websocket/websocket"
 	return u.String()
 }
 

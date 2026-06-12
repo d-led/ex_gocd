@@ -72,15 +72,45 @@ defmodule ExGoCDWeb.Layouts do
               </a>
             </li>
             <%= if @is_user_admin do %>
-              <li role="none" class={if active_tab?(assigns, :admin), do: "active", else: ""}>
+              <li role="none" class={if active_tab?(assigns, :admin), do: "active is-drop-down", else: "is-drop-down"}>
                 <a
                   href="/admin"
                   role="menuitem"
                   tabindex="0"
                   aria-current={if active_tab?(assigns, :admin), do: "page", else: "false"}
                 >
-                  Admin
+                  Admin <i class="fa fa-caret-down caret-down-icon"></i>
                 </a>
+                <div class="sub-navigation">
+                  <ul class="site-sub-nav">
+                    <li class="site-sub-nav_item"><a href="/admin/pipelines" class={["site-sub-nav_link", if(active_sub_nav?(@current_path, "/admin/pipelines"), do: "is-active")]}>Pipelines</a></li>
+                    <li class="site-sub-nav_item"><a href="/admin/environments" class={["site-sub-nav_link", if(active_sub_nav?(@current_path, "/admin/environments"), do: "is-active")]}>Environments</a></li>
+                    <li class="site-sub-nav_item"><a href="/admin/templates" class={["site-sub-nav_link", if(active_sub_nav?(@current_path, "/admin/templates"), do: "is-active")]}>Templates</a></li>
+                    <li class="site-sub-nav_item"><a href="/admin/config_xml" class={["site-sub-nav_link", if(active_sub_nav?(@current_path, "/admin/config_xml"), do: "is-active")]}>Config XML</a></li>
+                    <li class="site-sub-nav_item"><a href="/admin/package_repositories/new" class={["site-sub-nav_link", if(active_sub_nav?(@current_path, "/admin/package_repositories/new"), do: "is-active")]}>Package Repositories</a></li>
+                  </ul>
+                  <ul class="site-sub-nav">
+                    <li class="site-sub-nav_item"><a href="/admin/elastic_agent_configurations" class={["site-sub-nav_link", if(active_sub_nav?(@current_path, "/admin/elastic_agent_configurations"), do: "is-active")]}>Elastic Agent Configurations</a></li>
+                    <li class="site-sub-nav_item"><a href="/admin/config_repos" class={["site-sub-nav_link", if(active_sub_nav?(@current_path, "/admin/config_repos"), do: "is-active")]}>Config Repositories</a></li>
+                    <li class="site-sub-nav_item"><a href="/admin/artifact_stores" class={["site-sub-nav_link", if(active_sub_nav?(@current_path, "/admin/artifact_stores"), do: "is-active")]}>Artifact Stores</a></li>
+                    <li class="site-sub-nav_item"><a href="/admin/secret_configs" class={["site-sub-nav_link", if(active_sub_nav?(@current_path, "/admin/secret_configs"), do: "is-active")]}>Secret Management</a></li>
+                    <li class="site-sub-nav_item"><a href="/admin/scms" class={["site-sub-nav_link", if(active_sub_nav?(@current_path, "/admin/scms"), do: "is-active")]}>Pluggable SCMs</a></li>
+                  </ul>
+                  <ul class="site-sub-nav">
+                    <li class="site-sub-nav_heading">Server configuration</li>
+                    <li class="site-sub-nav_item"><a href="/admin/config/server" class={["site-sub-nav_link", if(active_sub_nav?(@current_path, "/admin/config/server"), do: "is-active")]}>Server Configuration</a></li>
+                    <li class="site-sub-nav_item"><a href="/admin/maintenance_mode" class={["site-sub-nav_link", if(active_sub_nav?(@current_path, "/admin/maintenance_mode"), do: "is-active")]}>Server Maintenance Mode</a></li>
+                    <li class="site-sub-nav_item"><a href="/admin/backup" class={["site-sub-nav_link", if(active_sub_nav?(@current_path, "/admin/backup"), do: "is-active")]}>Backup</a></li>
+                    <li class="site-sub-nav_item"><a href="/admin/plugins" class={["site-sub-nav_link", if(active_sub_nav?(@current_path, "/admin/plugins"), do: "is-active")]}>Plugins</a></li>
+                  </ul>
+                  <ul class="site-sub-nav">
+                    <li class="site-sub-nav_heading">Security</li>
+                    <li class="site-sub-nav_item"><a href="/admin/security/auth_configs" class={["site-sub-nav_link", if(active_sub_nav?(@current_path, "/admin/security/auth_configs"), do: "is-active")]}>Authorization Configuration</a></li>
+                    <li class="site-sub-nav_item"><a href="/admin/security/roles" class={["site-sub-nav_link", if(active_sub_nav?(@current_path, "/admin/security/roles"), do: "is-active")]}>Role configuration</a></li>
+                    <li class="site-sub-nav_item"><a href="/admin/users" class={["site-sub-nav_link", if(active_sub_nav?(@current_path, "/admin/users"), do: "is-active")]}>Users Management</a></li>
+                    <li class="site-sub-nav_item"><a href="/admin/admin_access_tokens" class={["site-sub-nav_link", if(active_sub_nav?(@current_path, "/admin/admin_access_tokens"), do: "is-active")]}>Access Tokens Management</a></li>
+                  </ul>
+                </div>
               </li>
             <% end %>
           </ul>
@@ -101,16 +131,23 @@ defmodule ExGoCDWeb.Layouts do
     """
   end
 
+  @spec active_tab?(map(), :dashboard | :agents | :materials | :admin) :: boolean()
   defp active_tab?(assigns, tab) do
     current_path = Map.get(assigns, :current_path, "")
 
     case tab do
-      :dashboard -> current_path in ["/", "/pipelines"]
-      :agents -> String.starts_with?(current_path, "/agents")
-      :materials -> String.starts_with?(current_path, "/materials")
-      :admin -> String.starts_with?(current_path, "/admin")
-      _ -> false
+      :dashboard -> current_path in ["/", "/pipelines", "/go/pipelines"]
+      :agents -> String.starts_with?(current_path, "/agents") or String.starts_with?(current_path, "/go/agents")
+      :materials -> String.starts_with?(current_path, "/materials") or String.starts_with?(current_path, "/go/materials")
+      :admin -> String.starts_with?(current_path, "/admin") or String.starts_with?(current_path, "/go/admin")
     end
+  end
+
+  defp active_sub_nav?(current_path, path) do
+    norm_current = String.replace(current_path, ~r"^/go", "")
+    norm_path = String.replace(path, ~r"^/go", "")
+
+    norm_current == norm_path
   end
 
   @doc """

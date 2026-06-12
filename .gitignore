@@ -48,3 +48,5 @@ npm-debug.log
 node_modules/
 agent/gocd-agent
 agent/gocd-agent.exe
+.mix/
+.hex/

@@ -1,0 +1,13 @@
+{
+  "name": "ex_gocd",
+  "version": "1.0.0",
+  "description": "GoCD Phoenix Rewrite E2E Tests",
+  "private": true,
+  "scripts": {
+    "cypress:open": "cypress open",
+    "cypress:run": "cypress run --browser chrome"
+  },
+  "devDependencies": {
+    "cypress": "^15.17.0"
+  }
+}

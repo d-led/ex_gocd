@@ -12,22 +12,22 @@ defmodule ExGoCD.Agents.Agent do
 
   @type t :: %__MODULE__{
           id: integer() | nil,
-          uuid: String.t(),
-          hostname: String.t(),
-          ipaddress: String.t(),
+          uuid: String.t() | nil,
+          hostname: String.t() | nil,
+          ipaddress: String.t() | nil,
           elastic_agent_id: String.t() | nil,
           elastic_plugin_id: String.t() | nil,
-          disabled: boolean(),
-          deleted: boolean(),
-          environments: [String.t()],
-          resources: [String.t()],
+          disabled: boolean() | nil,
+          deleted: boolean() | nil,
+          environments: [String.t()] | nil,
+          resources: [String.t()] | nil,
           cookie: String.t() | nil,
           working_dir: String.t() | nil,
           operating_system: String.t() | nil,
           free_space: integer() | nil,
-          state: String.t(),
-          inserted_at: NaiveDateTime.t() | nil,
-          updated_at: NaiveDateTime.t() | nil
+          state: String.t() | nil,
+          inserted_at: DateTime.t() | nil,
+          updated_at: DateTime.t() | nil
         }
 
   schema "agents" do
@@ -114,22 +114,18 @@ defmodule ExGoCD.Agents.Agent do
 
   defp validate_ip_address(changeset) do
     validate_change(changeset, :ipaddress, fn :ipaddress, ip ->
-      case ip do
-        "" ->
-          [ipaddress: "cannot be empty if present"]
-
-        ip when is_binary(ip) ->
-          # Basic IP validation (IPv4 or IPv6)
-          case :inet.parse_address(String.to_charlist(ip)) do
-            {:ok, _} -> []
-            {:error, _} -> [ipaddress: "is not a valid IP address"]
-          end
-
-        _ ->
-          [ipaddress: "must be a string"]
-      end
+      check_ip_address(ip)
     end)
   end
+
+  defp check_ip_address(""), do: [ipaddress: "cannot be empty if present"]
+  defp check_ip_address(ip) when is_binary(ip) do
+    case :inet.parse_address(String.to_charlist(ip)) do
+      {:ok, _} -> []
+      {:error, _} -> [ipaddress: "is not a valid IP address"]
+    end
+  end
+  defp check_ip_address(_), do: [ipaddress: "must be a string"]
 
   defp validate_resources(changeset) do
     resources = get_field(changeset, :resources) || []
@@ -137,14 +133,14 @@ defmodule ExGoCD.Agents.Agent do
     elastic_plugin_id = get_field(changeset, :elastic_plugin_id)
 
     # Elastic agents cannot have resources (per Agent.validateResources())
-    if is_elastic?(elastic_agent_id, elastic_plugin_id) and length(resources) > 0 do
+    if elastic_ids?(elastic_agent_id, elastic_plugin_id) and resources != [] do
       add_error(changeset, :resources, "Elastic agents cannot have resources")
     else
       changeset
     end
   end
 
-  defp is_elastic?(elastic_agent_id, elastic_plugin_id) do
+  defp elastic_ids?(elastic_agent_id, elastic_plugin_id) do
     not is_nil(elastic_agent_id) and elastic_agent_id != "" and
       not is_nil(elastic_plugin_id) and elastic_plugin_id != ""
   end
@@ -154,7 +150,7 @@ defmodule ExGoCD.Agents.Agent do
   """
   @spec elastic?(t()) :: boolean()
   def elastic?(%__MODULE__{} = agent) do
-    is_elastic?(agent.elastic_agent_id, agent.elastic_plugin_id)
+    elastic_ids?(agent.elastic_agent_id, agent.elastic_plugin_id)
   end
 
   @doc """

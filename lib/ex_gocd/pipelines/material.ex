@@ -14,18 +14,18 @@ defmodule ExGoCD.Pipelines.Material do
 
   @type t :: %__MODULE__{
           id: integer() | nil,
-          type: String.t(),
+          type: String.t() | nil,
           url: String.t() | nil,
           branch: String.t() | nil,
           username: String.t() | nil,
           destination: String.t() | nil,
-          auto_update: boolean(),
-          filter_ignore: [String.t()],
-          filter_include: [String.t()],
-          type_specific_config: map(),
-          pipelines: [Pipeline.t()],
-          inserted_at: NaiveDateTime.t() | nil,
-          updated_at: NaiveDateTime.t() | nil
+          auto_update: boolean() | nil,
+          filter_ignore: [String.t()] | nil,
+          filter_include: [String.t()] | nil,
+          type_specific_config: map() | nil,
+          pipelines: [Pipeline.t()] | Ecto.Association.NotLoaded.t(),
+          inserted_at: DateTime.t() | nil,
+          updated_at: DateTime.t() | nil
         }
 
   schema "materials" do

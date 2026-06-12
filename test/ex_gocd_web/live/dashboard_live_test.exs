@@ -40,8 +40,8 @@ defmodule ExGoCDWeb.DashboardLiveTest do
       {:ok, view, _html} = live(conn, ~p"/")
 
       view
-      |> element("#pipeline-search")
-      |> render_change(%{"value" => "my-pipeline"})
+      |> form("#pipeline-search-form", %{"value" => "my-pipeline"})
+      |> render_change()
 
       assert render(view) =~ ~s(value="my-pipeline")
     end
@@ -243,8 +243,8 @@ defmodule ExGoCDWeb.DashboardLiveTest do
 
       # Trigger search with non-existent pipeline
       view
-      |> element("#pipeline-search")
-      |> render_change(%{"value" => "nonexistent-pipeline-xyz"})
+      |> form("#pipeline-search-form", %{"value" => "nonexistent-pipeline-xyz"})
+      |> render_change()
 
       html = render(view)
 

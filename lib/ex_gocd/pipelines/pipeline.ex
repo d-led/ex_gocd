@@ -10,25 +10,25 @@ defmodule ExGoCD.Pipelines.Pipeline do
   use Ecto.Schema
   import Ecto.Changeset
 
-  alias ExGoCD.Pipelines.{Stage, Material, PipelineInstance}
+  alias ExGoCD.Pipelines.{Material, PipelineInstance, Stage}
 
   @type t :: %__MODULE__{
           id: integer() | nil,
-          name: String.t(),
+          name: String.t() | nil,
           group: String.t() | nil,
-          label_template: String.t(),
-          lock_behavior: String.t(),
-          environment_variables: map(),
+          label_template: String.t() | nil,
+          lock_behavior: String.t() | nil,
+          environment_variables: map() | nil,
           timer: String.t() | nil,
-          params: map(),
+          params: map() | nil,
           tracking_tool: map() | nil,
           template_name: String.t() | nil,
-          display_order_weight: integer(),
-          stages: [Stage.t()],
-          materials: [Material.t()],
-          instances: [PipelineInstance.t()],
-          inserted_at: NaiveDateTime.t() | nil,
-          updated_at: NaiveDateTime.t() | nil
+          display_order_weight: integer() | nil,
+          stages: [Stage.t()] | Ecto.Association.NotLoaded.t(),
+          materials: [Material.t()] | Ecto.Association.NotLoaded.t(),
+          instances: [PipelineInstance.t()] | Ecto.Association.NotLoaded.t(),
+          inserted_at: DateTime.t() | nil,
+          updated_at: DateTime.t() | nil
         }
 
   schema "pipelines" do
@@ -44,7 +44,7 @@ defmodule ExGoCD.Pipelines.Pipeline do
     field :display_order_weight, :integer, default: -1
 
     has_many :stages, Stage, on_delete: :delete_all
-    many_to_many :materials, Material, join_through: "pipelines_materials", on_delete: :delete_all
+    many_to_many :materials, Material, join_through: "pipelines_materials", on_delete: :delete_all, on_replace: :delete
     has_many :instances, PipelineInstance, on_delete: :delete_all
 
     timestamps(type: :utc_datetime)

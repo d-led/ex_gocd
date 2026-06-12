@@ -72,3 +72,59 @@ unless Repo.get_by(Pipeline, name: "ci") do
 else
   IO.puts("Pipeline 'ci' already exists, skipping seed")
 end
+
+alias ExGoCD.AgentJobRuns.AgentJobRun
+
+unless Repo.get_by(AgentJobRun, build_id: "demo-build-1") do
+  %AgentJobRun{}
+  |> AgentJobRun.changeset(%{
+    agent_uuid: "00000000-0000-0000-0000-000000000001",
+    build_id: "demo-build-1",
+    pipeline_name: "demo",
+    pipeline_counter: 1,
+    stage_name: "build",
+    stage_counter: 1,
+    job_name: "default",
+    state: "Completed",
+    result: "Passed",
+    console_log: "Hello, this is a mock console log from the seeds script!\n"
+  })
+  |> Repo.insert!()
+
+  IO.puts("Seeded mock agent job run for build-agent-01.example.com")
+else
+  IO.puts("Mock job run already exists, skipping seed")
+end
+
+# Seed default users
+alias ExGoCD.Accounts
+
+unless Repo.get_by(ExGoCD.Accounts.User, username: "admin") do
+  {:ok, _} = Accounts.create_user(%{
+    username: "admin",
+    display_name: "System Administrator",
+    roles: ["admin", "developer"],
+    status: "Active"
+  })
+  IO.puts("Seeded user: admin")
+end
+
+unless Repo.get_by(ExGoCD.Accounts.User, username: "developer") do
+  {:ok, _} = Accounts.create_user(%{
+    username: "developer",
+    display_name: "Lead Developer",
+    roles: ["developer"],
+    status: "Active"
+  })
+  IO.puts("Seeded user: developer")
+end
+
+unless Repo.get_by(ExGoCD.Accounts.User, username: "viewer") do
+  {:ok, _} = Accounts.create_user(%{
+    username: "viewer",
+    display_name: "Guest Viewer",
+    roles: [],
+    status: "Active"
+  })
+  IO.puts("Seeded user: viewer")
+end

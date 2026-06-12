@@ -120,7 +120,7 @@ defmodule ExGoCDWeb.AdminAgentController do
   end
 
   defp dev_env? do
-    Code.ensure_loaded?(Mix) and function_exported?(Mix, :env, 0) and Mix.env() == :dev
+    Application.get_env(:ex_gocd, :env) == :dev
   end
 
   @doc """

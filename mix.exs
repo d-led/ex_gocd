@@ -11,7 +11,11 @@ defmodule ExGoCD.MixProject do
       aliases: aliases(),
       deps: deps(),
       compilers: [:phoenix_live_view] ++ Mix.compilers(),
-      listeners: [Phoenix.CodeReloader]
+      listeners: [Phoenix.CodeReloader],
+      test_coverage: [tool: ExCoveralls],
+      dialyzer: [
+        plt_add_apps: [:mix]
+      ]
     ]
   end
 
@@ -31,7 +35,12 @@ defmodule ExGoCD.MixProject do
         precommit: :test,
         test_no_db: :test,
         "test.no_db": :test,
-        "test.with_db": :test
+        "test.with_db": :test,
+        coveralls: :test,
+        "coveralls.detail": :test,
+        "coveralls.post": :test,
+        "coveralls.html": :test,
+        "coveralls.json": :test
       ]
     ]
   end
@@ -71,7 +80,10 @@ defmodule ExGoCD.MixProject do
       {:gettext, "~> 1.0"},
       {:jason, "~> 1.2"},
       {:dns_cluster, "~> 0.2.0"},
-      {:bandit, "~> 1.5"}
+      {:bandit, "~> 1.5"},
+      {:excoveralls, "~> 0.18", only: [:test]},
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:dialyxir, "~> 1.4", only: [:dev], runtime: false}
     ]
   end
 
@@ -87,11 +99,14 @@ defmodule ExGoCD.MixProject do
       "ecto.setup": ["ecto.create", "ecto.migrate", "run priv/repo/seeds.exs"],
       "ecto.reset": ["ecto.drop", "ecto.setup"],
       test: ["test.with_db"],
+      "test.coverage": ["ecto.create --quiet", "ecto.migrate --quiet", "coveralls.json"],
+      quality: ["credo --strict", "dialyzer"],
       # Run tests without Postgres (skips ecto.create). Use: EX_GOCD_TEST_NO_DB=1 mix test_no_db [path]
       test_no_db: ["test.no_db"],
       "assets.setup": ["tailwind.install --if-missing", "esbuild.install --if-missing"],
       "assets.build": ["compile", "tailwind ex_gocd", "esbuild ex_gocd"],
       "assets.deploy": [
+        "compile",
         "tailwind ex_gocd --minify",
         "esbuild ex_gocd --minify",
         "phx.digest"

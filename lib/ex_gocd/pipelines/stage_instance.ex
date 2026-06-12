@@ -10,35 +10,35 @@ defmodule ExGoCD.Pipelines.StageInstance do
   use Ecto.Schema
   import Ecto.Changeset
 
-  alias ExGoCD.Pipelines.{PipelineInstance, JobInstance}
+  alias ExGoCD.Pipelines.{JobInstance, PipelineInstance}
 
   @type t :: %__MODULE__{
           id: integer() | nil,
-          name: String.t(),
-          counter: integer(),
-          order_id: integer(),
-          state: String.t(),
-          result: String.t(),
-          approval_type: String.t(),
+          name: String.t() | nil,
+          counter: integer() | nil,
+          order_id: integer() | nil,
+          state: String.t() | nil,
+          result: String.t() | nil,
+          approval_type: String.t() | nil,
           approved_by: String.t() | nil,
           cancelled_by: String.t() | nil,
-          created_time: DateTime.t(),
+          created_time: DateTime.t() | nil,
           last_transitioned_time: DateTime.t() | nil,
-          scheduled_at: NaiveDateTime.t() | nil,
-          completed_at: NaiveDateTime.t() | nil,
-          fetch_materials: boolean(),
-          clean_working_dir: boolean(),
+          scheduled_at: DateTime.t() | nil,
+          completed_at: DateTime.t() | nil,
+          fetch_materials: boolean() | nil,
+          clean_working_dir: boolean() | nil,
           identifier: String.t() | nil,
           completed_by_transition_id: integer() | nil,
-          latest_run: boolean(),
+          latest_run: boolean() | nil,
           rerun_of_counter: integer() | nil,
-          artifacts_deleted: boolean(),
+          artifacts_deleted: boolean() | nil,
           config_version: String.t() | nil,
           pipeline_instance_id: integer() | nil,
-          pipeline_instance: PipelineInstance.t() | Ecto.Association.NotLoaded.t(),
-          job_instances: [JobInstance.t()],
-          inserted_at: NaiveDateTime.t() | nil,
-          updated_at: NaiveDateTime.t() | nil
+          pipeline_instance: PipelineInstance.t() | nil | Ecto.Association.NotLoaded.t(),
+          job_instances: [JobInstance.t()] | Ecto.Association.NotLoaded.t(),
+          inserted_at: DateTime.t() | nil,
+          updated_at: DateTime.t() | nil
         }
 
   schema "stage_instances" do
