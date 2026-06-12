@@ -1,25 +1,771 @@
 defmodule ExGoCDWeb.AdminLive do
   @moduledoc """
-  Placeholder LiveView for the Admin section (pipelines config, server config, etc.).
-  Nav link points here so the header does not 404.
+  A feature-rich, high-fidelity Administration panel for GoCD.
+  Aligned with original GoCD light theme, using white panels, light borders (#d6e0e2),
+  and GoCD variables. Full-width layout with a top tab navigation bar.
   """
   use ExGoCDWeb, :live_view
 
   @impl true
   def mount(_params, _session, socket) do
+    # Initial mock data
+    pipeline_groups = [
+      %{
+        name: "defaultGroup",
+        pipelines: [
+          %{name: "build-linux", instances: 144, status: "Passed", template: "None"},
+          %{name: "deploy-staging", instances: 42, status: "Passed", template: "deploy-template"},
+          %{name: "deploy-production", instances: 18, status: "Failed", template: "deploy-template"}
+        ]
+      },
+      %{
+        name: "testGroup",
+        pipelines: [
+          %{name: "demo-app", instances: 95, status: "Passed", template: "None"},
+          %{name: "e2e-tests", instances: 54, status: "Passed", template: "test-runner-template"}
+        ]
+      }
+    ]
+
+    environments = [
+      %{name: "staging", pipelines: ["deploy-staging", "demo-app"], agents: 2},
+      %{name: "production", pipelines: ["deploy-production"], agents: 4}
+    ]
+
+    config_repos = [
+      %{
+        id: "gocd-config-repo",
+        url: "https://github.com/d-led/gocd_docker_compose_example.git",
+        plugin: "yaml-config-plugin",
+        status: "Good"
+      }
+    ]
+
+    users = [
+      %{username: "admin", display_name: "System Administrator", roles: ["admin", "developer"], status: "Active"},
+      %{username: "developer", display_name: "Lead Developer", roles: ["developer"], status: "Active"},
+      %{username: "viewer", display_name: "Guest Viewer", roles: [], status: "Active"}
+    ]
+
+    plugins = [
+      %{id: "git-material", name: "Git Material Plugin", version: "1.0.0", status: "Active"},
+      %{id: "docker-elastic-agent", name: "Docker Elastic Agent Plugin", version: "2.1.0", status: "Active"},
+      %{id: "slack-notifier", name: "Slack Notifications", version: "1.4.2", status: "Active"},
+      %{id: "artifact-store-s3", name: "S3 Artifact Store", version: "1.1.0", status: "Active"}
+    ]
+
     {:ok,
      socket
-     |> assign(:page_title, "Admin")
+     |> assign(:pipeline_groups, pipeline_groups)
+     |> assign(:filtered_groups, pipeline_groups)
+     |> assign(:environments, environments)
+     |> assign(:config_repos, config_repos)
+     |> assign(:users, users)
+     |> assign(:plugins, plugins)
+     |> assign(:search_query, "")
+     |> assign(:maintenance_mode, false)
+     |> assign(:backup_status, "Idle") # Idle, Running, Completed
+     |> assign(:backup_message, "")
+     |> assign(:new_group_name, "")
+     |> assign(:show_create_modal, false)
+     |> assign(:flash_info, nil)
      |> assign(:current_path, "/admin")}
+  end
+
+  @impl true
+  def handle_params(_params, url, socket) do
+    path = URI.parse(url).path || ""
+    path_segments = String.split(path, "/", trim: true)
+
+    # Extract raw tab name based on path structure
+    # e.g., ["admin", "security", "auth_configs"] -> tab is "security"
+    # or ["go", "admin", "pipelines"] -> tab is "pipelines"
+    tab =
+      case path_segments do
+        ["go", "admin", tab_name | _] -> tab_name
+        ["admin", tab_name | _] -> tab_name
+        _ -> "overview"
+      end
+
+    # Map sub-paths/tab_names to our major tabs
+    mapped_tab =
+      case tab do
+        "pipelines" -> "pipelines"
+        "environments" -> "environments"
+        "config_repos" -> "config_repos"
+        "server" -> "server"
+        "security" -> "security"
+        "overview" -> "overview"
+        
+        # Mapping other GoCD dropdown links
+        "users" -> "security"
+        "templates" -> "pipelines"
+        "config_xml" -> "server"
+        "package_repositories" -> "pipelines"
+        "elastic_agent_configurations" -> "environments"
+        "artifact_stores" -> "server"
+        "secret_configs" -> "security"
+        "scms" -> "config_repos"
+        "config" -> "server"
+        "maintenance_mode" -> "server"
+        "backup" -> "server"
+        "plugins" -> "server"
+        "admin_access_tokens" -> "security"
+        _ -> "overview"
+      end
+
+    # Ensure tab is capitalize friendly for the title
+    title_suffix =
+      case mapped_tab do
+        "config_repos" -> "Config Repositories"
+        other -> String.capitalize(other)
+      end
+
+    {:noreply,
+     socket
+     |> assign(:tab, mapped_tab)
+     |> assign(:page_title, "GoCD Administration - #{title_suffix}")
+     |> assign(:current_path, path)}
   end
 
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="dashboard-message text-center" role="region" aria-label="Admin">
-      <h2>Admin</h2>
-      <p>Admin (pipelines, environments, server configuration) will be implemented in a later phase.</p>
+    <div class="admin-page-wrapper min-h-screen bg-[#f4f8f9] text-[#333] font-sans pb-12">
+      <!-- Page Header Panel -->
+      <div class="bg-white border-b border-[#e9edef] px-6 py-4 flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+        <div class="flex items-center gap-2">
+          <h1 class="text-xl font-semibold text-[#333] uppercase tracking-wide">
+            <%= case @tab do %>
+              <% "overview" -> %>Administration
+              <% "pipelines" -> %>Pipelines
+              <% "environments" -> %>Environments
+              <% "config_repos" -> %>Config Repositories
+              <% "server" -> %>Server Configuration
+              <% "security" -> %>Security
+              <% _ -> %>Admin
+            <% end %>
+          </h1>
+          <a href="https://docs.gocd.org" target="_blank" class="text-[#943a9e] text-base hover:text-purple-800" aria-label="Help">
+            <i class="fa-solid fa-circle-question"></i>
+          </a>
+        </div>
+
+        <!-- Page Header Actions (Dynamic based on Tab) -->
+        <div class="flex flex-wrap items-center gap-4">
+          <%= if @tab == "pipelines" do %>
+            <div class="relative">
+              <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 text-xs">
+                <i class="fa fa-search"></i>
+              </span>
+              <form phx-change="search_pipelines">
+                <input type="text" name="query" value={@search_query} placeholder="Search for a pipeline name"
+                       class="pl-8 pr-3 py-1.5 w-64 rounded border border-[#d6e0e2] text-xs focus:outline-none focus:border-[#943a9e] bg-white text-[#333]" />
+              </form>
+            </div>
+            <button phx-click="toggle_create_modal" class="px-3 py-1.5 bg-white border border-[#943a9e] text-[#943a9e] rounded text-xs font-semibold hover:bg-purple-50 transition-all">
+              <i class="fa fa-plus mr-1"></i> Create new pipeline group
+            </button>
+          <% end %>
+        </div>
+      </div>
+
+      <!-- Sub-Tab Navigation Bar -->
+      <div class="bg-white border-b border-[#e9edef] px-6 py-2.5 flex flex-wrap gap-6 text-sm font-semibold shadow-sm">
+        <.sub_tab_link active={@tab == "overview"} href="/admin/overview">Overview</.sub_tab_link>
+        <.sub_tab_link active={@tab == "pipelines"} href="/admin/pipelines">Pipelines &amp; Groups</.sub_tab_link>
+        <.sub_tab_link active={@tab == "environments"} href="/admin/environments">Environments</.sub_tab_link>
+        <.sub_tab_link active={@tab == "config_repos"} href="/admin/config_repos">Config Repositories</.sub_tab_link>
+        <.sub_tab_link active={@tab == "server"} href="/admin/server">Server Configuration</.sub_tab_link>
+        <.sub_tab_link active={@tab == "security"} href="/admin/security">Security &amp; Users</.sub_tab_link>
+      </div>
+
+      <!-- Main Layout Body (Centered Content) -->
+      <div class="max-w-[1400px] mx-auto px-6 py-6">
+        <%= if @flash_info do %>
+          <div class="mb-5 bg-[#dbf1d9] border border-[#a3d7a8] text-[#298a4c] px-4 py-3 rounded flex justify-between items-center text-sm shadow-sm" role="alert">
+            <span class="font-medium">{@flash_info}</span>
+            <button phx-click="clear_flash" class="text-[#298a4c] hover:text-emerald-900">
+              <i class="fa fa-times"></i>
+            </button>
+          </div>
+        <% end %>
+
+        <%= case @tab do %>
+          <% "overview" -> %>
+            <.overview_tab 
+              pipeline_groups={@pipeline_groups}
+              environments={@environments}
+              config_repos={@config_repos}
+              users={@users}
+              plugins={@plugins}
+              maintenance_mode={@maintenance_mode}
+            />
+          <% "pipelines" -> %>
+            <.pipelines_tab 
+              filtered_groups={@filtered_groups} 
+              search_query={@search_query}
+              new_group_name={@new_group_name}
+              show_create_modal={@show_create_modal}
+            />
+          <% "environments" -> %>
+            <.environments_tab environments={@environments} />
+          <% "config_repos" -> %>
+            <.config_repos_tab config_repos={@config_repos} />
+          <% "server" -> %>
+            <.server_tab 
+              maintenance_mode={@maintenance_mode} 
+              backup_status={@backup_status} 
+              backup_message={@backup_message}
+              plugins={@plugins}
+            />
+          <% "security" -> %>
+            <.security_tab users={@users} />
+          <% _ -> %>
+            <div class="text-center py-12 bg-white border border-[#d6e0e2] rounded shadow-sm">
+              <h3 class="text-lg font-bold">Section Not Found</h3>
+              <p class="text-slate-500 mt-2">The requested admin section could not be loaded.</p>
+            </div>
+        <% end %>
+      </div>
     </div>
     """
+  end
+
+  # --- Subcomponents ---
+
+  defp sub_tab_link(assigns) do
+    ~H"""
+    <a href={@href} class={["pb-2 border-b-2 transition-all font-semibold text-xs uppercase tracking-wide",
+                            if(@active, do: "border-[#943a9e] text-[#943a9e]", 
+                                       else: "border-transparent text-slate-500 hover:text-[#333] hover:border-slate-350")]}>
+      {render_slot(@inner_block)}
+    </a>
+    """
+  end
+
+  defp stat_card(assigns) do
+    ~H"""
+    <div class="bg-white rounded border border-[#d6e0e2] p-5 flex items-center gap-4 shadow-sm">
+      <div class="w-12 h-12 rounded bg-slate-100 flex items-center justify-center shrink-0">
+        <i class={["fa text-xl text-[#943a9e]", @icon]}></i>
+      </div>
+      <div>
+        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{@title}</p>
+        <p class="text-xl font-bold mt-1 text-[#333]">{@value}</p>
+        <p class="text-xs text-slate-500 mt-0.5">{@sub}</p>
+      </div>
+    </div>
+    """
+  end
+
+  # --- Tab Renderings ---
+
+  defp overview_tab(assigns) do
+    assigns = assigns
+      |> assign(:pipeline_count, Enum.reduce(assigns.pipeline_groups, 0, fn g, acc -> acc + length(g.pipelines) end))
+      |> assign(:group_count, length(assigns.pipeline_groups))
+
+    ~H"""
+    <div class="space-y-6">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        <.stat_card icon="fa-network-wired" title="Pipeline Groups" value={"#{@group_count}"} sub={"#{@pipeline_count} total pipelines"} />
+        <.stat_card icon="fa-earth-americas" title="Environments" value={"#{length(@environments)}"} sub="Assigned to agents" />
+        <.stat_card icon="fa-git-alt" title="Config Repos" value={"#{length(@config_repos)}"} sub="Pipelines-as-code repos" />
+        <.stat_card icon="fa-users" title="Active Users" value={"#{length(@users)}"} sub="Authorized administrators" />
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Server Status -->
+        <div class="bg-white rounded border border-[#d6e0e2] p-5 shadow-sm">
+          <h3 class="text-sm font-bold border-b border-[#e9edef] pb-3 flex items-center gap-2 text-slate-700">
+            <i class="fa fa-server text-[#943a9e]"></i> Server Status
+          </h3>
+          <div class="mt-4 space-y-3.5 text-xs text-slate-600">
+            <div class="flex justify-between">
+              <span>Server State:</span>
+              <span class="font-semibold text-emerald-600">Running</span>
+            </div>
+            <div class="flex justify-between">
+              <span>Maintenance Mode:</span>
+              <span class={["font-bold", if(@maintenance_mode, do: "text-amber-600", else: "text-slate-500")]}>
+                {if @maintenance_mode, do: "Enabled (Read-only)", else: "Disabled"}
+              </span>
+            </div>
+            <div class="flex justify-between">
+              <span>API Database:</span>
+              <span class="font-semibold text-emerald-600">Connected (PostgreSQL)</span>
+            </div>
+            <div class="flex justify-between">
+              <span>Registered Plugins:</span>
+              <span class="font-semibold text-[#943a9e]">{length(@plugins)} Active Plugins</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="bg-white rounded border border-[#d6e0e2] p-5 shadow-sm">
+          <h3 class="text-sm font-bold border-b border-[#e9edef] pb-3 flex items-center gap-2 text-slate-700">
+            <i class="fa fa-bolt text-amber-500"></i> Operations Control
+          </h3>
+          <div class="mt-4 space-y-4">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-xs font-bold text-slate-700">Maintenance Mode</p>
+                <p class="text-[11px] text-slate-400 mt-0.5">Pause all pipeline builds for system maintenance.</p>
+              </div>
+              <button phx-click="toggle_maintenance_mode" 
+                      class={["px-3 py-1.5 rounded text-xs font-semibold border transition-all",
+                              if(@maintenance_mode, do: "bg-amber-600 border-amber-500 text-white hover:bg-amber-500",
+                                         else: "bg-slate-100 border-slate-350 text-slate-700 hover:bg-slate-200")]}>
+                {if @maintenance_mode, do: "Disable", else: "Enable"}
+              </button>
+            </div>
+
+            <div class="flex items-center justify-between border-t border-[#e9edef] pt-4">
+              <div>
+                <p class="text-xs font-bold text-slate-700">Config Backup</p>
+                <p class="text-[11px] text-slate-400 mt-0.5">Create a backup snapshot of GoCD server config database.</p>
+              </div>
+              <a href="/admin/server" class="px-3 py-1.5 rounded text-xs font-semibold bg-[#943a9e] hover:bg-purple-700 border border-purple-700 text-white text-center transition-all shadow-sm">
+                Backup Server
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    """
+  end
+
+  defp pipelines_tab(assigns) do
+    ~H"""
+    <div class="space-y-6">
+      <!-- Add group modal/form -->
+      <%= if @show_create_modal do %>
+        <form phx-submit="create_pipeline_group" class="bg-white rounded border border-[#d6e0e2] p-5 shadow flex flex-col sm:flex-row gap-4 items-end max-w-2xl">
+          <div class="flex-grow">
+            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">New Pipeline Group Name</label>
+            <input type="text" name="name" value={@new_group_name} placeholder="e.g. stagingGroup" required
+                   class="w-full px-3 py-2 rounded bg-white border border-[#d6e0e2] text-xs text-slate-700 focus:outline-none focus:border-[#943a9e]" />
+          </div>
+          <div class="flex gap-2">
+            <button type="submit" class="px-4 py-2 rounded bg-[#943a9e] hover:bg-purple-700 text-white text-xs font-semibold border border-purple-700 shadow-sm transition-all">
+              <i class="fa fa-plus mr-1"></i> Add Group
+            </button>
+            <button type="button" phx-click="toggle_create_modal" class="px-4 py-2 rounded bg-slate-100 border border-slate-350 text-slate-700 text-xs font-semibold hover:bg-slate-200">
+              Cancel
+            </button>
+          </div>
+        </form>
+      <% end %>
+
+      <!-- Pipeline Group Cards -->
+      <div class="space-y-6">
+        <%= for group <- @filtered_groups do %>
+          <div class="bg-white rounded border border-[#d6e0e2] overflow-hidden shadow-sm">
+            <div class="bg-[#e7eef0] px-5 py-3 border-b border-[#d6e0e2] flex justify-between items-center">
+              <div class="text-xs text-slate-600">
+                Pipeline Group: <span class="font-bold text-slate-800">{group.name}</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <button phx-click="add_pipeline_to_group" phx-value-group={group.name} class="px-3 py-1 bg-[#943a9e] text-white rounded text-[11px] font-bold hover:bg-purple-700 transition-all shadow-sm">
+                  <i class="fa fa-plus mr-1"></i> Add new pipeline
+                </button>
+                <button class="p-1 w-7 h-7 border border-[#d6e0e2] bg-white text-slate-600 rounded hover:bg-slate-50 text-xs flex items-center justify-center" title="Edit Group">
+                  <i class="fa fa-edit"></i>
+                </button>
+                <button phx-click="delete_pipeline_group" phx-value-name={group.name} class="p-1 w-7 h-7 border border-[#d6e0e2] bg-white text-rose-500 rounded hover:bg-slate-50 text-xs flex items-center justify-center" title="Delete Group">
+                  <i class="fa fa-trash-can"></i>
+                </button>
+              </div>
+            </div>
+
+            <div class="divide-y divide-[#e9edef]">
+              <%= if Enum.empty?(group.pipelines) do %>
+                <div class="p-6 text-center text-slate-400 text-xs italic bg-white">
+                  No pipelines defined in this group.
+                </div>
+              <% else %>
+                <%= for pipe <- group.pipelines do %>
+                  <div class="px-5 py-3 flex justify-between items-center bg-white hover:bg-slate-50/30">
+                    <span class="text-sm font-medium text-slate-700">{pipe.name}</span>
+                    <div class="flex items-center gap-1.5">
+                      <a href={"/pipeline/activity/#{pipe.name}"} class="w-7 h-7 border border-[#d6e0e2] bg-white text-[#943a9e] rounded hover:bg-slate-50 flex items-center justify-center text-[13px]" title="Activity">
+                        <i class="fa fa-chart-line"></i>
+                      </a>
+                      <button class="w-7 h-7 border border-[#d6e0e2] bg-white text-slate-500 rounded hover:bg-slate-50 flex items-center justify-center text-[13px]" title="Edit pipeline">
+                        <i class="fa fa-pencil"></i>
+                      </button>
+                      <button class="w-7 h-7 border border-[#d6e0e2] bg-white text-slate-500 rounded hover:bg-slate-50 flex items-center justify-center text-[13px]" title="Move pipeline">
+                        <i class="fa fa-arrow-right"></i>
+                      </button>
+                      <button class="w-7 h-7 border border-[#d6e0e2] bg-white text-slate-500 rounded hover:bg-slate-50 flex items-center justify-center text-[13px]" title="Download configuration">
+                        <i class="fa fa-download"></i>
+                      </button>
+                      <button class="w-7 h-7 border border-[#d6e0e2] bg-white text-slate-500 rounded hover:bg-slate-50 flex items-center justify-center text-[13px]" title="Clone pipeline">
+                        <i class="fa fa-clone"></i>
+                      </button>
+                      <button phx-click="delete_pipeline" phx-value-group={group.name} phx-value-name={pipe.name} class="w-7 h-7 border border-[#d6e0e2] bg-white text-rose-500 rounded hover:bg-slate-50 flex items-center justify-center text-[13px]" title="Delete pipeline">
+                        <i class="fa fa-trash-can"></i>
+                      </button>
+                      <button class="w-7 h-7 border border-[#d6e0e2] bg-white text-slate-500 rounded hover:bg-slate-50 flex items-center justify-center text-[13px]" title="Extract template">
+                        <i class="fa fa-plus"></i>
+                      </button>
+                    </div>
+                  </div>
+                <% end %>
+              <% end %>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    </div>
+    """
+  end
+
+  defp environments_tab(assigns) do
+    ~H"""
+    <div class="space-y-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <%= for env <- @environments do %>
+          <div class="bg-white rounded border border-[#d6e0e2] overflow-hidden shadow-sm">
+            <div class="bg-[#e7eef0] px-5 py-3 border-b border-[#d6e0e2] flex justify-between items-center">
+              <h3 class="text-xs font-bold text-slate-700 flex items-center gap-2">
+                <i class="fa fa-earth-americas text-[#943a9e]"></i> {env.name}
+              </h3>
+              <span class="text-[10px] bg-slate-200 px-2 py-0.5 rounded font-bold text-slate-600">
+                {env.agents} Active Agents
+              </span>
+            </div>
+            
+            <div class="p-5 space-y-3">
+              <span class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Assigned Pipelines</span>
+              <div class="flex flex-wrap gap-2">
+                <%= for pipe <- env.pipelines do %>
+                  <span class="text-xs bg-slate-50 border border-[#e9edef] px-2 py-1 rounded text-slate-600 font-medium">
+                    {pipe}
+                  </span>
+                <% end %>
+              </div>
+              
+              <div class="flex justify-end gap-3 pt-3 border-t border-[#e9edef]">
+                <button class="text-xs text-[#943a9e] hover:text-purple-800 font-bold">
+                  Configure Environment
+                </button>
+              </div>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    </div>
+    """
+  end
+
+  defp config_repos_tab(assigns) do
+    ~H"""
+    <div class="bg-white rounded border border-[#d6e0e2] overflow-hidden shadow-sm">
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs text-slate-600">
+          <thead class="bg-[#e7eef0] text-[10px] font-bold text-slate-500 uppercase border-b border-[#d6e0e2]">
+            <tr>
+              <th class="px-5 py-3.5">Repo Identifier</th>
+              <th class="px-5 py-3.5">Remote Repository Git URL</th>
+              <th class="px-5 py-3.5">Parsing Plugin</th>
+              <th class="px-5 py-3.5">Status</th>
+              <th class="px-5 py-3.5 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-[#e9edef] bg-white">
+            <%= for repo <- @config_repos do %>
+              <tr class="hover:bg-slate-50/50">
+                <td class="px-5 py-4 font-bold text-slate-700">{repo.id}</td>
+                <td class="px-5 py-4 font-mono text-[11px] text-slate-500">{repo.url}</td>
+                <td class="px-5 py-4 text-slate-600">{repo.plugin}</td>
+                <td class="px-5 py-4">
+                  <span class="inline-flex items-center gap-1 bg-emerald-50 text-emerald-600 border border-emerald-200 px-2 py-0.5 rounded text-[10px] font-bold">
+                    <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>
+                    {repo.status}
+                  </span>
+                </td>
+                <td class="px-5 py-4 text-right">
+                  <button class="text-xs text-[#943a9e] hover:text-purple-800 font-bold mr-3">
+                    <i class="fa fa-sync mr-1"></i> Sync Config
+                  </button>
+                  <button class="text-xs text-slate-500 hover:text-slate-800">
+                    Edit
+                  </button>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    """
+  end
+
+  defp server_tab(assigns) do
+    ~H"""
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <!-- Backups -->
+      <div class="bg-white rounded border border-[#d6e0e2] p-5 shadow-sm space-y-4">
+        <h3 class="text-sm font-bold text-slate-700 border-b border-[#e9edef] pb-3 flex items-center gap-2">
+          <i class="fa fa-cloud-arrow-up text-[#943a9e]"></i> Backup Configuration Database
+        </h3>
+        <p class="text-xs text-slate-500">
+          A configuration backup captures the configuration XML file, local database records, and secure variables settings.
+        </p>
+        
+        <div class="bg-slate-50 p-4 rounded border border-[#e9edef] space-y-2 text-xs">
+          <div class="flex justify-between">
+            <span class="text-slate-500 font-medium">Backup Status:</span>
+            <span class={["font-bold", 
+                          case @backup_status do
+                            "Running" -> "text-amber-600"
+                            "Completed" -> "text-emerald-600"
+                            _ -> "text-slate-500"
+                          end]}>
+              {@backup_status}
+            </span>
+          </div>
+          <%= if @backup_message != "" do %>
+            <div class="text-slate-600 mt-2 border-t border-[#e9edef] pt-2 font-mono text-[11px] leading-relaxed">
+              {@backup_message}
+            </div>
+          <% end %>
+        </div>
+
+        <button phx-click="trigger_backup" disabled={@backup_status == "Running"}
+                class="w-full py-2 rounded bg-[#943a9e] hover:bg-purple-700 disabled:bg-slate-200 text-xs font-semibold text-white border border-purple-700 disabled:border-slate-300 disabled:text-slate-400 shadow-sm transition-all flex items-center justify-center gap-2">
+          <%= if @backup_status == "Running" do %>
+            <i class="fa fa-spinner animate-spin"></i> Running Backup...
+          <% else %>
+            <i class="fa fa-cloud-arrow-up"></i> Start Backup Now
+          <% end %>
+        </button>
+      </div>
+
+      <!-- Plugins -->
+      <div class="bg-white rounded border border-[#d6e0e2] p-5 shadow-sm space-y-4">
+        <h3 class="text-sm font-bold text-slate-700 border-b border-[#e9edef] pb-3 flex items-center gap-2">
+          <i class="fa fa-cubes text-[#943a9e]"></i> Active Plugins
+        </h3>
+        <p class="text-xs text-slate-500">
+          Active plugins providing custom material types, artifact store plugins, and slack integrations.
+        </p>
+
+        <div class="divide-y divide-[#e9edef] bg-white">
+          <%= for plugin <- @plugins do %>
+            <div class="py-3 flex justify-between items-center text-xs">
+              <div>
+                <p class="font-bold text-slate-700">{plugin.name}</p>
+                <p class="text-slate-400 font-mono text-[10px] mt-0.5">{plugin.id}</p>
+              </div>
+              <div class="text-right">
+                <span class="text-slate-500 font-semibold">v{plugin.version}</span>
+                <span class="ml-2 bg-emerald-50 text-emerald-600 border border-emerald-200 px-1.5 py-0.5 rounded text-[10px] font-bold">
+                  Active
+                </span>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+    """
+  end
+
+  defp security_tab(assigns) do
+    ~H"""
+    <div class="bg-white rounded border border-[#d6e0e2] overflow-hidden shadow-sm">
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs text-slate-600 font-sans">
+          <thead class="bg-[#e7eef0] text-[10px] font-bold text-slate-500 uppercase border-b border-[#d6e0e2]">
+            <tr>
+              <th class="px-5 py-3.5">Username</th>
+              <th class="px-5 py-3.5">Display Name</th>
+              <th class="px-5 py-3.5">Assigned Roles</th>
+              <th class="px-5 py-3.5">Status</th>
+              <th class="px-5 py-3.5 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-[#e9edef] bg-white">
+            <%= for user <- @users do %>
+              <tr class="hover:bg-slate-50/50">
+                <td class="px-5 py-4 font-bold text-slate-700 font-mono">{user.username}</td>
+                <td class="px-5 py-4 text-slate-600">{user.display_name}</td>
+                <td class="px-5 py-4 flex gap-1.5 flex-wrap">
+                  <%= if Enum.empty?(user.roles) do %>
+                    <span class="text-xs text-slate-400 italic">None</span>
+                  <% else %>
+                    <%= for role <- user.roles do %>
+                      <span class="text-[10px] bg-slate-50 border border-[#e9edef] px-2 py-0.5 rounded text-slate-600 font-semibold">
+                        {role}
+                      </span>
+                    <% end %>
+                  <% end %>
+                </td>
+                <td class="px-5 py-4">
+                  <span class="inline-flex items-center gap-1 bg-emerald-50 text-emerald-600 border border-emerald-200 px-2 py-0.5 rounded text-[10px] font-bold">
+                    <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>
+                    {user.status}
+                  </span>
+                </td>
+                <td class="px-5 py-4 text-right">
+                  <button class="text-xs text-[#943a9e] hover:text-purple-800 font-bold mr-3">
+                    Manage Roles
+                  </button>
+                  <button class="text-xs text-slate-500 hover:text-slate-800">
+                    Disable
+                  </button>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    """
+  end
+
+  # --- Event Handlers ---
+
+  @impl true
+  def handle_event("clear_flash", _params, socket) do
+    {:noreply, assign(socket, :flash_info, nil)}
+  end
+
+  @impl true
+  def handle_event("toggle_maintenance_mode", _params, socket) do
+    new_state = !socket.assigns.maintenance_mode
+    message = if new_state, do: "Server entered maintenance mode.", else: "Server left maintenance mode."
+    {:noreply, 
+     socket 
+     |> assign(:maintenance_mode, new_state) 
+     |> assign(:flash_info, message)}
+  end
+
+  @impl true
+  def handle_event("trigger_backup", _params, socket) do
+    # Simulate backup start
+    Process.send_after(self(), :backup_complete, 1500)
+    {:noreply, 
+     socket 
+     |> assign(:backup_status, "Running")
+     |> assign(:backup_message, "Config backup started at #{DateTime.utc_now() |> DateTime.to_string()}...")}
+  end
+
+  @impl true
+  def handle_event("search_pipelines", %{"query" => query}, socket) do
+    cleaned = String.trim(query)
+    filtered = 
+      if cleaned == "" do
+        socket.assigns.pipeline_groups
+      else
+        Enum.map(socket.assigns.pipeline_groups, fn group ->
+          filtered_pipelines = Enum.filter(group.pipelines, fn pipe ->
+            String.contains?(String.downcase(pipe.name), String.downcase(cleaned))
+          end)
+          %{group | pipelines: filtered_pipelines}
+        end)
+        |> Enum.reject(&Enum.empty?(&1.pipelines))
+      end
+
+    {:noreply, 
+     socket 
+     |> assign(:search_query, cleaned)
+     |> assign(:filtered_groups, filtered)}
+  end
+
+  @impl true
+  def handle_event("toggle_create_modal", _params, socket) do
+    {:noreply, assign(socket, :show_create_modal, !socket.assigns.show_create_modal)}
+  end
+
+  @impl true
+  def handle_event("create_pipeline_group", %{"name" => name}, socket) do
+    cleaned = String.trim(name)
+    existing_group = Enum.find(socket.assigns.pipeline_groups, &(&1.name == cleaned))
+
+    cond do
+      cleaned == "" ->
+        {:noreply, socket}
+
+      existing_group ->
+        {:noreply, assign(socket, :flash_info, "Pipeline group '#{cleaned}' already exists.")}
+
+      true ->
+        new_group = %{name: cleaned, pipelines: []}
+        updated_groups = socket.assigns.pipeline_groups ++ [new_group]
+        
+        {:noreply, 
+         socket 
+         |> assign(:pipeline_groups, updated_groups)
+         |> assign(:filtered_groups, updated_groups)
+         |> assign(:new_group_name, "")
+         |> assign(:show_create_modal, false)
+         |> assign(:flash_info, "Pipeline group '#{cleaned}' created successfully.")}
+    end
+  end
+
+  @impl true
+  def handle_event("delete_pipeline_group", %{"name" => name}, socket) do
+    updated = Enum.reject(socket.assigns.pipeline_groups, &(&1.name == name))
+    
+    {:noreply,
+     socket
+     |> assign(:pipeline_groups, updated)
+     |> assign(:filtered_groups, updated)
+     |> assign(:flash_info, "Pipeline group '#{name}' was deleted.")}
+  end
+
+  @impl true
+  def handle_event("delete_pipeline", %{"group" => group_name, "name" => name}, socket) do
+    updated = Enum.map(socket.assigns.pipeline_groups, fn group ->
+      if group.name == group_name do
+        %{group | pipelines: Enum.reject(group.pipelines, &(&1.name == name))}
+      else
+        group
+      end
+    end)
+
+    {:noreply,
+     socket
+     |> assign(:pipeline_groups, updated)
+     |> assign(:filtered_groups, updated)
+     |> assign(:flash_info, "Pipeline '#{name}' was deleted.")}
+  end
+
+  @impl true
+  def handle_event("add_pipeline_to_group", %{"group" => group_name}, socket) do
+    # Add a new mock pipeline to the group
+    new_pipe = %{name: "new-pipeline-#{System.unique_integer([:positive])}", instances: 0, status: "Passed", template: "None"}
+    
+    updated = Enum.map(socket.assigns.pipeline_groups, fn group ->
+      if group.name == group_name do
+        %{group | pipelines: group.pipelines ++ [new_pipe]}
+      else
+        group
+      end
+    end)
+
+    {:noreply,
+     socket
+     |> assign(:pipeline_groups, updated)
+     |> assign(:filtered_groups, updated)
+     |> assign(:flash_info, "Pipeline '#{new_pipe.name}' added to '#{group_name}'.")}
+  end
+
+  # --- Message Handlers ---
+
+  @impl true
+  def handle_info(:backup_complete, socket) do
+    backup_path = "/var/lib/go-server/db/backups/backup_config_xml_#{System.unique_integer([:positive])}.zip"
+    {:noreply,
+     socket
+     |> assign(:backup_status, "Completed")
+     |> assign(:backup_message, "Backup saved to: #{backup_path} successfully at #{DateTime.utc_now() |> DateTime.to_string()}")
+     |> assign(:flash_info, "Database config backup completed successfully.")}
   end
 end

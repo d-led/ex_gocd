@@ -68,6 +68,8 @@ Legend: Not started | In progress | Complete | Not applicable
 
 ### API Modules
 
+For a detailed analysis of all 50 GoCD API endpoints, media types, and compatibility status, see the dedicated [GoCD API Compatibility & Coverage Status](file:///Users/dmitryledentsov/src/gocd-rewrite/ex_gocd/docs/gocd_api_coverage.md) document.
+
 | GoCD Module                   | Purpose            | Status | Phoenix Equivalent                                          | Notes                  |
 | ----------------------------- | ------------------ | ------ | ----------------------------------------------------------- | ---------------------- |
 | `api/api-base/`               | API base           |        | `lib/ex_gocd_web/controllers/`                              | Phoenix controllers    |

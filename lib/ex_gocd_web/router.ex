@@ -47,6 +47,23 @@ defmodule ExGoCDWeb.Router do
       live "/go/pipeline/activity/:pipeline_name", PipelineActivityLive, :index
       live "/pipelines/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter", StageDetailsLive, :show
       live "/go/pipelines/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter", StageDetailsLive, :show
+
+      # Admin Panel routes
+      live "/admin", AdminLive, :index
+      live "/admin/:tab", AdminLive, :index
+      live "/go/admin", AdminLive, :index
+      live "/go/admin/:tab", AdminLive, :index
+
+      # Multi-segment admin paths for GoCD compatibility
+      live "/admin/package_repositories/new", AdminLive, :index
+      live "/admin/config/server", AdminLive, :index
+      live "/admin/security/auth_configs", AdminLive, :index
+      live "/admin/security/roles", AdminLive, :index
+
+      live "/go/admin/package_repositories/new", AdminLive, :index
+      live "/go/admin/config/server", AdminLive, :index
+      live "/go/admin/security/auth_configs", AdminLive, :index
+      live "/go/admin/security/roles", AdminLive, :index
     end
   end
 
@@ -64,6 +81,9 @@ defmodule ExGoCDWeb.Router do
   # Served at both /api and /go/api for compatibility with GoCD clients.
   scope "/api", ExGoCDWeb.API do
     pipe_through :api
+
+    get "/stats", StatsController, :show
+    post "/test/start_agents", TestController, :start_agents
 
     # Agent management (matching GoCD's agent API spec)
     post "/agents/register", AgentController, :register
@@ -83,6 +103,8 @@ defmodule ExGoCDWeb.Router do
 
   scope "/go/api", ExGoCDWeb.API do
     pipe_through :api
+
+    get "/stats", StatsController, :show
 
     post "/agents/register", AgentController, :register
     get "/agents", AgentController, :index
