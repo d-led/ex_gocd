@@ -895,6 +895,7 @@ func getUsableSpace() int64 {
 }
 
 // validateURL validates that the URL is a HTTP/HTTPS request matching the configured GoCD server host to mitigate SSRF.
+// To satisfy static analysis, we reconstruct the URL using the trusted configured server URL's scheme and host.
 func (a *Agent) validateURL(rawURL string) (string, error) {
 	u, err := url.Parse(rawURL)
 	if err != nil {
@@ -906,7 +907,12 @@ func (a *Agent) validateURL(rawURL string) (string, error) {
 	if u.Host != a.config.ServerURL.Host {
 		return "", fmt.Errorf("untrusted URL host: %s (must match configured GoCD server %s)", u.Host, a.config.ServerURL.Host)
 	}
-	return u.String(), nil
+	// Reconstruct securely using trusted host and scheme
+	target := *a.config.ServerURL
+	target.Path = u.Path
+	target.RawQuery = u.RawQuery
+	target.Fragment = u.Fragment
+	return target.String(), nil
 }
 
 // validatePath cleans targetPath, resolves it relative to baseDir, and ensures it does not escape baseDir boundary to mitigate path traversal.
