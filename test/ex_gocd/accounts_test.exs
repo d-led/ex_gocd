@@ -31,12 +31,12 @@ defmodule ExGoCD.AccountsTest do
 
     test "has_role?/2 supports both atom and string role queries" do
       user = %User{roles: ["admin", "developer"]}
-      
+
       assert User.has_role?(user, :admin)
       assert User.has_role?(user, "admin")
       assert User.has_role?(user, :developer)
       assert User.has_role?(user, "developer")
-      
+
       refute User.has_role?(user, :viewer)
       refute User.has_role?(user, "viewer")
     end

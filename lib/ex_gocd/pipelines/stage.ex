@@ -11,7 +11,7 @@ defmodule ExGoCD.Pipelines.Stage do
   use Ecto.Schema
   import Ecto.Changeset
 
-  alias ExGoCD.Pipelines.{Pipeline, Job}
+  alias ExGoCD.Pipelines.{Job, Pipeline}
 
   @type t :: %__MODULE__{
           id: integer() | nil,

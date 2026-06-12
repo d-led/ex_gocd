@@ -27,7 +27,7 @@ defmodule ExGoCDWeb.PipelineWizardLive do
     }
 
     # Available pipeline groups for autocompletion
-    pipeline_groups = 
+    pipeline_groups =
       Pipelines.list_pipelines()
       |> Enum.map(& &1.group)
       |> Enum.reject(&is_nil/1)
@@ -167,7 +167,7 @@ defmodule ExGoCDWeb.PipelineWizardLive do
                           <i class="fa fa-circle-nodes"></i> Check Connection
                         <% end %>
                       </button>
-                      
+
                       <%= if @connection_status == :success do %>
                         <span class="text-xs text-emerald-600 font-bold flex items-center gap-1">
                           <i class="fa fa-circle-check"></i> Connection OK
@@ -222,7 +222,7 @@ defmodule ExGoCDWeb.PipelineWizardLive do
 
                     <div class="border-t border-[#e9edef] my-4 pt-4">
                       <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wide mb-3">Initial Build Task</h3>
-                      
+
                       <div class="space-y-4">
                         <div>
                           <label class="block text-xs font-bold text-slate-600 mb-1">Task Type</label>
@@ -300,7 +300,7 @@ defmodule ExGoCDWeb.PipelineWizardLive do
           {@num}
         <% end %>
       </div>
-      <span class={["text-xs font-semibold transition-all", 
+      <span class={["text-xs font-semibold transition-all",
                     if(@current == @num, do: "text-[#943a9e] font-bold", else: "text-slate-500")]}>
         {@label}
       </span>

@@ -6,10 +6,10 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
   """
 
   import Ecto.Query
-  alias ExGoCD.Repo
   alias ExGoCD.MockData
   alias ExGoCD.Pipelines
   alias ExGoCD.Pipelines.{Pipeline, PipelineInstance}
+  alias ExGoCD.Repo
 
   @doc """
   Generates VSM data for a pipeline name and counter.
@@ -19,14 +19,8 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
       get_mock_pipeline_vsm(pipeline_name, counter)
     else
       case fetch_db_instance(pipeline_name, counter) do
-        nil ->
-          if has_mock_pipeline?(pipeline_name) do
-            get_mock_pipeline_vsm(pipeline_name, counter)
-          else
-            {:error, :not_found}
-          end
-        instance ->
-          build_db_pipeline_vsm(instance)
+        nil -> fallback_to_mock_or_not_found(pipeline_name, counter)
+        instance -> build_db_pipeline_vsm(instance)
       end
     end
   end
@@ -41,32 +35,12 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
       else
         case Pipelines.list_materials() do
           [] -> get_all_mock_materials()
-          list ->
-            list |> Enum.map(fn m ->
-              %{
-                type: m.type,
-                url: m.url,
-                branch: m.branch,
-                pipelines: Enum.map(m.pipelines || [], & &1.name)
-              }
-            end)
+          list -> map_db_materials_vsm(list)
         end
       end
 
     matching_mat = Enum.find(all_mats, &(fingerprint(&1) == material_fingerprint))
-
-    if is_nil(matching_mat) do
-      # Fallback to generic git material if fingerprint isn't found
-      generic_mat = %{
-        type: "git",
-        url: "https://github.com/gocd/gocd.git",
-        branch: "master",
-        pipelines: ["demo"]
-      }
-      build_material_vsm_data(generic_mat, material_fingerprint, revision)
-    else
-      build_material_vsm_data(matching_mat, material_fingerprint, revision)
-    end
+    build_matching_or_generic_vsm(matching_mat, material_fingerprint, revision)
   end
 
   # Helpers
@@ -316,24 +290,7 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
     pipeline_nodes =
       mat.pipelines
       |> Enum.map(fn name ->
-        instance_stages =
-          if use_mock?(name) do
-            # mock stages
-            [
-              %{"name" => "build", "status" => "Passed", "duration" => 90, "locator" => "/pipelines/#{name}/1/build/1"}
-            ]
-          else
-            case fetch_db_instance(name, 1) do
-              nil ->
-                [
-                  %{"name" => "build", "status" => "Passed", "duration" => 90, "locator" => "/pipelines/#{name}/1/build/1"}
-                ]
-              instance ->
-                Enum.map(instance.stage_instances || [], fn si ->
-                  %{"name" => si.name, "status" => si.state, "duration" => 45, "locator" => "/pipelines/#{name}/1/#{si.name}/#{si.counter}"}
-                end)
-            end
-          end
+        instance_stages = get_pipeline_stages(name)
 
         %{
           "id" => name,
@@ -409,23 +366,7 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
       nodes =
         unvisited_names
         |> Enum.map(fn name ->
-          instance_stages =
-            if use_mock?(name) do
-              [
-                %{"name" => "build", "status" => "Passed", "duration" => 90, "locator" => "/pipelines/#{name}/1/build/1"}
-              ]
-            else
-              case fetch_db_instance(name, 1) do
-                nil ->
-                  [
-                    %{"name" => "build", "status" => "Passed", "duration" => 90, "locator" => "/pipelines/#{name}/1/build/1"}
-                  ]
-                instance ->
-                  Enum.map(instance.stage_instances || [], fn si ->
-                    %{"name" => si.name, "status" => si.state, "duration" => 45, "locator" => "/pipelines/#{name}/1/#{si.name}/#{si.counter}"}
-                  end)
-              end
-            end
+          instance_stages = get_pipeline_stages(name)
 
           downstream = get_downstream_pipelines(name)
 
@@ -456,21 +397,26 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
 
   defp get_db_or_mock_modification(mat, instance) do
     revisions = instance.build_cause["materialRevisions"] || []
+
     case Enum.find(revisions, &(&1["url"] == mat.url)) do
       nil -> get_mock_modification(mat)
-      rev ->
-        mod = List.first(rev["modifications"] || [])
-        if mod do
-          %{
-            username: mod["username"] || "anonymous",
-            email: mod["email"] || "",
-            revision: mod["revision"] || "unknown",
-            comment: mod["comment"] || "",
-            modified_time: parse_or_default_time(mod["modifiedTime"])
-          }
-        else
-          get_mock_modification(mat)
-        end
+      rev -> get_modification_from_rev(rev, mat)
+    end
+  end
+
+  defp get_modification_from_rev(rev, mat) do
+    case List.first(rev["modifications"] || []) do
+      nil ->
+        get_mock_modification(mat)
+
+      mod ->
+        %{
+          username: mod["username"] || "anonymous",
+          email: mod["email"] || "",
+          revision: mod["revision"] || "unknown",
+          comment: mod["comment"] || "",
+          modified_time: parse_or_default_time(mod["modifiedTime"])
+        }
     end
   end
 
@@ -545,6 +491,64 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
         branch: branch,
         pipelines: pipelines
       }
+    end)
+  end
+
+  defp fallback_to_mock_or_not_found(pipeline_name, counter) do
+    if has_mock_pipeline?(pipeline_name) do
+      get_mock_pipeline_vsm(pipeline_name, counter)
+    else
+      {:error, :not_found}
+    end
+  end
+
+  defp map_db_materials_vsm(list) do
+    Enum.map(list, fn m ->
+      %{
+        type: m.type,
+        url: m.url,
+        branch: m.branch,
+        pipelines: Enum.map(m.pipelines || [], & &1.name)
+      }
+    end)
+  end
+
+  defp build_matching_or_generic_vsm(nil, material_fingerprint, revision) do
+    # Fallback to generic git material if fingerprint isn't found
+    generic_mat = %{
+      type: "git",
+      url: "https://github.com/gocd/gocd.git",
+      branch: "master",
+      pipelines: ["demo"]
+    }
+    build_material_vsm_data(generic_mat, material_fingerprint, revision)
+  end
+
+  defp build_matching_or_generic_vsm(matching_mat, material_fingerprint, revision) do
+    build_material_vsm_data(matching_mat, material_fingerprint, revision)
+  end
+
+  defp get_pipeline_stages(name) do
+    if use_mock?(name) do
+      # mock stages
+      [
+        %{"name" => "build", "status" => "Passed", "duration" => 90, "locator" => "/pipelines/#{name}/1/build/1"}
+      ]
+    else
+      case fetch_db_instance(name, 1) do
+        nil ->
+          [
+            %{"name" => "build", "status" => "Passed", "duration" => 90, "locator" => "/pipelines/#{name}/1/build/1"}
+          ]
+        instance ->
+          map_instance_stages(instance, name)
+      end
+    end
+  end
+
+  defp map_instance_stages(instance, name) do
+    Enum.map(instance.stage_instances || [], fn si ->
+      %{"name" => si.name, "status" => si.state, "duration" => 45, "locator" => "/pipelines/#{name}/1/#{si.name}/#{si.counter}"}
     end)
   end
 end

@@ -6,9 +6,9 @@
 defmodule ExGoCDWeb.AgentChannel do
   use Phoenix.Channel
 
-  alias ExGoCD.Agents
   alias ExGoCD.AgentJobRuns
   alias ExGoCD.AgentRegistry
+  alias ExGoCD.Agents
   alias ExGoCD.Scheduler
   alias ExGoCDWeb.AgentPresence
 

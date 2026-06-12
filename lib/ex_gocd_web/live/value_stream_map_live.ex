@@ -82,7 +82,7 @@ defmodule ExGoCDWeb.ValueStreamMapLive do
       class={"vsm-node p-4 border rounded shadow-sm w-72 flex flex-col justify-between transition-all duration-200 bg-white relative z-10 " <>
         if(@is_current, do: "border-[#943a9e] border-2 ring-4 ring-purple-100", else: "border-[#2fa8b6] hover:border-[#1d747e] hover:shadow-md")}
     >
-      
+
       <%= if @is_current do %>
         <div class="absolute -top-3 -right-2 text-[#943a9e] bg-white rounded-full">
           <i class="fa-solid fa-circle-check text-xl"></i>
@@ -122,7 +122,7 @@ defmodule ExGoCDWeb.ValueStreamMapLive do
             </div>
           <% end %>
         </div>
-        
+
         <%= if @is_current do %>
           <span class="text-[9px] bg-purple-100 text-[#943a9e] font-extrabold px-1.5 py-0.5 rounded uppercase font-mono">Current</span>
         <% end %>
@@ -149,7 +149,7 @@ defmodule ExGoCDWeb.ValueStreamMapLive do
                 <span class="font-mono text-gray-600 font-bold">Instance: {inst["label"]}</span>
                 <.link navigate={inst["locator"]} class="text-cyan-600 hover:underline font-bold">VSM</.link>
               </div>
-              
+
               <ul class="flex flex-wrap gap-1 mt-1">
                 <%= for stage <- inst["stages"] || [] do %>
                   <li class="relative">

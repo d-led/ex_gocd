@@ -4,8 +4,8 @@ defmodule ExGoCDWeb.AdminLiveTest do
   import Phoenix.LiveViewTest
 
   setup do
-    alias ExGoCD.Repo
     alias ExGoCD.Pipelines.Pipeline
+    alias ExGoCD.Repo
 
     # Clean sandbox insert
     Repo.insert!(%Pipeline{name: "build-linux", group: "defaultGroup", label_template: "${COUNT}"})

@@ -24,93 +24,91 @@ defmodule ExGoCDWeb.ArtifactsController do
     pipeline_counter = parse_integer(pipeline_counter_str)
     stage_counter = parse_integer(stage_counter_str)
 
-    # 1. Security Check: prevent directory traversal
-    if not safe_segments?(file_path) do
-      conn
-      |> put_status(403)
-      |> text("Forbidden: Invalid path segments.")
+    job_dir = Path.expand(Path.join([
+      artifacts_dir(),
+      pipeline_name,
+      to_string(pipeline_counter),
+      stage_name,
+      to_string(stage_counter),
+      job_name
+    ]))
+    target_path = Path.expand(Path.join([job_dir | file_path]))
+
+    with :ok <- check_safe_segments(file_path),
+         :ok <- check_boundary(target_path, job_dir),
+         :ok <- check_file_not_exists(target_path, file_path) do
+      upload = conn.params["file"] || conn.params["zipfile"]
+      checksum_upload = conn.params["file_checksum"]
+      handle_upload(conn, upload, checksum_upload, target_path, job_dir)
     else
-      job_dir = Path.expand(Path.join([
-        artifacts_dir(),
-        pipeline_name,
-        to_string(pipeline_counter),
-        stage_name,
-        to_string(stage_counter),
-        job_name
-      ]))
+      {:error, status, message} ->
+        conn |> put_status(status) |> text(message)
+    end
+  end
 
-      target_path = Path.expand(Path.join([job_dir | file_path]))
+  defp check_safe_segments(file_path) do
+    if safe_segments?(file_path) do
+      :ok
+    else
+      {:error, 403, "Forbidden: Invalid path segments."}
+    end
+  end
 
-      # Enforce trailing slash or strict prefix checks for directory boundaries
-      if not verify_boundary(target_path, job_dir) do
-        conn
-        |> put_status(403)
-        |> text("Forbidden: Path escapes boundary.")
-      else
-        # If target path already exists as file, return 403 (GoCD requirement)
-        if File.exists?(target_path) and File.regular?(target_path) do
-          conn
-          |> put_status(403)
-          |> text("File #{Path.join(file_path)} already exists.")
-        else
-          upload = conn.params["file"] || conn.params["zipfile"]
-          checksum_upload = conn.params["file_checksum"]
+  defp check_boundary(target_path, job_dir) do
+    if verify_boundary(target_path, job_dir) do
+      :ok
+    else
+      {:error, 403, "Forbidden: Path escapes boundary."}
+    end
+  end
 
-          cond do
-            is_nil(upload) ->
-              conn
-              |> put_status(400)
-              |> text("Bad Request: Missing upload file.")
+  defp check_file_not_exists(target_path, file_path) do
+    if File.exists?(target_path) and File.regular?(target_path) do
+      {:error, 403, "File #{Path.join(file_path)} already exists."}
+    else
+      :ok
+    end
+  end
 
-            conn.params["zipfile"] ->
-              # Zipped directory upload. Securely extract it (Zip Slip protection)
-              case extract_zip_securely(upload.path, target_path) do
-                :ok ->
-                  if checksum_upload do
-                    save_checksum(job_dir, checksum_upload)
-                  end
+  defp handle_upload(conn, nil, _checksum, _target_path, _job_dir) do
+    conn |> put_status(400) |> text("Bad Request: Missing upload file.")
+  end
 
-                  conn
-                  |> put_status(201)
-                  |> text("File was created successfully")
+  defp handle_upload(conn, upload, checksum_upload, target_path, job_dir) do
+    if conn.params["zipfile"] do
+      # Zipped directory upload
+      case extract_zip_securely(upload.path, target_path) do
+        :ok ->
+          maybe_save_checksum(job_dir, checksum_upload)
+          conn |> put_status(201) |> text("File was created successfully")
 
-                {:error, :directory_traversal} ->
-                  conn
-                  |> put_status(403)
-                  |> text("Forbidden: Zip file contains directory traversal.")
+        {:error, :directory_traversal} ->
+          conn |> put_status(403) |> text("Forbidden: Zip file contains directory traversal.")
 
-                {:error, reason} ->
-                  Logger.error("Unzip error: #{inspect(reason)}")
-                  conn
-                  |> put_status(500)
-                  |> text("Internal Server Error: Failed to extract zip.")
-              end
+        {:error, reason} ->
+          Logger.error("Unzip error: #{inspect(reason)}")
+          conn |> put_status(500) |> text("Internal Server Error: Failed to extract zip.")
+      end
+    else
+      # Regular single file upload
+      File.mkdir_p!(Path.dirname(target_path))
 
-            true ->
-              # Regular single file upload
-              File.mkdir_p!(Path.dirname(target_path))
+      case File.copy(upload.path, target_path) do
+        {:ok, _} ->
+          maybe_save_checksum(job_dir, checksum_upload)
+          conn |> put_status(201) |> text("File was created successfully")
 
-              case File.copy(upload.path, target_path) do
-                {:ok, _} ->
-                  if checksum_upload do
-                    save_checksum(job_dir, checksum_upload)
-                  end
-
-                  conn
-                  |> put_status(201)
-                  |> text("File was created successfully")
-
-                {:error, reason} ->
-                  Logger.error("File copy error: #{inspect(reason)}")
-                  conn
-                  |> put_status(500)
-                  |> text("Internal Server Error: Failed to copy file.")
-              end
-          end
-        end
+        {:error, reason} ->
+          Logger.error("File copy error: #{inspect(reason)}")
+          conn |> put_status(500) |> text("Internal Server Error: Failed to copy file.")
       end
     end
   end
+
+  defp maybe_save_checksum(job_dir, %{path: _} = checksum_upload) do
+    save_checksum(job_dir, checksum_upload)
+  end
+  defp maybe_save_checksum(_job_dir, _), do: :ok
 
   # GET /files/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/:job_name/*file_path
   def show(conn, %{
@@ -124,98 +122,110 @@ defmodule ExGoCDWeb.ArtifactsController do
     pipeline_counter = parse_integer(pipeline_counter_str)
     stage_counter = parse_integer(stage_counter_str)
 
-    if not safe_segments?(file_path) do
-      conn
-      |> put_status(403)
-      |> text("Forbidden: Invalid path segments.")
-    else
-      job_dir = Path.expand(Path.join([
-        artifacts_dir(),
-        pipeline_name,
-        to_string(pipeline_counter),
-        stage_name,
-        to_string(stage_counter),
-        job_name
-      ]))
+    job_dir = Path.expand(Path.join([
+      artifacts_dir(),
+      pipeline_name,
+      to_string(pipeline_counter),
+      stage_name,
+      to_string(stage_counter),
+      job_name
+    ]))
+    target_path = Path.expand(Path.join([job_dir | file_path]))
 
-      target_path = Path.expand(Path.join([job_dir | file_path]))
+    with :ok <- check_safe_segments(file_path),
+         :ok <- check_boundary(target_path, job_dir) do
+      # Route to appropriate content provider
+      cond do
+        Path.join(file_path) == "cruise-output/console.log" ->
+          serve_console_log(conn, pipeline_name, pipeline_counter, stage_name, stage_counter, job_name)
 
-      if not verify_boundary(target_path, job_dir) do
-        conn
-        |> put_status(403)
-        |> text("Forbidden: Path escapes boundary.")
-      else
-        cond do
-          # Special integration: if console.log is requested, serve from database (centralized logs)
-          Path.join(file_path) == "cruise-output/console.log" ->
-            case get_run_by_params(pipeline_name, pipeline_counter, stage_name, stage_counter, job_name) do
-              nil ->
-                conn
-                |> put_status(404)
-                |> text("Console log not found.")
+        File.regular?(target_path) ->
+          serve_file(conn, target_path)
 
-              run ->
-                conn
-                |> put_resp_header("content-type", "text/plain; charset=utf-8")
-                |> send_resp(200, run.console_log || "")
-            end
+        File.dir?(target_path) ->
+          serve_directory(conn, target_path)
 
-          File.regular?(target_path) ->
-            content_type = MIME.from_path(target_path)
-            conn
-            |> put_resp_header("content-type", content_type)
-            |> send_file(200, target_path)
-
-          File.dir?(target_path) ->
-            # If zip is requested (either URL ends with .zip or Accept header asks for zip), return directory zip
-            is_zip_request? = String.ends_with?(conn.request_path, ".zip") or
-              String.contains?(get_req_header(conn, "accept") |> List.first() || "", "zip")
-
-            if is_zip_request? do
-              files_to_zip = list_files_recursive(target_path)
-              |> Enum.map(fn abs_path ->
-                rel_path = Path.relative_to(abs_path, target_path)
-                {to_charlist(rel_path), File.read!(abs_path)}
-              end)
-
-              case :zip.create(~c"archive.zip", files_to_zip, [:memory]) do
-                {:ok, {~c"archive.zip", binary}} ->
-                  conn
-                  |> put_resp_header("content-type", "application/zip")
-                  |> send_resp(200, binary)
-
-                {:error, reason} ->
-                  Logger.error("Zip compression failed: #{inspect(reason)}")
-                  conn
-                  |> put_status(500)
-                  |> text("Internal Server Error: Failed to zip directory.")
-              end
-            else
-              # Otherwise, return JSON directory index
-              case File.ls(target_path) do
-                {:ok, files} ->
-                  list = Enum.map(files, fn name ->
-                    full_path = Path.join(target_path, name)
-                    type = if File.dir?(full_path), do: "folder", else: "file"
-                    %{name: name, type: type}
-                  end)
-                  json(conn, list)
-
-                {:error, _} ->
-                  conn
-                  |> put_status(500)
-                  |> text("Failed to list folder.")
-              end
-            end
-
-          true ->
-            # Not found
-            conn
-            |> put_status(404)
-            |> text("Artifact '#{Path.join(file_path)}' is unavailable as it may have been purged by Go or deleted externally.")
-        end
+        true ->
+          serve_not_found(conn, file_path)
       end
+    else
+      {:error, status, message} ->
+        conn |> put_status(status) |> text(message)
     end
+  end
+
+  defp serve_console_log(conn, pipeline_name, pipeline_counter, stage_name, stage_counter, job_name) do
+    case get_run_by_params(pipeline_name, pipeline_counter, stage_name, stage_counter, job_name) do
+      nil ->
+        conn |> put_status(404) |> text("Console log not found.")
+
+      run ->
+        conn
+        |> put_resp_header("content-type", "text/plain; charset=utf-8")
+        |> send_resp(200, run.console_log || "")
+    end
+  end
+
+  defp serve_file(conn, target_path) do
+    content_type = MIME.from_path(target_path)
+    conn
+    |> put_resp_header("content-type", content_type)
+    |> send_file(200, target_path)
+  end
+
+  defp serve_directory(conn, target_path) do
+    is_zip? = String.ends_with?(conn.request_path, ".zip") or
+      String.contains?(get_req_header(conn, "accept") |> List.first() || "", "zip")
+
+    if is_zip? do
+      serve_directory_as_zip(conn, target_path)
+    else
+      serve_directory_index(conn, target_path)
+    end
+  end
+
+  defp serve_directory_as_zip(conn, target_path) do
+    files_to_zip = list_files_recursive(target_path)
+    |> Enum.map(fn abs_path ->
+      rel_path = Path.relative_to(abs_path, target_path)
+      {to_charlist(rel_path), File.read!(abs_path)}
+    end)
+
+    case :zip.create(~c"archive.zip", files_to_zip, [:memory]) do
+      {:ok, {~c"archive.zip", binary}} ->
+        conn
+        |> put_resp_header("content-type", "application/zip")
+        |> send_resp(200, binary)
+
+      {:error, reason} ->
+        Logger.error("Zip compression failed: #{inspect(reason)}")
+        conn
+        |> put_status(500)
+        |> text("Internal Server Error: Failed to zip directory.")
+    end
+  end
+
+  defp serve_directory_index(conn, target_path) do
+    case File.ls(target_path) do
+      {:ok, files} ->
+        list = Enum.map(files, fn name ->
+          full_path = Path.join(target_path, name)
+          type = if File.dir?(full_path), do: "folder", else: "file"
+          %{name: name, type: type}
+        end)
+        json(conn, list)
+
+      {:error, _} ->
+        conn
+        |> put_status(500)
+        |> text("Failed to list folder.")
+    end
+  end
+
+  defp serve_not_found(conn, file_path) do
+    conn
+    |> put_status(404)
+    |> text("Artifact '#{Path.join(file_path)}' is unavailable as it may have been purged by Go or deleted externally.")
   end
 
   # PUT /files/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/:job_name/*file_path
@@ -230,69 +240,54 @@ defmodule ExGoCDWeb.ArtifactsController do
     pipeline_counter = parse_integer(pipeline_counter_str)
     stage_counter = parse_integer(stage_counter_str)
 
-    if not safe_segments?(file_path) do
-      conn
-      |> put_status(403)
-      |> text("Forbidden: Invalid path segments.")
-    else
-      job_dir = Path.expand(Path.join([
-        artifacts_dir(),
-        pipeline_name,
-        to_string(pipeline_counter),
-        stage_name,
-        to_string(stage_counter),
-        job_name
-      ]))
+    job_dir = Path.expand(Path.join([
+      artifacts_dir(),
+      pipeline_name,
+      to_string(pipeline_counter),
+      stage_name,
+      to_string(stage_counter),
+      job_name
+    ]))
+    target_path = Path.expand(Path.join([job_dir | file_path]))
 
-      target_path = Path.expand(Path.join([job_dir | file_path]))
-
-      if not verify_boundary(target_path, job_dir) do
-        conn
-        |> put_status(403)
-        |> text("Forbidden: Path escapes boundary.")
+    with :ok <- check_safe_segments(file_path),
+         :ok <- check_boundary(target_path, job_dir),
+         {:ok, body, conn2} <- read_body(conn) do
+      if Path.join(file_path) == "cruise-output/console.log" do
+        handle_console_log_append(conn2, pipeline_name, pipeline_counter, stage_name, stage_counter, job_name, body)
       else
-        case read_body(conn) do
-          {:ok, body, conn2} ->
-            cond do
-              Path.join(file_path) == "cruise-output/console.log" ->
-                # Console logs uploaded by agents: append to database run
-                case get_run_by_params(pipeline_name, pipeline_counter, stage_name, stage_counter, job_name) do
-                  nil ->
-                    conn2
-                    |> put_status(404)
-                    |> text("Job run not found.")
-
-                  run ->
-                    case ExGoCD.AgentJobRuns.append_console(run.build_id, body) do
-                      {:ok, _} ->
-                        conn2
-                        |> put_status(200)
-                        |> text("File cruise-output/console.log was appended successfully")
-                      _ ->
-                        conn2
-                        |> put_status(500)
-                        |> text("Failed to append to log.")
-                    end
-                end
-
-              true ->
-                # File append on disk
-                File.mkdir_p!(Path.dirname(target_path))
-                mode = if File.exists?(target_path), do: [:append], else: [:write]
-                case File.write(target_path, body, mode) do
-                  :ok ->
-                    conn2
-                    |> put_status(200)
-                    |> text("File #{Path.join(file_path)} was appended successfully")
-                  {:error, reason} ->
-                    Logger.error("PUT write error: #{inspect(reason)}")
-                    conn2
-                    |> put_status(500)
-                    |> text("Failed to append to file.")
-                end
-            end
-        end
+        handle_file_append(conn2, target_path, file_path, body)
       end
+    else
+      {:error, status, message} ->
+        conn |> put_status(status) |> text(message)
+    end
+  end
+
+  defp handle_console_log_append(conn, pipeline_name, pipeline_counter, stage_name, stage_counter, job_name, body) do
+    case get_run_by_params(pipeline_name, pipeline_counter, stage_name, stage_counter, job_name) do
+      nil ->
+        conn |> put_status(404) |> text("Job run not found.")
+
+      run ->
+        case ExGoCD.AgentJobRuns.append_console(run.build_id, body) do
+          {:ok, _} ->
+            conn |> put_status(200) |> text("File cruise-output/console.log was appended successfully")
+          _ ->
+            conn |> put_status(500) |> text("Failed to append to log.")
+        end
+    end
+  end
+
+  defp handle_file_append(conn, target_path, file_path, body) do
+    File.mkdir_p!(Path.dirname(target_path))
+    mode = if File.exists?(target_path), do: [:append], else: [:write]
+    case File.write(target_path, body, mode) do
+      :ok ->
+        conn |> put_status(200) |> text("File #{Path.join(file_path)} was appended successfully")
+      {:error, reason} ->
+        Logger.error("PUT write error: #{inspect(reason)}")
+        conn |> put_status(500) |> text("Failed to append to file.")
     end
   end
 
@@ -326,23 +321,11 @@ defmodule ExGoCDWeb.ArtifactsController do
 
     case :zip.table(to_charlist(zip_path)) do
       {:ok, entries} ->
-        traversal? = Enum.any?(entries, fn entry ->
-          name = get_entry_name(entry)
-          cleaned_name = String.replace(name, "\\", "/")
-          
-          String.contains?(cleaned_name, "..") or
-            String.starts_with?(cleaned_name, "/") or
-            not verify_boundary(Path.join(dest_dir, cleaned_name), dest_dir)
-        end)
-
-        if traversal? do
+        if check_zip_traversal(entries, dest_dir) do
           {:error, :directory_traversal}
         else
           File.mkdir_p!(dest_dir)
-          case :zip.unzip(to_charlist(zip_path), [{:cwd, to_charlist(dest_dir)}]) do
-            {:ok, _} -> :ok
-            {:error, reason} -> {:error, reason}
-          end
+          unzip_to_directory(zip_path, dest_dir)
         end
 
       {:error, reason} ->
@@ -350,19 +333,32 @@ defmodule ExGoCDWeb.ArtifactsController do
     end
   end
 
-  defp get_entry_name(entry) do
-    cond do
-      is_tuple(entry) and tuple_size(entry) >= 2 ->
-        name_val = elem(entry, 1)
-        cond do
-          is_list(name_val) -> List.to_string(name_val)
-          is_binary(name_val) -> name_val
-          true -> ""
-        end
-      true ->
-        ""
+  defp check_zip_traversal(entries, dest_dir) do
+    Enum.any?(entries, fn entry ->
+      name = get_entry_name(entry)
+      cleaned_name = String.replace(name, "\\", "/")
+
+      String.contains?(cleaned_name, "..") or
+        String.starts_with?(cleaned_name, "/") or
+        not verify_boundary(Path.join(dest_dir, cleaned_name), dest_dir)
+    end)
+  end
+
+  defp unzip_to_directory(zip_path, dest_dir) do
+    case :zip.unzip(to_charlist(zip_path), [{:cwd, to_charlist(dest_dir)}]) do
+      {:ok, _} -> :ok
+      {:error, reason} -> {:error, reason}
     end
   end
+
+  defp get_entry_name(entry) when is_tuple(entry) and tuple_size(entry) >= 2 do
+    case elem(entry, 1) do
+      name_val when is_list(name_val) -> List.to_string(name_val)
+      name_val when is_binary(name_val) -> name_val
+      _ -> ""
+    end
+  end
+  defp get_entry_name(_), do: ""
 
   # Appends a checksum line to cruise-output/md5.checksum
   defp save_checksum(job_dir, checksum_upload) do

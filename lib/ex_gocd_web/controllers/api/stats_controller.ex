@@ -4,10 +4,10 @@
 defmodule ExGoCDWeb.API.StatsController do
   use ExGoCDWeb, :controller
 
-  alias ExGoCD.Agents
-  alias ExGoCD.Scheduler
   alias ExGoCD.AgentJobRuns.AgentJobRun
+  alias ExGoCD.Agents
   alias ExGoCD.Repo
+  alias ExGoCD.Scheduler
   alias ExGoCDWeb.AgentPresence
 
   import Ecto.Query

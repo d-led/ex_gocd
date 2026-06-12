@@ -112,19 +112,7 @@ defmodule ExGoCDWeb.MaterialsLive do
       else
         case Pipelines.list_materials() do
           [] -> get_mock_materials()
-          list ->
-            list
-            |> Enum.map(fn mat ->
-              pipelines = Enum.map(mat.pipelines || [], & &1.name) |> Enum.uniq() |> Enum.sort()
-              %{
-                type: mat.type,
-                url: mat.url,
-                branch: mat.branch,
-                pipelines: pipelines,
-                auto_update: mat.auto_update,
-                destination: mat.destination
-              }
-            end)
+          list -> map_db_materials(list)
         end
       end
 
@@ -136,6 +124,20 @@ defmodule ExGoCDWeb.MaterialsLive do
       |> Map.put(:modification, get_latest_modification(mat))
     end)
     |> Enum.sort_by(& &1.url)
+  end
+
+  defp map_db_materials(list) do
+    Enum.map(list, fn mat ->
+      pipelines = Enum.map(mat.pipelines || [], & &1.name) |> Enum.uniq() |> Enum.sort()
+      %{
+        type: mat.type,
+        url: mat.url,
+        branch: mat.branch,
+        pipelines: pipelines,
+        auto_update: mat.auto_update,
+        destination: mat.destination
+      }
+    end)
   end
 
   defp get_mock_materials do

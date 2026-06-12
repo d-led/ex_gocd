@@ -3,8 +3,8 @@ defmodule ExGoCD.Accounts do
   Account and current-user helpers for authorization backed by PostgreSQL.
   """
   import Ecto.Query, warn: false
-  alias ExGoCD.Repo
   alias ExGoCD.Accounts.User
+  alias ExGoCD.Repo
 
   @doc """
   Returns all users ordered by username.
@@ -66,7 +66,7 @@ defmodule ExGoCD.Accounts do
   @spec get_current_user(map()) :: User.t()
   def get_current_user(session) when is_map(session) do
     username = session["username"]
-    
+
     case get_user_by_username(username) do
       nil ->
         # Fallback to session values if user is not in DB (or DB is empty)

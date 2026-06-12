@@ -8,10 +8,10 @@ defmodule ExGoCD.AgentJobRuns do
   - `agent_job_run_console:{build_id}` — console log appended `{:console_append, chunk}`; run state/result `{:run_updated, run}`.
   """
   import Ecto.Query
+  alias ExGoCD.AgentJobRuns.AgentJobRun
+  alias ExGoCD.Agents
   alias ExGoCD.PubSub
   alias ExGoCD.Repo
-  alias ExGoCD.Agents
-  alias ExGoCD.AgentJobRuns.AgentJobRun
 
   @job_runs_topic_prefix "agent_job_runs:"
   @console_topic_prefix "agent_job_run_console:"

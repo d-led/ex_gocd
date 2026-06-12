@@ -114,22 +114,18 @@ defmodule ExGoCD.Agents.Agent do
 
   defp validate_ip_address(changeset) do
     validate_change(changeset, :ipaddress, fn :ipaddress, ip ->
-      case ip do
-        "" ->
-          [ipaddress: "cannot be empty if present"]
-
-        ip when is_binary(ip) ->
-          # Basic IP validation (IPv4 or IPv6)
-          case :inet.parse_address(String.to_charlist(ip)) do
-            {:ok, _} -> []
-            {:error, _} -> [ipaddress: "is not a valid IP address"]
-          end
-
-        _ ->
-          [ipaddress: "must be a string"]
-      end
+      check_ip_address(ip)
     end)
   end
+
+  defp check_ip_address(""), do: [ipaddress: "cannot be empty if present"]
+  defp check_ip_address(ip) when is_binary(ip) do
+    case :inet.parse_address(String.to_charlist(ip)) do
+      {:ok, _} -> []
+      {:error, _} -> [ipaddress: "is not a valid IP address"]
+    end
+  end
+  defp check_ip_address(_), do: [ipaddress: "must be a string"]
 
   defp validate_resources(changeset) do
     resources = get_field(changeset, :resources) || []

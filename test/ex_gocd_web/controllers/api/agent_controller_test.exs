@@ -1,9 +1,9 @@
 defmodule ExGoCDWeb.API.AgentControllerTest do
   use ExGoCDWeb.ConnCase, async: true
 
-  alias ExGoCD.Repo
   alias ExGoCD.Agents
   alias ExGoCD.Agents.Agent
+  alias ExGoCD.Repo
 
   @valid_uuid "550e8400-e29b-41d4-a716-446655440000"
   @another_uuid "650e8400-e29b-41d4-a716-446655440001"

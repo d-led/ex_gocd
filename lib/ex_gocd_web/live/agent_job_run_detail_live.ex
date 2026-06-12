@@ -4,8 +4,8 @@ defmodule ExGoCDWeb.AgentJobRunDetailLive do
   Cancel button shown when run is still building; requests agent to cancel via channel.
   """
   use ExGoCDWeb, :live_view
-  alias ExGoCD.Agents
   alias ExGoCD.AgentJobRuns
+  alias ExGoCD.Agents
   alias ExGoCDWeb.AgentChannel
 
   @impl true

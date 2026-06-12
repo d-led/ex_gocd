@@ -10,7 +10,7 @@ defmodule ExGoCD.Pipelines.Pipeline do
   use Ecto.Schema
   import Ecto.Changeset
 
-  alias ExGoCD.Pipelines.{Stage, Material, PipelineInstance}
+  alias ExGoCD.Pipelines.{Material, PipelineInstance, Stage}
 
   @type t :: %__MODULE__{
           id: integer() | nil,

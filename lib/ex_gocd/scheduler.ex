@@ -5,8 +5,8 @@
 defmodule ExGoCD.Scheduler do
   use GenServer
 
-  alias ExGoCD.Agents
   alias ExGoCD.AgentJobRuns
+  alias ExGoCD.Agents
   alias ExGoCD.Pipelines
   alias ExGoCD.PubSub
   alias ExGoCDWeb.AgentPresence
@@ -81,31 +81,17 @@ defmodule ExGoCD.Scheduler do
     {:reply, {:ok, id}, %{state | queue: new_queue}}
   end
 
-  def handle_call({:try_assign_work, agent_uuid}, _from, %{queue: queue} = state) do
-    cond do
-      not Map.has_key?(AgentPresence.list(@presence_topic), agent_uuid) ->
-        {:reply, :agent_not_connected, state}
+  def handle_call({:try_assign_work, agent_uuid}, _from, state) do
+    if Map.has_key?(AgentPresence.list(@presence_topic), agent_uuid) do
+      case Agents.get_agent_by_uuid(agent_uuid) do
+        nil ->
+          {:reply, :agent_not_found, state}
 
-      true ->
-        case Agents.get_agent_by_uuid(agent_uuid) do
-          nil ->
-            {:reply, :agent_not_found, state}
-
-          agent ->
-            if agent.state != "Idle" do
-              {:reply, :agent_busy, state}
-            else
-              case find_matching_job(agent, queue) do
-                nil ->
-                  {:reply, :no_work, state}
-
-                {job_spec, rest} ->
-                  assign_and_send(agent_uuid, agent, job_spec)
-                  broadcast_pending_count(length(rest))
-                  {:reply, :assigned, %{state | queue: rest}}
-              end
-            end
-        end
+        agent ->
+          try_assign_to_idle_agent(agent_uuid, agent, state)
+      end
+    else
+      {:reply, :agent_not_connected, state}
     end
   end
 
@@ -118,21 +104,42 @@ defmodule ExGoCD.Scheduler do
     {:reply, :ok, %{state | queue: []}}
   end
 
+  defp try_assign_to_idle_agent(agent_uuid, agent, %{queue: queue} = state) do
+    if agent.state != "Idle" do
+      {:reply, :agent_busy, state}
+    else
+      case find_matching_job(agent, queue) do
+        nil ->
+          {:reply, :no_work, state}
+
+        {job_spec, rest} ->
+          assign_and_send(agent_uuid, agent, job_spec)
+          broadcast_pending_count(length(rest))
+          {:reply, :assigned, %{state | queue: rest}}
+      end
+    end
+  end
+
   defp normalize_job_spec(spec) do
     base = %{
-      pipeline: spec["pipeline"] || spec[:pipeline] || "default-pipeline",
-      pipeline_counter: spec["pipeline_counter"] || spec[:pipeline_counter] || 1,
-      stage: spec["stage"] || spec[:stage] || "default-stage",
-      stage_counter: spec["stage_counter"] || spec[:stage_counter] || 1,
-      job: spec["job"] || spec[:job] || "default-job",
-      resources: spec["resources"] || spec[:resources] || [],
-      environments: spec["environments"] || spec[:environments] || [],
-      build_command: spec["build_command"] || spec[:build_command]
+      pipeline: get_val(spec, "pipeline", :pipeline, "default-pipeline"),
+      pipeline_counter: get_val(spec, "pipeline_counter", :pipeline_counter, 1),
+      stage: get_val(spec, "stage", :stage, "default-stage"),
+      stage_counter: get_val(spec, "stage_counter", :stage_counter, 1),
+      job: get_val(spec, "job", :job, "default-job"),
+      resources: get_val(spec, "resources", :resources, []),
+      environments: get_val(spec, "environments", :environments, []),
+      build_command: get_val(spec, "build_command", :build_command, nil)
     }
-    case spec["job_instance_id"] || spec[:job_instance_id] do
+
+    case Map.get(spec, "job_instance_id") || Map.get(spec, :job_instance_id) do
       id when is_integer(id) -> Map.put(base, :job_instance_id, id)
       _ -> base
     end
+  end
+
+  defp get_val(spec, key_str, key_atom, default) do
+    Map.get(spec, key_str) || Map.get(spec, key_atom) || default
   end
 
   defp find_matching_job(agent, queue) do
@@ -141,19 +148,8 @@ defmodule ExGoCD.Scheduler do
 
     idx =
       Enum.find_index(queue, fn spec ->
-        resources_ok =
-          (spec.resources || []) |> Enum.all?(fn r ->
-            MapSet.member?(agent_resources, String.downcase(r))
-          end)
-
-        envs_ok =
-          case spec.environments || [] do
-            [] -> true
-            envs ->
-              Enum.any?(envs, fn e -> MapSet.member?(agent_envs, String.downcase(e)) end)
-          end
-
-        resources_ok and envs_ok
+        resources_match?(spec.resources || [], agent_resources) and
+          envs_match?(spec.environments || [], agent_envs)
       end)
 
     if is_nil(idx) do
@@ -163,6 +159,17 @@ defmodule ExGoCD.Scheduler do
       rest = List.delete_at(queue, idx)
       {job, rest}
     end
+  end
+
+  defp resources_match?(resources, agent_resources) do
+    Enum.all?(resources, fn r ->
+      MapSet.member?(agent_resources, String.downcase(r))
+    end)
+  end
+
+  defp envs_match?([], _agent_envs), do: true
+  defp envs_match?(envs, agent_envs) do
+    Enum.any?(envs, fn e -> MapSet.member?(agent_envs, String.downcase(e)) end)
   end
 
   defp assign_and_send(agent_uuid, agent, job_spec) do

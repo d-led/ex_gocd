@@ -11,33 +11,19 @@ defmodule ExGoCDWeb.Plugs.AuthHeaderPlug do
 
   def call(conn, _opts) do
     # Check standard OAuth2 proxy headers
-    username = 
-      get_header(conn, "x-forwarded-user") || 
-      get_header(conn, "x-auth-request-user") || 
+    username =
+      get_header(conn, "x-forwarded-user") ||
+      get_header(conn, "x-auth-request-user") ||
       get_header(conn, "x-auth-request-preferred-username")
 
     if username && String.trim(username) != "" do
       username = String.trim(username)
-      display_name = 
-        get_header(conn, "x-auth-request-name") || 
-        get_header(conn, "x-auth-request-email") || 
+      display_name =
+        get_header(conn, "x-auth-request-name") ||
+        get_header(conn, "x-auth-request-email") ||
         username
 
-      user = 
-        case Accounts.get_user_by_username(username) do
-          nil ->
-            # Bootstrapping: first user gets admin
-            roles = if Accounts.list_users() == [], do: ["admin"], else: []
-            {:ok, created} = Accounts.create_user(%{
-              "username" => username,
-              "display_name" => display_name,
-              "roles" => roles,
-              "status" => "Active"
-            })
-            created
-          existing ->
-            existing
-        end
+      user = ensure_user(username, display_name)
 
       conn
       |> put_session("username", user.username)
@@ -45,6 +31,24 @@ defmodule ExGoCDWeb.Plugs.AuthHeaderPlug do
     else
       conn
     end
+  end
+
+  defp ensure_user(username, display_name) do
+    case Accounts.get_user_by_username(username) do
+      nil -> bootstrap_user(username, display_name)
+      existing -> existing
+    end
+  end
+
+  defp bootstrap_user(username, display_name) do
+    roles = if Accounts.list_users() == [], do: ["admin"], else: []
+    {:ok, created} = Accounts.create_user(%{
+      "username" => username,
+      "display_name" => display_name,
+      "roles" => roles,
+      "status" => "Active"
+    })
+    created
   end
 
   defp get_header(conn, name) do

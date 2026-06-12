@@ -10,18 +10,18 @@ defmodule ExGoCD.Pipelines do
   - Dashboard: list pipeline configs with latest instance status.
   """
   import Ecto.Query
-  alias ExGoCD.Repo
-  alias ExGoCD.Scheduler
   alias ExGoCD.Pipelines.{
+    Job,
+    JobInstance,
+    Material,
     Pipeline,
     PipelineInstance,
-    StageInstance,
-    JobInstance,
     Stage,
-    Job,
-    Task,
-    Material
+    StageInstance,
+    Task
   }
+  alias ExGoCD.Repo
+  alias ExGoCD.Scheduler
 
   @doc """
   Lists all pipeline configs with stages and jobs (and tasks) preloaded.
@@ -487,7 +487,7 @@ defmodule ExGoCD.Pipelines do
       string_attrs = Map.new(material_attrs, fn {k, v} -> {to_string(k), v} end)
       url = string_attrs["url"]
       type = string_attrs["type"]
-      
+
       material =
         case Repo.get_by(Material, type: type, url: url) do
           nil ->

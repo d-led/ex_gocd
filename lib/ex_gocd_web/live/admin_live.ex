@@ -6,8 +6,8 @@ defmodule ExGoCDWeb.AdminLive do
   """
   use ExGoCDWeb, :live_view
 
-  alias ExGoCD.Pipelines
   alias ExGoCD.Accounts
+  alias ExGoCD.Pipelines
 
   @impl true
   def mount(_params, _session, socket) do
@@ -29,7 +29,7 @@ defmodule ExGoCDWeb.AdminLive do
     ]
 
     # Load or seed real database users
-    users = 
+    users =
       case Accounts.list_users() do
         [] ->
           # Seed default mock users for convenience
@@ -125,7 +125,7 @@ defmodule ExGoCDWeb.AdminLive do
         "server" -> "server"
         "security" -> "security"
         "overview" -> "overview"
-        
+
         # Mapping other GoCD dropdown links
         "users" -> "security"
         "templates" -> "pipelines"
@@ -227,7 +227,7 @@ defmodule ExGoCDWeb.AdminLive do
 
         <%= case @tab do %>
           <% "overview" -> %>
-            <.overview_tab 
+            <.overview_tab
               pipeline_groups={@pipeline_groups}
               environments={@environments}
               config_repos={@config_repos}
@@ -236,8 +236,8 @@ defmodule ExGoCDWeb.AdminLive do
               maintenance_mode={@maintenance_mode}
             />
           <% "pipelines" -> %>
-            <.pipelines_tab 
-              filtered_groups={@filtered_groups} 
+            <.pipelines_tab
+              filtered_groups={@filtered_groups}
               search_query={@search_query}
               new_group_name={@new_group_name}
               show_create_modal={@show_create_modal}
@@ -247,9 +247,9 @@ defmodule ExGoCDWeb.AdminLive do
           <% "config_repos" -> %>
             <.config_repos_tab config_repos={@config_repos} />
           <% "server" -> %>
-            <.server_tab 
-              maintenance_mode={@maintenance_mode} 
-              backup_status={@backup_status} 
+            <.server_tab
+              maintenance_mode={@maintenance_mode}
+              backup_status={@backup_status}
               backup_message={@backup_message}
               plugins={@plugins}
             />
@@ -275,7 +275,7 @@ defmodule ExGoCDWeb.AdminLive do
   defp sub_tab_link(assigns) do
     ~H"""
     <a href={@href} class={["pb-2 border-b-2 transition-all font-semibold text-xs uppercase tracking-wide",
-                            if(@active, do: "border-[#943a9e] text-[#943a9e]", 
+                            if(@active, do: "border-[#943a9e] text-[#943a9e]",
                                        else: "border-transparent text-slate-500 hover:text-[#333] hover:border-slate-350")]}>
       {render_slot(@inner_block)}
     </a>
@@ -352,7 +352,7 @@ defmodule ExGoCDWeb.AdminLive do
                 <p class="text-xs font-bold text-slate-700">Maintenance Mode</p>
                 <p class="text-[11px] text-slate-400 mt-0.5">Pause all pipeline builds for system maintenance.</p>
               </div>
-              <button phx-click="toggle_maintenance_mode" 
+              <button phx-click="toggle_maintenance_mode"
                       class={["px-3 py-1.5 rounded text-xs font-semibold border transition-all",
                               if(@maintenance_mode, do: "bg-amber-600 border-amber-500 text-white hover:bg-amber-500",
                                          else: "bg-slate-100 border-slate-350 text-slate-700 hover:bg-slate-200")]}>
@@ -476,7 +476,7 @@ defmodule ExGoCDWeb.AdminLive do
                 {env.agents} Active Agents
               </span>
             </div>
-            
+
             <div class="p-5 space-y-3">
               <span class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Assigned Pipelines</span>
               <div class="flex flex-wrap gap-2">
@@ -486,7 +486,7 @@ defmodule ExGoCDWeb.AdminLive do
                   </span>
                 <% end %>
               </div>
-              
+
               <div class="flex justify-end gap-3 pt-3 border-t border-[#e9edef]">
                 <button class="text-xs text-[#943a9e] hover:text-purple-800 font-bold">
                   Configure Environment
@@ -554,11 +554,11 @@ defmodule ExGoCDWeb.AdminLive do
         <p class="text-xs text-slate-500">
           A configuration backup captures the configuration XML file, local database records, and secure variables settings.
         </p>
-        
+
         <div class="bg-slate-50 p-4 rounded border border-[#e9edef] space-y-2 text-xs">
           <div class="flex justify-between">
             <span class="text-slate-500 font-medium">Backup Status:</span>
-            <span class={["font-bold", 
+            <span class={["font-bold",
                           case @backup_status do
                             "Running" -> "text-amber-600"
                             "Completed" -> "text-emerald-600"
@@ -757,9 +757,9 @@ defmodule ExGoCDWeb.AdminLive do
   def handle_event("toggle_maintenance_mode", _params, socket) do
     new_state = !socket.assigns.maintenance_mode
     message = if new_state, do: "Server entered maintenance mode.", else: "Server left maintenance mode."
-    {:noreply, 
-     socket 
-     |> assign(:maintenance_mode, new_state) 
+    {:noreply,
+     socket
+     |> assign(:maintenance_mode, new_state)
      |> assign(:flash_info, message)}
   end
 
@@ -767,8 +767,8 @@ defmodule ExGoCDWeb.AdminLive do
   def handle_event("trigger_backup", _params, socket) do
     # Simulate backup start
     Process.send_after(self(), :backup_complete, 1500)
-    {:noreply, 
-     socket 
+    {:noreply,
+     socket
      |> assign(:backup_status, "Running")
      |> assign(:backup_message, "Config backup started at #{DateTime.utc_now() |> DateTime.to_string()}...")}
   end
@@ -776,7 +776,7 @@ defmodule ExGoCDWeb.AdminLive do
   @impl true
   def handle_event("search_pipelines", %{"query" => query}, socket) do
     cleaned = String.trim(query)
-    filtered = 
+    filtered =
       if cleaned == "" do
         socket.assigns.pipeline_groups
       else
@@ -789,8 +789,8 @@ defmodule ExGoCDWeb.AdminLive do
         |> Enum.reject(&Enum.empty?(&1.pipelines))
       end
 
-    {:noreply, 
-     socket 
+    {:noreply,
+     socket
      |> assign(:search_query, cleaned)
      |> assign(:filtered_groups, filtered)}
   end
@@ -815,9 +815,9 @@ defmodule ExGoCDWeb.AdminLive do
       true ->
         empty_groups = [cleaned | socket.assigns.empty_groups]
         groups = fetch_pipeline_groups(empty_groups)
-        
-        {:noreply, 
-         socket 
+
+        {:noreply,
+         socket
          |> assign(:empty_groups, empty_groups)
          |> assign(:pipeline_groups, groups)
          |> assign(:filtered_groups, groups)
@@ -830,16 +830,16 @@ defmodule ExGoCDWeb.AdminLive do
   @impl true
   def handle_event("delete_pipeline_group", %{"name" => name}, socket) do
     group = Enum.find(socket.assigns.pipeline_groups, &(&1.name == name))
-    
+
     if group do
       Enum.each(group.pipelines, fn pipe ->
         Pipelines.delete_pipeline_by_name(pipe.name)
       end)
     end
-    
+
     empty_groups = Enum.reject(socket.assigns.empty_groups, &(&1 == name))
     groups = fetch_pipeline_groups(empty_groups)
-    
+
     {:noreply,
      socket
      |> assign(:empty_groups, empty_groups)

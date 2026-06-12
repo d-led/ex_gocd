@@ -11,7 +11,7 @@ defmodule ExGoCDWeb.PipelineConfigLive do
     pipeline = Pipelines.get_pipeline_by_name(pipeline_name)
 
     if is_nil(pipeline) do
-      {:ok, 
+      {:ok,
        socket
        |> put_flash(:error, "Pipeline '#{pipeline_name}' not found.")
        |> redirect(to: "/admin/pipelines")}
@@ -82,8 +82,8 @@ defmodule ExGoCDWeb.PipelineConfigLive do
       <div class="bg-white border-b border-[#e9edef] px-6 py-4 flex flex-col sm:flex-row justify-between sm:items-center gap-4">
         <div>
           <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-            <a href="/admin/pipelines" class="hover:text-slate-700">Pipelines</a> 
-            &gt; 
+            <a href="/admin/pipelines" class="hover:text-slate-700">Pipelines</a>
+            &gt;
             <span class="text-slate-600">{@pipeline.name}</span>
             <%= if @active_stage do %>
               &gt; Stages &gt; <span class="text-slate-600">{@active_stage.name}</span>
@@ -130,13 +130,13 @@ defmodule ExGoCDWeb.PipelineConfigLive do
                 <%= for s <- @pipeline.stages || [] do %>
                   <li class="space-y-1">
                     <div class="flex items-center justify-between">
-                      <a href={"/go/admin/pipelines/#{@pipeline.name}/edit/stages/#{s.name}/settings"} 
+                      <a href={"/go/admin/pipelines/#{@pipeline.name}/edit/stages/#{s.name}/settings"}
                          class={["hover:text-[#943a9e] flex items-center font-medium", if(@active_stage && @active_stage.id == s.id, do: "text-[#943a9e] font-bold", else: "text-slate-600")]}>
                         <i class="fa-regular fa-folder-open mr-1.5 text-slate-400"></i> {s.name}
                       </a>
                       <a href={"/go/admin/pipelines/#{@pipeline.name}/edit/stages/#{s.name}/jobs"} class="text-[10px] text-[#943a9e] hover:underline">Jobs</a>
                     </div>
-                    
+
                     <%= if @active_stage && @active_stage.id == s.id do %>
                       <ul class="pl-4 border-l border-slate-200 ml-2 space-y-1.5 mt-1">
                         <%= for j <- s.jobs || [] do %>
@@ -485,7 +485,7 @@ defmodule ExGoCDWeb.PipelineConfigLive do
                 <td class="px-4 py-3 text-right">
                   <button phx-click="open_edit_task" phx-value-id={task.id} class="text-[#943a9e] hover:underline font-bold mr-3">Edit</button>
                   <button phx-click="delete_task" phx-value-id={task.id} class="text-rose-500 hover:underline mr-3">Delete</button>
-                  
+
                   <!-- Order sorting -->
                   <%= if index > 0 do %>
                     <button phx-click="move_task" phx-value-id={task.id} phx-value-dir="up" class="p-0.5 border border-slate-200 hover:bg-slate-100 rounded text-[10px] text-slate-500 w-5 h-5 inline-flex items-center justify-center">
@@ -627,7 +627,7 @@ defmodule ExGoCDWeb.PipelineConfigLive do
   defp nav_sidebar_link(assigns) do
     ~H"""
     <a href={@href} class={["block px-4 py-2.5 font-medium border-l-2 hover:bg-slate-50 transition-all",
-                            if(@active, do: "border-[#943a9e] text-[#943a9e] bg-purple-50/20 font-bold", 
+                            if(@active, do: "border-[#943a9e] text-[#943a9e] bg-purple-50/20 font-bold",
                                        else: "border-transparent text-slate-600 hover:text-[#333]")]}>
       {render_slot(@inner_block)}
     </a>
@@ -683,7 +683,7 @@ defmodule ExGoCDWeb.PipelineConfigLive do
     resources = params["resources"] || ""
     run_on_all_agents = params["run_on_all_agents"]
 
-    resources_list = 
+    resources_list =
       resources
       |> String.split(",", trim: true)
       |> Enum.map(&String.trim/1)
@@ -788,7 +788,7 @@ defmodule ExGoCDWeb.PipelineConfigLive do
       # Remove associations
       pipeline = socket.assigns.pipeline |> Repo.preload(:materials)
       updated_materials = Enum.reject(pipeline.materials, &(&1.id == material.id))
-      
+
       pipeline
       |> Ecto.Changeset.change()
       |> Ecto.Changeset.put_assoc(:materials, updated_materials)
@@ -824,22 +824,22 @@ defmodule ExGoCDWeb.PipelineConfigLive do
   def handle_event("move_task", %{"id" => id, "dir" => dir}, socket) do
     task = Repo.get!(Task, id)
     job = Pipelines.get_job(task.job_id)
-    
+
     # We sort tasks based on ID or order. Let's find index in current list:
     tasks = job.tasks |> Enum.sort_by(& &1.id)
     index = Enum.find_index(tasks, & &1.id == task.id)
-    
+
     swap_index = if dir == "up", do: index - 1, else: index + 1
-    
+
     if swap_index >= 0 and swap_index < length(tasks) do
       # Swap task content in DB to represent order swap (simple database ID swap or simple execution order swap)
       # Since we don't have a separate 'position' field, let's swap the command/args details of the tasks!
       task_a = Enum.at(tasks, index)
       task_b = Enum.at(tasks, swap_index)
-      
+
       attrs_a = %{type: task_b.type, command: task_b.command, arguments: task_b.arguments}
       attrs_b = %{type: task_a.type, command: task_a.command, arguments: task_a.arguments}
-      
+
       Repo.transaction(fn ->
         task_a |> Task.changeset(attrs_a) |> Repo.update!()
         task_b |> Task.changeset(attrs_b) |> Repo.update!()
@@ -872,7 +872,7 @@ defmodule ExGoCDWeb.PipelineConfigLive do
             approval_type: params["approval_type"] || "success",
             pipeline_id: pipeline.id
           })
-          
+
         :add_job ->
           Pipelines.create_job(%{
             name: params["name"],

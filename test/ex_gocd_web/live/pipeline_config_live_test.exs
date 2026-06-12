@@ -14,7 +14,7 @@ defmodule ExGoCDWeb.PipelineConfigLiveTest do
 
     stage = Repo.insert!(%Stage{name: "build-stage", approval_type: "success", pipeline_id: pipeline.id})
     job = Repo.insert!(%Job{name: "build-job", resources: ["elixir"], stage_id: stage.id})
-    
+
     # Insert two tasks to verify ordering/reordering
     task1 = Repo.insert!(%Task{type: "exec", command: "echo", arguments: ["task1"], job_id: job.id})
     task2 = Repo.insert!(%Task{type: "exec", command: "echo", arguments: ["task2"], job_id: job.id})
@@ -46,7 +46,7 @@ defmodule ExGoCDWeb.PipelineConfigLiveTest do
       |> render_submit()
 
       assert render(view) =~ "Pipeline settings updated successfully"
-      
+
       # Assert database updated
       updated = Pipelines.get_pipeline_by_name(pipeline.name)
       assert updated.group == "ProdGroup"
@@ -98,7 +98,7 @@ defmodule ExGoCDWeb.PipelineConfigLiveTest do
       |> render_submit()
 
       assert render(view) =~ "Stage updated successfully"
-      
+
       # Navigate to Stage Jobs tab
       {:ok, view, _html} = live(conn, ~p"/admin/pipelines/#{pipeline.name}/edit/stages/new-stage-name/jobs")
 

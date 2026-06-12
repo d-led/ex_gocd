@@ -11,8 +11,8 @@ defmodule ExGoCDWeb.AgentRemotingController do
   """
   use ExGoCDWeb, :controller
 
-  alias ExGoCD.Agents
   alias ExGoCD.AgentJobRuns
+  alias ExGoCD.Agents
   alias ExGoCD.Scheduler
 
   @doc """

@@ -9,8 +9,8 @@ defmodule ExGoCDWeb.API.TestController do
     is_sandbox? = repo_config[:pool] == Ecto.Adapters.SQL.Sandbox
     if System.get_env("EX_GOCD_TEST_MODE") == "1" or is_sandbox? do
       count_str = params["count"] || "100"
-      
-      count = 
+
+      count =
         case Integer.parse(count_str) do
           {n, _} -> n
           :error -> 100

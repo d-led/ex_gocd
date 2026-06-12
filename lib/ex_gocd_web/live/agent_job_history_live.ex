@@ -4,8 +4,8 @@ defmodule ExGoCDWeb.AgentJobHistoryLive do
   Shows all jobs that have been executed on a specific agent.
   """
   use ExGoCDWeb, :live_view
-  alias ExGoCD.Agents
   alias ExGoCD.AgentJobRuns
+  alias ExGoCD.Agents
 
   @impl true
   def mount(%{"uuid" => uuid}, _session, socket) do

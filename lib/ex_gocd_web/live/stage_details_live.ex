@@ -193,7 +193,7 @@ defmodule ExGoCDWeb.StageDetailsLive do
           <span>/</span>
           <span>{@stage_counter}</span>
         </div>
-        
+
         <div class="flex items-center gap-4 mt-2">
           <span class={"w-3.5 h-3.5 rounded-full " <> status_bg_color(@stage.result)}></span>
           <h1 class="text-2xl font-extrabold text-gray-950 font-mono flex items-baseline gap-2">

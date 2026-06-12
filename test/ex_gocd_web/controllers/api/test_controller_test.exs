@@ -9,11 +9,11 @@ defmodule ExGoCDWeb.API.TestControllerTest do
 
   setup do
     TestAgentSupervisor.stop_all_agents()
-    
+
     on_exit(fn ->
       TestAgentSupervisor.stop_all_agents()
     end)
-    
+
     :ok
   end
 

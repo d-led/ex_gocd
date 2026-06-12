@@ -4,10 +4,10 @@
 defmodule ExGoCD.TestAgentTest do
   use ExGoCD.DataCase, async: false
 
-  alias ExGoCD.Agents
-  alias ExGoCD.TestAgentSupervisor
-  alias ExGoCD.Scheduler
   alias ExGoCD.AgentJobRuns
+  alias ExGoCD.Agents
+  alias ExGoCD.Scheduler
+  alias ExGoCD.TestAgentSupervisor
   alias ExGoCDWeb.AgentPresence
 
   setup do

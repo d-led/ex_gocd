@@ -1,8 +1,8 @@
 defmodule ExGoCDWeb.ArtifactsControllerTest do
   use ExGoCDWeb.ConnCase, async: false
 
-  alias ExGoCD.Repo
   alias ExGoCD.AgentJobRuns.AgentJobRun
+  alias ExGoCD.Repo
 
   setup do
     # Temporarily set ARTIFACTS_DIR to a test directory
