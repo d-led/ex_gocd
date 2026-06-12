@@ -93,12 +93,12 @@ defmodule ExGoCD.Accounts do
             }
         end
 
-      user ->
+      %User{} = user ->
         if user.status == "Active" do
           user
         else
           # Disabled user: empty roles
-          %User{user | roles: []}
+          %{user | roles: []}
         end
     end
   end
