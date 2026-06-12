@@ -32,7 +32,15 @@ const SELECTORS = {
   materialCard: '.material-card',
   materialSearchInput: '#material-search',
   materialUrl: '.material-url',
-  materialPipelineBadge: '.material-pipeline-badge'
+  materialPipelineBadge: '.material-pipeline-badge',
+
+  // Modal selectors
+  usagesModal: '#usages-modal',
+  usagesModalOk: '#usages-modal-ok',
+  modificationsModal: '#modifications-modal',
+  modificationsModalOk: '#modifications-modal-ok',
+  modificationsSearchInput: '#mod-search-form input',
+  modRow: '.mod-row'
 };
 
 Cypress.Commands.add('verifyDashboardLoaded', () => {
@@ -148,6 +156,50 @@ Cypress.Commands.add('verifyMaterialNotVisible', (url) => {
   cy.get(SELECTORS.materialUrl).contains(url).should('not.exist');
 });
 
-Cypress.Commands.add('clickMaterialPipelineBadge', (pipelineName) => {
-  cy.get(SELECTORS.materialPipelineBadge).contains(pipelineName).click();
+Cypress.Commands.add('verifySCMType', (fingerprint, type) => {
+  cy.get(`#material-${fingerprint} .scm-logo-box`).should('contain', type);
+});
+
+Cypress.Commands.add('expandMaterialCard', (fingerprint) => {
+  cy.get(`#material-${fingerprint} .collapse-header`).click();
+});
+
+Cypress.Commands.add('verifyAutoUpdateStatus', (fingerprint, status) => {
+  cy.get(`#material-${fingerprint} .collapse-body`).should('contain', 'Auto Update').and('contain', status);
+});
+
+Cypress.Commands.add('verifyBranchName', (fingerprint, branchName) => {
+  cy.get(`#material-${fingerprint} .collapse-body`).should('contain', 'Branch').and('contain', branchName);
+});
+
+Cypress.Commands.add('openUsagesModal', (fingerprint) => {
+  cy.get(`#material-${fingerprint} [data-test-id="show-usages"]`).click();
+});
+
+Cypress.Commands.add('verifyUsagesModalContains', (pipelineName) => {
+  cy.get(SELECTORS.usagesModal).should('be.visible').and('contain', pipelineName);
+});
+
+Cypress.Commands.add('clickUsagesModalPipelineLink', (pipelineName) => {
+  cy.get(SELECTORS.usagesModal).find('.pipeline-link').contains(pipelineName).click();
+});
+
+Cypress.Commands.add('closeUsagesModal', () => {
+  cy.get(SELECTORS.usagesModalOk).click();
+});
+
+Cypress.Commands.add('openModificationsModal', (fingerprint) => {
+  cy.get(`#material-${fingerprint} [data-test-id="show-modifications"]`).click();
+});
+
+Cypress.Commands.add('verifyModificationsModalContains', (text) => {
+  cy.get(SELECTORS.modificationsModal).should('be.visible').and('contain', text);
+});
+
+Cypress.Commands.add('searchModificationsInModal', (query) => {
+  cy.get(SELECTORS.modificationsSearchInput).clear().type(query);
+});
+
+Cypress.Commands.add('closeModificationsModal', () => {
+  cy.get(SELECTORS.modificationsModalOk).click();
 });

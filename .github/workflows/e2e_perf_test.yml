@@ -3,6 +3,9 @@ name: E2E Scale & Performance Test
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   e2e-perf-test:
     name: Run E2E Scale & Performance Test

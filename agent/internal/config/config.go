@@ -20,6 +20,9 @@ type Config struct {
 	// Server connection
 	ServerURL *url.URL
 
+	// TLS options
+	InsecureSkipVerify bool
+
 	// Working directories
 	WorkingDir string
 	WorkDir    string
@@ -79,16 +82,17 @@ func Load() (*Config, error) {
 	workDir := getEnvWithLegacyFallback("work.dir", "GOCD_AGENT_WORK_DIR")
 
 	cfg := &Config{
-		ServerURL:         serverURL,
-		WorkDir:           workDir,
-		WorkingDir:        workDir,
-		HeartbeatInterval: viper.GetDuration("heartbeat.interval"),
-		WorkPollInterval:  viper.GetDuration("work.poll.interval"),
-		AutoRegisterKey:   getEnvWithLegacyFallback("auto.register.key", "GOCD_AUTO_REGISTER_KEY"),
-		Resources:         getEnvWithLegacyFallback("auto.register.resources", "GOCD_AUTO_REGISTER_RESOURCES"),
-		Environments:      getEnvWithLegacyFallback("auto.register.environments", "GOCD_AUTO_REGISTER_ENVIRONMENTS"),
-		ElasticAgentID:    viper.GetString("auto.register.elastic.agent.id"),
-		ElasticPluginID:   viper.GetString("auto.register.elastic.plugin.id"),
+		ServerURL:          serverURL,
+		InsecureSkipVerify: viper.GetBool("insecure.skip.verify"),
+		WorkDir:            workDir,
+		WorkingDir:         workDir,
+		HeartbeatInterval:  viper.GetDuration("heartbeat.interval"),
+		WorkPollInterval:   viper.GetDuration("work.poll.interval"),
+		AutoRegisterKey:    getEnvWithLegacyFallback("auto.register.key", "GOCD_AUTO_REGISTER_KEY"),
+		Resources:          getEnvWithLegacyFallback("auto.register.resources", "GOCD_AUTO_REGISTER_RESOURCES"),
+		Environments:       getEnvWithLegacyFallback("auto.register.environments", "GOCD_AUTO_REGISTER_ENVIRONMENTS"),
+		ElasticAgentID:     viper.GetString("auto.register.elastic.agent.id"),
+		ElasticPluginID:    viper.GetString("auto.register.elastic.plugin.id"),
 	}
 
 	// Derive ConfigDir from WorkDir
@@ -132,6 +136,7 @@ func setupViper() {
 
 	// Set default values following 12-factor app principles
 	viper.SetDefault("server.url", "http://localhost:8153/go")
+	viper.SetDefault("insecure.skip.verify", false)
 	viper.SetDefault("work.dir", "./work")
 	viper.SetDefault("heartbeat.interval", 10*time.Second)
 	viper.SetDefault("work.poll.interval", 5*time.Second)

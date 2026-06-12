@@ -16,6 +16,7 @@ import (
 	"log"
 	"mime/multipart"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -349,7 +350,13 @@ func (a *Agent) runOneCommand(ctx context.Context, build *protocol.Build, cmd *p
 		return fmt.Errorf("working dir: %w", err)
 	}
 
-	c := exec.CommandContext(ctx, path, cmd.Args...)
+	cleanedPath := filepath.Clean(path)
+	resolvedPath, err := exec.LookPath(cleanedPath)
+	if err != nil {
+		resolvedPath = cleanedPath
+	}
+
+	c := exec.CommandContext(ctx, resolvedPath, cmd.Args...)
 	c.Dir = absDir
 
 	if build.ConsoleUrl != "" {
@@ -407,9 +414,9 @@ func (a *Agent) runUploadArtifact(ctx context.Context, build *protocol.Build, cm
 		return fmt.Errorf("working dir: %w", err)
 	}
 
-	srcPath := cmd.Src
-	if !filepath.IsAbs(srcPath) {
-		srcPath = filepath.Join(absDir, srcPath)
+	srcPath, err := a.validatePath(absDir, cmd.Src)
+	if err != nil {
+		return fmt.Errorf("invalid artifact source path: %w", err)
 	}
 
 	if _, err := os.Stat(srcPath); err != nil {
@@ -421,7 +428,7 @@ func (a *Agent) runUploadArtifact(ctx context.Context, build *protocol.Build, cm
 
 func (a *Agent) uploadArtifact(ctx context.Context, build *protocol.Build, cmd *protocol.BuildCommand, srcPath string) error {
 	msg := fmt.Sprintf("Uploading artifact %s to %s on server...\n", cmd.Src, cmd.Dest)
-	_ = postConsole(build.ConsoleUrl, time.Now().Format("15:04:05.000")+" "+msg)
+	_ = a.postConsole(build.ConsoleUrl, time.Now().Format("15:04:05.000")+" "+msg)
 
 	zipPath, err := zipSource(srcPath)
 	if err != nil {
@@ -475,7 +482,12 @@ func (a *Agent) uploadArtifact(ctx context.Context, build *protocol.Build, cmd *
 	}
 	uploadURL += cmd.Dest
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, uploadURL, body)
+	validatedUploadURL, err := a.validateURL(uploadURL)
+	if err != nil {
+		return fmt.Errorf("untrusted artifact upload URL: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, validatedUploadURL, body)
 	if err != nil {
 		return err
 	}
@@ -498,7 +510,7 @@ func (a *Agent) uploadArtifact(ctx context.Context, build *protocol.Build, cmd *
 	}
 
 	successMsg := fmt.Sprintf("Successfully uploaded artifact %s to %s.\n", cmd.Src, cmd.Dest)
-	_ = postConsole(build.ConsoleUrl, time.Now().Format("15:04:05.000")+" "+successMsg)
+	_ = a.postConsole(build.ConsoleUrl, time.Now().Format("15:04:05.000")+" "+successMsg)
 	return nil
 }
 
@@ -513,9 +525,9 @@ func (a *Agent) runFetchArtifact(ctx context.Context, build *protocol.Build, cmd
 		return fmt.Errorf("working dir: %w", err)
 	}
 
-	destPath := cmd.Dest
-	if !filepath.IsAbs(destPath) {
-		destPath = filepath.Join(absDir, destPath)
+	destPath, err := a.validatePath(absDir, cmd.Dest)
+	if err != nil {
+		return fmt.Errorf("invalid artifact destination path: %w", err)
 	}
 
 	return a.fetchArtifact(ctx, build, cmd, destPath)
@@ -523,7 +535,7 @@ func (a *Agent) runFetchArtifact(ctx context.Context, build *protocol.Build, cmd
 
 func (a *Agent) fetchArtifact(ctx context.Context, build *protocol.Build, cmd *protocol.BuildCommand, destPath string) error {
 	msg := fmt.Sprintf("Fetching artifact %s to %s...\n", cmd.Src, cmd.Dest)
-	_ = postConsole(build.ConsoleUrl, time.Now().Format("15:04:05.000")+" "+msg)
+	_ = a.postConsole(build.ConsoleUrl, time.Now().Format("15:04:05.000")+" "+msg)
 
 	downloadURL := cmd.Src
 	if !strings.HasPrefix(downloadURL, "http://") && !strings.HasPrefix(downloadURL, "https://") {
@@ -541,7 +553,12 @@ func (a *Agent) fetchArtifact(ctx context.Context, build *protocol.Build, cmd *p
 		}
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, downloadURL, nil)
+	validatedDownloadURL, err := a.validateURL(downloadURL)
+	if err != nil {
+		return fmt.Errorf("untrusted artifact download URL: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, validatedDownloadURL, nil)
 	if err != nil {
 		return err
 	}
@@ -564,7 +581,7 @@ func (a *Agent) fetchArtifact(ctx context.Context, build *protocol.Build, cmd *p
 	}
 
 	contentType := resp.Header.Get("Content-Type")
-	isZip := contentType == "application/zip" || strings.HasSuffix(downloadURL, ".zip")
+	isZip := contentType == "application/zip" || strings.HasSuffix(validatedDownloadURL, ".zip")
 
 	if isZip {
 		tmpFile, err := os.CreateTemp("", "gocd-fetch-*.zip")
@@ -598,7 +615,7 @@ func (a *Agent) fetchArtifact(ctx context.Context, build *protocol.Build, cmd *p
 	}
 
 	successMsg := fmt.Sprintf("Successfully fetched artifact to %s.\n", cmd.Dest)
-	_ = postConsole(build.ConsoleUrl, time.Now().Format("15:04:05.000")+" "+successMsg)
+	_ = a.postConsole(build.ConsoleUrl, time.Now().Format("15:04:05.000")+" "+successMsg)
 	return nil
 }
 
@@ -719,27 +736,33 @@ func unzipSecurely(zipPath string, destDir string) error {
 
 	for _, f := range r.File {
 		cleanedPath := filepath.Clean(f.Name)
-		if filepath.IsAbs(cleanedPath) || strings.HasPrefix(cleanedPath, "..") {
+		if strings.HasPrefix(cleanedPath, ".."+string(filepath.Separator)) || cleanedPath == ".." || filepath.IsAbs(cleanedPath) {
 			return fmt.Errorf("illegal file path in zip (Zip Slip detected): %s", f.Name)
 		}
 
 		targetPath := filepath.Join(destDir, cleanedPath)
-		if !strings.HasPrefix(targetPath, destDir+string(filepath.Separator)) && targetPath != destDir {
+		absTarget, err := filepath.Abs(targetPath)
+		if err != nil {
+			return fmt.Errorf("invalid absolute path: %w", err)
+		}
+
+		rel, err := filepath.Rel(destDir, absTarget)
+		if err != nil || strings.HasPrefix(rel, "..") {
 			return fmt.Errorf("illegal file path in zip (Zip Slip boundary escape): %s", f.Name)
 		}
 
 		if f.FileInfo().IsDir() {
-			if err := os.MkdirAll(targetPath, 0755); err != nil {
+			if err := os.MkdirAll(absTarget, 0755); err != nil {
 				return err
 			}
 			continue
 		}
 
-		if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(absTarget), 0755); err != nil {
 			return err
 		}
 
-		outFile, err := os.OpenFile(targetPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
+		outFile, err := os.OpenFile(absTarget, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
 		if err != nil {
 			return err
 		}
@@ -769,27 +792,40 @@ func (a *Agent) streamReaderToConsole(consoleURL, linePrefix string, r io.Reader
 		line := scanner.Text()
 		ts := time.Now().Format("15:04:05.000")
 		payload := ts + " " + linePrefix + line + "\n"
-		if err := postConsole(consoleURL, payload); err != nil {
+		if err := a.postConsole(consoleURL, payload); err != nil {
 			log.Printf("Console POST failed: %v", err)
 		}
 	}
 	if err := scanner.Err(); err != nil {
 		payload := time.Now().Format("15:04:05.000") + " [scanner error] " + err.Error() + "\n"
-		_ = postConsole(consoleURL, payload)
+		_ = a.postConsole(consoleURL, payload)
 	}
 }
 
 // postConsole POSTs body as text/plain to the given URL.
-func postConsole(consoleURL, body string) error {
+func (a *Agent) postConsole(consoleURL, body string) error {
 	if consoleURL == "" {
 		return nil
 	}
-	req, err := http.NewRequest(http.MethodPost, consoleURL, strings.NewReader(body))
+	validatedURL, err := a.validateURL(consoleURL)
+	if err != nil {
+		return fmt.Errorf("untrusted console URL: %w", err)
+	}
+	req, err := http.NewRequest(http.MethodPost, validatedURL, strings.NewReader(body))
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Content-Type", "text/plain; charset=utf-8")
-	resp, err := http.DefaultClient.Do(req)
+	
+	client, err := a.httpClient()
+	var doer interface {
+		Do(*http.Request) (*http.Response, error)
+	} = http.DefaultClient
+	if err == nil && client != nil {
+		doer = client
+	}
+
+	resp, err := doer.Do(req)
 	if err != nil {
 		return err
 	}
@@ -856,4 +892,50 @@ func getUsableSpace() int64 {
 		return 10 * 1024 * 1024 * 1024
 	}
 	return int64(stat.Bavail) * int64(stat.Bsize)
+}
+
+// validateURL validates that the URL is a HTTP/HTTPS request matching the configured GoCD server host to mitigate SSRF.
+func (a *Agent) validateURL(rawURL string) (string, error) {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return "", fmt.Errorf("invalid URL: %w", err)
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return "", fmt.Errorf("unsupported URL scheme: %s", u.Scheme)
+	}
+	if u.Host != a.config.ServerURL.Host {
+		return "", fmt.Errorf("untrusted URL host: %s (must match configured GoCD server %s)", u.Host, a.config.ServerURL.Host)
+	}
+	return u.String(), nil
+}
+
+// validatePath cleans targetPath, resolves it relative to baseDir, and ensures it does not escape baseDir boundary to mitigate path traversal.
+func (a *Agent) validatePath(baseDir, targetPath string) (string, error) {
+	absBase, err := filepath.Abs(baseDir)
+	if err != nil {
+		return "", fmt.Errorf("invalid base dir: %w", err)
+	}
+
+	var absTarget string
+	if filepath.IsAbs(targetPath) {
+		absTarget = filepath.Clean(targetPath)
+	} else {
+		absTarget = filepath.Join(absBase, targetPath)
+	}
+
+	absTarget, err = filepath.Abs(absTarget)
+	if err != nil {
+		return "", fmt.Errorf("invalid target path: %w", err)
+	}
+
+	rel, err := filepath.Rel(absBase, absTarget)
+	if err != nil {
+		return "", fmt.Errorf("path relation error: %w", err)
+	}
+
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("path traversal attempt detected: %s is outside of %s", targetPath, baseDir)
+	}
+
+	return absTarget, nil
 }

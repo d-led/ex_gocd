@@ -8,8 +8,7 @@ defmodule ExGoCDWeb.MaterialsLiveTest do
       {:ok, _view, html} = live(conn, ~p"/materials")
 
       assert html =~ "Materials"
-      assert html =~ "Search materials"
-      assert html =~ "Used in Pipelines"
+      assert html =~ "Search for a material name or url"
     end
 
     test "renders mock materials list in test mode", %{conn: conn} do
@@ -59,6 +58,47 @@ defmodule ExGoCDWeb.MaterialsLiveTest do
       html = render(view)
       assert html =~ "No materials found"
       assert html =~ "Try refining your search term"
+    end
+  end
+
+  describe "interactive modal overlays" do
+    test "opens and closes the Usages modal", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/materials")
+
+      refute render(view) =~ "usages-modal"
+
+      # Click the usages button for a specific material using its fingerprint
+      html = view |> element(".icon-btn[title='Show Usages'][phx-value-fingerprint='8d78bc9f6c661806']") |> render_click()
+      assert html =~ "usages-modal"
+      assert html =~ "PIPELINE"
+      assert html =~ "MATERIAL SETTING"
+
+      # Close the modal
+      html = view |> element("#usages-modal-ok") |> render_click()
+      refute html =~ "usages-modal"
+    end
+
+    test "opens, searches, and closes the Modifications modal", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/materials")
+
+      refute render(view) =~ "modifications-modal"
+
+      # Click the modifications button for a specific material using its fingerprint
+      html = view |> element(".icon-btn[title='Show Modifications'][phx-value-fingerprint='8d78bc9f6c661806']") |> render_click()
+      assert html =~ "modifications-modal"
+      assert html =~ "Modifications"
+      assert html =~ "Search in revision, comment or username"
+
+      # Search modifications inside modal
+      html =
+        view
+        |> form("#mod-search-form", %{"value" => "upgrade"})
+        |> render_change()
+      assert html =~ "upgrade actions"
+
+      # Close the modal
+      html = view |> element("#modifications-modal-ok") |> render_click()
+      refute html =~ "modifications-modal"
     end
   end
 end

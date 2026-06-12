@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:15-alpine
@@ -14,9 +12,7 @@ services:
       retries: 10
 
   web:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ${SERVER_IMAGE:-ghcr.io/d-led/ex_gocd:latest}
     depends_on:
       postgres:
         condition: service_healthy
@@ -27,13 +23,12 @@ services:
       - SECRET_KEY_BASE=Prdu+ZZ5W0wm41lvF4MgIHGsUb8f8ipnuPM7FZby/fB6BJePv/aegKeKP0XU4rcW
       - EX_GOCD_TEST_MODE=1
       - PORT=4000
+      - PHX_SERVER=true
     # Run migrations first, then start Phoenix server
     command: sh -c "/app/bin/ex_gocd eval \"ExGoCD.Release.migrate\" && /app/bin/ex_gocd start"
 
   go-agent:
-    build:
-      context: ./agent
-      dockerfile: Dockerfile
+    image: ${AGENT_IMAGE:-ghcr.io/d-led/ex_gocd-agent:latest}
     depends_on:
       - web
     environment:

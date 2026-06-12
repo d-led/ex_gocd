@@ -87,11 +87,11 @@ func (r *Registrar) readServerCACert() error {
 		return os.WriteFile(caFile, []byte("# Not using TLS\n"), 0644)
 	}
 
-	// Create insecure client to download CA cert
+	// Create client to download CA cert
 	client := &http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
+				InsecureSkipVerify: r.config.InsecureSkipVerify,
 			},
 		},
 	}
