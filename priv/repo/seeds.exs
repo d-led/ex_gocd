@@ -95,3 +95,36 @@ unless Repo.get_by(AgentJobRun, build_id: "demo-build-1") do
 else
   IO.puts("Mock job run already exists, skipping seed")
 end
+
+# Seed default users
+alias ExGoCD.Accounts
+
+unless Repo.get_by(ExGoCD.Accounts.User, username: "admin") do
+  {:ok, _} = Accounts.create_user(%{
+    username: "admin",
+    display_name: "System Administrator",
+    roles: ["admin", "developer"],
+    status: "Active"
+  })
+  IO.puts("Seeded user: admin")
+end
+
+unless Repo.get_by(ExGoCD.Accounts.User, username: "developer") do
+  {:ok, _} = Accounts.create_user(%{
+    username: "developer",
+    display_name: "Lead Developer",
+    roles: ["developer"],
+    status: "Active"
+  })
+  IO.puts("Seeded user: developer")
+end
+
+unless Repo.get_by(ExGoCD.Accounts.User, username: "viewer") do
+  {:ok, _} = Accounts.create_user(%{
+    username: "viewer",
+    display_name: "Guest Viewer",
+    roles: [],
+    status: "Active"
+  })
+  IO.puts("Seeded user: viewer")
+end

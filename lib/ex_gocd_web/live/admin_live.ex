@@ -7,6 +7,8 @@ defmodule ExGoCDWeb.AdminLive do
   use ExGoCDWeb, :live_view
 
   alias ExGoCD.Pipelines
+  alias ExGoCD.Accounts
+  alias ExGoCD.Accounts.User
 
   @impl true
   def mount(_params, _session, socket) do
@@ -27,11 +29,18 @@ defmodule ExGoCDWeb.AdminLive do
       }
     ]
 
-    users = [
-      %{username: "admin", display_name: "System Administrator", roles: ["admin", "developer"], status: "Active"},
-      %{username: "developer", display_name: "Lead Developer", roles: ["developer"], status: "Active"},
-      %{username: "viewer", display_name: "Guest Viewer", roles: [], status: "Active"}
-    ]
+    # Load or seed real database users
+    users = 
+      case Accounts.list_users() do
+        [] ->
+          # Seed default mock users for convenience
+          {:ok, _} = Accounts.create_user(%{username: "admin", display_name: "System Administrator", roles: ["admin", "developer"], status: "Active"})
+          {:ok, _} = Accounts.create_user(%{username: "developer", display_name: "Lead Developer", roles: ["developer"], status: "Active"})
+          {:ok, _} = Accounts.create_user(%{username: "viewer", display_name: "Guest Viewer", roles: [], status: "Active"})
+          Accounts.list_users()
+        existing ->
+          existing
+      end
 
     plugins = [
       %{id: "git-material", name: "Git Material Plugin", version: "1.0.0", status: "Active"},
@@ -55,6 +64,12 @@ defmodule ExGoCDWeb.AdminLive do
      |> assign(:backup_message, "")
      |> assign(:new_group_name, "")
      |> assign(:show_create_modal, false)
+     # User modals assigns
+     |> assign(:show_user_modal, false)
+     |> assign(:user_modal_type, nil) # :add_user, :edit_roles
+     |> assign(:selected_user, nil)
+     |> assign(:user_form, %{"username" => "", "display_name" => "", "roles" => []})
+     |> assign(:user_errors, %{})
      |> assign(:flash_info, nil)
      |> assign(:current_path, "/admin")}
   end
@@ -182,6 +197,11 @@ defmodule ExGoCDWeb.AdminLive do
               <i class="fa fa-plus mr-1"></i> Create new pipeline group
             </button>
           <% end %>
+          <%= if @tab == "security" do %>
+            <button phx-click="open_add_user_modal" class="px-3 py-1.5 bg-white border border-[#943a9e] text-[#943a9e] rounded text-xs font-semibold hover:bg-purple-50 transition-all">
+              <i class="fa fa-plus mr-1"></i> Add User
+            </button>
+          <% end %>
         </div>
       </div>
 
@@ -243,6 +263,10 @@ defmodule ExGoCDWeb.AdminLive do
             </div>
         <% end %>
       </div>
+
+      <%= if @show_user_modal do %>
+        <.user_modal_layer type={@user_modal_type} form={@user_form} errors={@user_errors} user={@selected_user} />
+      <% end %>
     </div>
     """
   end
@@ -591,6 +615,75 @@ defmodule ExGoCDWeb.AdminLive do
     """
   end
 
+  defp user_modal_layer(assigns) do
+    ~H"""
+    <div class="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div class="bg-white rounded border border-[#d6e0e2] shadow-xl w-full max-w-md overflow-hidden">
+        <div class="bg-[#e7eef0] border-b border-[#d6e0e2] px-5 py-3 flex justify-between items-center">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-700">
+            <%= if @type == :add_user, do: "Add New User", else: "Manage User Roles" %>
+          </h3>
+          <button type="button" phx-click="close_user_modal" class="text-slate-400 hover:text-slate-600">
+            <i class="fa fa-times"></i>
+          </button>
+        </div>
+
+        <form phx-submit="save_user" class="p-6 space-y-4 text-xs">
+          <%= if @type == :add_user do %>
+            <div>
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Username</label>
+              <input type="text" name="username" value={@form["username"]} required
+                     class="w-full px-3 py-2 rounded bg-white border border-[#d6e0e2] text-xs text-[#333] focus:outline-none focus:border-[#943a9e]" />
+              <%= if error = Map.get(@errors, :username) do %>
+                <p class="text-rose-500 mt-1 text-[11px] font-semibold">{error}</p>
+              <% end %>
+            </div>
+          <% end %>
+
+          <div>
+            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Display Name</label>
+            <input type="text" name="display_name" value={@form["display_name"]} required
+                   class="w-full px-3 py-2 rounded bg-white border border-[#d6e0e2] text-xs text-[#333] focus:outline-none focus:border-[#943a9e]" />
+            <%= if error = Map.get(@errors, :display_name) do %>
+              <p class="text-rose-500 mt-1 text-[11px] font-semibold">{error}</p>
+            <% end %>
+          </div>
+
+          <div>
+            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Assign Roles</label>
+            <div class="space-y-2.5 mt-2 bg-slate-50 p-4 rounded border border-[#e9edef]">
+              <label class="flex items-center gap-2.5 font-medium text-slate-700 cursor-pointer">
+                <input type="checkbox" name="roles[]" value="admin" checked={"admin" in (@form["roles"] || [])}
+                       class="rounded border-[#d6e0e2] text-[#943a9e] focus:ring-[#943a9e]" />
+                <span>Administrator (Full admin access)</span>
+              </label>
+              <label class="flex items-center gap-2.5 font-medium text-slate-700 cursor-pointer">
+                <input type="checkbox" name="roles[]" value="developer" checked={"developer" in (@form["roles"] || [])}
+                       class="rounded border-[#d6e0e2] text-[#943a9e] focus:ring-[#943a9e]" />
+                <span>Developer (Pipeline configuration and execution)</span>
+              </label>
+              <label class="flex items-center gap-2.5 font-medium text-slate-700 cursor-pointer">
+                <input type="checkbox" name="roles[]" value="viewer" checked={"viewer" in (@form["roles"] || [])}
+                       class="rounded border-[#d6e0e2] text-[#943a9e] focus:ring-[#943a9e]" />
+                <span>Viewer (Read-only observation)</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="flex justify-end gap-3 pt-4 border-t border-[#e9edef]">
+            <button type="submit" class="px-4 py-2 bg-[#943a9e] hover:bg-purple-700 text-white font-bold rounded shadow-sm">
+              Save User
+            </button>
+            <button type="button" phx-click="close_user_modal" class="px-4 py-2 bg-white border border-slate-350 text-slate-700 rounded hover:bg-slate-50 font-semibold">
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+    """
+  end
+
   defp security_tab(assigns) do
     ~H"""
     <div class="bg-white rounded border border-[#d6e0e2] overflow-hidden shadow-sm">
@@ -622,17 +715,27 @@ defmodule ExGoCDWeb.AdminLive do
                   <% end %>
                 </td>
                 <td class="px-5 py-4">
-                  <span class="inline-flex items-center gap-1 bg-emerald-50 text-emerald-600 border border-emerald-200 px-2 py-0.5 rounded text-[10px] font-bold">
-                    <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>
-                    {user.status}
-                  </span>
+                  <%= if user.status == "Active" do %>
+                    <span class="inline-flex items-center gap-1 bg-emerald-50 text-emerald-600 border border-emerald-200 px-2 py-0.5 rounded text-[10px] font-bold">
+                      <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>
+                      Active
+                    </span>
+                  <% else %>
+                    <span class="inline-flex items-center gap-1 bg-rose-50 text-rose-600 border border-rose-200 px-2 py-0.5 rounded text-[10px] font-bold">
+                      <span class="w-1.5 h-1.5 bg-rose-500 rounded-full"></span>
+                      Disabled
+                    </span>
+                  <% end %>
                 </td>
                 <td class="px-5 py-4 text-right">
-                  <button class="text-xs text-[#943a9e] hover:text-purple-800 font-bold mr-3">
+                  <button phx-click="open_edit_user_roles_modal" phx-value-id={user.id} class="text-xs text-[#943a9e] hover:text-purple-800 font-bold mr-3">
                     Manage Roles
                   </button>
-                  <button class="text-xs text-slate-500 hover:text-slate-800">
-                    Disable
+                  <button phx-click="toggle_user_status" phx-value-id={user.id} class={["text-xs mr-3 font-semibold", if(user.status == "Active", do: "text-slate-500 hover:text-slate-800", else: "text-emerald-500 hover:text-emerald-700")]}>
+                    {if user.status == "Active", do: "Disable", else: "Enable"}
+                  </button>
+                  <button phx-click="delete_user" phx-value-id={user.id} data-confirm="Are you sure you want to delete this user?" class="text-xs text-rose-500 hover:text-rose-700">
+                    Delete
                   </button>
                 </td>
               </tr>
@@ -764,6 +867,128 @@ defmodule ExGoCDWeb.AdminLive do
   @impl true
   def handle_event("add_pipeline_to_group", %{"group" => group_name}, socket) do
     {:noreply, push_navigate(socket, to: "/go/admin/pipelines/new?group=#{group_name}")}
+  end
+
+  @impl true
+  def handle_event("open_add_user_modal", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:show_user_modal, true)
+     |> assign(:user_modal_type, :add_user)
+     |> assign(:selected_user, nil)
+     |> assign(:user_form, %{"username" => "", "display_name" => "", "roles" => []})
+     |> assign(:user_errors, %{})}
+  end
+
+  @impl true
+  def handle_event("open_edit_user_roles_modal", %{"id" => id}, socket) do
+    user = Accounts.get_user!(id)
+    {:noreply,
+     socket
+     |> assign(:show_user_modal, true)
+     |> assign(:user_modal_type, :edit_roles)
+     |> assign(:selected_user, user)
+     |> assign(:user_form, %{
+       "display_name" => user.display_name,
+       "roles" => user.roles || []
+     })
+     |> assign(:user_errors, %{})}
+  end
+
+  @impl true
+  def handle_event("close_user_modal", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:show_user_modal, false)
+     |> assign(:user_modal_type, nil)
+     |> assign(:selected_user, nil)
+     |> assign(:user_form, %{})
+     |> assign(:user_errors, %{})}
+  end
+
+  @impl true
+  def handle_event("save_user", params, socket) do
+    roles = params["roles"] || []
+
+    case socket.assigns.user_modal_type do
+      :add_user ->
+        attrs = %{
+          "username" => params["username"],
+          "display_name" => params["display_name"],
+          "roles" => roles,
+          "status" => "Active"
+        }
+        case Accounts.create_user(attrs) do
+          {:ok, _user} ->
+            users = Accounts.list_users()
+            {:noreply,
+             socket
+             |> assign(:users, users)
+             |> assign(:show_user_modal, false)
+             |> assign(:flash_info, "User created successfully.")}
+          {:error, changeset} ->
+            errors = Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
+              Regex.replace(~r"%{(\w+)}", msg, fn _, key ->
+                to_string(opts[String.to_existing_atom(key)])
+              end)
+            end)
+            {:noreply, assign(socket, :user_errors, errors)}
+        end
+
+      :edit_roles ->
+        user = socket.assigns.selected_user
+        attrs = %{
+          "display_name" => params["display_name"],
+          "roles" => roles
+        }
+        case Accounts.update_user(user, attrs) do
+          {:ok, _user} ->
+            users = Accounts.list_users()
+            {:noreply,
+             socket
+             |> assign(:users, users)
+             |> assign(:show_user_modal, false)
+             |> assign(:flash_info, "User configuration updated successfully.")}
+          {:error, changeset} ->
+            errors = Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
+              Regex.replace(~r"%{(\w+)}", msg, fn _, key ->
+                to_string(opts[String.to_existing_atom(key)])
+              end)
+            end)
+            {:noreply, assign(socket, :user_errors, errors)}
+        end
+    end
+  end
+
+  @impl true
+  def handle_event("toggle_user_status", %{"id" => id}, socket) do
+    user = Accounts.get_user!(id)
+    new_status = if user.status == "Active", do: "Disabled", else: "Active"
+    case Accounts.update_user(user, %{status: new_status}) do
+      {:ok, _} ->
+        users = Accounts.list_users()
+        {:noreply,
+         socket
+         |> assign(:users, users)
+         |> assign(:flash_info, "User status updated successfully.")}
+      {:error, _} ->
+        {:noreply, assign(socket, :flash_info, "Failed to update user status.")}
+    end
+  end
+
+  @impl true
+  def handle_event("delete_user", %{"id" => id}, socket) do
+    user = Accounts.get_user!(id)
+    case Accounts.delete_user(user) do
+      {:ok, _} ->
+        users = Accounts.list_users()
+        {:noreply,
+         socket
+         |> assign(:users, users)
+         |> assign(:flash_info, "User deleted successfully.")}
+      {:error, _} ->
+        {:noreply, assign(socket, :flash_info, "Failed to delete user.")}
+    end
   end
 
   # --- Message Handlers ---

@@ -181,5 +181,76 @@ defmodule ExGoCDWeb.AdminLiveTest do
       {:ok, view, _html} = live(conn, ~p"/admin/config/server")
       assert render(view) =~ "Server Configuration"
     end
+
+    test "manages users: creation, updates, toggles status, and deletion", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/admin/security")
+
+      # Initially seeded users are present
+      assert render(view) =~ "admin"
+      assert render(view) =~ "developer"
+      assert render(view) =~ "viewer"
+
+      # Open "Add User" modal
+      view
+      |> element("button", "Add User")
+      |> render_click()
+
+      # Submit add user form
+      view
+      |> form("form", %{
+        "username" => "johndoe",
+        "display_name" => "John Doe",
+        "roles" => ["developer", "viewer"]
+      })
+      |> render_submit()
+
+      assert render(view) =~ "User created successfully"
+      assert render(view) =~ "johndoe"
+      assert render(view) =~ "John Doe"
+
+      # Get the new user ID from DB
+      johndoe = ExGoCD.Accounts.get_user_by_username("johndoe")
+
+      # Open Manage Roles modal for johndoe
+      view
+      |> element("button[phx-click='open_edit_user_roles_modal'][phx-value-id='#{johndoe.id}']")
+      |> render_click()
+
+      # Modify display_name and roles
+      view
+      |> form("form", %{
+        "display_name" => "Johnathan Doe",
+        "roles" => ["admin"]
+      })
+      |> render_submit()
+
+      assert render(view) =~ "User configuration updated successfully"
+      assert render(view) =~ "Johnathan Doe"
+      refute render(view) =~ "John Doe"
+
+      # Toggle user status (Disable johndoe)
+      view
+      |> element("button[phx-click='toggle_user_status'][phx-value-id='#{johndoe.id}']", "Disable")
+      |> render_click()
+
+      assert render(view) =~ "User status updated successfully"
+      assert render(view) =~ "Disabled"
+
+      # Enable johndoe back
+      view
+      |> element("button[phx-click='toggle_user_status'][phx-value-id='#{johndoe.id}']", "Enable")
+      |> render_click()
+
+      assert render(view) =~ "User status updated successfully"
+      assert render(view) =~ "Active"
+
+      # Delete johndoe
+      view
+      |> element("button[phx-click='delete_user'][phx-value-id='#{johndoe.id}']")
+      |> render_click()
+
+      assert render(view) =~ "User deleted successfully"
+      refute render(view) =~ "Johnathan Doe"
+    end
   end
 end
