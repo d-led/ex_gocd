@@ -10,8 +10,8 @@ defmodule ExGoCD.Policies.AgentPolicy do
   alias ExGoCD.Accounts.User
 
   @impl true
-  def authorize(:manage_agents, %User{roles: roles}, _params) do
-    if :admin in roles, do: :ok, else: {:error, :forbidden}
+  def authorize(:manage_agents, %User{} = user, _params) do
+    if User.has_role?(user, :admin), do: :ok, else: {:error, :forbidden}
   end
 
   def authorize(_action, _user, _params), do: {:error, :unknown_action}

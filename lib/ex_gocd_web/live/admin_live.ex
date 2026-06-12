@@ -8,7 +8,6 @@ defmodule ExGoCDWeb.AdminLive do
 
   alias ExGoCD.Pipelines
   alias ExGoCD.Accounts
-  alias ExGoCD.Accounts.User
 
   @impl true
   def mount(_params, _session, socket) do
