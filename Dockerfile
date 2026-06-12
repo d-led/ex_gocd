@@ -1,8 +1,8 @@
 # Stage 1: Builder
-FROM hexpm/elixir:1.16.2-erlang-26.2.3-debian-bookworm-20240130-slim AS builder
+FROM hexpm/elixir:1.18.4-erlang-25.3.2.3-debian-bookworm-20260610-slim AS builder
 
 # Install build dependencies
-RUN apt-get update -y && apt-get install -y build-essential git && apt-get clean && rm -f /var/lib/apt/lists/*
+RUN apt-get update -y && apt-get install -y build-essential git && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Prepare build directory
 WORKDIR /app
@@ -24,18 +24,20 @@ COPY lib lib
 COPY priv priv
 COPY assets assets
 
+# Compile the application first so colocated hooks are available to esbuild.
+RUN mix compile
+
 # Compile assets and digest them
 RUN mix assets.deploy
 
 # Build the release
-RUN mix compile
 RUN mix release
 
 # Stage 2: Runner (distroless-like slim debian runner)
 FROM debian:bookworm-slim AS runner
 
 # Install runtime dependencies
-RUN apt-get update -y && apt-get install -y libstdc++6 openssl ca-certificates curl postgresql-client && apt-get clean && rm -f /var/lib/apt/lists/*
+RUN apt-get update -y && apt-get install -y libstdc++6 openssl ca-certificates curl postgresql-client && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Set locale
 ENV LANG=C.UTF-8
