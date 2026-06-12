@@ -14,17 +14,17 @@ defmodule ExGoCD.Pipelines.Task do
 
   @type t :: %__MODULE__{
           id: integer() | nil,
-          type: String.t(),
+          type: String.t() | nil,
           command: String.t() | nil,
-          arguments: [String.t()],
+          arguments: [String.t()] | nil,
           working_directory: String.t() | nil,
-          run_if: String.t(),
+          run_if: String.t() | nil,
           timeout: integer() | nil,
           on_cancel: map() | nil,
           job_id: integer() | nil,
-          job: Job.t() | Ecto.Association.NotLoaded.t(),
-          inserted_at: NaiveDateTime.t() | nil,
-          updated_at: NaiveDateTime.t() | nil
+          job: Job.t() | nil | Ecto.Association.NotLoaded.t(),
+          inserted_at: DateTime.t() | nil,
+          updated_at: DateTime.t() | nil
         }
 
   schema "tasks" do

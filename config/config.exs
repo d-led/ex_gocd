@@ -10,7 +10,8 @@ import Config
 config :ex_gocd,
   namespace: ExGoCD,
   ecto_repos: [ExGoCD.Repo],
-  generators: [timestamp_type: :utc_datetime]
+  generators: [timestamp_type: :utc_datetime],
+  env: config_env()
 
 # Configure the endpoint
 config :ex_gocd, ExGoCDWeb.Endpoint,

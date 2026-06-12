@@ -178,8 +178,8 @@ defmodule ExGoCDWeb.ArtifactsController do
                 {to_charlist(rel_path), File.read!(abs_path)}
               end)
 
-              case :zip.create("archive.zip", files_to_zip, [:memory]) do
-                {:ok, {"archive.zip", binary}} ->
+              case :zip.create(~c"archive.zip", files_to_zip, [:memory]) do
+                {:ok, {~c"archive.zip", binary}} ->
                   conn
                   |> put_resp_header("content-type", "application/zip")
                   |> send_resp(200, binary)

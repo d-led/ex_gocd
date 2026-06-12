@@ -20,7 +20,7 @@ defmodule ExGoCD.Pipelines.ValueStreamMapTest do
 
       # The first level (index 0) contains upstream material nodes
       materials_level = Enum.at(vsm["levels"], 0)
-      assert length(materials_level["nodes"]) > 0
+      assert materials_level["nodes"] != []
       for node <- materials_level["nodes"] do
         assert node["node_type"] == "MATERIAL"
         assert node["depth"] == 0
@@ -32,7 +32,7 @@ defmodule ExGoCD.Pipelines.ValueStreamMapTest do
       assert [%{"id" => ^pipeline_name, "node_type" => "PIPELINE", "depth" => 1} = target_node] = target_level["nodes"]
       assert [inst] = target_node["instances"]
       assert inst["counter"] == counter
-      assert length(inst["stages"]) > 0
+      assert inst["stages"] != []
     end
 
     test "returns not_found error for a pipeline that does not exist" do
@@ -59,7 +59,7 @@ defmodule ExGoCD.Pipelines.ValueStreamMapTest do
 
       # And levels contain the material and its downstream dependent pipelines
       assert [material_level | rest_levels] = vsm["levels"]
-      assert length(rest_levels) >= 1
+      assert rest_levels != []
       pipeline_level = hd(rest_levels)
 
       # The material node is correct
@@ -68,7 +68,7 @@ defmodule ExGoCD.Pipelines.ValueStreamMapTest do
       assert material_node["node_type"] == "MATERIAL"
 
       # The dependent pipelines are listed under the downstream level
-      assert length(pipeline_level["nodes"]) > 0
+      assert pipeline_level["nodes"] != []
       for pipeline_node <- pipeline_level["nodes"] do
         assert pipeline_node["node_type"] == "PIPELINE"
         assert pipeline_node["depth"] == 1

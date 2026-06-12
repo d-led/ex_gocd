@@ -12,22 +12,22 @@ defmodule ExGoCD.Agents.Agent do
 
   @type t :: %__MODULE__{
           id: integer() | nil,
-          uuid: String.t(),
-          hostname: String.t(),
-          ipaddress: String.t(),
+          uuid: String.t() | nil,
+          hostname: String.t() | nil,
+          ipaddress: String.t() | nil,
           elastic_agent_id: String.t() | nil,
           elastic_plugin_id: String.t() | nil,
-          disabled: boolean(),
-          deleted: boolean(),
-          environments: [String.t()],
-          resources: [String.t()],
+          disabled: boolean() | nil,
+          deleted: boolean() | nil,
+          environments: [String.t()] | nil,
+          resources: [String.t()] | nil,
           cookie: String.t() | nil,
           working_dir: String.t() | nil,
           operating_system: String.t() | nil,
           free_space: integer() | nil,
-          state: String.t(),
-          inserted_at: NaiveDateTime.t() | nil,
-          updated_at: NaiveDateTime.t() | nil
+          state: String.t() | nil,
+          inserted_at: DateTime.t() | nil,
+          updated_at: DateTime.t() | nil
         }
 
   schema "agents" do
@@ -137,7 +137,7 @@ defmodule ExGoCD.Agents.Agent do
     elastic_plugin_id = get_field(changeset, :elastic_plugin_id)
 
     # Elastic agents cannot have resources (per Agent.validateResources())
-    if is_elastic?(elastic_agent_id, elastic_plugin_id) and length(resources) > 0 do
+    if is_elastic?(elastic_agent_id, elastic_plugin_id) and resources != [] do
       add_error(changeset, :resources, "Elastic agents cannot have resources")
     else
       changeset

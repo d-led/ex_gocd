@@ -94,7 +94,7 @@ defmodule ExGoCDWeb.DashboardLive do
 
     socket
     |> assign(:pipeline_groups, grouped)
-    |> assign(:has_pipelines, length(filtered) > 0)
+    |> assign(:has_pipelines, filtered != [])
   end
 
   defp use_mock? do

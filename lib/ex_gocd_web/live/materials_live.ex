@@ -102,7 +102,7 @@ defmodule ExGoCDWeb.MaterialsLive do
 
     socket
     |> assign(:materials, filtered)
-    |> assign(:has_materials, length(filtered) > 0)
+    |> assign(:has_materials, filtered != [])
   end
 
   defp get_all_materials do

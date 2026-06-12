@@ -136,8 +136,8 @@ defmodule ExGoCD.Scheduler do
   end
 
   defp find_matching_job(agent, queue) do
-    agent_resources = MapSet.new((agent.resources || []) |> Enum.map(&String.downcase/1))
-    agent_envs = MapSet.new((agent.environments || []) |> Enum.map(&String.downcase/1))
+    agent_resources = MapSet.new(agent.resources |> Enum.map(&String.downcase/1))
+    agent_envs = MapSet.new(agent.environments |> Enum.map(&String.downcase/1))
 
     idx =
       Enum.find_index(queue, fn spec ->

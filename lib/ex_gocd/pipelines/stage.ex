@@ -15,18 +15,18 @@ defmodule ExGoCD.Pipelines.Stage do
 
   @type t :: %__MODULE__{
           id: integer() | nil,
-          name: String.t(),
-          fetch_materials: boolean(),
-          clean_working_directory: boolean(),
-          never_cleanup_artifacts: boolean(),
-          approval_type: String.t(),
-          environment_variables: map(),
-          approval_authorization: map(),
+          name: String.t() | nil,
+          fetch_materials: boolean() | nil,
+          clean_working_directory: boolean() | nil,
+          never_cleanup_artifacts: boolean() | nil,
+          approval_type: String.t() | nil,
+          environment_variables: map() | nil,
+          approval_authorization: map() | nil,
           pipeline_id: integer() | nil,
-          pipeline: Pipeline.t() | Ecto.Association.NotLoaded.t(),
-          jobs: [Job.t()],
-          inserted_at: NaiveDateTime.t() | nil,
-          updated_at: NaiveDateTime.t() | nil
+          pipeline: Pipeline.t() | nil | Ecto.Association.NotLoaded.t(),
+          jobs: [Job.t()] | Ecto.Association.NotLoaded.t(),
+          inserted_at: DateTime.t() | nil,
+          updated_at: DateTime.t() | nil
         }
 
   schema "stages" do

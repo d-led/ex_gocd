@@ -131,6 +131,7 @@ defmodule ExGoCDWeb.Layouts do
     """
   end
 
+  @spec active_tab?(map(), :dashboard | :agents | :materials | :admin) :: boolean()
   defp active_tab?(assigns, tab) do
     current_path = Map.get(assigns, :current_path, "")
 
@@ -139,7 +140,6 @@ defmodule ExGoCDWeb.Layouts do
       :agents -> String.starts_with?(current_path, "/agents") or String.starts_with?(current_path, "/go/agents")
       :materials -> String.starts_with?(current_path, "/materials") or String.starts_with?(current_path, "/go/materials")
       :admin -> String.starts_with?(current_path, "/admin") or String.starts_with?(current_path, "/go/admin")
-      _ -> false
     end
   end
 

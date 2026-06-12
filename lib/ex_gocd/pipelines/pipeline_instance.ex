@@ -14,15 +14,15 @@ defmodule ExGoCD.Pipelines.PipelineInstance do
 
   @type t :: %__MODULE__{
           id: integer() | nil,
-          counter: integer(),
-          label: String.t(),
-          natural_order: float(),
-          build_cause: map(),
+          counter: integer() | nil,
+          label: String.t() | nil,
+          natural_order: float() | nil,
+          build_cause: map() | nil,
           pipeline_id: integer() | nil,
-          pipeline: Pipeline.t() | Ecto.Association.NotLoaded.t(),
-          stage_instances: [StageInstance.t()],
-          inserted_at: NaiveDateTime.t() | nil,
-          updated_at: NaiveDateTime.t() | nil
+          pipeline: Pipeline.t() | nil | Ecto.Association.NotLoaded.t(),
+          stage_instances: [StageInstance.t()] | Ecto.Association.NotLoaded.t(),
+          inserted_at: DateTime.t() | nil,
+          updated_at: DateTime.t() | nil
         }
 
   schema "pipeline_instances" do
