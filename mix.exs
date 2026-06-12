@@ -106,6 +106,7 @@ defmodule ExGoCD.MixProject do
       "assets.setup": ["tailwind.install --if-missing", "esbuild.install --if-missing"],
       "assets.build": ["compile", "tailwind ex_gocd", "esbuild ex_gocd"],
       "assets.deploy": [
+        "compile",
         "tailwind ex_gocd --minify",
         "esbuild ex_gocd --minify",
         "phx.digest"

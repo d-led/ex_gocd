@@ -122,7 +122,7 @@ defmodule ExGoCDWeb.AgentRemotingController do
 
   Checks if a job is ignored. Currently always returns false.
   """
-  def is_ignored(conn, _params) do
+  def check_ignored(conn, _params) do
     with {:ok, body} <- read_json_body(conn),
          uuid <- extract_uuid(body),
          :ok <- verify_agent_identity(conn, uuid) do

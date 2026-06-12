@@ -52,65 +52,62 @@ defmodule ExGoCDWeb.PipelineActivityLive do
   end
 
   defp get_pipeline_runs(pipeline_name) do
-    if use_mock?(pipeline_name) do
-      get_mock_runs(pipeline_name)
-    else
-      case Pipelines.get_pipeline_by_name(pipeline_name) do
-        nil ->
-          get_mock_runs(pipeline_name)
+    if use_mock?(pipeline_name),
+      do: get_mock_runs(pipeline_name),
+      else: db_pipeline_runs(pipeline_name)
+  end
 
-        p ->
-          import Ecto.Query
+  defp db_pipeline_runs(pipeline_name) do
+    case Pipelines.get_pipeline_by_name(pipeline_name) do
+      nil ->
+        get_mock_runs(pipeline_name)
 
+      p ->
+        import Ecto.Query
+
+        runs =
           ExGoCD.Repo.all(
             from pi in ExGoCD.Pipelines.PipelineInstance,
               where: pi.pipeline_id == ^p.id,
               order_by: [desc: pi.counter],
               preload: [stage_instances: :job_instances]
           )
-          |> Enum.map(fn pi ->
-            stages =
-              (pi.stage_instances || [])
-              |> Enum.sort_by(& &1.order_id)
-              |> Enum.map(fn si ->
-                %{name: si.name, status: stage_status(si), counter: si.counter}
-              end)
+          |> Enum.map(&map_pipeline_instance/1)
 
-            build_cause = pi.build_cause || %{}
-            triggered_by = build_cause["triggerMessage"] || "Triggered manually"
-
-            modifications =
-              (build_cause["materialRevisions"] || [])
-              |> Enum.flat_map(fn rev ->
-                fp = fingerprint(rev)
-
-                (rev["modifications"] || [])
-                |> Enum.map(fn mod ->
-                  %{
-                    revision: mod["revision"] || "unknown",
-                    user: mod["username"] || "anonymous",
-                    comment: mod["comment"] || "",
-                    fingerprint: fp
-                  }
-                end)
-              end)
-
-            %{
-              counter: pi.counter,
-              label: pi.label,
-              status: pipeline_instance_status(pi),
-              triggered_by: triggered_by,
-              last_run: pi.inserted_at || pi.updated_at || DateTime.utc_now(),
-              stages: stages,
-              modifications: modifications
-            }
-          end)
-          |> case do
-            [] -> get_mock_runs(pipeline_name)
-            list -> list
-          end
-      end
+        if runs == [], do: get_mock_runs(pipeline_name), else: runs
     end
+  end
+
+  defp map_pipeline_instance(pi) do
+    build_cause = pi.build_cause || %{}
+
+    %{
+      counter: pi.counter,
+      label: pi.label,
+      status: pipeline_instance_status(pi),
+      triggered_by: build_cause["triggerMessage"] || "Triggered manually",
+      last_run: pi.inserted_at || pi.updated_at || DateTime.utc_now(),
+      stages: pi.stage_instances |> Enum.sort_by(& &1.order_id) |> Enum.map(&map_stage_instance/1),
+      modifications: build_cause["materialRevisions"] |> List.wrap() |> Enum.flat_map(&map_modifications/1)
+    }
+  end
+
+  defp map_stage_instance(si) do
+    %{name: si.name, status: stage_status(si), counter: si.counter}
+  end
+
+  defp map_modifications(rev) do
+    fp = fingerprint(rev)
+
+    (rev["modifications"] || [])
+    |> Enum.map(fn mod ->
+      %{
+        revision: mod["revision"] || "unknown",
+        user: mod["username"] || "anonymous",
+        comment: mod["comment"] || "",
+        fingerprint: fp
+      }
+    end)
   end
 
   defp stage_status(si) do

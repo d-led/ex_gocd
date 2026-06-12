@@ -135,7 +135,7 @@ defmodule ExGoCDWeb.Router do
     post "/report_current_status", AgentRemotingController, :report_current_status
     post "/report_completing", AgentRemotingController, :report_completing
     post "/report_completed", AgentRemotingController, :report_completed
-    post "/is_ignored", AgentRemotingController, :is_ignored
+    post "/is_ignored", AgentRemotingController, :check_ignored
   end
 
   scope "/go/remoting/api/agent", ExGoCDWeb do
@@ -147,7 +147,7 @@ defmodule ExGoCDWeb.Router do
     post "/report_current_status", AgentRemotingController, :report_current_status
     post "/report_completing", AgentRemotingController, :report_completing
     post "/report_completed", AgentRemotingController, :report_completed
-    post "/is_ignored", AgentRemotingController, :is_ignored
+    post "/is_ignored", AgentRemotingController, :check_ignored
   end
 
   # Files/Artifacts API endpoints used by agents and downstream stages

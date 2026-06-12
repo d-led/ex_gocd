@@ -8,7 +8,7 @@ defmodule ExGoCD.PipelinesTest do
 
   import Ecto.Query
   alias ExGoCD.Pipelines
-  alias ExGoCD.Pipelines.{Pipeline, Stage, Job, Task, JobInstance}
+  alias ExGoCD.Pipelines.{Job, JobInstance, Pipeline, Stage, Task}
   alias ExGoCD.Repo
   alias ExGoCD.Scheduler
 

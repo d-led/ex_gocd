@@ -2,12 +2,12 @@ defmodule ExGoCD.Pipelines.JobInstanceTest do
   use ExGoCD.DataCase, async: true
 
   alias ExGoCD.Pipelines.{
-    Pipeline,
-    Stage,
     Job,
+    JobInstance,
+    Pipeline,
     PipelineInstance,
-    StageInstance,
-    JobInstance
+    Stage,
+    StageInstance
   }
 
   setup do

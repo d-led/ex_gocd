@@ -254,7 +254,9 @@ defmodule ExGoCD.Agents do
   def update_agent_runtime_state(agent_uuid, state) when is_binary(agent_uuid) and is_binary(state) do
     case get_agent_by_uuid(agent_uuid) do
       nil -> {:error, :not_found}
-      agent -> _ = update_agent(agent, %{state: state}); :ok
+      agent ->
+        update_agent(agent, %{state: state})
+        :ok
     end
   end
   def update_agent_runtime_state(_, _), do: :ok
@@ -323,7 +325,8 @@ defmodule ExGoCD.Agents do
   @doc """
   Soft deletes an agent. Fails unless the agent is disabled (matches GoCD: delete only after disable).
   """
-  @spec delete_agent(Agent.t() | String.t()) :: {:ok, Agent.t()} | {:error, Ecto.Changeset.t() | :agent_not_disabled | :not_found}
+  @spec delete_agent(Agent.t() | String.t()) ::
+          {:ok, Agent.t()} | {:error, Ecto.Changeset.t() | :agent_not_disabled | :not_found}
   def delete_agent(%Agent{} = agent) do
     if agent.disabled do
       do_delete_agent(agent)

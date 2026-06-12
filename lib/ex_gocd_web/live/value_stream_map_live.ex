@@ -58,7 +58,7 @@ defmodule ExGoCDWeb.ValueStreamMapLive do
     {:noreply, socket}
   end
 
-  defp is_current?(node, vsm) do
+  defp current?(node, vsm) do
     node["id"] == vsm["current_pipeline"] or node["id"] == vsm["current_material"]
   end
 
@@ -207,7 +207,7 @@ defmodule ExGoCDWeb.ValueStreamMapLive do
           <%= for level <- @vsm["levels"] do %>
             <div class="vsm-level flex flex-col justify-center gap-10 relative">
               <%= for node <- level["nodes"] do %>
-                <.vsm_node_widget node={node} is_current={is_current?(node, @vsm)} />
+                <.vsm_node_widget node={node} is_current={current?(node, @vsm)} />
               <% end %>
             </div>
           <% end %>

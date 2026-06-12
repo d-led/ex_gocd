@@ -208,11 +208,7 @@ defmodule ExGoCDWeb.ArtifactsController do
   defp serve_directory_index(conn, target_path) do
     case File.ls(target_path) do
       {:ok, files} ->
-        list = Enum.map(files, fn name ->
-          full_path = Path.join(target_path, name)
-          type = if File.dir?(full_path), do: "folder", else: "file"
-          %{name: name, type: type}
-        end)
+        list = Enum.map(files, &file_entry(target_path, &1))
         json(conn, list)
 
       {:error, _} ->
@@ -220,6 +216,11 @@ defmodule ExGoCDWeb.ArtifactsController do
         |> put_status(500)
         |> text("Failed to list folder.")
     end
+  end
+
+  defp file_entry(parent_path, name) do
+    type = if File.dir?(Path.join(parent_path, name)), do: "folder", else: "file"
+    %{name: name, type: type}
   end
 
   defp serve_not_found(conn, file_path) do

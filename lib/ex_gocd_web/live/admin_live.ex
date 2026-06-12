@@ -104,58 +104,40 @@ defmodule ExGoCDWeb.AdminLive do
   @impl true
   def handle_params(_params, url, socket) do
     path = URI.parse(url).path || ""
-    path_segments = String.split(path, "/", trim: true)
-
-    # Extract raw tab name based on path structure
-    # e.g., ["admin", "security", "auth_configs"] -> tab is "security"
-    # or ["go", "admin", "pipelines"] -> tab is "pipelines"
-    tab =
-      case path_segments do
-        ["go", "admin", tab_name | _] -> tab_name
-        ["admin", tab_name | _] -> tab_name
-        _ -> "overview"
-      end
-
-    # Map sub-paths/tab_names to our major tabs
-    mapped_tab =
-      case tab do
-        "pipelines" -> "pipelines"
-        "environments" -> "environments"
-        "config_repos" -> "config_repos"
-        "server" -> "server"
-        "security" -> "security"
-        "overview" -> "overview"
-
-        # Mapping other GoCD dropdown links
-        "users" -> "security"
-        "templates" -> "pipelines"
-        "config_xml" -> "server"
-        "package_repositories" -> "pipelines"
-        "elastic_agent_configurations" -> "environments"
-        "artifact_stores" -> "server"
-        "secret_configs" -> "security"
-        "scms" -> "config_repos"
-        "config" -> "server"
-        "maintenance_mode" -> "server"
-        "backup" -> "server"
-        "plugins" -> "server"
-        "admin_access_tokens" -> "security"
-        _ -> "overview"
-      end
-
-    # Ensure tab is capitalize friendly for the title
-    title_suffix =
-      case mapped_tab do
-        "config_repos" -> "Config Repositories"
-        other -> String.capitalize(other)
-      end
+    mapped_tab = tab_from_path(path)
 
     {:noreply,
      socket
      |> assign(:tab, mapped_tab)
-     |> assign(:page_title, "GoCD Administration - #{title_suffix}")
+     |> assign(:page_title, "GoCD Administration - #{tab_title(mapped_tab)}")
      |> assign(:current_path, path)}
   end
+
+  defp tab_from_path(path) do
+    path
+    |> String.split("/", trim: true)
+    |> raw_tab_from_segments()
+    |> map_tab()
+  end
+
+  defp raw_tab_from_segments(["go", "admin", tab_name | _]), do: tab_name
+  defp raw_tab_from_segments(["admin", tab_name | _]), do: tab_name
+  defp raw_tab_from_segments(_), do: "overview"
+
+  defp map_tab(tab) do
+    case tab do
+      t when t in ["pipelines", "templates", "package_repositories"] -> "pipelines"
+      t when t in ["environments", "elastic_agent_configurations"] -> "environments"
+      t when t in ["config_repos", "scms"] -> "config_repos"
+      t when t in ["server", "config_xml", "artifact_stores", "config", "maintenance_mode", "backup", "plugins"] ->
+        "server"
+      t when t in ["security", "users", "secret_configs", "admin_access_tokens"] -> "security"
+      _ -> "overview"
+    end
+  end
+
+  defp tab_title("config_repos"), do: "Config Repositories"
+  defp tab_title(tab), do: String.capitalize(tab)
 
   @impl true
   def render(assigns) do
@@ -829,13 +811,9 @@ defmodule ExGoCDWeb.AdminLive do
 
   @impl true
   def handle_event("delete_pipeline_group", %{"name" => name}, socket) do
-    group = Enum.find(socket.assigns.pipeline_groups, &(&1.name == name))
-
-    if group do
-      Enum.each(group.pipelines, fn pipe ->
-        Pipelines.delete_pipeline_by_name(pipe.name)
-      end)
-    end
+    socket.assigns.pipeline_groups
+    |> Enum.find(&(&1.name == name))
+    |> maybe_delete_group_pipelines()
 
     empty_groups = Enum.reject(socket.assigns.empty_groups, &(&1 == name))
     groups = fetch_pipeline_groups(empty_groups)
@@ -846,6 +824,12 @@ defmodule ExGoCDWeb.AdminLive do
      |> assign(:pipeline_groups, groups)
      |> assign(:filtered_groups, groups)
      |> assign(:flash_info, "Pipeline group '#{name}' was deleted.")}
+  end
+
+  defp maybe_delete_group_pipelines(nil), do: :noop
+
+  defp maybe_delete_group_pipelines(group) do
+    Enum.each(group.pipelines, fn pipe -> Pipelines.delete_pipeline_by_name(pipe.name) end)
   end
 
   @impl true
@@ -910,53 +894,55 @@ defmodule ExGoCDWeb.AdminLive do
     roles = params["roles"] || []
 
     case socket.assigns.user_modal_type do
-      :add_user ->
-        attrs = %{
-          "username" => params["username"],
-          "display_name" => params["display_name"],
-          "roles" => roles,
-          "status" => "Active"
-        }
-        case Accounts.create_user(attrs) do
-          {:ok, _user} ->
-            users = Accounts.list_users()
-            {:noreply,
-             socket
-             |> assign(:users, users)
-             |> assign(:show_user_modal, false)
-             |> assign(:flash_info, "User created successfully.")}
-          {:error, changeset} ->
-            errors = Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
-              Regex.replace(~r"%{(\w+)}", msg, fn _, key ->
-                to_string(opts[String.to_existing_atom(key)])
-              end)
-            end)
-            {:noreply, assign(socket, :user_errors, errors)}
-        end
-
-      :edit_roles ->
-        user = socket.assigns.selected_user
-        attrs = %{
-          "display_name" => params["display_name"],
-          "roles" => roles
-        }
-        case Accounts.update_user(user, attrs) do
-          {:ok, _user} ->
-            users = Accounts.list_users()
-            {:noreply,
-             socket
-             |> assign(:users, users)
-             |> assign(:show_user_modal, false)
-             |> assign(:flash_info, "User configuration updated successfully.")}
-          {:error, changeset} ->
-            errors = Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
-              Regex.replace(~r"%{(\w+)}", msg, fn _, key ->
-                to_string(opts[String.to_existing_atom(key)])
-              end)
-            end)
-            {:noreply, assign(socket, :user_errors, errors)}
-        end
+      :add_user -> save_new_user(socket, params, roles)
+      :edit_roles -> save_user_roles(socket, params, roles)
     end
+  end
+
+  defp save_new_user(socket, params, roles) do
+    attrs = %{
+      "username" => params["username"],
+      "display_name" => params["display_name"],
+      "roles" => roles,
+      "status" => "Active"
+    }
+
+    case Accounts.create_user(attrs) do
+      {:ok, _user} ->
+        {:noreply,
+         socket
+         |> assign(:users, Accounts.list_users())
+         |> assign(:show_user_modal, false)
+         |> assign(:flash_info, "User created successfully.")}
+
+      {:error, changeset} ->
+        {:noreply, assign(socket, :user_errors, format_changeset_errors(changeset))}
+    end
+  end
+
+  defp save_user_roles(socket, params, roles) do
+    user = socket.assigns.selected_user
+    attrs = %{"display_name" => params["display_name"], "roles" => roles}
+
+    case Accounts.update_user(user, attrs) do
+      {:ok, _user} ->
+        {:noreply,
+         socket
+         |> assign(:users, Accounts.list_users())
+         |> assign(:show_user_modal, false)
+         |> assign(:flash_info, "User configuration updated successfully.")}
+
+      {:error, changeset} ->
+        {:noreply, assign(socket, :user_errors, format_changeset_errors(changeset))}
+    end
+  end
+
+  defp format_changeset_errors(changeset) do
+    Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
+      Regex.replace(~r"%{(\w+)}", msg, fn _, key ->
+        to_string(opts[String.to_existing_atom(key)])
+      end)
+    end)
   end
 
   @impl true

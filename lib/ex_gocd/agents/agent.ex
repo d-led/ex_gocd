@@ -133,14 +133,14 @@ defmodule ExGoCD.Agents.Agent do
     elastic_plugin_id = get_field(changeset, :elastic_plugin_id)
 
     # Elastic agents cannot have resources (per Agent.validateResources())
-    if is_elastic?(elastic_agent_id, elastic_plugin_id) and resources != [] do
+    if elastic_ids?(elastic_agent_id, elastic_plugin_id) and resources != [] do
       add_error(changeset, :resources, "Elastic agents cannot have resources")
     else
       changeset
     end
   end
 
-  defp is_elastic?(elastic_agent_id, elastic_plugin_id) do
+  defp elastic_ids?(elastic_agent_id, elastic_plugin_id) do
     not is_nil(elastic_agent_id) and elastic_agent_id != "" and
       not is_nil(elastic_plugin_id) and elastic_plugin_id != ""
   end
@@ -150,7 +150,7 @@ defmodule ExGoCD.Agents.Agent do
   """
   @spec elastic?(t()) :: boolean()
   def elastic?(%__MODULE__{} = agent) do
-    is_elastic?(agent.elastic_agent_id, agent.elastic_plugin_id)
+    elastic_ids?(agent.elastic_agent_id, agent.elastic_plugin_id)
   end
 
   @doc """

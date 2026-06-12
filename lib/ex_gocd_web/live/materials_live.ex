@@ -169,26 +169,29 @@ defmodule ExGoCDWeb.MaterialsLive do
   end
 
   defp get_latest_modification(mat) do
-    cond do
-      mat.type in ["git", "hg", "svn", "p4", "tfs", "pluggable_scm", "dependency"] ->
-        {username, email, revision, comment, time} =
-          cond do
-            String.contains?(mat.url || "", "gocd/gocd") ->
-              {"Dmitry Ledentsov", "dmlled@yahoo.com", "05172d07f4f4a0765243628b94f6840f8dc5411a", "upgrade actions and fix compilation warnings", ~U[2026-06-11 12:00:00Z]}
-            String.contains?(mat.url || "", "gocd/docs") ->
-              {"GoCD Team", "support@gocd.org", "98a7b6c5d4e3f2a10987654321abcdef01234567", "Update materials page documentation for rewrite", ~U[2026-06-11 11:30:00Z]}
-            true ->
-              {"gocd-admin", "admin@gocd.org", "f0e1d2c3b4a5968776655443322110abcdef0123", "Initial commit for repository integration", ~U[2026-06-11 10:15:00Z]}
-          end
-        %{
-          username: username,
-          email: email,
-          revision: revision,
-          comment: comment,
-          modified_time: time
-        }
-      true ->
-        nil
+    if mat.type in ["git", "hg", "svn", "p4", "tfs", "pluggable_scm", "dependency"] do
+      {username, email, revision, comment, time} =
+        cond do
+          String.contains?(mat.url || "", "gocd/gocd") ->
+            {"Dmitry Ledentsov", "dmlled@yahoo.com", "05172d07f4f4a0765243628b94f6840f8dc5411a",
+             "upgrade actions and fix compilation warnings", ~U[2026-06-11 12:00:00Z]}
+
+          String.contains?(mat.url || "", "gocd/docs") ->
+            {"GoCD Team", "support@gocd.org", "98a7b6c5d4e3f2a10987654321abcdef01234567",
+             "Update materials page documentation for rewrite", ~U[2026-06-11 11:30:00Z]}
+
+          true ->
+            {"gocd-admin", "admin@gocd.org", "f0e1d2c3b4a5968776655443322110abcdef0123",
+             "Initial commit for repository integration", ~U[2026-06-11 10:15:00Z]}
+        end
+
+      %{
+        username: username,
+        email: email,
+        revision: revision,
+        comment: comment,
+        modified_time: time
+      }
     end
   end
 

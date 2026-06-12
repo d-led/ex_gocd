@@ -145,26 +145,31 @@ defmodule ExGoCD.Pipelines do
       # Enqueue each job to Scheduler with spec from job config and job_instance_id
       for ji <- job_instances do
         job_config = Enum.find(first_stage.jobs, &(&1.id == ji.job_id))
-        if job_config do
-          build_command = build_command_from_job(job_config)
-          spec =
-            %{
-              "pipeline" => pipeline.name,
-              "pipeline_counter" => counter,
-              "stage" => first_stage.name,
-              "stage_counter" => 1,
-              "job" => job_config.name,
-              "resources" => job_config.resources || [],
-              "environments" => [],
-              "build_command" => build_command,
-              "job_instance_id" => ji.id
-            }
-          Scheduler.schedule_job(spec)
-        end
+        schedule_job_if_config(pipeline, counter, first_stage, job_config, ji)
       end
 
       instance
     end)
+  end
+
+  defp schedule_job_if_config(_pipeline, _counter, _stage, nil, _ji), do: :noop
+
+  defp schedule_job_if_config(pipeline, counter, stage, job_config, ji) do
+    build_command = build_command_from_job(job_config)
+
+    spec = %{
+      "pipeline" => pipeline.name,
+      "pipeline_counter" => counter,
+      "stage" => stage.name,
+      "stage_counter" => 1,
+      "job" => job_config.name,
+      "resources" => job_config.resources || [],
+      "environments" => [],
+      "build_command" => build_command,
+      "job_instance_id" => ji.id
+    }
+
+    Scheduler.schedule_job(spec)
   end
 
   defp build_command_from_job(job) do
@@ -305,29 +310,36 @@ defmodule ExGoCD.Pipelines do
 
   defp do_complete_job_instance(ji, result) do
     now = NaiveDateTime.utc_now()
+
     ji
     |> JobInstance.changeset(%{state: "Completed", result: result, completed_at: now})
     |> Repo.update()
 
-    # Check if all jobs in this stage are completed
     stage = ji.stage_instance
+
     from(j in JobInstance, where: j.stage_instance_id == ^stage.id)
     |> Repo.all()
-    |> then(fn jobs ->
-      if Enum.all?(jobs, &(&1.state == "Completed")) do
-        stage_result = if Enum.any?(jobs, &(&1.result == "Failed" or &1.result == "Cancelled")), do: "Failed", else: "Passed"
-        stage
-        |> StageInstance.changeset(%{
-          state: "Completed",
-          result: stage_result,
-          completed_at: now,
-          last_transitioned_time: DateTime.utc_now()
-        })
-        |> Repo.update()
-      end
-    end)
+    |> maybe_complete_stage(stage, now)
 
     :ok
+  end
+
+  defp maybe_complete_stage(jobs, stage, now) do
+    if Enum.all?(jobs, &(&1.state == "Completed")) do
+      stage_result =
+        if Enum.any?(jobs, &(&1.result == "Failed" or &1.result == "Cancelled")),
+          do: "Failed",
+          else: "Passed"
+
+      stage
+      |> StageInstance.changeset(%{
+        state: "Completed",
+        result: stage_result,
+        completed_at: now,
+        last_transitioned_time: DateTime.utc_now()
+      })
+      |> Repo.update()
+    end
   end
 
   @doc """

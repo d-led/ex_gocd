@@ -3,7 +3,7 @@ defmodule ExGoCDWeb.PipelineConfigLiveTest do
 
   import Phoenix.LiveViewTest
   alias ExGoCD.Pipelines
-  alias ExGoCD.Pipelines.{Pipeline, Stage, Job, Task, Material}
+  alias ExGoCD.Pipelines.{Job, Material, Pipeline, Stage, Task}
   alias ExGoCD.Repo
 
   setup do

@@ -57,41 +57,44 @@ defmodule ExGoCDWeb.StageDetailsLive do
         from si in ExGoCD.Pipelines.StageInstance,
           join: pi in ExGoCD.Pipelines.PipelineInstance, on: si.pipeline_instance_id == pi.id,
           join: p in ExGoCD.Pipelines.Pipeline, on: pi.pipeline_id == p.id,
-          where: p.name == ^pipeline_name and pi.counter == ^pipeline_counter and si.name == ^stage_name and si.counter == ^stage_counter,
+          where:
+            p.name == ^pipeline_name and pi.counter == ^pipeline_counter and
+              si.name == ^stage_name and si.counter == ^stage_counter,
           preload: [job_instances: :stage_instance]
       )
       |> case do
-        nil ->
-          get_mock_stage_details(pipeline_name, pipeline_counter, stage_name, stage_counter)
-
-        si ->
-          jobs =
-            (si.job_instances || [])
-            |> Enum.map(fn ji ->
-              %{
-                name: ji.name,
-                state: ji.state,
-                result: ji.result,
-                agent_uuid: ji.agent_uuid,
-                duration: job_duration(ji),
-                build_id: ji.id
-              }
-            end)
-
-          %{
-            name: si.name,
-            counter: si.counter,
-            state: si.state,
-            result: si.result,
-            duration: stage_duration(si),
-            created_time: si.created_time,
-            clean_working_dir: si.clean_working_dir,
-            fetch_materials: si.fetch_materials,
-            approval_type: si.approval_type,
-            jobs: jobs
-          }
+        nil -> get_mock_stage_details(pipeline_name, pipeline_counter, stage_name, stage_counter)
+        si -> map_db_stage(si)
       end
     end
+  end
+
+  defp map_db_stage(si) do
+    %{
+      name: si.name,
+      counter: si.counter,
+      state: si.state,
+      result: si.result,
+      duration: stage_duration(si),
+      created_time: si.created_time,
+      clean_working_dir: si.clean_working_dir,
+      fetch_materials: si.fetch_materials,
+      approval_type: si.approval_type,
+      jobs: map_db_jobs(si.job_instances || [])
+    }
+  end
+
+  defp map_db_jobs(job_instances) do
+    Enum.map(job_instances, fn ji ->
+      %{
+        name: ji.name,
+        state: ji.state,
+        result: ji.result,
+        agent_uuid: ji.agent_uuid,
+        duration: job_duration(ji),
+        build_id: ji.id
+      }
+    end)
   end
 
   defp job_duration(ji) do

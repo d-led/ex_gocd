@@ -2,7 +2,7 @@ defmodule ExGoCDWeb.PipelineConfigLive do
   use ExGoCDWeb, :live_view
 
   alias ExGoCD.Pipelines
-  alias ExGoCD.Pipelines.{Stage, Job, Task, Material}
+  alias ExGoCD.Pipelines.{Job, Material, Stage, Task}
   alias ExGoCD.Repo
 
   @impl true
@@ -33,36 +33,8 @@ defmodule ExGoCDWeb.PipelineConfigLive do
   def handle_params(params, _url, socket) do
     sub_path = params["sub_path"] || ["general"]
     pipeline = socket.assigns.pipeline
-
-    # Resolve view mode based on sub-path
-    {view_mode, active_stage, active_job} =
-      case sub_path do
-        ["general"] ->
-          {:general, nil, nil}
-        ["materials"] ->
-          {:materials, nil, nil}
-        ["stages"] ->
-          {:stages, nil, nil}
-        ["stages", stage_name, "settings"] ->
-          stage = Enum.find(pipeline.stages || [], & &1.name == stage_name)
-          {:stage_settings, stage, nil}
-        ["stages", stage_name, "jobs"] ->
-          stage = Enum.find(pipeline.stages || [], & &1.name == stage_name)
-          {:stage_jobs, stage, nil}
-        ["stages", stage_name, "jobs", job_name, "settings"] ->
-          stage = Enum.find(pipeline.stages || [], & &1.name == stage_name)
-          job = if stage, do: Enum.find(stage.jobs || [], & &1.name == job_name)
-          {:job_settings, stage, job}
-        ["stages", stage_name, "jobs", job_name, "tasks"] ->
-          stage = Enum.find(pipeline.stages || [], & &1.name == stage_name)
-          job = if stage, do: Enum.find(stage.jobs || [], & &1.name == job_name)
-          {:job_tasks, stage, job}
-        _ ->
-          {:general, nil, nil}
-      end
-
-    # Preload materials for display
     pipeline_with_materials = Repo.preload(pipeline, :materials)
+    {view_mode, active_stage, active_job} = view_mode_from_path(sub_path, pipeline)
 
     {:noreply,
      socket
@@ -72,6 +44,36 @@ defmodule ExGoCDWeb.PipelineConfigLive do
      |> assign(:active_stage, active_stage)
      |> assign(:active_job, active_job)
      |> assign(:page_title, "Edit Pipeline #{pipeline.name} - GoCD")}
+  end
+
+  defp view_mode_from_path(sub_path, pipeline) do
+    case sub_path do
+      ["general"] -> {:general, nil, nil}
+      ["materials"] -> {:materials, nil, nil}
+      ["stages"] -> {:stages, nil, nil}
+      ["stages", stage_name, "settings"] ->
+        {:stage_settings, find_stage(pipeline, stage_name), nil}
+      ["stages", stage_name, "jobs"] ->
+        {:stage_jobs, find_stage(pipeline, stage_name), nil}
+      ["stages", stage_name, "jobs", job_name, "settings"] ->
+        stage = find_stage(pipeline, stage_name)
+        {:job_settings, stage, find_job(stage, job_name)}
+      ["stages", stage_name, "jobs", job_name, "tasks"] ->
+        stage = find_stage(pipeline, stage_name)
+        {:job_tasks, stage, find_job(stage, job_name)}
+      _ ->
+        {:general, nil, nil}
+    end
+  end
+
+  defp find_stage(pipeline, stage_name) do
+    Enum.find(pipeline.stages || [], & &1.name == stage_name)
+  end
+
+  defp find_job(nil, _job_name), do: nil
+
+  defp find_job(stage, job_name) do
+    Enum.find(stage.jobs || [], & &1.name == job_name)
   end
 
   @impl true
@@ -647,7 +649,11 @@ defmodule ExGoCDWeb.PipelineConfigLive do
     label_template = params["label_template"]
     lock_behavior = params["lock_behavior"]
     pipeline = socket.assigns.pipeline
-    case Pipelines.update_pipeline(pipeline, %{group: group, label_template: label_template, lock_behavior: lock_behavior}) do
+    case Pipelines.update_pipeline(pipeline, %{
+      group: group,
+      label_template: label_template,
+      lock_behavior: lock_behavior
+    }) do
       {:ok, updated} ->
         {:noreply,
          socket
@@ -691,7 +697,11 @@ defmodule ExGoCDWeb.PipelineConfigLive do
     run_on_all_agents_bool = run_on_all_agents == "true"
     job = socket.assigns.active_job
 
-    case Pipelines.update_job(job, %{name: name, resources: resources_list, run_on_all_agents: run_on_all_agents_bool}) do
+    case Pipelines.update_job(job, %{
+      name: name,
+      resources: resources_list,
+      run_on_all_agents: run_on_all_agents_bool
+    }) do
       {:ok, _updated} ->
         pipeline = Pipelines.get_pipeline_by_name!(socket.assigns.pipeline.name)
         {:noreply,

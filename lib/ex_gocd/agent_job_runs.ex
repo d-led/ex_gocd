@@ -51,8 +51,12 @@ defmodule ExGoCD.AgentJobRuns do
     pipeline_counter = Keyword.get(opts, :pipeline_counter, 1)
     stage_counter = Keyword.get(opts, :stage_counter, 1)
 
-    # Only link to job_instance if it exists (avoids FK violation when e.g. pipeline test rolled back but queue persists)
-    job_instance_id = if job_instance_id && Repo.get(ExGoCD.Pipelines.JobInstance, job_instance_id), do: job_instance_id, else: nil
+    # Only link to job_instance if it exists
+    # (avoids FK violation when e.g. pipeline test rolled back but queue persists)
+    job_instance_id =
+      if job_instance_id && Repo.get(ExGoCD.Pipelines.JobInstance, job_instance_id),
+        do: job_instance_id,
+        else: nil
     case Agents.get_agent_by_uuid(agent_uuid) do
       nil -> {:error, :agent_not_found}
       _agent ->
@@ -91,19 +95,25 @@ defmodule ExGoCD.AgentJobRuns do
     if run do
       attrs = %{state: job_state}
       attrs = if result, do: Map.put(attrs, :result, result), else: attrs
+
       case run |> AgentJobRun.changeset(attrs) |> Repo.update() do
         {:ok, updated} ->
           broadcast_job_runs(agent_uuid, :run_updated)
           broadcast_run_updated_for_console(build_id, updated)
-          if updated.job_instance_id && job_state == "Completed" && result do
-            ExGoCD.Pipelines.complete_job_instance(updated.job_instance_id, result)
-          end
+          maybe_complete_job_instance(updated, job_state, result)
           {:ok, updated}
+
         error ->
           error
       end
     else
       {:error, :run_not_found}
+    end
+  end
+
+  defp maybe_complete_job_instance(updated, job_state, result) do
+    if updated.job_instance_id && job_state == "Completed" && result do
+      ExGoCD.Pipelines.complete_job_instance(updated.job_instance_id, result)
     end
   end
 

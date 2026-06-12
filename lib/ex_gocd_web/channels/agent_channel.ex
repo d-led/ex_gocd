@@ -157,22 +157,19 @@ defmodule ExGoCDWeb.AgentChannel do
 
   @impl true
   def terminate(_reason, socket) do
-    # When the agent WebSocket disconnects (process exits), Presence auto-removes the agent.
-    # To prevent race conditions during reconnect, only mark as lost contact
-    # if there are no other active channels for this agent.
+    # When the agent WebSocket disconnects, Presence auto-removes the agent.
+    # Only mark as lost contact if no other active channels remain for this agent.
     if uuid = socket.assigns[:agent_uuid] do
-      active_connections =
-        case ExGoCDWeb.AgentPresence.list("agent")[uuid] do
-          nil -> []
-          %{metas: list} ->
-            # Filter out this process
-            Enum.reject(list, fn meta -> meta[:pid] == inspect(self()) end)
-        end
-
-      if Enum.empty?(active_connections) do
-        Agents.mark_lost_contact(uuid)
-      end
+      if Enum.empty?(active_agent_connections(uuid)), do: Agents.mark_lost_contact(uuid)
     end
+
     :ok
+  end
+
+  defp active_agent_connections(uuid) do
+    case ExGoCDWeb.AgentPresence.list("agent")[uuid] do
+      nil -> []
+      %{metas: list} -> Enum.reject(list, &(&1[:pid] == inspect(self())))
+    end
   end
 end

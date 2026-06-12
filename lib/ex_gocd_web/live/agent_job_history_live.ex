@@ -196,16 +196,19 @@ defmodule ExGoCDWeb.AgentJobHistoryLive do
 
   # Ad hoc test jobs (Run test job) have no real pipeline; only link when we have a real pipeline.
   defp linkable_job?(job) do
-    if System.get_env("USE_MOCK_DATA") == "true" do
-      false
-    else
-      real_pipeline? = job.pipeline_name && job.pipeline_name != "" &&
-        job.pipeline_name != "unknown" && job.pipeline_name != "test-pipeline"
-      real_stage? = job.stage_name && job.stage_name != "" &&
-        job.stage_name != "unknown" && job.stage_name != "test-stage"
-      real_job? = job.job_name && job.job_name != "" && job.job_name != "unknown"
-      real_pipeline? && real_stage? && real_job?
-    end
+    not use_mock?() and real_pipeline?(job) and real_stage?(job) and real_job?(job)
+  end
+
+  defp real_pipeline?(job) do
+    job.pipeline_name not in [nil, "", "unknown", "test-pipeline"]
+  end
+
+  defp real_stage?(job) do
+    job.stage_name not in [nil, "", "unknown", "test-stage"]
+  end
+
+  defp real_job?(job) do
+    job.job_name not in [nil, "", "unknown"]
   end
 
   # Show "—" for pipeline/stage when it's an ad hoc test job (no pipeline in the system).

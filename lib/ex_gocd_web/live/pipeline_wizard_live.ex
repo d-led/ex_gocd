@@ -2,7 +2,7 @@ defmodule ExGoCDWeb.PipelineWizardLive do
   use ExGoCDWeb, :live_view
 
   alias ExGoCD.Pipelines
-  alias ExGoCD.Pipelines.{Pipeline, Stage, Job, Task, Material}
+  alias ExGoCD.Pipelines.{Job, Material, Pipeline, Stage, Task}
   alias ExGoCD.Repo
 
   @impl true
@@ -338,27 +338,35 @@ defmodule ExGoCDWeb.PipelineWizardLive do
     errors = validate_current_step(socket.assigns.step, form)
 
     if Enum.empty?(errors) do
-      if socket.assigns.step < 4 do
-        {:noreply,
-         socket
-         |> assign(:form, form)
-         |> assign(:step, socket.assigns.step + 1)
-         |> assign(:errors, %{})
-         |> assign(:connection_status, nil)}
-      else
-        # Finish & Save to database
-        case save_pipeline(form) do
-          {:ok, _pipeline} ->
-            {:noreply,
-             socket
-             |> put_flash(:info, "Pipeline '#{form["name"]}' created successfully.")
-             |> push_navigate(to: "/admin/pipelines")}
-          {:error, db_errors} ->
-            {:noreply, assign(socket, :errors, db_errors)}
-        end
-      end
+      advance_wizard(socket, form)
     else
       {:noreply, assign(socket, :errors, errors)}
+    end
+  end
+
+  defp advance_wizard(socket, form) do
+    if socket.assigns.step < 4 do
+      {:noreply,
+       socket
+       |> assign(:form, form)
+       |> assign(:step, socket.assigns.step + 1)
+       |> assign(:errors, %{})
+       |> assign(:connection_status, nil)}
+    else
+      finish_pipeline(socket, form)
+    end
+  end
+
+  defp finish_pipeline(socket, form) do
+    case save_pipeline(form) do
+      {:ok, _pipeline} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "Pipeline '#{form["name"]}' created successfully.")
+         |> push_navigate(to: "/admin/pipelines")}
+
+      {:error, db_errors} ->
+        {:noreply, assign(socket, :errors, db_errors)}
     end
   end
 
@@ -414,7 +422,7 @@ defmodule ExGoCDWeb.PipelineWizardLive do
     if stage_name == "" do
       Map.put(errors, "stage_name", "Stage Name is required")
     else
-      if !Regex.match?(~r/^[a-zA-Z0-9_\-\.]+$/, stage_name) do
+      unless Regex.match?(~r/^[a-zA-Z0-9_\-\.]+$/, stage_name) do
         Map.put(errors, "stage_name", "Name must contain only letters, numbers, hyphens, underscores, and periods")
       else
         errors
@@ -431,7 +439,7 @@ defmodule ExGoCDWeb.PipelineWizardLive do
       if job_name == "" do
         Map.put(errors, "job_name", "Job Name is required")
       else
-        if !Regex.match?(~r/^[a-zA-Z0-9_\-\.]+$/, job_name) do
+        unless Regex.match?(~r/^[a-zA-Z0-9_\-\.]+$/, job_name) do
           Map.put(errors, "job_name", "Name must contain only letters, numbers, hyphens, underscores, and periods")
         else
           errors
