@@ -23,6 +23,12 @@ defmodule ExGoCDWeb.Router do
     plug :put_secure_browser_headers
   end
 
+  pipeline :agent_remoting do
+    plug :accepts, ["html", "json"]
+    plug :fetch_session
+    plug :put_secure_browser_headers
+  end
+
   pipeline :files_api do
     # Simple pipeline for raw file transfer without content negotiation or session dependencies
   end
@@ -78,7 +84,7 @@ defmodule ExGoCDWeb.Router do
 
   # Original GoCD agent registration endpoints (backward compatibility)
   scope "/admin", ExGoCDWeb do
-    pipe_through :form
+    pipe_through :agent_remoting
 
     # Agent registration endpoints matching original GoCD API
     post "/agent", AdminAgentController, :register

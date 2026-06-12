@@ -320,7 +320,6 @@ defmodule ExGoCD.Scheduler do
   defp build_command_from_job_instance(ji) do
     stage_instance = ji.stage_instance
     pipeline_instance = stage_instance.pipeline_instance
-    pipeline = pipeline_instance.pipeline
     job_config = ji.job
 
     # 1. Start with SCM checkout if stage_instance.fetch_materials is true
