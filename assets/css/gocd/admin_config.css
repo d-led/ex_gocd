@@ -1,0 +1,55 @@
+/* GoCD Admin Configuration & Pipeline Wizard Styles */
+
+.admin-page-wrapper input:focus,
+.admin-page-wrapper select:focus,
+.admin-page-wrapper textarea:focus {
+  outline: 2px solid #943a9e;
+  outline-offset: 1px;
+  border-color: #943a9e;
+}
+
+/* Custom Step Items in Wizard */
+.step-item-active {
+  color: #943a9e;
+  font-weight: bold;
+}
+
+/* Custom Table headers and cells inside admin configuration panels */
+.admin-page-wrapper table th {
+  letter-spacing: 0.05em;
+  font-size: 10px;
+  color: #647984;
+}
+
+.admin-page-wrapper table tbody tr {
+  transition: background-color 0.15s ease;
+}
+
+/* Nav Link Hover States */
+.admin-page-wrapper nav a:hover {
+  background-color: #f4f8f9;
+  color: #333;
+}
+
+/* Modals layer scroll and container styles */
+.modal-overlay {
+  background-color: rgba(0, 0, 0, 0.4);
+  transition: opacity 0.2s ease-in-out;
+}
+
+/* Custom radio and checkbox styling for GoCD theme */
+.admin-page-wrapper .radio:checked {
+  background-color: #943a9e;
+  border-color: #943a9e;
+}
+
+.admin-page-wrapper .checkbox:checked {
+  background-color: #943a9e;
+  border-color: #943a9e;
+}
+
+/* Left sidebar nested stage list */
+.admin-page-wrapper ul ul {
+  padding-left: 1rem;
+  margin-top: 0.25rem;
+}

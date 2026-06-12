@@ -9,6 +9,11 @@ defmodule ExGoCD.SchedulerTest do
   @uuid "550e8400-e29b-41d4-a716-446655440000"
   @uuid_b "660e8400-e29b-41d4-a716-446655440001"
 
+  setup do
+    wait_for_scheduler()
+    :ok
+  end
+
   describe "schedule_job/1" do
     test "enqueues a job and returns id" do
       assert {:ok, id} = Scheduler.schedule_job(%{})
@@ -213,6 +218,21 @@ defmodule ExGoCD.SchedulerTest do
       # Scheduler state is process-wide; in async: false we share with other tests
       count = Scheduler.pending_count()
       assert is_integer(count) and count >= 0
+    end
+  end
+
+  defp wait_for_scheduler do
+    case Process.whereis(ExGoCD.Scheduler) do
+      nil ->
+        Process.sleep(10)
+        wait_for_scheduler()
+      pid ->
+        if Process.alive?(pid) do
+          :ok
+        else
+          Process.sleep(10)
+          wait_for_scheduler()
+        end
     end
   end
 end

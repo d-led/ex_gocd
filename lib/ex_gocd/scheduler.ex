@@ -86,23 +86,25 @@ defmodule ExGoCD.Scheduler do
       not Map.has_key?(AgentPresence.list(@presence_topic), agent_uuid) ->
         {:reply, :agent_not_connected, state}
 
-      is_nil(Agents.get_agent_by_uuid(agent_uuid)) ->
-        {:reply, :agent_not_found, state}
-
       true ->
-        agent = Agents.get_agent_by_uuid(agent_uuid)
-        if agent.state != "Idle" do
-          {:reply, :agent_busy, state}
-        else
-          case find_matching_job(agent, queue) do
-            nil ->
-              {:reply, :no_work, state}
+        case Agents.get_agent_by_uuid(agent_uuid) do
+          nil ->
+            {:reply, :agent_not_found, state}
 
-            {job_spec, rest} ->
-              assign_and_send(agent_uuid, agent, job_spec)
-              broadcast_pending_count(length(rest))
-              {:reply, :assigned, %{state | queue: rest}}
-          end
+          agent ->
+            if agent.state != "Idle" do
+              {:reply, :agent_busy, state}
+            else
+              case find_matching_job(agent, queue) do
+                nil ->
+                  {:reply, :no_work, state}
+
+                {job_spec, rest} ->
+                  assign_and_send(agent_uuid, agent, job_spec)
+                  broadcast_pending_count(length(rest))
+                  {:reply, :assigned, %{state | queue: rest}}
+              end
+            end
         end
     end
   end

@@ -6,26 +6,12 @@ defmodule ExGoCDWeb.AdminLive do
   """
   use ExGoCDWeb, :live_view
 
+  alias ExGoCD.Pipelines
+
   @impl true
   def mount(_params, _session, socket) do
-    # Initial mock data
-    pipeline_groups = [
-      %{
-        name: "defaultGroup",
-        pipelines: [
-          %{name: "build-linux", instances: 144, status: "Passed", template: "None"},
-          %{name: "deploy-staging", instances: 42, status: "Passed", template: "deploy-template"},
-          %{name: "deploy-production", instances: 18, status: "Failed", template: "deploy-template"}
-        ]
-      },
-      %{
-        name: "testGroup",
-        pipelines: [
-          %{name: "demo-app", instances: 95, status: "Passed", template: "None"},
-          %{name: "e2e-tests", instances: 54, status: "Passed", template: "test-runner-template"}
-        ]
-      }
-    ]
+    empty_groups = []
+    pipeline_groups = fetch_pipeline_groups(empty_groups)
 
     environments = [
       %{name: "staging", pipelines: ["deploy-staging", "demo-app"], agents: 2},
@@ -56,6 +42,7 @@ defmodule ExGoCDWeb.AdminLive do
 
     {:ok,
      socket
+     |> assign(:empty_groups, empty_groups)
      |> assign(:pipeline_groups, pipeline_groups)
      |> assign(:filtered_groups, pipeline_groups)
      |> assign(:environments, environments)
@@ -70,6 +57,34 @@ defmodule ExGoCDWeb.AdminLive do
      |> assign(:show_create_modal, false)
      |> assign(:flash_info, nil)
      |> assign(:current_path, "/admin")}
+  end
+
+  defp fetch_pipeline_groups(empty_groups) do
+    db_pipelines = Pipelines.list_pipelines()
+
+    db_groups =
+      db_pipelines
+      |> Enum.group_by(fn p -> p.group || "defaultGroup" end)
+      |> Enum.map(fn {group_name, pipelines} ->
+        %{
+          name: group_name,
+          pipelines: pipelines
+        }
+      end)
+
+    db_group_names = MapSet.new(db_groups, & &1.name)
+    merged_empty =
+      empty_groups
+      |> Enum.reject(&MapSet.member?(db_group_names, &1))
+      |> Enum.map(fn name -> %{name: name, pipelines: []} end)
+
+    result = db_groups ++ merged_empty
+
+    if Enum.empty?(result) do
+      [%{name: "defaultGroup", pipelines: []}]
+    else
+      result
+    end
   end
 
   @impl true
@@ -394,9 +409,9 @@ defmodule ExGoCDWeb.AdminLive do
                       <a href={"/pipeline/activity/#{pipe.name}"} class="w-7 h-7 border border-[#d6e0e2] bg-white text-[#943a9e] rounded hover:bg-slate-50 flex items-center justify-center text-[13px]" title="Activity">
                         <i class="fa fa-chart-line"></i>
                       </a>
-                      <button class="w-7 h-7 border border-[#d6e0e2] bg-white text-slate-500 rounded hover:bg-slate-50 flex items-center justify-center text-[13px]" title="Edit pipeline">
+                      <a href={"/go/admin/pipelines/#{pipe.name}/edit/general"} class="w-7 h-7 border border-[#d6e0e2] bg-white text-slate-500 rounded hover:bg-slate-50 flex items-center justify-center text-[13px]" title="Edit pipeline">
                         <i class="fa fa-pencil"></i>
-                      </button>
+                      </a>
                       <button class="w-7 h-7 border border-[#d6e0e2] bg-white text-slate-500 rounded hover:bg-slate-50 flex items-center justify-center text-[13px]" title="Move pipeline">
                         <i class="fa fa-arrow-right"></i>
                       </button>
@@ -406,7 +421,7 @@ defmodule ExGoCDWeb.AdminLive do
                       <button class="w-7 h-7 border border-[#d6e0e2] bg-white text-slate-500 rounded hover:bg-slate-50 flex items-center justify-center text-[13px]" title="Clone pipeline">
                         <i class="fa fa-clone"></i>
                       </button>
-                      <button phx-click="delete_pipeline" phx-value-group={group.name} phx-value-name={pipe.name} class="w-7 h-7 border border-[#d6e0e2] bg-white text-rose-500 rounded hover:bg-slate-50 flex items-center justify-center text-[13px]" title="Delete pipeline">
+                      <button phx-click="delete_pipeline" phx-value-name={pipe.name} data-confirm="Are you sure you want to delete this pipeline?" class="w-7 h-7 border border-[#d6e0e2] bg-white text-rose-500 rounded hover:bg-slate-50 flex items-center justify-center text-[13px]" title="Delete pipeline">
                         <i class="fa fa-trash-can"></i>
                       </button>
                       <button class="w-7 h-7 border border-[#d6e0e2] bg-white text-slate-500 rounded hover:bg-slate-50 flex items-center justify-center text-[13px]" title="Extract template">
@@ -696,13 +711,14 @@ defmodule ExGoCDWeb.AdminLive do
         {:noreply, assign(socket, :flash_info, "Pipeline group '#{cleaned}' already exists.")}
 
       true ->
-        new_group = %{name: cleaned, pipelines: []}
-        updated_groups = socket.assigns.pipeline_groups ++ [new_group]
+        empty_groups = [cleaned | socket.assigns.empty_groups]
+        groups = fetch_pipeline_groups(empty_groups)
         
         {:noreply, 
          socket 
-         |> assign(:pipeline_groups, updated_groups)
-         |> assign(:filtered_groups, updated_groups)
+         |> assign(:empty_groups, empty_groups)
+         |> assign(:pipeline_groups, groups)
+         |> assign(:filtered_groups, groups)
          |> assign(:new_group_name, "")
          |> assign(:show_create_modal, false)
          |> assign(:flash_info, "Pipeline group '#{cleaned}' created successfully.")}
@@ -711,50 +727,43 @@ defmodule ExGoCDWeb.AdminLive do
 
   @impl true
   def handle_event("delete_pipeline_group", %{"name" => name}, socket) do
-    updated = Enum.reject(socket.assigns.pipeline_groups, &(&1.name == name))
+    group = Enum.find(socket.assigns.pipeline_groups, &(&1.name == name))
+    
+    if group do
+      Enum.each(group.pipelines, fn pipe ->
+        Pipelines.delete_pipeline_by_name(pipe.name)
+      end)
+    end
+    
+    empty_groups = Enum.reject(socket.assigns.empty_groups, &(&1 == name))
+    groups = fetch_pipeline_groups(empty_groups)
     
     {:noreply,
      socket
-     |> assign(:pipeline_groups, updated)
-     |> assign(:filtered_groups, updated)
+     |> assign(:empty_groups, empty_groups)
+     |> assign(:pipeline_groups, groups)
+     |> assign(:filtered_groups, groups)
      |> assign(:flash_info, "Pipeline group '#{name}' was deleted.")}
   end
 
   @impl true
-  def handle_event("delete_pipeline", %{"group" => group_name, "name" => name}, socket) do
-    updated = Enum.map(socket.assigns.pipeline_groups, fn group ->
-      if group.name == group_name do
-        %{group | pipelines: Enum.reject(group.pipelines, &(&1.name == name))}
-      else
-        group
-      end
-    end)
-
-    {:noreply,
-     socket
-     |> assign(:pipeline_groups, updated)
-     |> assign(:filtered_groups, updated)
-     |> assign(:flash_info, "Pipeline '#{name}' was deleted.")}
+  def handle_event("delete_pipeline", %{"name" => name}, socket) do
+    case Pipelines.delete_pipeline_by_name(name) do
+      {:ok, _} ->
+        groups = fetch_pipeline_groups(socket.assigns.empty_groups)
+        {:noreply,
+         socket
+         |> assign(:pipeline_groups, groups)
+         |> assign(:filtered_groups, groups)
+         |> assign(:flash_info, "Pipeline '#{name}' was deleted.")}
+      {:error, _reason} ->
+        {:noreply, assign(socket, :flash_info, "Failed to delete pipeline '#{name}'.")}
+    end
   end
 
   @impl true
   def handle_event("add_pipeline_to_group", %{"group" => group_name}, socket) do
-    # Add a new mock pipeline to the group
-    new_pipe = %{name: "new-pipeline-#{System.unique_integer([:positive])}", instances: 0, status: "Passed", template: "None"}
-    
-    updated = Enum.map(socket.assigns.pipeline_groups, fn group ->
-      if group.name == group_name do
-        %{group | pipelines: group.pipelines ++ [new_pipe]}
-      else
-        group
-      end
-    end)
-
-    {:noreply,
-     socket
-     |> assign(:pipeline_groups, updated)
-     |> assign(:filtered_groups, updated)
-     |> assign(:flash_info, "Pipeline '#{new_pipe.name}' added to '#{group_name}'.")}
+    {:noreply, push_navigate(socket, to: "/go/admin/pipelines/new?group=#{group_name}")}
   end
 
   # --- Message Handlers ---

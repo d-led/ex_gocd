@@ -16,7 +16,11 @@ defmodule ExGoCD.Pipelines do
     Pipeline,
     PipelineInstance,
     StageInstance,
-    JobInstance
+    JobInstance,
+    Stage,
+    Job,
+    Task,
+    Material
   }
 
   @doc """
@@ -25,7 +29,7 @@ defmodule ExGoCD.Pipelines do
   def list_pipelines do
     Pipeline
     |> Repo.all()
-    |> Repo.preload([stages: [jobs: :tasks]])
+    |> Repo.preload([:materials, stages: [jobs: :tasks]])
   end
 
   @doc """
@@ -36,7 +40,7 @@ defmodule ExGoCD.Pipelines do
     |> Repo.get_by(name: name)
     |> case do
       nil -> nil
-      p -> Repo.preload(p, [stages: [jobs: :tasks]])
+      p -> Repo.preload(p, [:materials, stages: [jobs: :tasks]])
     end
   end
 
@@ -46,7 +50,7 @@ defmodule ExGoCD.Pipelines do
   def get_pipeline_by_name!(name) when is_binary(name) do
     Pipeline
     |> Repo.get_by!(name: name)
-    |> Repo.preload([stages: [jobs: :tasks]])
+    |> Repo.preload([:materials, stages: [jobs: :tasks]])
   end
 
   @doc """
@@ -330,8 +334,174 @@ defmodule ExGoCD.Pipelines do
   Lists all SCM materials config from database with preloaded pipelines.
   """
   def list_materials do
-    ExGoCD.Pipelines.Material
+    Material
     |> Repo.all()
     |> Repo.preload(:pipelines)
+  end
+
+  @doc """
+  Creates a pipeline config in the DB.
+  """
+  def create_pipeline(attrs) do
+    %Pipeline{}
+    |> Pipeline.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  @doc """
+  Updates a pipeline config.
+  """
+  def update_pipeline(%Pipeline{} = pipeline, attrs) do
+    pipeline
+    |> Pipeline.changeset(attrs)
+    |> Repo.update()
+  end
+
+  @doc """
+  Deletes a pipeline config.
+  """
+  def delete_pipeline(%Pipeline{} = pipeline) do
+    Repo.delete(pipeline)
+  end
+
+  @doc """
+  Deletes a pipeline config by its name.
+  """
+  def delete_pipeline_by_name(name) when is_binary(name) do
+    case get_pipeline_by_name(name) do
+      nil -> {:error, :not_found}
+      pipeline -> Repo.delete(pipeline)
+    end
+  end
+
+  @doc """
+  Creates a stage config.
+  """
+  def create_stage(attrs) do
+    %Stage{}
+    |> Stage.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  @doc """
+  Updates a stage config.
+  """
+  def update_stage(%Stage{} = stage, attrs) do
+    stage
+    |> Stage.changeset(attrs)
+    |> Repo.update()
+  end
+
+  @doc """
+  Deletes a stage config.
+  """
+  def delete_stage(%Stage{} = stage) do
+    Repo.delete(stage)
+  end
+
+  @doc """
+  Gets a stage config by id.
+  """
+  def get_stage(id) when is_integer(id) or is_binary(id), do: Repo.get(Stage, id)
+
+  @doc """
+  Creates a job config.
+  """
+  def create_job(attrs) do
+    %Job{}
+    |> Job.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  @doc """
+  Updates a job config.
+  """
+  def update_job(%Job{} = job, attrs) do
+    job
+    |> Job.changeset(attrs)
+    |> Repo.update()
+  end
+
+  @doc """
+  Deletes a job config.
+  """
+  def delete_job(%Job{} = job) do
+    Repo.delete(job)
+  end
+
+  @doc """
+  Gets a job config by id.
+  """
+  def get_job(id) when is_integer(id) or is_binary(id), do: Repo.get(Job, id) |> Repo.preload(:tasks)
+
+  @doc """
+  Creates a task config.
+  """
+  def create_task(attrs) do
+    %Task{}
+    |> Task.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  @doc """
+  Updates a task config.
+  """
+  def update_task(%Task{} = task, attrs) do
+    task
+    |> Task.changeset(attrs)
+    |> Repo.update()
+  end
+
+  @doc """
+  Deletes a task config.
+  """
+  def delete_task(%Task{} = task) do
+    Repo.delete(task)
+  end
+
+  @doc """
+  Gets a task config by id.
+  """
+  def get_task(id) when is_integer(id) or is_binary(id), do: Repo.get(Task, id)
+
+  @doc """
+  Adds/associates a material configuration with a pipeline.
+  """
+  def add_material_to_pipeline(%Pipeline{} = pipeline, %Material{} = material) do
+    pipeline = Repo.preload(pipeline, :materials)
+    unless Enum.any?(pipeline.materials, &(&1.id == material.id)) do
+      pipeline
+      |> Ecto.Changeset.change()
+      |> Ecto.Changeset.put_assoc(:materials, [material | pipeline.materials])
+      |> Repo.update()
+    else
+      {:ok, pipeline}
+    end
+  end
+
+  @doc """
+  Creates a material and links it to a pipeline.
+  """
+  def create_material_for_pipeline(%Pipeline{} = pipeline, material_attrs) do
+    Repo.transaction(fn ->
+      string_attrs = Map.new(material_attrs, fn {k, v} -> {to_string(k), v} end)
+      url = string_attrs["url"]
+      type = string_attrs["type"]
+      
+      material =
+        case Repo.get_by(Material, type: type, url: url) do
+          nil ->
+            %Material{}
+            |> Material.changeset(string_attrs)
+            |> Repo.insert!()
+          m ->
+            m
+            |> Material.changeset(string_attrs)
+            |> Repo.update!()
+        end
+
+      {:ok, _} = add_material_to_pipeline(pipeline, material)
+      material
+    end)
   end
 end

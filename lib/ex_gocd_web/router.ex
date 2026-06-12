@@ -64,6 +64,12 @@ defmodule ExGoCDWeb.Router do
       live "/go/admin/config/server", AdminLive, :index
       live "/go/admin/security/auth_configs", AdminLive, :index
       live "/go/admin/security/roles", AdminLive, :index
+
+      # Pipeline configuration and wizard routes
+      live "/admin/pipelines/new", PipelineWizardLive, :new
+      live "/go/admin/pipelines/new", PipelineWizardLive, :new
+      live "/admin/pipelines/:pipeline_name/edit/*sub_path", PipelineConfigLive, :edit
+      live "/go/admin/pipelines/:pipeline_name/edit/*sub_path", PipelineConfigLive, :edit
     end
   end
 

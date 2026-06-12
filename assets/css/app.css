@@ -110,6 +110,7 @@
 @import "./gocd/dashboard.css";
 @import "./gocd/agents.css";
 @import "./gocd/materials.css";
+@import "./gocd/admin_config.css";
 @import "./agent_job_history.css";
 
 /* GoCD global styles */

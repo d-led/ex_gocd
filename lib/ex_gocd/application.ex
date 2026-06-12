@@ -17,6 +17,7 @@ defmodule ExGoCD.Application do
       ExGoCDWeb.AgentPresence,
       ExGoCD.Scheduler,
       ExGoCD.AgentRegistry,
+      ExGoCD.TestAgentSupervisor,
       ExGoCDWeb.Endpoint
     ]
 

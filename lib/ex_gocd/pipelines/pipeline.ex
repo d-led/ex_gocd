@@ -44,7 +44,7 @@ defmodule ExGoCD.Pipelines.Pipeline do
     field :display_order_weight, :integer, default: -1
 
     has_many :stages, Stage, on_delete: :delete_all
-    many_to_many :materials, Material, join_through: "pipelines_materials", on_delete: :delete_all
+    many_to_many :materials, Material, join_through: "pipelines_materials", on_delete: :delete_all, on_replace: :delete
     has_many :instances, PipelineInstance, on_delete: :delete_all
 
     timestamps(type: :utc_datetime)

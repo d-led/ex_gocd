@@ -3,6 +3,20 @@ defmodule ExGoCDWeb.AdminLiveTest do
 
   import Phoenix.LiveViewTest
 
+  setup do
+    alias ExGoCD.Repo
+    alias ExGoCD.Pipelines.Pipeline
+
+    # Clean sandbox insert
+    Repo.insert!(%Pipeline{name: "build-linux", group: "defaultGroup", label_template: "${COUNT}"})
+    Repo.insert!(%Pipeline{name: "deploy-staging", group: "defaultGroup", label_template: "${COUNT}"})
+    Repo.insert!(%Pipeline{name: "deploy-production", group: "defaultGroup", label_template: "${COUNT}"})
+    Repo.insert!(%Pipeline{name: "demo-app", group: "testGroup", label_template: "${COUNT}"})
+    Repo.insert!(%Pipeline{name: "e2e-tests", group: "testGroup", label_template: "${COUNT}"})
+
+    :ok
+  end
+
   describe "Admin Dashboard Page" do
     test "mounts and displays default overview tab", %{conn: conn} do
       {:ok, view, html} = live(conn, ~p"/admin")
