@@ -8,7 +8,7 @@ defmodule ExGoCD.PipelinesTest do
 
   import Ecto.Query
   alias ExGoCD.Pipelines
-  alias ExGoCD.Pipelines.{Job, JobInstance, Pipeline, Stage, Task, StageInstance, PipelineInstance}
+  alias ExGoCD.Pipelines.{Job, JobInstance, Pipeline, Stage, Task, StageInstance}
   alias ExGoCD.Repo
   alias ExGoCD.Scheduler
 
@@ -81,6 +81,42 @@ defmodule ExGoCD.PipelinesTest do
 
       [job2_instance] = from(ji in JobInstance, where: ji.stage_instance_id == ^stage2_instance.id) |> Repo.all()
       assert job2_instance.state == "Scheduled"
+      assert Scheduler.pending_count() == 1
+    end
+  end
+
+  describe "rerun_stage/4" do
+    test "rerun schedules jobs and increments stage counter" do
+      {pipeline, stage, _jobs} = insert_pipeline_with_jobs("rerun-all", 2)
+
+      # Trigger first run
+      assert {:ok, instance} = Pipelines.trigger_pipeline(pipeline.name)
+      [stage_instance] = from(si in StageInstance, where: si.pipeline_instance_id == ^instance.id) |> Repo.all()
+      assert stage_instance.counter == 1
+      assert stage_instance.latest_run == true
+
+      # Mark first job as completed and second job as failed
+      [job1, job2] = from(ji in JobInstance, where: ji.stage_instance_id == ^stage_instance.id) |> Repo.all()
+      assert :ok = Pipelines.complete_job_instance(job1.id, "Passed")
+      assert :ok = Pipelines.complete_job_instance(job2.id, "Failed")
+
+      # Clear the scheduler queue before testing rerun
+      Scheduler.clear_queue()
+
+      # Rerun failed jobs
+      assert {:ok, new_stage} = Pipelines.rerun_stage(pipeline.name, instance.counter, stage.name, :failed)
+      assert new_stage.counter == 2
+      assert new_stage.latest_run == true
+      assert new_stage.rerun_of_counter == 1
+
+      # Check that original stage_instance now has latest_run == false
+      prev_stage = Repo.get!(StageInstance, stage_instance.id)
+      refute prev_stage.latest_run
+
+      # Check that only failed job was scheduled (which is job-2)
+      [new_job] = from(ji in JobInstance, where: ji.stage_instance_id == ^new_stage.id) |> Repo.all()
+      assert new_job.name == "job-2"
+      assert new_job.state == "Scheduled"
       assert Scheduler.pending_count() == 1
     end
   end

@@ -90,4 +90,153 @@
       <% end %>
     </div>
   <% end %>
+
+  <%= if @active_stage_summary do %>
+    <div class="stage-summary-backdrop" phx-click="close_stage_summary">
+      <div class="stage-summary-popup" phx-click-away="close_stage_summary" phx-window-keydown="close_stage_summary" phx-key="Escape">
+        <!-- Header -->
+        <div class="stage-summary-header">
+          <div class="stage-summary-title">
+            <span class="label">Pipeline</span>
+            <span class="value font-mono">{@active_stage_summary.pipeline_name}</span>
+            <span class="separator">»</span>
+            <span class="value font-mono">{@active_stage_summary.pipeline_counter}</span>
+            <span class="separator">»</span>
+            <span class="label">Stage</span>
+            <span class="value font-mono">{@active_stage_summary.stage_name}</span>
+            <span class="separator">»</span>
+            <span class="value font-mono">{@active_stage_summary.stage_counter}</span>
+          </div>
+          <div class="stage-summary-header-actions">
+            <button
+              type="button"
+              class="stage-summary-refresh-btn"
+              title="Refresh"
+              phx-click="show_stage_summary"
+              phx-value-pipeline={@active_stage_summary.pipeline_name}
+              phx-value-stage={@active_stage_summary.stage_name}
+              phx-value-counter={@active_stage_summary.pipeline_counter}
+            >
+              <i class="fa-solid fa-rotate-right"></i>
+            </button>
+            <a
+              href={"/admin/pipelines/#{@active_stage_summary.pipeline_name}/edit"}
+              class="stage-summary-settings-btn"
+              title="Pipeline Configuration"
+            >
+              <i class="fa-solid fa-gear"></i>
+            </a>
+            <button type="button" class="stage-summary-close-btn" phx-click="close_stage_summary">
+              &times;
+            </button>
+          </div>
+        </div>
+
+        <!-- Trigger Info -->
+        <div class="stage-summary-meta">
+          <div class="meta-left text-xs text-gray-500 font-sans">
+            Triggered by <span class="font-bold text-gray-700">{@active_stage_summary.triggered_by}</span>
+            on <span class="font-bold text-gray-700">{format_local_time(@active_stage_summary.created_time)}</span>
+            <span class="meta-divider mx-2 text-gray-300">|</span>
+            Duration: <span class="font-bold text-gray-700">{format_duration(@active_stage_summary.duration)}</span>
+          </div>
+          <div class="meta-right">
+            <.link navigate={~p"/pipelines/#{@active_stage_summary.pipeline_name}/#{@active_stage_summary.pipeline_counter}/#{@active_stage_summary.stage_name}/#{@active_stage_summary.stage_counter}"} class="text-[#2d6ca2] hover:underline font-bold text-xs">
+              Go to Stage Details Page
+            </.link>
+          </div>
+        </div>
+
+        <!-- Action Bar -->
+        <div class="stage-summary-actions">
+          <div class="action-buttons flex gap-2">
+            <button
+              type="button"
+              class="action-btn bg-gray-100 hover:bg-gray-200 border border-gray-300 px-3 py-1 text-xs rounded"
+              phx-click="rerun_failed_jobs"
+              disabled={@active_stage_summary.failed_count == 0}
+            >
+              Rerun Failed
+            </button>
+            <button
+              type="button"
+              class="action-btn bg-gray-100 hover:bg-gray-200 border border-gray-300 px-3 py-1 text-xs rounded"
+              phx-click="rerun_selected_jobs"
+              disabled={MapSet.size(@selected_jobs) == 0}
+            >
+              Rerun Selected
+            </button>
+          </div>
+          <div class="action-stats font-mono text-xs text-gray-600">
+            Building : <span class="stat-val font-bold text-gray-800">{@active_stage_summary.building_count}</span>
+            Passed : <span class="stat-val font-bold text-[#1bc98e]">{@active_stage_summary.passed_count}</span>
+            Failed : <span class="stat-val font-bold text-[#e64759]">{@active_stage_summary.failed_count}</span>
+          </div>
+        </div>
+
+        <!-- Jobs Table -->
+        <div class="stage-summary-table-container">
+          <table class="stage-summary-table">
+            <thead>
+              <tr>
+                <th class="col-checkbox"></th>
+                <th class="col-job-name">Job Name</th>
+                <th class="col-state">State</th>
+                <th class="col-timeline">Timeline</th>
+                <th class="col-duration">Duration</th>
+                <th class="col-agent">Agent</th>
+              </tr>
+            </thead>
+            <tbody>
+              <%= for job <- @active_stage_summary.jobs do %>
+                <tr class="hover:bg-gray-50/50">
+                  <td class="col-checkbox">
+                    <input
+                      type="checkbox"
+                      phx-click="toggle_job_selection"
+                      phx-value-job={job.name}
+                      checked={MapSet.member?(@selected_jobs, job.name)}
+                    />
+                  </td>
+                  <td class="col-job-name">
+                    <span class="flex items-center gap-1.5">
+                      <span class={"status-dot " <> String.downcase(job.result || "unknown")}></span>
+                      <span class="font-bold text-gray-800">{job.name}</span>
+                      <.link
+                        navigate={~p"/go/tab/build/detail/#{@active_stage_summary.pipeline_name}/#{@active_stage_summary.pipeline_counter}/#{@active_stage_summary.stage_name}/#{@active_stage_summary.stage_counter}/#{job.name}"}
+                        class="console-icon-link ml-1.5 inline-flex items-center"
+                        title="Job Logs / Console Output"
+                      >
+                        <i class="fa-solid fa-terminal text-[10px] text-gray-400 hover:text-gray-700"></i>
+                      </.link>
+                    </span>
+                  </td>
+                  <td class="col-state text-gray-500">
+                    {job.state}
+                  </td>
+                  <td class="col-timeline">
+                    <div class="timeline-bar-track bg-gray-100 rounded-full h-1.5 w-32 overflow-hidden">
+                      <div class={"timeline-bar h-full " <> String.downcase(job.result || "unknown")} style={"width: " <> if(job.state == "Completed", do: "100%", else: "60%")}></div>
+                    </div>
+                  </td>
+                  <td class="col-duration font-mono text-gray-500">
+                    {format_duration(job.duration)}
+                  </td>
+                  <td class="col-agent font-mono text-xs text-[#2d6ca2] hover:underline">
+                    <%= if job.agent_uuid do %>
+                      <.link navigate={~p"/agents"}>
+                        {String.slice(job.agent_uuid, 0, 8)}
+                      </.link>
+                    <% else %>
+                      —
+                    <% end %>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  <% end %>
 </div>
