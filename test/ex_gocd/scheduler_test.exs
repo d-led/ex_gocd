@@ -247,7 +247,7 @@ defmodule ExGoCD.SchedulerTest do
   end
 
   describe "artifact commands generation" do
-    alias ExGoCD.Pipelines.{Pipeline, Stage, Job, Task, PipelineInstance, StageInstance, JobInstance}
+    alias ExGoCD.Pipelines.{Job, JobInstance, Pipeline, PipelineInstance, Stage, StageInstance, Task}
     alias ExGoCD.Repo
 
     test "generates uploadArtifact command from job config" do
@@ -285,7 +285,7 @@ defmodule ExGoCD.SchedulerTest do
         job_id: job.id,
         name: job.name,
         state: "Scheduled",
-        scheduled_at: NaiveDateTime.utc_now()
+        scheduled_at: NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
       })
 
       # Load with preloads
@@ -368,7 +368,7 @@ defmodule ExGoCD.SchedulerTest do
         job_id: down_job.id,
         name: down_job.name,
         state: "Scheduled",
-        scheduled_at: NaiveDateTime.utc_now()
+        scheduled_at: NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
       })
 
       ji = Repo.get!(JobInstance, down_ji.id)
