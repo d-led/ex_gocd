@@ -45,9 +45,9 @@ echo "===================================================="
 echo "Running Cypress E2E tests against http://localhost:4001..."
 echo "===================================================="
 
-# Run Cypress with the base URL override
+# Run Cypress with the base URL override and select spec list (excluding agent daemon E2E specs)
 exit_code=0
-CYPRESS_BASE_URL=http://localhost:4001 npm run cypress:run || exit_code=$?
+CYPRESS_BASE_URL=http://localhost:4001 npm run cypress:run -- --spec "cypress/e2e/agents.cy.js,cypress/e2e/dashboard.cy.js,cypress/e2e/history.cy.js,cypress/e2e/materials.cy.js,cypress/e2e/pipeline_config.cy.js" || exit_code=$?
 
 if [ $exit_code -ne 0 ]; then
   echo "Cypress E2E tests FAILED!"

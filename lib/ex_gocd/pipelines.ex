@@ -12,6 +12,7 @@ defmodule ExGoCD.Pipelines do
   import Ecto.Query
   require Logger
   alias ExGoCD.Materials.GitClient
+  alias ExGoCD.Pipelines.CycleDetector
   alias ExGoCD.Pipelines.FanInResolver
   alias ExGoCD.Pipelines.Job
   alias ExGoCD.Pipelines.JobInstance
@@ -987,18 +988,42 @@ defmodule ExGoCD.Pipelines do
   Creates a pipeline config in the DB.
   """
   def create_pipeline(attrs) do
-    %Pipeline{}
-    |> Pipeline.changeset(attrs)
-    |> Repo.insert()
+    Repo.transaction(fn ->
+      with {:ok, pipeline} <- %Pipeline{} |> Pipeline.changeset(attrs) |> Repo.insert(),
+           :ok <- CycleDetector.check_dependency_cycles() do
+        pipeline
+      else
+        {:error, reason} -> Repo.rollback(reason)
+      end
+    end)
   end
 
   @doc """
   Updates a pipeline config.
   """
   def update_pipeline(%Pipeline{} = pipeline, attrs) do
-    pipeline
-    |> Pipeline.changeset(attrs)
-    |> Repo.update()
+    Repo.transaction(fn ->
+      with {:ok, updated} <- pipeline |> Pipeline.changeset(attrs) |> Repo.update(),
+           :ok <- CycleDetector.check_dependency_cycles() do
+        updated
+      else
+        {:error, reason} -> Repo.rollback(reason)
+      end
+    end)
+  end
+
+  @doc """
+  Updates a material config.
+  """
+  def update_material(%Material{} = material, attrs) do
+    Repo.transaction(fn ->
+      with {:ok, updated} <- material |> Material.changeset(attrs) |> Repo.update(),
+           :ok <- CycleDetector.check_dependency_cycles() do
+        updated
+      else
+        {:error, reason} -> Repo.rollback(reason)
+      end
+    end)
   end
 
   @doc """
@@ -1145,7 +1170,11 @@ defmodule ExGoCD.Pipelines do
         end
 
       {:ok, _} = add_material_to_pipeline(pipeline, material)
-      material
+
+      case CycleDetector.check_dependency_cycles() do
+        :ok -> material
+        {:error, reason} -> Repo.rollback(reason)
+      end
     end)
   end
 

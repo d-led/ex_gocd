@@ -86,6 +86,49 @@ defmodule ExGoCDWeb.PipelineConfigLiveTest do
       refute render(view) =~ "git@github.com:test/repo.git"
     end
 
+    test "validates and rejects circular or missing pipeline dependencies in materials UI", %{conn: conn, pipeline: pipeline} do
+      # Create another pipeline so we can establish dependencies
+      _pipe_b = Repo.insert!(%Pipeline{name: "pipe-b", group: "default", label_template: "${COUNT}"})
+
+      {:ok, view, _html} = live(conn, ~p"/admin/pipelines/#{pipeline.name}/edit/materials")
+
+      # 1. Attempt to add a dependency on a missing pipeline
+      view
+      |> element("button", "Add Material")
+      |> render_click()
+
+      view
+      |> form("form", %{
+        "type" => "dependency",
+        "url" => "non-existent-pipeline"
+      })
+      |> render_submit()
+
+      assert render(view) =~ "Error: Referenced pipeline &#39;non-existent-pipeline&#39; does not exist"
+
+      # 2. Attempt to introduce a circular dependency
+      # Make test-pipeline depend on pipe-b first
+      dep_b = Repo.insert!(%Material{type: "dependency", url: "pipe-b"})
+      {:ok, _} = Pipelines.add_material_to_pipeline(pipeline, dep_b)
+
+      # Now navigate to pipe-b config and try to add a dependency on test-pipeline
+      # creating a cycle: test-pipeline -> pipe-b -> test-pipeline
+      {:ok, view_b, _html} = live(conn, ~p"/admin/pipelines/pipe-b/edit/materials")
+
+      view_b
+      |> element("button", "Add Material")
+      |> render_click()
+
+      view_b
+      |> form("form", %{
+        "type" => "dependency",
+        "url" => "test-pipeline"
+      })
+      |> render_submit()
+
+      assert render(view_b) =~ "Error: Circular dependency detected"
+    end
+
     test "updates Stage settings and lists/creates/deletes jobs", %{conn: conn, pipeline: pipeline, stage: stage} do
       {:ok, view, _html} = live(conn, ~p"/admin/pipelines/#{pipeline.name}/edit/stages/#{stage.name}/settings")
 

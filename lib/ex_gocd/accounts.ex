@@ -71,8 +71,12 @@ defmodule ExGoCD.Accounts do
   """
   @spec admin_configured?() :: boolean()
   def admin_configured? do
-    from(u in User, where: fragment("? @> ARRAY[?]::varchar[]", u.roles, "admin"))
-    |> Repo.exists?()
+    if System.get_env("USE_MOCK_DATA") == "true" do
+      false
+    else
+      from(u in User, where: fragment("? @> ARRAY[?]::varchar[]", u.roles, "admin"))
+      |> Repo.exists?()
+    end
   end
 
   @doc """

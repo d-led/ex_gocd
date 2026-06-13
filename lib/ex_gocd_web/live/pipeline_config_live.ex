@@ -566,6 +566,7 @@ defmodule ExGoCDWeb.PipelineConfigLive do
                     <option value="git">Git</option>
                     <option value="svn">Subversion</option>
                     <option value="hg">Mercurial</option>
+                    <option value="dependency">Pipeline Dependency</option>
                   </select>
                 </div>
                 <div>
@@ -874,6 +875,13 @@ defmodule ExGoCDWeb.PipelineConfigLive do
       {:ok, updated_socket} ->
         {:noreply, updated_socket}
 
+      {:error, {:circular_dependency, path}} ->
+        path_str = Enum.join(path, " -> ")
+        {:noreply, assign(socket, :flash_info, "Error: Circular dependency detected (#{path_str})")}
+
+      {:error, {:missing_pipeline, name}} ->
+        {:noreply, assign(socket, :flash_info, "Error: Referenced pipeline '#{name}' does not exist")}
+
       {:error, _reason} ->
         {:noreply, assign(socket, :flash_info, "Error saving configuration: invalid values provided.")}
     end
@@ -882,7 +890,7 @@ defmodule ExGoCDWeb.PipelineConfigLive do
   defp save_modal_result(params, socket) do
     case save_modal_change(params, socket) do
       {:ok, _} -> {:ok, reload_saved_pipeline(socket)}
-      {:error, _changeset} -> {:error, :invalid_values}
+      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -933,12 +941,10 @@ defmodule ExGoCDWeb.PipelineConfigLive do
     material_id = params["_id"] || params["id"]
     material = Repo.get!(Material, material_id)
 
-    material
-    |> Material.changeset(%{
+    Pipelines.update_material(material, %{
       url: params["url"],
       branch: params["branch"]
     })
-    |> Repo.update()
   end
 
   defp save_modal_for_type(_modal_type, _params, _socket), do: {:error, :unsupported_modal}

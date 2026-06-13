@@ -19,7 +19,8 @@ defmodule ExGoCD.Application do
       ExGoCD.AgentRegistry,
       ExGoCD.TestAgentSupervisor,
       ExGoCDWeb.Endpoint,
-      ExGoCD.Materials.Poller
+      ExGoCD.Materials.Poller,
+      ExGoCD.Pipelines.ConsoleActivityMonitor
     ]
 
     children =
