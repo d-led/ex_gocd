@@ -21,7 +21,7 @@ defmodule ExGoCD.Environments.Environment do
 
   schema "environments" do
     field :name, :string
-    field :environment_variables, :map, default: %{}
+    field :environment_variables, {:array, :map}, default: []
 
     many_to_many :pipelines, Pipeline,
       join_through: "environment_pipelines",
@@ -45,10 +45,10 @@ defmodule ExGoCD.Environments.Environment do
 
   defp validate_environment_variables(changeset) do
     validate_change(changeset, :environment_variables, fn :environment_variables, vars ->
-      if is_map(vars) do
+      if is_list(vars) and Enum.all?(vars, &is_map/1) do
         []
       else
-        [environment_variables: "must be a map of variable name to value strings"]
+        [environment_variables: "must be a list of variable configurations"]
       end
     end)
   end
