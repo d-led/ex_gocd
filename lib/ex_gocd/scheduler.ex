@@ -97,7 +97,7 @@ defmodule ExGoCD.Scheduler do
       id = "sched-#{System.unique_integer([:positive])}"
       entry = Map.put(spec, :id, id)
       new_queue = in_memory_queue ++ [entry]
-      
+
       # Broadcast new combined pending count
       db_count = get_db_scheduled_count()
       broadcast_pending_count(length(new_queue) + db_count)
@@ -162,16 +162,8 @@ defmodule ExGoCD.Scheduler do
   @impl true
   def handle_info({:assign_work_to_agent, agent_uuid}, state) do
     new_state =
-      if Map.has_key?(AgentPresence.list(@presence_topic), agent_uuid) do
-        case Agents.get_agent_by_uuid(agent_uuid) do
-          nil ->
-            state
-
-          agent ->
-            case try_assign_to_idle_agent(agent_uuid, agent, state) do
-              {:reply, _reply, updated_state} -> updated_state
-            end
-        end
+      if connected?(agent_uuid) do
+        assign_work_if_exists(agent_uuid, state)
       else
         state
       end
@@ -181,33 +173,49 @@ defmodule ExGoCD.Scheduler do
 
   # Helpers & Matching Logic
 
-  defp try_assign_to_idle_agent(agent_uuid, agent, %{in_memory_queue: in_memory_queue} = state) do
-    if agent.state != "Idle" do
-      {:reply, :agent_busy, state}
+  defp connected?(agent_uuid) do
+    Map.has_key?(AgentPresence.list(@presence_topic), agent_uuid)
+  end
+
+  defp assign_work_if_exists(agent_uuid, state) do
+    case Agents.get_agent_by_uuid(agent_uuid) do
+      nil ->
+        state
+
+      agent ->
+        {:reply, _reply, updated_state} = try_assign_to_idle_agent(agent_uuid, agent, state)
+        updated_state
+    end
+  end
+
+  defp try_assign_to_idle_agent(agent_uuid, %{state: "Idle"} = agent, %{in_memory_queue: in_memory_queue} = state) do
+    active_plans = in_memory_queue ++ load_db_job_plans()
+    do_assign_matching_job(agent_uuid, agent, active_plans, state)
+  end
+  defp try_assign_to_idle_agent(_agent_uuid, _agent, state) do
+    {:reply, :agent_busy, state}
+  end
+
+  defp do_assign_matching_job(agent_uuid, agent, active_plans, %{in_memory_queue: in_memory_queue} = state) do
+    case find_matching_job(agent, active_plans) do
+      nil ->
+        {:reply, :no_work, state}
+
+      {job_spec, _rest} ->
+        assign_and_send(agent_uuid, agent, job_spec)
+        new_in_memory = reject_if_in_memory(in_memory_queue, job_spec.id)
+        db_count = get_db_scheduled_count()
+        broadcast_pending_count(length(new_in_memory) + db_count)
+
+        {:reply, :assigned, %{state | in_memory_queue: new_in_memory}}
+    end
+  end
+
+  defp reject_if_in_memory(queue, id) do
+    if String.starts_with?(to_string(id), "sched-") do
+      Enum.reject(queue, &(&1.id == id))
     else
-      # Load unified list of active job plans (in-memory + database)
-      active_plans = in_memory_queue ++ load_db_job_plans()
-
-      case find_matching_job(agent, active_plans) do
-        nil ->
-          {:reply, :no_work, state}
-
-        {job_spec, _rest} ->
-          assign_and_send(agent_uuid, agent, job_spec)
-          
-          # Remove from in-memory queue if it was an in-memory job
-          new_in_memory =
-            if String.starts_with?(to_string(job_spec.id), "sched-") do
-              Enum.reject(in_memory_queue, &(&1.id == job_spec.id))
-            else
-              in_memory_queue
-            end
-
-          db_count = get_db_scheduled_count()
-          broadcast_pending_count(length(new_in_memory) + db_count)
-
-          {:reply, :assigned, %{state | in_memory_queue: new_in_memory}}
-      end
+      queue
     end
   end
 
@@ -241,15 +249,11 @@ defmodule ExGoCD.Scheduler do
 
     idx =
       Enum.find_index(queue, fn spec ->
-        cond do
-          # Pinned to specific agent: must match exactly
-          is_binary(spec[:agent_uuid]) and spec[:agent_uuid] != "" ->
-            spec[:agent_uuid] == agent.uuid
-
-          # Regular matching
-          true ->
-            resources_match?(spec.resources || [], agent_resources) and
-              envs_match?(spec.environments || [], agent_envs)
+        if is_binary(spec[:agent_uuid]) and spec[:agent_uuid] != "" do
+          spec[:agent_uuid] == agent.uuid
+        else
+          resources_match?(spec.resources || [], agent_resources) and
+            envs_match?(spec.environments || [], agent_envs)
         end
       end)
 
@@ -273,7 +277,7 @@ defmodule ExGoCD.Scheduler do
   # - Agent with environments can only run jobs with environments that match.
   defp envs_match?(job_envs, agent_envs) do
     job_envs_lower = Enum.map(job_envs || [], &String.downcase/1)
-    
+
     if MapSet.equal?(agent_envs, MapSet.new()) do
       Enum.empty?(job_envs_lower)
     else
@@ -323,77 +327,16 @@ defmodule ExGoCD.Scheduler do
     pipeline = pipeline_instance.pipeline
     job_config = ji.job
 
-    # Prepend export commands for all environment variables (Environment -> Pipeline -> Stage -> Job)
     env_vars = get_all_job_env_vars(pipeline, stage_instance, job_config)
-    export_cmds =
-      Enum.map(env_vars, fn var ->
-        %{
-          "name" => "export",
-          "args" => [var["name"], var["value"]]
-        }
-      end)
+    export_cmds = Enum.map(env_vars, fn var ->
+      %{
+        "name" => "export",
+        "args" => [var["name"], var["value"]]
+      }
+    end)
 
-    # 1. Start with SCM checkout if stage_instance.fetch_materials is true
-    checkout_cmds =
-      if stage_instance.fetch_materials do
-        build_cause = pipeline_instance.build_cause || %{}
-        material_revisions = build_cause["materialRevisions"] || []
+    checkout_cmds = build_checkout_commands(stage_instance, pipeline_instance)
 
-        Enum.flat_map(material_revisions, fn rev ->
-          mat = rev["material"] || %{}
-          modifications = rev["modifications"] || []
-          mod = List.first(modifications) || %{}
-          revision = mod["revision"] || "HEAD"
-
-          if mat["type"] == "git" do
-            url = mat["url"]
-            branch = mat["branch"] || "master"
-            dest = mat["destination"] || ""
-
-            # Check if destination is empty or not
-            mkdir_cmd =
-              if dest != "" do
-                [%{
-                  "name" => "exec",
-                  "command" => "mkdir",
-                  "args" => ["-p", dest]
-                }]
-              else
-                []
-              end
-
-            # Run git init, fetch, checkout in destination directory
-            git_cmds = [
-              %{
-                "name" => "exec",
-                "command" => "git",
-                "args" => ["init"],
-                "workingDirectory" => dest
-              },
-              %{
-                "name" => "exec",
-                "command" => "git",
-                "args" => ["fetch", "--depth=1", url, branch],
-                "workingDirectory" => dest
-              },
-              %{
-                "name" => "exec",
-                "command" => "git",
-                "args" => ["checkout", revision],
-                "workingDirectory" => dest
-              }
-            ]
-
-            mkdir_cmd ++ git_cmds
-          else
-            []
-          end
-        end)
-      else
-        []
-      end
-
-    # 2. Add job tasks
     tasks = if job_config, do: Repo.preload(job_config, :tasks).tasks || [], else: []
     task_cmds =
       Enum.map(tasks, fn t ->
@@ -405,66 +348,117 @@ defmodule ExGoCD.Scheduler do
         }
       end)
 
-    # 3. Combine them into compose structure: exports must come first!
     all_cmds = export_cmds ++ checkout_cmds ++ task_cmds
-
-    # Default to echo if empty
-    all_cmds =
-      if Enum.empty?(all_cmds) do
-        [%{"name" => "exec", "command" => "echo", "args" => ["No tasks configured"]}]
-      else
-        all_cmds
-      end
+    final_cmds = ensure_non_empty_cmds(all_cmds)
 
     %{
       "name" => "compose",
-      "subCommands" => all_cmds
+      "subCommands" => final_cmds
     }
   end
 
+  defp build_checkout_commands(%{fetch_materials: true}, pipeline_instance) do
+    build_cause = pipeline_instance.build_cause || %{}
+    material_revisions = build_cause["materialRevisions"] || []
+    Enum.flat_map(material_revisions, &build_revision_checkout_cmds/1)
+  end
+  defp build_checkout_commands(_, _), do: []
+
+  defp build_revision_checkout_cmds(rev) do
+    mat = rev["material"] || %{}
+    modifications = rev["modifications"] || []
+    mod = List.first(modifications) || %{}
+    revision = mod["revision"] || "HEAD"
+
+    if mat["type"] == "git" do
+      build_git_checkout_cmds(mat["url"], mat["branch"] || "master", mat["destination"] || "", revision)
+    else
+      []
+    end
+  end
+
+  defp build_git_checkout_cmds(url, branch, dest, revision) do
+    mkdir_cmd =
+      if dest != "" do
+        [%{"name" => "exec", "command" => "mkdir", "args" => ["-p", dest]}]
+      else
+        []
+      end
+
+    git_cmds = [
+      %{"name" => "exec", "command" => "git", "args" => ["init"], "workingDirectory" => dest},
+      %{"name" => "exec", "command" => "git", "args" => ["fetch", "--depth=1", url, branch], "workingDirectory" => dest},
+      %{"name" => "exec", "command" => "git", "args" => ["checkout", revision], "workingDirectory" => dest}
+    ]
+
+    mkdir_cmd ++ git_cmds
+  end
+
+  defp ensure_non_empty_cmds([]), do: [%{"name" => "exec", "command" => "echo", "args" => ["No tasks configured"]}]
+  defp ensure_non_empty_cmds(cmds), do: cmds
+
   # Helper to resolve environment name for a pipeline (using database or fallback)
   defp get_pipeline_environments(pipeline_name) do
-    if Application.get_env(:ex_gocd, :use_mock_data) == "true" or
-       System.get_env("USE_MOCK_DATA") == "true" do
-      case Enum.find(ExGoCD.MockData.pipelines_by_environment(), fn {_env, pipelines} ->
-        Enum.any?(pipelines, &(&1.name == pipeline_name))
-      end) do
-        nil -> []
-        {env, _} -> [env]
-      end
+    if mock_mode?() do
+      get_mock_pipeline_environments(pipeline_name)
     else
-      case ExGoCD.Environments.get_pipeline_environment(pipeline_name) do
-        nil -> []
-        env -> [env.name]
-      end
+      get_db_pipeline_environments(pipeline_name)
+    end
+  end
+
+  defp get_mock_pipeline_environments(pipeline_name) do
+    case Enum.find(ExGoCD.MockData.pipelines_by_environment(), &pipeline_in_group?(&1, pipeline_name)) do
+      nil -> []
+      {env, _} -> [env]
+    end
+  end
+
+  defp pipeline_in_group?({_env, pipelines}, name) do
+    Enum.any?(pipelines, &(&1.name == name))
+  end
+
+  defp get_db_pipeline_environments(pipeline_name) do
+    case ExGoCD.Environments.get_pipeline_environment(pipeline_name) do
+      nil -> []
+      env -> [env.name]
     end
   end
 
   # Helper to aggregate all environment variables across all hierarchy levels
   defp get_all_job_env_vars(pipeline, stage_instance, job_config) do
-    env_vars =
-      if Application.get_env(:ex_gocd, :use_mock_data) == "true" or System.get_env("USE_MOCK_DATA") == "true" do
-        []
-      else
-        case ExGoCD.Environments.get_pipeline_environment(pipeline.name) do
-          nil -> []
-          env -> env.environment_variables || []
-        end
-      end
-
+    env_vars = get_env_level_vars(pipeline.name)
     pipe_vars = map_to_gocd_vars(pipeline.environment_variables)
-
-    stage_config =
-      if Application.get_env(:ex_gocd, :use_mock_data) == "true" or System.get_env("USE_MOCK_DATA") == "true" do
-        nil
-      else
-        Repo.get_by(ExGoCD.Pipelines.Stage, pipeline_id: pipeline.id, name: stage_instance.name)
-      end
-    stage_vars = if stage_config, do: map_to_gocd_vars(stage_config.environment_variables), else: []
-
+    stage_vars = get_stage_vars(pipeline.id, stage_instance.name)
     job_vars = if job_config, do: map_to_gocd_vars(job_config.environment_variables), else: []
 
     merge_env_vars(env_vars, pipe_vars, stage_vars, job_vars)
+  end
+
+  defp get_env_level_vars(pipeline_name) do
+    if mock_mode?() do
+      []
+    else
+      case ExGoCD.Environments.get_pipeline_environment(pipeline_name) do
+        nil -> []
+        env -> env.environment_variables || []
+      end
+    end
+  end
+
+  defp get_stage_vars(pipeline_id, stage_name) when not is_integer(pipeline_id) or is_nil(stage_name), do: []
+  defp get_stage_vars(pipeline_id, stage_name) do
+    if mock_mode?() do
+      []
+    else
+      case Repo.get_by(ExGoCD.Pipelines.Stage, pipeline_id: pipeline_id, name: stage_name) do
+        nil -> []
+        stage -> map_to_gocd_vars(stage.environment_variables)
+      end
+    end
+  end
+
+  defp mock_mode? do
+    Application.get_env(:ex_gocd, :use_mock_data) == "true" or System.get_env("USE_MOCK_DATA") == "true"
   end
 
   defp map_to_gocd_vars(nil), do: []
@@ -597,12 +591,10 @@ defmodule ExGoCD.Scheduler do
 
   # Safe DB execution helper to prevent Sandbox crashes in test mode
   defp safe_db(fun, fallback) do
-    try do
-      fun.()
-    rescue
-      _ -> fallback
-    catch
-      _, _ -> fallback
-    end
+    fun.()
+  rescue
+    _ -> fallback
+  catch
+    _, _ -> fallback
   end
 end

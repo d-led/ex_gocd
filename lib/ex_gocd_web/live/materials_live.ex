@@ -177,23 +177,12 @@ defmodule ExGoCDWeb.MaterialsLive do
   end
 
   defp get_mock_materials do
-    MockData.pipelines()
-    |> Enum.flat_map(fn p ->
-      Enum.map(p.materials || [], fn mat ->
-        Map.put(mat, :pipeline_name, p.name)
-      end)
-    end)
-    |> Enum.group_by(fn mat -> {mat.type, mat.url, mat.branch} end)
-    |> Enum.map(fn {{type, url, branch}, mats} ->
-      pipelines = Enum.map(mats, & &1.pipeline_name) |> Enum.uniq() |> Enum.sort()
-      %{
-        type: type,
-        url: url,
-        branch: branch,
-        pipelines: pipelines,
+    MockData.get_all_mock_materials()
+    |> Enum.map(fn mat ->
+      Map.merge(mat, %{
         auto_update: true,
         destination: nil
-      }
+      })
     end)
   end
 

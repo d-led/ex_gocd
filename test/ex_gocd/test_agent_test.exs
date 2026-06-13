@@ -4,17 +4,18 @@
 defmodule ExGoCD.TestAgentTest do
   use ExGoCD.DataCase, async: false
 
+  alias Ecto.Adapters.SQL.Sandbox
   alias ExGoCD.AgentJobRuns
   alias ExGoCD.Agents
   alias ExGoCD.Scheduler
-  alias ExGoCD.TestAgentSupervisor
   alias ExGoCD.TestAgent.UUID
+  alias ExGoCD.TestAgentSupervisor
   alias ExGoCDWeb.AgentPresence
 
   setup do
     pid = Process.whereis(ExGoCD.Scheduler)
     if pid do
-      Ecto.Adapters.SQL.Sandbox.allow(ExGoCD.Repo, self(), pid)
+      Sandbox.allow(ExGoCD.Repo, self(), pid)
     end
     # Wait for Scheduler GenServer to be alive if it restarted
     wait_for_scheduler()

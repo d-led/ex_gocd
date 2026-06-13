@@ -121,14 +121,7 @@ defmodule ExGoCDWeb.PipelineActivityLive do
   end
 
   defp pipeline_instance_status(pi) do
-    stages = pi.stage_instances || []
-
-    cond do
-      Enum.any?(stages, fn s -> s.state == "Building" end) -> "Building"
-      Enum.any?(stages, fn s -> s.result == "Failed" or s.result == "Cancelled" end) -> "Failed"
-      Enum.all?(stages, fn s -> s.state == "Completed" and s.result == "Passed" end) -> "Passed"
-      true -> "Unknown"
-    end
+    Pipelines.pipeline_instance_status(pi)
   end
 
   defp fingerprint(rev) do

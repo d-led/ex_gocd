@@ -3,9 +3,9 @@ defmodule ExGoCD.Environments do
   The Environments context - manages environments and pipeline associations.
   """
   import Ecto.Query, warn: false
-  alias ExGoCD.Repo
   alias ExGoCD.Environments.Environment
   alias ExGoCD.Pipelines.Pipeline
+  alias ExGoCD.Repo
 
   @doc """
   Lists all environments with preloaded pipelines.

@@ -1,8 +1,8 @@
 defmodule ExGoCDWeb.Plugs.AuthHeaderPlugTest do
   use ExGoCDWeb.ConnCase
+  alias Ecto.Adapters.SQL.Sandbox
   alias ExGoCD.Accounts
   alias ExGoCDWeb.Plugs.AuthHeaderPlug
-  alias Ecto.Adapters.SQL.Sandbox
 
   setup do
     :ok = Sandbox.checkout(ExGoCD.Repo)

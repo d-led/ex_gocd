@@ -28,6 +28,7 @@ defmodule ExGoCD.Pipelines.Pipeline do
           paused_by: String.t() | nil,
           pause_cause: String.t() | nil,
           paused_at: DateTime.t() | nil,
+          locked: boolean() | nil,
           stages: [Stage.t()] | Ecto.Association.NotLoaded.t(),
           materials: [Material.t()] | Ecto.Association.NotLoaded.t(),
           instances: [PipelineInstance.t()] | Ecto.Association.NotLoaded.t(),
@@ -50,6 +51,7 @@ defmodule ExGoCD.Pipelines.Pipeline do
     field :paused_by, :string
     field :pause_cause, :string
     field :paused_at, :utc_datetime
+    field :locked, :boolean, default: false
 
     has_many :stages, Stage, on_delete: :delete_all
     many_to_many :materials, Material, join_through: "pipelines_materials", on_delete: :delete_all, on_replace: :delete
@@ -78,7 +80,8 @@ defmodule ExGoCD.Pipelines.Pipeline do
       :paused,
       :paused_by,
       :pause_cause,
-      :paused_at
+      :paused_at,
+      :locked
     ])
     |> validate_required([:name])
     |> validate_format(:name, ~r/^[a-zA-Z0-9_\-\.]+$/,

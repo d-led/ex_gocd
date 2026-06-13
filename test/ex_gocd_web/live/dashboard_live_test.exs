@@ -336,4 +336,3 @@ defmodule ExGoCDWeb.DashboardLiveTest do
     end
   end
 end
-

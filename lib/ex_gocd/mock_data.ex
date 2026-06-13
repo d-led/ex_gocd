@@ -199,4 +199,26 @@ defmodule ExGoCD.MockData do
   def get_pipeline(name) do
     Enum.find(pipelines(), &(&1.name == name))
   end
+
+  @doc """
+  Returns all mock SCM materials derived from mock pipeline configurations.
+  """
+  def get_all_mock_materials do
+    pipelines()
+    |> Enum.flat_map(fn p ->
+      Enum.map(p.materials || [], fn mat ->
+        Map.put(mat, :pipeline_name, p.name)
+      end)
+    end)
+    |> Enum.group_by(fn mat -> {mat.type, mat.url, mat.branch} end)
+    |> Enum.map(fn {{type, url, branch}, mats} ->
+      pipelines = Enum.map(mats, & &1.pipeline_name) |> Enum.uniq() |> Enum.sort()
+      %{
+        type: type,
+        url: url,
+        branch: branch,
+        pipelines: pipelines
+      }
+    end)
+  end
 end

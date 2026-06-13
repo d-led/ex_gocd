@@ -153,16 +153,7 @@ defmodule ExGoCDWeb.JobDetailsLive do
   end
 
   defp get_run_by_params(pipeline_name, pipeline_counter, stage_name, stage_counter, job_name) do
-    from(r in ExGoCD.AgentJobRuns.AgentJobRun,
-      where: r.pipeline_name == ^pipeline_name
-        and r.pipeline_counter == ^pipeline_counter
-        and r.stage_name == ^stage_name
-        and r.stage_counter == ^stage_counter
-        and r.job_name == ^job_name,
-      order_by: [desc: r.inserted_at],
-      limit: 1
-    )
-    |> Repo.one()
+    AgentJobRuns.get_run_by_params(pipeline_name, pipeline_counter, stage_name, stage_counter, job_name)
   end
 
   defp artifacts_dir do
@@ -189,22 +180,27 @@ defmodule ExGoCDWeb.JobDetailsLive do
   defp list_files_recursive(dir, base_dir) do
     case File.ls(dir) do
       {:ok, names} ->
-        Enum.flat_map(names, fn name ->
-          path = Path.join(dir, name)
-          rel_path = Path.relative_to(path, base_dir)
-
-          if File.dir?(path) do
-            # Group folders and files
-            [%{name: name, type: :directory, rel_path: rel_path} | list_files_recursive(path, base_dir)]
-          else
-            case File.stat(path) do
-              {:ok, stat} -> [%{name: name, type: :file, rel_path: rel_path, size: stat.size}]
-              _ -> []
-            end
-          end
-        end)
+        Enum.flat_map(names, &process_file_item(&1, dir, base_dir))
       _ ->
         []
+    end
+  end
+
+  defp process_file_item(name, dir, base_dir) do
+    path = Path.join(dir, name)
+    rel_path = Path.relative_to(path, base_dir)
+
+    if File.dir?(path) do
+      [%{name: name, type: :directory, rel_path: rel_path} | list_files_recursive(path, base_dir)]
+    else
+      file_stat_item(name, path, rel_path)
+    end
+  end
+
+  defp file_stat_item(name, path, rel_path) do
+    case File.stat(path) do
+      {:ok, stat} -> [%{name: name, type: :file, rel_path: rel_path, size: stat.size}]
+      _ -> []
     end
   end
 

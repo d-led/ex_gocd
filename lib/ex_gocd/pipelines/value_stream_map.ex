@@ -85,31 +85,8 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
     material_nodes =
       materials
       |> Enum.map(fn mat ->
-        fp = fingerprint(mat)
         modification = get_db_or_mock_modification(mat, instance)
-        %{
-          "id" => fp,
-          "name" => mat.url || mat.type,
-          "node_type" => "MATERIAL",
-          "material_type" => mat.type,
-          "depth" => 0,
-          "parents" => [],
-          "dependents" => [pipeline_name],
-          "material_names" => [mat.url || mat.type],
-          "material_revisions" => [
-            %{
-              "modifications" => [
-                %{
-                  "revision" => modification.revision,
-                  "user" => "#{modification.username} <#{modification.email}>",
-                  "comment" => modification.comment,
-                  "modified_time" => format_time_fuzzy(modification.modified_time),
-                  "locator" => "/materials/value_stream_map/#{fp}/#{modification.revision}"
-                }
-              ]
-            }
-          ]
-        }
+        build_material_node(mat, modification, pipeline_name)
       end)
 
     # Level 1 node (Target Pipeline)
@@ -181,31 +158,8 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
       material_nodes =
         materials
         |> Enum.map(fn mat ->
-          fp = fingerprint(mat)
           modification = get_mock_modification(mat)
-          %{
-            "id" => fp,
-            "name" => mat.url || mat.type,
-            "node_type" => "MATERIAL",
-            "material_type" => mat.type,
-            "depth" => 0,
-            "parents" => [],
-            "dependents" => [pipeline_name],
-            "material_names" => [mat.url || mat.type],
-            "material_revisions" => [
-              %{
-                "modifications" => [
-                  %{
-                    "revision" => modification.revision,
-                    "user" => "#{modification.username} <#{modification.email}>",
-                    "comment" => modification.comment,
-                    "modified_time" => format_time_fuzzy(modification.modified_time),
-                    "locator" => "/materials/value_stream_map/#{fp}/#{modification.revision}"
-                  }
-                ]
-              }
-            ]
-          }
+          build_material_node(mat, modification, pipeline_name)
         end)
 
       # Target Pipeline node
@@ -476,22 +430,7 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
   end
 
   defp get_all_mock_materials do
-    MockData.pipelines()
-    |> Enum.flat_map(fn p ->
-      Enum.map(p.materials || [], fn mat ->
-        Map.put(mat, :pipeline_name, p.name)
-      end)
-    end)
-    |> Enum.group_by(fn mat -> {mat.type, mat.url, mat.branch} end)
-    |> Enum.map(fn {{type, url, branch}, mats} ->
-      pipelines = Enum.map(mats, & &1.pipeline_name) |> Enum.uniq() |> Enum.sort()
-      %{
-        type: type,
-        url: url,
-        branch: branch,
-        pipelines: pipelines
-      }
-    end)
+    MockData.get_all_mock_materials()
   end
 
   defp fallback_to_mock_or_not_found(pipeline_name, counter) do
@@ -550,5 +489,32 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
     Enum.map(instance.stage_instances || [], fn si ->
       %{"name" => si.name, "status" => si.state, "duration" => 45, "locator" => "/pipelines/#{name}/1/#{si.name}/#{si.counter}"}
     end)
+  end
+
+  defp build_material_node(mat, modification, pipeline_name) do
+    fp = fingerprint(mat)
+    %{
+      "id" => fp,
+      "name" => mat.url || mat.type,
+      "node_type" => "MATERIAL",
+      "material_type" => mat.type,
+      "depth" => 0,
+      "parents" => [],
+      "dependents" => [pipeline_name],
+      "material_names" => [mat.url || mat.type],
+      "material_revisions" => [
+        %{
+          "modifications" => [
+            %{
+              "revision" => modification.revision,
+              "user" => "#{modification.username} <#{modification.email}>",
+              "comment" => modification.comment,
+              "modified_time" => format_time_fuzzy(modification.modified_time),
+              "locator" => "/materials/value_stream_map/#{fp}/#{modification.revision}"
+            }
+          ]
+        }
+      ]
+    }
   end
 end

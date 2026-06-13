@@ -40,26 +40,31 @@ defmodule ExGoCDWeb.API.Admin.EnvironmentJSON do
   end
 
   defp render_variable(var) do
-    secure = Map.get(var, "secure") || Map.get(var, :secure) || false
+    secure = get_value(var, :secure) || false
     base = %{
-      "name" => Map.get(var, "name") || Map.get(var, :name),
+      "name" => get_value(var, :name),
       "secure" => secure
     }
 
     if secure do
-      enc = Map.get(var, "encrypted_value") || Map.get(var, :encrypted_value)
-      val = Map.get(var, "value") || Map.get(var, :value)
-
-      enc_val =
-        cond do
-          enc -> to_string(enc)
-          val -> Base.encode64(to_string(val))
-          true -> ""
-        end
-
-      Map.put(base, "encrypted_value", enc_val)
+      Map.put(base, "encrypted_value", encrypted_value(var))
     else
-      Map.put(base, "value", to_string(Map.get(var, "value") || Map.get(var, :value) || ""))
+      Map.put(base, "value", to_string(get_value(var, :value) || ""))
+    end
+  end
+
+  defp get_value(map, key) do
+    Map.get(map, to_string(key)) || Map.get(map, key)
+  end
+
+  defp encrypted_value(var) do
+    enc = get_value(var, :encrypted_value)
+    val = get_value(var, :value)
+
+    cond do
+      enc -> to_string(enc)
+      val -> Base.encode64(to_string(val))
+      true -> ""
     end
   end
 

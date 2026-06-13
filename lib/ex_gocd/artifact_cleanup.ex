@@ -7,8 +7,8 @@ defmodule ExGoCD.ArtifactCleanup do
   Always keeps the artifacts of the latest run of any job/stage.
   """
   import Ecto.Query
+  alias ExGoCD.Pipelines.{Pipeline, PipelineInstance, StageInstance}
   alias ExGoCD.Repo
-  alias ExGoCD.Pipelines.{StageInstance, PipelineInstance, Pipeline}
 
   require Logger
 
@@ -57,19 +57,27 @@ defmodule ExGoCD.ArtifactCleanup do
   """
   def get_dir_size(path) do
     if File.dir?(path) do
-      case File.ls(path) do
-        {:ok, names} ->
-          Enum.reduce(names, 0, fn name, acc ->
-            acc + get_dir_size(Path.join(path, name))
-          end)
-        _ ->
-          0
-      end
+      dir_contents_size(path)
     else
-      case File.stat(path) do
-        {:ok, stat} -> stat.size
-        _ -> 0
-      end
+      file_size(path)
+    end
+  end
+
+  defp dir_contents_size(path) do
+    case File.ls(path) do
+      {:ok, names} ->
+        Enum.reduce(names, 0, fn name, acc ->
+          acc + get_dir_size(Path.join(path, name))
+        end)
+      _ ->
+        0
+    end
+  end
+
+  defp file_size(path) do
+    case File.stat(path) do
+      {:ok, stat} -> stat.size
+      _ -> 0
     end
   end
 
@@ -88,49 +96,55 @@ defmodule ExGoCD.ArtifactCleanup do
       if remaining_bytes <= 0 do
         {:halt, remaining_bytes}
       else
-        pipeline_instance = stage_instance.pipeline_instance
-        pipeline = pipeline_instance.pipeline
-
-        # Check if this is the latest run or protected by configuration
-        cond do
-          # Check never_cleanup_artifacts from pipeline stage config
-          stage_protected_by_config?(pipeline, stage_instance.name) ->
-            {:cont, remaining_bytes}
-
-          # "always keeping the last job's run's artifacts"
-          is_latest_run?(pipeline.id, stage_instance.name, stage_instance) ->
-            {:cont, remaining_bytes}
-
-          true ->
-            # Delete directory
-            stage_dir = Path.expand(Path.join([
-              artifacts_dir(),
-              pipeline.name,
-              to_string(pipeline_instance.counter),
-              stage_instance.name,
-              to_string(stage_instance.counter)
-            ]))
-
-            size = get_dir_size(stage_dir)
-            
-            case File.rm_rf(stage_dir) do
-              {:ok, _} ->
-                Logger.info("Cleaned up artifacts for stage: #{pipeline.name}/#{pipeline_instance.counter}/#{stage_instance.name}/#{stage_instance.counter} (freed #{size} bytes)")
-                
-                # Mark as deleted in DB
-                stage_instance
-                |> StageInstance.changeset(%{artifacts_deleted: true})
-                |> Repo.update!()
-
-                {:cont, remaining_bytes - size}
-
-              {:error, reason, _file} ->
-                Logger.error("Failed to delete directory #{stage_dir}: #{inspect(reason)}")
-                {:cont, remaining_bytes}
-            end
-        end
+        purge_stage_if_not_protected(stage_instance, remaining_bytes)
       end
     end)
+  end
+
+  defp purge_stage_if_not_protected(stage_instance, remaining_bytes) do
+    pipeline_instance = stage_instance.pipeline_instance
+    pipeline = pipeline_instance.pipeline
+
+    cond do
+      # Check never_cleanup_artifacts from pipeline stage config
+      stage_protected_by_config?(pipeline, stage_instance.name) ->
+        {:cont, remaining_bytes}
+
+      # "always keeping the last job's run's artifacts"
+      latest_run?(pipeline.id, stage_instance.name, stage_instance) ->
+        {:cont, remaining_bytes}
+
+      true ->
+        delete_stage_artifacts(stage_instance, pipeline, pipeline_instance, remaining_bytes)
+    end
+  end
+
+  defp delete_stage_artifacts(stage_instance, pipeline, pipeline_instance, remaining_bytes) do
+    stage_dir = Path.expand(Path.join([
+      artifacts_dir(),
+      pipeline.name,
+      to_string(pipeline_instance.counter),
+      stage_instance.name,
+      to_string(stage_instance.counter)
+    ]))
+
+    size = get_dir_size(stage_dir)
+
+    case File.rm_rf(stage_dir) do
+      {:ok, _} ->
+        Logger.info("Cleaned up artifacts for stage: #{pipeline.name}/#{pipeline_instance.counter}/#{stage_instance.name}/#{stage_instance.counter} (freed #{size} bytes)")
+
+        # Mark as deleted in DB
+        stage_instance
+        |> StageInstance.changeset(%{artifacts_deleted: true})
+        |> Repo.update!()
+
+        {:cont, remaining_bytes - size}
+
+      {:error, reason, _file} ->
+        Logger.error("Failed to delete directory #{stage_dir}: #{inspect(reason)}")
+        {:cont, remaining_bytes}
+    end
   end
 
   defp stage_protected_by_config?(%Pipeline{stages: stages}, stage_name) do
@@ -140,7 +154,7 @@ defmodule ExGoCD.ArtifactCleanup do
     end
   end
 
-  defp is_latest_run?(pipeline_id, stage_name, stage_instance) do
+  defp latest_run?(pipeline_id, stage_name, stage_instance) do
     # A stage instance is the latest run of its stage config if its latest_run is true
     # or if no newer stage instance exists in the database.
     if stage_instance.latest_run do

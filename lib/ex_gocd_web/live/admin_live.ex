@@ -805,14 +805,6 @@ defmodule ExGoCDWeb.AdminLive do
      |> assign(:filtered_groups, filtered)}
   end
 
-  defp filter_group_pipelines(group, cleaned) do
-    %{group | pipelines: Enum.filter(group.pipelines, &pipeline_name_match?(&1, cleaned))}
-  end
-
-  defp pipeline_name_match?(pipe, cleaned) do
-    String.contains?(String.downcase(pipe.name), String.downcase(cleaned))
-  end
-
   @impl true
   def handle_event("toggle_create_modal", _params, socket) do
     {:noreply, assign(socket, :show_create_modal, !socket.assigns.show_create_modal)}
@@ -860,12 +852,6 @@ defmodule ExGoCDWeb.AdminLive do
      |> assign(:pipeline_groups, groups)
      |> assign(:filtered_groups, groups)
      |> assign(:flash_info, "Pipeline group '#{name}' was deleted.")}
-  end
-
-  defp maybe_delete_group_pipelines(nil), do: :noop
-
-  defp maybe_delete_group_pipelines(group) do
-    Enum.each(group.pipelines, fn pipe -> Pipelines.delete_pipeline_by_name(pipe.name) end)
   end
 
   @impl true
@@ -935,52 +921,6 @@ defmodule ExGoCDWeb.AdminLive do
     end
   end
 
-  defp save_new_user(socket, params, roles) do
-    attrs = %{
-      "username" => params["username"],
-      "display_name" => params["display_name"],
-      "roles" => roles,
-      "status" => "Active"
-    }
-
-    case Accounts.create_user(attrs) do
-      {:ok, _user} ->
-        {:noreply,
-         socket
-         |> assign(:users, Accounts.list_users())
-         |> assign(:show_user_modal, false)
-         |> assign(:flash_info, "User created successfully.")}
-
-      {:error, changeset} ->
-        {:noreply, assign(socket, :user_errors, format_changeset_errors(changeset))}
-    end
-  end
-
-  defp save_user_roles(socket, params, roles) do
-    user = socket.assigns.selected_user
-    attrs = %{"display_name" => params["display_name"], "roles" => roles}
-
-    case Accounts.update_user(user, attrs) do
-      {:ok, _user} ->
-        {:noreply,
-         socket
-         |> assign(:users, Accounts.list_users())
-         |> assign(:show_user_modal, false)
-         |> assign(:flash_info, "User configuration updated successfully.")}
-
-      {:error, changeset} ->
-        {:noreply, assign(socket, :user_errors, format_changeset_errors(changeset))}
-    end
-  end
-
-  defp format_changeset_errors(changeset) do
-    Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
-      Regex.replace(~r"%{(\w+)}", msg, fn _, key ->
-        to_string(opts[String.to_existing_atom(key)])
-      end)
-    end)
-  end
-
   @impl true
   def handle_event("toggle_user_status", %{"id" => id}, socket) do
     user = Accounts.get_user!(id)
@@ -1010,18 +950,6 @@ defmodule ExGoCDWeb.AdminLive do
       {:error, _} ->
         {:noreply, assign(socket, :flash_info, "Failed to delete user.")}
     end
-  end
-
-  # --- Message Handlers ---
-
-  @impl true
-  def handle_info(:backup_complete, socket) do
-    backup_path = "/var/lib/go-server/db/backups/backup_config_xml_#{System.unique_integer([:positive])}.zip"
-    {:noreply,
-     socket
-     |> assign(:backup_status, "Completed")
-     |> assign(:backup_message, "Backup saved to: #{backup_path} successfully at #{DateTime.utc_now() |> DateTime.to_string()}")
-     |> assign(:flash_info, "Database config backup completed successfully.")}
   end
 
   # --- UI Environments Event Handlers ---
@@ -1058,13 +986,7 @@ defmodule ExGoCDWeb.AdminLive do
       env ->
         available = load_available_pipelines(env.id)
         selected_pipes = Enum.map(env.pipelines, & &1.name)
-        vars = Enum.map(env.environment_variables || [], fn var ->
-          %{
-            "name" => var["name"] || var[:name],
-            "value" => var["value"] || var[:value] || var["encrypted_value"] || var[:encrypted_value],
-            "secure" => var["secure"] || var[:secure] || false
-          }
-        end)
+        vars = map_variables_for_modal(env.environment_variables)
 
         {:noreply,
          socket
@@ -1128,78 +1050,173 @@ defmodule ExGoCDWeb.AdminLive do
   @impl true
   def handle_event("save_environment_ui", params, socket) do
     selected_pipelines = Map.get(params, "pipelines", [])
-    vars_params = Map.get(params, "variables", %{})
-    variables =
-      vars_params
-      |> Map.values()
-      |> Enum.reject(fn var -> String.trim(var["name"]) == "" end)
-      |> Enum.map(fn var ->
-        sec = var["secure"] == "true"
-        base = %{
-          "name" => var["name"],
-          "secure" => sec
-        }
-        if sec do
-          Map.put(base, "encrypted_value", Base.encode64(var["value"]))
-        else
-          Map.put(base, "value", var["value"])
-        end
-      end)
+    variables = parse_save_env_variables(Map.get(params, "variables", %{}))
 
     if System.get_env("USE_MOCK_DATA") == "true" do
-      name = params["name"] || socket.assigns.env_form_name
-      new_env = %{
-        id: socket.assigns.selected_env && socket.assigns.selected_env.id || System.unique_integer([:positive]),
-        name: name,
-        pipelines: selected_pipelines,
-        agents: 0,
-        environment_variables: variables
-      }
-      envs =
-        if socket.assigns.env_modal_type == :create do
-          socket.assigns.environments ++ [new_env]
-        else
-          Enum.map(socket.assigns.environments, fn e ->
-            if e.name == socket.assigns.env_form_name, do: new_env, else: e
-          end)
-        end
-
-      {:noreply,
-       socket
-       |> assign(:environments, envs)
-       |> assign(:show_env_modal, false)
-       |> put_flash(:info, "Environment saved successfully (Mock).")}
+      save_mock_environment_ui(params, selected_pipelines, variables, socket)
     else
-      res =
-        if socket.assigns.env_modal_type == :create do
-          ExGoCD.Environments.create_environment(%{
-            "name" => params["name"],
-            "pipelines" => selected_pipelines,
-            "environment_variables" => variables
-          })
-        else
-          ExGoCD.Environments.update_environment(socket.assigns.selected_env, %{
-            "pipelines" => selected_pipelines,
-            "environment_variables" => variables
-          })
-        end
+      save_db_environment_ui(params, selected_pipelines, variables, socket)
+    end
+  end
+  # --- Moved handlers & helpers ---
 
-      case res do
-        {:ok, _env} ->
-          envs = fetch_environments_ui()
-          {:noreply,
-           socket
-           |> assign(:environments, envs)
-           |> assign(:show_env_modal, false)
-           |> put_flash(:info, "Environment saved successfully.")}
+  @impl true
+  def handle_info(:backup_complete, socket) do
+    backup_path = "/var/lib/go-server/db/backups/backup_config_xml_#{System.unique_integer([:positive])}.zip"
+    {:noreply,
+     socket
+     |> assign(:backup_status, "Completed")
+     |> assign(:backup_message, "Backup saved to: #{backup_path} successfully at #{DateTime.utc_now() |> DateTime.to_string()}")
+     |> assign(:flash_info, "Database config backup completed successfully.")}
+  end
 
-        {:error, changeset} ->
-          error_msg =
-            Ecto.Changeset.traverse_errors(changeset, fn {msg, _} -> msg end)
-            |> Enum.map_join(", ", fn {k, v} -> "#{k}: #{v}" end)
+  defp maybe_delete_group_pipelines(nil), do: :noop
 
-          {:noreply, put_flash(socket, :error, "Failed to save: #{error_msg}")}
+  defp maybe_delete_group_pipelines(group) do
+    Enum.each(group.pipelines, fn pipe -> Pipelines.delete_pipeline_by_name(pipe.name) end)
+  end
+
+  defp save_new_user(socket, params, roles) do
+    attrs = %{
+      "username" => params["username"],
+      "display_name" => params["display_name"],
+      "roles" => roles,
+      "status" => "Active"
+    }
+
+    case Accounts.create_user(attrs) do
+      {:ok, _user} ->
+        {:noreply,
+         socket
+         |> assign(:users, Accounts.list_users())
+         |> assign(:show_user_modal, false)
+         |> assign(:flash_info, "User created successfully.")}
+
+      {:error, changeset} ->
+        {:noreply, assign(socket, :user_errors, format_changeset_errors(changeset))}
+    end
+  end
+
+  defp save_user_roles(socket, params, roles) do
+    user = socket.assigns.selected_user
+    attrs = %{"display_name" => params["display_name"], "roles" => roles}
+
+    case Accounts.update_user(user, attrs) do
+      {:ok, _user} ->
+        {:noreply,
+         socket
+         |> assign(:users, Accounts.list_users())
+         |> assign(:show_user_modal, false)
+         |> assign(:flash_info, "User configuration updated successfully.")}
+
+      {:error, changeset} ->
+        {:noreply, assign(socket, :user_errors, format_changeset_errors(changeset))}
+    end
+  end
+
+  defp filter_group_pipelines(group, cleaned) do
+    %{group | pipelines: Enum.filter(group.pipelines, &pipeline_name_match?(&1, cleaned))}
+  end
+
+  defp pipeline_name_match?(pipe, cleaned) do
+    String.contains?(String.downcase(pipe.name), String.downcase(cleaned))
+  end
+
+  defp format_changeset_errors(changeset) do
+    Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
+      Regex.replace(~r"%{(\w+)}", msg, fn _, key ->
+        to_string(opts[String.to_existing_atom(key)])
+      end)
+    end)
+  end
+
+  defp map_variables_for_modal(vars) do
+    Enum.map(vars || [], fn var ->
+      %{
+        "name" => var["name"] || var[:name],
+        "value" => var["value"] || var[:value] || var["encrypted_value"] || var[:encrypted_value],
+        "secure" => var["secure"] || var[:secure] || false
+      }
+    end)
+  end
+
+  defp parse_save_env_variables(vars_params) do
+    vars_params
+    |> Map.values()
+    |> Enum.reject(fn var -> String.trim(var["name"]) == "" end)
+    |> Enum.map(fn var ->
+      sec = var["secure"] == "true"
+      base = %{
+        "name" => var["name"],
+        "secure" => sec
+      }
+      if sec do
+        Map.put(base, "encrypted_value", Base.encode64(var["value"]))
+      else
+        Map.put(base, "value", var["value"])
       end
+    end)
+  end
+
+  defp save_mock_environment_ui(params, selected_pipelines, variables, socket) do
+    name = params["name"] || socket.assigns.env_form_name
+    new_env = %{
+      id: socket.assigns.selected_env && socket.assigns.selected_env.id || System.unique_integer([:positive]),
+      name: name,
+      pipelines: selected_pipelines,
+      agents: 0,
+      environment_variables: variables
+    }
+    envs =
+      if socket.assigns.env_modal_type == :create do
+        socket.assigns.environments ++ [new_env]
+      else
+        map_update_envs(socket.assigns.environments, socket.assigns.env_form_name, new_env)
+      end
+
+    {:noreply,
+     socket
+     |> assign(:environments, envs)
+     |> assign(:show_env_modal, false)
+     |> put_flash(:info, "Environment saved successfully (Mock).")}
+  end
+
+  defp map_update_envs(envs, form_name, new_env) do
+    Enum.map(envs, fn e ->
+      if e.name == form_name, do: new_env, else: e
+    end)
+  end
+
+  defp save_db_environment_ui(params, selected_pipelines, variables, socket) do
+    res =
+      if socket.assigns.env_modal_type == :create do
+        ExGoCD.Environments.create_environment(%{
+          "name" => params["name"],
+          "pipelines" => selected_pipelines,
+          "environment_variables" => variables
+        })
+      else
+        ExGoCD.Environments.update_environment(socket.assigns.selected_env, %{
+          "pipelines" => selected_pipelines,
+          "environment_variables" => variables
+        })
+      end
+
+    case res do
+      {:ok, _env} ->
+        envs = fetch_environments_ui()
+        {:noreply,
+         socket
+         |> assign(:environments, envs)
+         |> assign(:show_env_modal, false)
+         |> put_flash(:info, "Environment saved successfully.")}
+
+      {:error, changeset} ->
+        error_msg =
+          Ecto.Changeset.traverse_errors(changeset, fn {msg, _} -> msg end)
+          |> Enum.map_join(", ", fn {k, v} -> "#{k}: #{v}" end)
+
+        {:noreply, put_flash(socket, :error, "Failed to save: #{error_msg}")}
     end
   end
 
@@ -1210,17 +1227,16 @@ defmodule ExGoCDWeb.AdminLive do
 
     assigned_pipeline_ids =
       if System.get_env("USE_MOCK_DATA") == "true" do
-        MapSet.new()
+        []
       else
         ExGoCD.Environments.list_environments()
         |> Enum.reject(fn e -> env_id && e.id == env_id end)
         |> Enum.flat_map(& &1.pipelines)
         |> Enum.map(& &1.id)
-        |> MapSet.new()
       end
 
     Enum.filter(all_pipelines, fn p ->
-      not MapSet.member?(assigned_pipeline_ids, p.id)
+      p.id not in assigned_pipeline_ids
     end)
   end
 

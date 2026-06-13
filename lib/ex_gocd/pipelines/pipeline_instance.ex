@@ -10,7 +10,7 @@ defmodule ExGoCD.Pipelines.PipelineInstance do
   use Ecto.Schema
   import Ecto.Changeset
 
-  alias ExGoCD.Pipelines.{Pipeline, StageInstance}
+  alias ExGoCD.Pipelines.{Pipeline, PipelineMaterialRevision, StageInstance}
 
   @type t :: %__MODULE__{
           id: integer() | nil,
@@ -33,6 +33,7 @@ defmodule ExGoCD.Pipelines.PipelineInstance do
 
     belongs_to :pipeline, Pipeline
     has_many :stage_instances, StageInstance, on_delete: :delete_all
+    has_many :pipeline_material_revisions, PipelineMaterialRevision, on_delete: :delete_all
 
     timestamps(type: :utc_datetime)
   end

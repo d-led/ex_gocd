@@ -4,15 +4,17 @@
 defmodule ExGoCD.HTTPTestAgentTest do
   use ExGoCD.DataCase, async: false
 
+  alias Ecto.Adapters.SQL.Sandbox
   alias ExGoCD.AgentJobRuns
   alias ExGoCD.Agents
   alias ExGoCD.Scheduler
+  alias ExGoCD.TestAgent.UUID
   alias ExGoCD.TestAgentSupervisor
 
   setup do
     pid = Process.whereis(ExGoCD.Scheduler)
     if pid do
-      Ecto.Adapters.SQL.Sandbox.allow(ExGoCD.Repo, self(), pid)
+      Sandbox.allow(ExGoCD.Repo, self(), pid)
     end
     wait_for_scheduler()
     Scheduler.clear_queue()
@@ -31,7 +33,7 @@ defmodule ExGoCD.HTTPTestAgentTest do
     _ = Supervisor.restart_child(ExGoCD.Supervisor, ExGoCDWeb.Endpoint)
 
     # 2. Start the HTTP test agent pointing to port 4002
-    uuid = ExGoCD.TestAgent.UUID.uuid4()
+    uuid = UUID.uuid4()
     {:ok, agent_pid} = TestAgentSupervisor.start_http_agent(
       uuid: uuid,
       port: 4002,

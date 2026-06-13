@@ -1,6 +1,7 @@
 defmodule ExGoCD.SchedulerTest do
   use ExGoCD.DataCase, async: false
 
+  alias Ecto.Adapters.SQL.Sandbox
   alias ExGoCD.Agents
   alias ExGoCD.Scheduler
   alias ExGoCDWeb.AgentPresence
@@ -12,7 +13,7 @@ defmodule ExGoCD.SchedulerTest do
   setup do
     pid = Process.whereis(ExGoCD.Scheduler)
     if pid do
-      Ecto.Adapters.SQL.Sandbox.allow(ExGoCD.Repo, self(), pid)
+      Sandbox.allow(ExGoCD.Repo, self(), pid)
     end
     Scheduler.clear_queue()
     wait_for_scheduler()
@@ -103,14 +104,7 @@ defmodule ExGoCD.SchedulerTest do
 
   describe "resource matching (GoCD BuildAssignmentService semantics)" do
     test "job with no resources is assigned to any idle agent" do
-      {:ok, _} = Agents.register_agent(%{uuid: @uuid, hostname: "agent-a", ipaddress: "127.0.0.1"})
-      n0 = Scheduler.pending_count()
-      assert {:ok, _} = Scheduler.schedule_job(%{"pipeline" => "p", "stage" => "s", "job" => "j"})
-      assert Scheduler.pending_count() == n0 + 1
-
-      AgentPresence.track(self(), @presence_topic, @uuid, %{})
-      assert Scheduler.try_assign_work(@uuid) == :assigned
-      assert Scheduler.pending_count() == n0
+      assert_unrestricted_job_assigned()
     end
 
     test "job requiring resources is not assigned to agent without those resources" do
@@ -184,14 +178,7 @@ defmodule ExGoCD.SchedulerTest do
 
   describe "environment matching (GoCD semantics)" do
     test "job with no environments matches any agent" do
-      {:ok, _} = Agents.register_agent(%{uuid: @uuid, hostname: "agent-a", ipaddress: "127.0.0.1"})
-      n0 = Scheduler.pending_count()
-      assert {:ok, _} = Scheduler.schedule_job(%{"pipeline" => "p", "stage" => "s", "job" => "j"})
-      assert Scheduler.pending_count() == n0 + 1
-
-      AgentPresence.track(self(), @presence_topic, @uuid, %{})
-      assert Scheduler.try_assign_work(@uuid) == :assigned
-      assert Scheduler.pending_count() == n0
+      assert_unrestricted_job_assigned()
     end
 
     test "job requiring environment is not assigned to agent not in that environment" do
@@ -231,6 +218,17 @@ defmodule ExGoCD.SchedulerTest do
       count = Scheduler.pending_count()
       assert is_integer(count) and count >= 0
     end
+  end
+
+  defp assert_unrestricted_job_assigned do
+    {:ok, _} = Agents.register_agent(%{uuid: @uuid, hostname: "agent-a", ipaddress: "127.0.0.1"})
+    n0 = Scheduler.pending_count()
+    assert {:ok, _} = Scheduler.schedule_job(%{"pipeline" => "p", "stage" => "s", "job" => "j"})
+    assert Scheduler.pending_count() == n0 + 1
+
+    AgentPresence.track(self(), @presence_topic, @uuid, %{})
+    assert Scheduler.try_assign_work(@uuid) == :assigned
+    assert Scheduler.pending_count() == n0
   end
 
   defp wait_for_scheduler do

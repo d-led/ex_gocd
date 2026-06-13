@@ -271,66 +271,74 @@ defmodule ExGoCDWeb.DashboardLive do
     if use_mock?() do
       get_mock_stage_summary(pipeline_name, pipeline_counter, stage_name)
     else
-      import Ecto.Query
-      pi =
-        from(pi in ExGoCD.Pipelines.PipelineInstance,
-          join: p in assoc(pi, :pipeline),
-          where: p.name == ^pipeline_name and pi.counter == ^pipeline_counter,
-          preload: [:pipeline]
-        )
-        |> ExGoCD.Repo.one()
-
-      if pi do
-        si =
-          from(si in ExGoCD.Pipelines.StageInstance,
-            where: si.pipeline_instance_id == ^pi.id and si.name == ^stage_name,
-            order_by: [desc: si.counter],
-            limit: 1,
-            preload: [job_instances: :stage_instance]
-          )
-          |> ExGoCD.Repo.one()
-
-        if si do
-          build_cause = pi.build_cause || %{}
-          triggered_by = build_cause["triggerMessage"] || "Triggered manually"
-          created_time = si.created_time || si.inserted_at
-
-          jobs = si.job_instances || []
-          building_count = Enum.count(jobs, &(&1.state in ["Scheduled", "Assigned", "Preparing", "Building", "Completing"]))
-          passed_count = Enum.count(jobs, &(&1.state == "Completed" and &1.result == "Passed"))
-          failed_count = Enum.count(jobs, &(&1.state == "Completed" and &1.result in ["Failed", "Cancelled"]))
-
-          mapped_jobs =
-            Enum.map(jobs, fn ji ->
-              %{
-                name: ji.name,
-                state: ji.state,
-                result: ji.result,
-                duration: job_duration(ji),
-                agent_uuid: ji.agent_uuid
-              }
-            end)
-
-          %{
-            pipeline_name: pipeline_name,
-            pipeline_counter: pipeline_counter,
-            stage_name: stage_name,
-            stage_counter: si.counter,
-            triggered_by: triggered_by,
-            created_time: created_time,
-            duration: stage_duration(si),
-            building_count: building_count,
-            passed_count: passed_count,
-            failed_count: failed_count,
-            jobs: mapped_jobs
-          }
-        else
-          get_mock_stage_summary(pipeline_name, pipeline_counter, stage_name)
-        end
-      else
-        get_mock_stage_summary(pipeline_name, pipeline_counter, stage_name)
-      end
+      fetch_db_stage_summary(pipeline_name, pipeline_counter, stage_name)
     end
+  end
+
+  defp fetch_db_stage_summary(pipeline_name, pipeline_counter, stage_name) do
+    import Ecto.Query
+    pi =
+      from(pi in ExGoCD.Pipelines.PipelineInstance,
+        join: p in assoc(pi, :pipeline),
+        where: p.name == ^pipeline_name and pi.counter == ^pipeline_counter,
+        preload: [:pipeline]
+      )
+      |> ExGoCD.Repo.one()
+
+    with %{} = pi <- pi,
+         si when not is_nil(si) <- find_latest_stage_instance(pi.id, stage_name) do
+      build_stage_summary_map(pipeline_name, pipeline_counter, stage_name, pi, si)
+    else
+      _ -> get_mock_stage_summary(pipeline_name, pipeline_counter, stage_name)
+    end
+  end
+
+  defp find_latest_stage_instance(pipeline_instance_id, stage_name) do
+    import Ecto.Query
+    from(si in ExGoCD.Pipelines.StageInstance,
+      where: si.pipeline_instance_id == ^pipeline_instance_id and si.name == ^stage_name,
+      order_by: [desc: si.counter],
+      limit: 1,
+      preload: [job_instances: :stage_instance]
+    )
+    |> ExGoCD.Repo.one()
+  end
+
+  defp build_stage_summary_map(pipeline_name, pipeline_counter, stage_name, pi, si) do
+    build_cause = pi.build_cause || %{}
+    triggered_by = build_cause["triggerMessage"] || "Triggered manually"
+    created_time = si.created_time || si.inserted_at
+
+    jobs = si.job_instances || []
+    building_count = Enum.count(jobs, &(&1.state in ["Scheduled", "Assigned", "Preparing", "Building", "Completing"]))
+    passed_count = Enum.count(jobs, &(&1.state == "Completed" and &1.result == "Passed"))
+    failed_count = Enum.count(jobs, &(&1.state == "Completed" and &1.result in ["Failed", "Cancelled"]))
+
+    mapped_jobs = Enum.map(jobs, &map_job_summary/1)
+
+    %{
+      pipeline_name: pipeline_name,
+      pipeline_counter: pipeline_counter,
+      stage_name: stage_name,
+      stage_counter: si.counter,
+      triggered_by: triggered_by,
+      created_time: created_time,
+      duration: stage_duration(si),
+      building_count: building_count,
+      passed_count: passed_count,
+      failed_count: failed_count,
+      jobs: mapped_jobs
+    }
+  end
+
+  defp map_job_summary(ji) do
+    %{
+      name: ji.name,
+      state: ji.state,
+      result: ji.result,
+      duration: job_duration(ji),
+      agent_uuid: ji.agent_uuid
+    }
   end
 
   defp job_duration(ji) do

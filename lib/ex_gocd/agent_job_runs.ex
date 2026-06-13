@@ -175,4 +175,20 @@ defmodule ExGoCD.AgentJobRuns do
     )
     |> Repo.all()
   end
+
+  @doc """
+  Gets the latest agent job run matching the given pipeline coordinates.
+  """
+  def get_run_by_params(pipeline_name, pipeline_counter, stage_name, stage_counter, job_name) do
+    from(r in AgentJobRun,
+      where: r.pipeline_name == ^pipeline_name
+        and r.pipeline_counter == ^pipeline_counter
+        and r.stage_name == ^stage_name
+        and r.stage_counter == ^stage_counter
+        and r.job_name == ^job_name,
+      order_by: [desc: r.inserted_at],
+      limit: 1
+    )
+    |> Repo.one()
+  end
 end

@@ -11,7 +11,6 @@ defmodule ExGoCDWeb.LiveSession do
   enforced.
   """
   import Phoenix.Component
-  import Phoenix.LiveView
 
   alias ExGoCD.Accounts
   alias ExGoCD.Accounts.User

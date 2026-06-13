@@ -14,7 +14,7 @@ defmodule ExGoCDWeb.API.PipelineOperationsController do
     user = get_current_user(conn)
     case ExGoCD.Policies.permit?(ExGoCD.Policies.EnvironmentPolicy, :trigger_pipeline, user) do
       true ->
-        paused_by = (user && user.username) || "anonymous"
+        paused_by = user.username
         pause_cause = Map.get(params, "pause_cause", "")
 
         case Pipelines.pause_pipeline(name, paused_by, pause_cause) do

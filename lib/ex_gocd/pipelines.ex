@@ -10,17 +10,19 @@ defmodule ExGoCD.Pipelines do
   - Dashboard: list pipeline configs with latest instance status.
   """
   import Ecto.Query
-  alias ExGoCD.Pipelines.{
-    Job,
-    JobInstance,
-    Material,
-    Pipeline,
-    PipelineInstance,
-    Stage,
-    StageInstance,
-    Task,
-    Modification
-  }
+  require Logger
+  alias ExGoCD.Materials.GitClient
+  alias ExGoCD.Pipelines.FanInResolver
+  alias ExGoCD.Pipelines.Job
+  alias ExGoCD.Pipelines.JobInstance
+  alias ExGoCD.Pipelines.Material
+  alias ExGoCD.Pipelines.Modification
+  alias ExGoCD.Pipelines.Pipeline
+  alias ExGoCD.Pipelines.PipelineInstance
+  alias ExGoCD.Pipelines.PipelineMaterialRevision
+  alias ExGoCD.Pipelines.Stage
+  alias ExGoCD.Pipelines.StageInstance
+  alias ExGoCD.Pipelines.Task
   alias ExGoCD.Repo
   alias ExGoCD.Scheduler
 
@@ -75,11 +77,18 @@ defmodule ExGoCD.Pipelines do
   Returns {:ok, pipeline_instance} or {:error, changeset}.
   """
   def trigger_pipeline(pipeline_name) when is_binary(pipeline_name) do
-    pipeline = get_pipeline_by_name(pipeline_name)
-    cond do
-      is_nil(pipeline) -> {:error, :pipeline_not_found}
-      pipeline.paused -> {:error, :pipeline_paused}
-      true -> do_trigger_pipeline(pipeline)
+    with %Pipeline{} = pipeline <- get_pipeline_by_name(pipeline_name),
+         {:paused, false} <- {:paused, pipeline.paused},
+         {:locked, false} <- {:locked, pipeline_locked?(pipeline)},
+         pipeline = Repo.preload(pipeline, [:materials, stages: [jobs: :tasks]]),
+         {:ok, proposed} <- get_proposed_revisions(pipeline),
+         :ok <- FanInResolver.verify_consistency(proposed) do
+      do_trigger_pipeline_with_proposed(pipeline, proposed)
+    else
+      nil -> {:error, :pipeline_not_found}
+      {:paused, true} -> {:error, :pipeline_paused}
+      {:locked, true} -> {:error, :pipeline_locked}
+      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -133,47 +142,134 @@ defmodule ExGoCD.Pipelines do
     end
   end
 
-  defp resolve_material_revisions(pipeline) do
-    Enum.map(pipeline.materials || [], fn material ->
-      revision =
-        if material.type == "git" and is_binary(material.url) and material.url != "" do
-          branch = material.branch || "master"
-          case ExGoCD.Materials.GitClient.latest_revision(material.url, branch) do
-            {:ok, %{revision: sha}} -> sha
-            _ -> "HEAD"
-          end
-        else
-          "HEAD"
+  @doc """
+  Unlocks a locked pipeline.
+  """
+  def unlock_pipeline(pipeline_name) when is_binary(pipeline_name) do
+    case get_pipeline_by_name(pipeline_name) do
+      nil -> {:error, :pipeline_not_found}
+      pipeline ->
+        pipeline
+        |> Pipeline.changeset(%{locked: false})
+        |> Repo.update()
+        |> case do
+          {:ok, updated_pipeline} ->
+            Phoenix.PubSub.broadcast(ExGoCD.PubSub, "pipelines:updates", :pipelines_updated)
+            {:ok, updated_pipeline}
+          {:error, changeset} ->
+            {:error, changeset}
         end
+    end
+  end
 
-      %{
-        "material" => %{
-          "id" => material.id,
-          "type" => material.type,
-          "url" => material.url,
-          "branch" => material.branch || "master",
-          "destination" => material.destination || ""
-        },
-        "changed" => true,
-        "modifications" => [
-          %{
-            "revision" => revision,
-            "modifiedTime" => DateTime.utc_now() |> DateTime.to_iso8601(),
-            "comment" => "Triggered commit",
-            "username" => "gocd"
-          }
-        ]
-      }
+  @doc """
+  Checks if a pipeline is currently building.
+  """
+  def pipeline_building?(pipeline_id) do
+    query =
+      from pi in PipelineInstance,
+        join: si in assoc(pi, :stage_instances),
+        where: pi.pipeline_id == ^pipeline_id and si.state == "Building",
+        select: count(pi.id)
+
+    Repo.one(query) > 0
+  end
+
+  @doc """
+  Checks if a pipeline is locked.
+  """
+  def pipeline_locked?(pipeline) do
+    case pipeline.lock_behavior do
+      "none" ->
+        false
+
+      "unlockWhenFinished" ->
+        pipeline_building?(pipeline.id)
+
+      "lockOnFailure" ->
+        pipeline.locked or pipeline_building?(pipeline.id)
+
+      _ ->
+        false
+    end
+  end
+
+  defp get_proposed_revisions(pipeline) do
+    Enum.reduce_while(pipeline.materials || [], {:ok, %{}}, &propose_material_revision/2)
+  end
+
+  defp propose_material_revision(material, {:ok, acc}) do
+    case material.type do
+      "git" ->
+        mod = get_or_create_latest_modification(material)
+        {:cont, {:ok, Map.put(acc, material.id, {:git, mod})}}
+
+      "dependency" ->
+        resolve_proposed_dependency(material, acc)
+
+      _ ->
+        {:cont, {:ok, acc}}
+    end
+  end
+
+  defp resolve_proposed_dependency(material, acc) do
+    case get_latest_passed_instance(material.url) do
+      nil ->
+        {:halt, {:error, {:upstream_not_passed, material.url}}}
+      pi ->
+        {:cont, {:ok, Map.put(acc, material.id, {:pipeline, pi})}}
+    end
+  end
+
+  defp get_or_create_latest_modification(material) do
+    case get_latest_modification(material.id) do
+      nil ->
+        sha = get_material_revision(material)
+        attrs = %{
+          material_id: material.id,
+          revision: sha,
+          committer_name: "gocd",
+          committer_email: "gocd@localhost",
+          comment: "Initial commit",
+          modified_time: DateTime.utc_now()
+        }
+        {:ok, mod} = create_modification(attrs)
+        mod
+      mod ->
+        mod
+    end
+  end
+
+  defp get_material_revision(%{type: "git", url: url, branch: branch}) when is_binary(url) and url != "" do
+    case GitClient.latest_revision(url, branch || "master") do
+      {:ok, %{revision: sha}} -> sha
+      _ -> "HEAD"
+    end
+  end
+  defp get_material_revision(_material), do: "HEAD"
+
+  defp get_latest_passed_instance(pipeline_name) do
+    from(pi in PipelineInstance,
+      join: p in assoc(pi, :pipeline),
+      join: si in assoc(pi, :stage_instances),
+      where: p.name == ^pipeline_name,
+      order_by: [desc: pi.counter],
+      preload: [:pipeline, :stage_instances]
+    )
+    |> Repo.all()
+    |> Enum.find(fn pi ->
+      not Enum.empty?(pi.stage_instances) and
+        Enum.all?(pi.stage_instances, &(&1.state == "Completed" and &1.result == "Passed"))
     end)
   end
 
-  defp do_trigger_pipeline(pipeline) do
+  defp do_trigger_pipeline_with_proposed(pipeline, proposed) do
     counter = next_counter(pipeline.id)
     now = DateTime.utc_now()
     label = String.replace(pipeline.label_template, "${COUNT}", to_string(counter))
     natural_order = counter * 1.0
 
-    material_revisions = resolve_material_revisions(pipeline)
+    material_revisions = build_material_revisions_map(pipeline, proposed)
 
     build_cause = %{
       "approver" => "anonymous",
@@ -195,11 +291,12 @@ defmodule ExGoCD.Pipelines do
           })
           |> Repo.insert!()
 
+        insert_pipeline_material_revisions(instance.id, proposed)
+
         stages_ordered = Enum.sort_by(pipeline.stages, & &1.id)
         first_stage = List.first(stages_ordered)
         if is_nil(first_stage), do: raise("Pipeline has no stages")
 
-        # Create stage instance for first stage (Building); others we skip for single-stage trigger
         stage_instance =
           %StageInstance{}
           |> StageInstance.changeset(%{
@@ -234,14 +331,14 @@ defmodule ExGoCD.Pipelines do
             |> Repo.insert!()
           end)
 
-        {instance, first_stage, job_instances}
+        {instance, first_stage, stage_instance, job_instances}
       end)
 
     case result do
-      {:ok, {instance, first_stage, job_instances}} ->
+      {:ok, {instance, first_stage, stage_instance, job_instances}} ->
         for ji <- job_instances do
           job_config = Enum.find(first_stage.jobs, &(&1.id == ji.job_id))
-          schedule_job_if_config(pipeline, counter, first_stage, job_config, ji)
+          schedule_job_if_config(pipeline, counter, stage_instance, job_config, ji)
         end
         Phoenix.PubSub.broadcast(ExGoCD.PubSub, "pipelines:updates", :pipelines_updated)
         {:ok, instance}
@@ -249,6 +346,64 @@ defmodule ExGoCD.Pipelines do
       {:error, reason} ->
         {:error, reason}
     end
+  end
+
+  defp build_material_revisions_map(pipeline, proposed) do
+    Enum.map(pipeline.materials || [], fn material ->
+      ref = Map.get(proposed, material.id)
+      revision =
+        case ref do
+          {:git, mod} -> mod.revision
+          {:pipeline, pi} -> "#{pi.pipeline.name}/#{pi.counter}"
+          _ -> "HEAD"
+        end
+
+      %{
+        "material" => %{
+          "id" => material.id,
+          "type" => material.type,
+          "url" => material.url,
+          "branch" => material.branch || "master",
+          "destination" => material.destination || ""
+        },
+        "changed" => true,
+        "modifications" => [
+          %{
+            "revision" => revision,
+            "modifiedTime" => DateTime.utc_now() |> DateTime.to_iso8601(),
+            "comment" => "Triggered commit",
+            "username" => "gocd"
+          }
+        ]
+      }
+    end)
+  end
+
+  defp insert_pipeline_material_revisions(pipeline_instance_id, proposed) do
+    Enum.each(proposed, fn {material_id, ref} ->
+      attrs =
+        case ref do
+          {:git, mod} ->
+            %{
+              pipeline_instance_id: pipeline_instance_id,
+              material_id: material_id,
+              modification_id: mod.id,
+              revision: mod.revision
+            }
+
+          {:pipeline, pi} ->
+            %{
+              pipeline_instance_id: pipeline_instance_id,
+              material_id: material_id,
+              parent_pipeline_instance_id: pi.id,
+              revision: "#{pi.pipeline.name}/#{pi.counter}"
+            }
+        end
+
+      %PipelineMaterialRevision{}
+      |> PipelineMaterialRevision.changeset(attrs)
+      |> Repo.insert!()
+    end)
   end
 
   defp schedule_job_if_config(_pipeline, _counter, _stage, nil, _ji), do: :noop
@@ -335,11 +490,7 @@ defmodule ExGoCD.Pipelines do
       to_rev_info = extract_revision_info(to_instance, material.id)
 
       # Accumulate modifications that happened in between (i.e. those in to_instance)
-      modifications =
-        case to_rev_info do
-          %{modifications: mods} -> mods
-          _ -> []
-        end
+      modifications = Map.get(to_rev_info, :modifications, [])
 
       %{
         material_id: material.id,
@@ -386,158 +537,163 @@ defmodule ExGoCD.Pipelines do
       Phoenix.PubSub.broadcast(ExGoCD.PubSub, "pipelines:updates", :pipelines_updated)
       {:ok, %{name: stage_name, counter: 2}}
     else
-      # Fetch pipeline instance
-      pipeline_instance =
-        from(pi in PipelineInstance,
-          join: p in assoc(pi, :pipeline),
-          where: p.name == ^pipeline_name and pi.counter == ^pipeline_counter,
-          preload: [:pipeline]
-        )
-        |> Repo.one()
+      do_rerun_stage(pipeline_name, pipeline_counter, stage_name, job_names)
+    end
+  end
 
-      if pipeline_instance do
-        pipeline = pipeline_instance.pipeline
+  defp do_rerun_stage(pipeline_name, pipeline_counter, stage_name, job_names) do
+    with %PipelineInstance{} = pi <- get_pipeline_instance_by_name(pipeline_name, pipeline_counter),
+         %Stage{} = stage_config <- get_stage_config(pi.pipeline_id, stage_name),
+         %StageInstance{} = latest_si <- get_latest_stage_instance(pi.id, stage_name) do
+      max_counter = get_max_stage_counter(pi.id, stage_name)
+      perform_rerun_stage(pi, stage_config, latest_si, max_counter, job_names)
+    else
+      nil -> {:error, :not_found}
+    end
+  end
 
-        # Find config for this stage
-        stage_config =
-          from(s in Stage,
-            where: s.pipeline_id == ^pipeline.id and s.name == ^stage_name,
-            preload: [jobs: :tasks]
-          )
-          |> Repo.one()
+  defp get_pipeline_instance_by_name(name, counter) do
+    from(pi in PipelineInstance,
+      join: p in assoc(pi, :pipeline),
+      where: p.name == ^name and pi.counter == ^counter,
+      preload: [:pipeline]
+    )
+    |> Repo.one()
+  end
 
-        # Find all stage instances of this stage under the pipeline instance to get the maximum counter
-        max_counter =
-          from(si in StageInstance,
-            where: si.pipeline_instance_id == ^pipeline_instance.id and si.name == ^stage_name,
-            select: max(si.counter)
-          )
-          |> Repo.one() || 0
+  defp get_stage_config(pipeline_id, name) do
+    from(s in Stage,
+      where: s.pipeline_id == ^pipeline_id and s.name == ^name,
+      preload: [jobs: :tasks]
+    )
+    |> Repo.one()
+  end
 
-        # Find latest stage instance to copy settings
-        latest_si =
-          from(si in StageInstance,
-            where: si.pipeline_instance_id == ^pipeline_instance.id and si.name == ^stage_name,
-            order_by: [desc: si.counter],
-            limit: 1
-          )
-          |> Repo.one()
+  defp get_latest_stage_instance(pi_id, name) do
+    from(si in StageInstance,
+      where: si.pipeline_instance_id == ^pi_id and si.name == ^name,
+      order_by: [desc: si.counter],
+      limit: 1
+    )
+    |> Repo.one()
+  end
 
-        if latest_si && stage_config do
-          next_counter = max_counter + 1
-          now = DateTime.utc_now()
+  defp get_max_stage_counter(pi_id, name) do
+    from(si in StageInstance,
+      where: si.pipeline_instance_id == ^pi_id and si.name == ^name,
+      select: max(si.counter)
+    )
+    |> Repo.one() || 0
+  end
 
-          # Determine which jobs to run
-          jobs_to_run =
-            cond do
-              is_list(job_names) ->
-                Enum.filter(stage_config.jobs, fn j -> j.name in job_names end)
+  defp perform_rerun_stage(pi, stage_config, latest_si, max_counter, job_names) do
+    jobs_to_run = select_jobs_to_run(stage_config.jobs, latest_si.id, job_names)
 
-              job_names == :failed || job_names == "failed" ->
-                # Fetch previous job instances
-                prev_job_instances =
-                  from(ji in JobInstance,
-                    where: ji.stage_instance_id == ^latest_si.id
-                  )
-                  |> Repo.all()
+    if Enum.empty?(jobs_to_run) do
+      {:error, :no_jobs_to_run}
+    else
+      next_counter = max_counter + 1
+      now = DateTime.utc_now()
 
-                failed_job_names =
-                  prev_job_instances
-                  |> Enum.filter(fn ji -> ji.result in ["Failed", "Cancelled", "Unknown"] end)
-                  |> Enum.map(& &1.name)
+      mark_previous_stage_instances_not_latest(pi.id, latest_si.name)
 
-                Enum.filter(stage_config.jobs, fn j -> j.name in failed_job_names end)
+      result =
+        Repo.transaction(fn ->
+          insert_rerun_instances(pi, stage_config, latest_si, next_counter, jobs_to_run, now)
+        end)
 
-              true ->
-                # Default: rerun all jobs in config
-                stage_config.jobs
-            end
+      case result do
+        {:ok, {new_stage_instance, job_instances}} ->
+          enqueue_rerun_jobs(pi.pipeline, pi.counter, latest_si.name, next_counter, stage_config.jobs, job_instances)
+          Phoenix.PubSub.broadcast(ExGoCD.PubSub, "pipelines:updates", :pipelines_updated)
+          {:ok, new_stage_instance}
 
-          if Enum.empty?(jobs_to_run) do
-            {:error, :no_jobs_to_run}
-          else
-            # Mark all previous stage instances for this stage under this pipeline instance as latest_run: false
-            from(si in StageInstance,
-              where: si.pipeline_instance_id == ^pipeline_instance.id and si.name == ^stage_name
-            )
-            |> Repo.update_all(set: [latest_run: false])
-
-            result =
-              Repo.transaction(fn ->
-                new_stage_instance =
-                  %StageInstance{}
-                  |> StageInstance.changeset(%{
-                    pipeline_instance_id: pipeline_instance.id,
-                    name: stage_name,
-                    counter: next_counter,
-                    order_id: latest_si.order_id,
-                    state: "Building",
-                    result: "Unknown",
-                    approval_type: latest_si.approval_type,
-                    created_time: now,
-                    fetch_materials: latest_si.fetch_materials,
-                    clean_working_dir: latest_si.clean_working_dir,
-                    latest_run: true,
-                    rerun_of_counter: latest_si.counter
-                  })
-                  |> Repo.insert!()
-
-                scheduled_at = DateTime.to_naive(now)
-
-                job_instances =
-                  Enum.map(jobs_to_run, fn job ->
-                    %JobInstance{}
-                    |> JobInstance.changeset(%{
-                      stage_instance_id: new_stage_instance.id,
-                      job_id: job.id,
-                      name: job.name,
-                      state: "Scheduled",
-                      result: "Unknown",
-                      scheduled_at: scheduled_at,
-                      run_on_all_agents: job.run_on_all_agents || false,
-                      run_multiple_instance: false,
-                      identifier: "#{pipeline.name}/#{pipeline_counter}/#{stage_name}/#{next_counter}/#{job.name}/1"
-                    })
-                    |> Repo.insert!()
-                  end)
-
-                {new_stage_instance, job_instances}
-              end)
-
-            case result do
-              {:ok, {new_stage_instance, job_instances}} ->
-                for ji <- job_instances do
-                  job_config = Enum.find(stage_config.jobs, &(&1.id == ji.job_id))
-                  build_command = build_command_from_job(job_config)
-
-                  spec = %{
-                    "pipeline" => pipeline.name,
-                    "pipeline_counter" => pipeline_counter,
-                    "stage" => stage_name,
-                    "stage_counter" => next_counter,
-                    "job" => job_config.name,
-                    "resources" => job_config.resources || [],
-                    "environments" => [],
-                    "build_command" => build_command,
-                    "job_instance_id" => ji.id
-                  }
-
-                  Scheduler.schedule_job(spec)
-                end
-
-                Phoenix.PubSub.broadcast(ExGoCD.PubSub, "pipelines:updates", :pipelines_updated)
-                {:ok, new_stage_instance}
-
-              {:error, reason} ->
-                {:error, reason}
-            end
-          end
-        else
-          {:error, :stage_not_found}
-        end
-      else
-        {:error, :pipeline_instance_not_found}
+        {:error, reason} ->
+          {:error, reason}
       end
+    end
+  end
+
+  defp select_jobs_to_run(jobs, _latest_si_id, job_names) when is_list(job_names) do
+    Enum.filter(jobs, fn j -> j.name in job_names end)
+  end
+  defp select_jobs_to_run(jobs, latest_si_id, job_names) when job_names in [:failed, "failed"] do
+    prev_job_instances = from(ji in JobInstance, where: ji.stage_instance_id == ^latest_si_id) |> Repo.all()
+    failed_names =
+      prev_job_instances
+      |> Enum.filter(fn ji -> ji.result in ["Failed", "Cancelled", "Unknown"] end)
+      |> Enum.map(& &1.name)
+
+    Enum.filter(jobs, fn j -> j.name in failed_names end)
+  end
+  defp select_jobs_to_run(jobs, _latest_si_id, _), do: jobs
+
+  defp mark_previous_stage_instances_not_latest(pi_id, name) do
+    from(si in StageInstance,
+      where: si.pipeline_instance_id == ^pi_id and si.name == ^name
+    )
+    |> Repo.update_all(set: [latest_run: false])
+  end
+
+  defp insert_rerun_instances(pi, _stage_config, latest_si, next_counter, jobs_to_run, now) do
+    new_stage_instance =
+      %StageInstance{}
+      |> StageInstance.changeset(%{
+        pipeline_instance_id: pi.id,
+        name: latest_si.name,
+        counter: next_counter,
+        order_id: latest_si.order_id,
+        state: "Building",
+        result: "Unknown",
+        approval_type: latest_si.approval_type,
+        created_time: now,
+        fetch_materials: latest_si.fetch_materials,
+        clean_working_dir: latest_si.clean_working_dir,
+        latest_run: true,
+        rerun_of_counter: latest_si.counter
+      })
+      |> Repo.insert!()
+
+    scheduled_at = DateTime.to_naive(now)
+
+    job_instances =
+      Enum.map(jobs_to_run, fn job ->
+        %JobInstance{}
+        |> JobInstance.changeset(%{
+          stage_instance_id: new_stage_instance.id,
+          job_id: job.id,
+          name: job.name,
+          state: "Scheduled",
+          result: "Unknown",
+          scheduled_at: scheduled_at,
+          run_on_all_agents: job.run_on_all_agents || false,
+          run_multiple_instance: false,
+          identifier: "#{pi.pipeline.name}/#{pi.counter}/#{latest_si.name}/#{next_counter}/#{job.name}/1"
+        })
+        |> Repo.insert!()
+      end)
+
+    {new_stage_instance, job_instances}
+  end
+
+  defp enqueue_rerun_jobs(pipeline, pipeline_counter, stage_name, next_counter, jobs_config, job_instances) do
+    for ji <- job_instances do
+      job_config = Enum.find(jobs_config, &(&1.id == ji.job_id))
+      build_command = build_command_from_job(job_config)
+
+      spec = %{
+        "pipeline" => pipeline.name,
+        "pipeline_counter" => pipeline_counter,
+        "stage" => stage_name,
+        "stage_counter" => next_counter,
+        "job" => job_config.name,
+        "resources" => job_config.resources || [],
+        "environments" => [],
+        "build_command" => build_command,
+        "job_instance_id" => ji.id
+      }
+
+      Scheduler.schedule_job(spec)
     end
   end
 
@@ -633,7 +789,10 @@ defmodule ExGoCD.Pipelines do
   defp to_utc_datetime(%NaiveDateTime{} = ndt), do: DateTime.from_naive!(ndt, "Etc/UTC")
   defp to_utc_datetime(_), do: nil
 
-  defp pipeline_instance_status(instance) do
+  @doc """
+  Determines the status of a pipeline instance based on its stage instances.
+  """
+  def pipeline_instance_status(instance) do
     stages = instance.stage_instances || []
     cond do
       Enum.any?(stages, fn s -> s.state == "Building" end) -> "Building"
@@ -694,29 +853,49 @@ defmodule ExGoCD.Pipelines do
 
   defp maybe_complete_stage(jobs, stage, now) do
     if Enum.all?(jobs, &(&1.state == "Completed")) do
-      stage_result =
-        if Enum.any?(jobs, &(&1.result == "Failed" or &1.result == "Cancelled")),
-          do: "Failed",
-          else: "Passed"
-
-      case stage
-           |> StageInstance.changeset(%{
-             state: "Completed",
-             result: stage_result,
-             completed_at: now,
-             last_transitioned_time: DateTime.utc_now()
-           })
-           |> Repo.update() do
-        {:ok, updated_stage} ->
-          if stage_result == "Passed" do
-            trigger_next_stage(updated_stage)
-          end
-          :ok
-        error ->
-          error
-      end
+      do_complete_stage(jobs, stage, now)
     end
   end
+
+  defp do_complete_stage(jobs, stage, now) do
+    stage_result =
+      if Enum.any?(jobs, &(&1.result == "Failed" or &1.result == "Cancelled")),
+        do: "Failed",
+        else: "Passed"
+
+    case stage
+         |> StageInstance.changeset(%{
+           state: "Completed",
+           result: stage_result,
+           completed_at: now,
+           last_transitioned_time: DateTime.utc_now()
+         })
+         |> Repo.update() do
+      {:ok, updated_stage} ->
+        maybe_trigger_next_stage(updated_stage, stage_result)
+
+        stage_loaded = Repo.preload(updated_stage, [pipeline_instance: :pipeline])
+        pipeline = stage_loaded.pipeline_instance.pipeline
+
+        if stage_result == "Failed" and pipeline.lock_behavior == "lockOnFailure" do
+          pipeline
+          |> Pipeline.changeset(%{locked: true})
+          |> Repo.update()
+        end
+
+        if stage_result == "Passed" do
+          check_and_trigger_downstreams(updated_stage)
+        end
+        :ok
+      error ->
+        error
+    end
+  end
+
+  defp maybe_trigger_next_stage(updated_stage, "Passed") do
+    trigger_next_stage(updated_stage)
+  end
+  defp maybe_trigger_next_stage(_updated_stage, _), do: :ok
 
   defp trigger_next_stage(stage_instance) do
     stage_instance = Repo.preload(stage_instance, [pipeline_instance: [pipeline: :stages]])
@@ -728,59 +907,70 @@ defmodule ExGoCD.Pipelines do
 
     if current_idx && current_idx + 1 < length(stages) do
       next_stage = Enum.at(stages, current_idx + 1)
-      now = DateTime.utc_now()
-
-      Repo.transaction(fn ->
-        new_stage_instance =
-          %StageInstance{}
-          |> StageInstance.changeset(%{
-            pipeline_instance_id: pipeline_instance.id,
-            name: next_stage.name,
-            counter: 1,
-            order_id: current_idx + 2,
-            state: "Building",
-            result: "Unknown",
-            approval_type: next_stage.approval_type,
-            created_time: now,
-            fetch_materials: next_stage.fetch_materials,
-            clean_working_dir: next_stage.clean_working_directory
-          })
-          |> Repo.insert!()
-
-        scheduled_at = DateTime.to_naive(now)
-        next_stage_config = Repo.preload(next_stage, jobs: :tasks)
-
-        job_instances =
-          Enum.map(next_stage_config.jobs, fn job ->
-            %JobInstance{}
-            |> JobInstance.changeset(%{
-              stage_instance_id: new_stage_instance.id,
-              job_id: job.id,
-              name: job.name,
-              state: "Scheduled",
-              result: "Unknown",
-              scheduled_at: scheduled_at,
-              run_on_all_agents: job.run_on_all_agents || false,
-              run_multiple_instance: false,
-              identifier: "#{pipeline.name}/#{pipeline_instance.counter}/#{next_stage.name}/1/#{job.name}/1"
-            })
-            |> Repo.insert!()
-          end)
-
-        {new_stage_instance, next_stage_config, job_instances}
-      end)
-      |> case do
-        {:ok, {new_si, next_stage_config, job_instances}} ->
-          for ji <- job_instances do
-            job_config = Enum.find(next_stage_config.jobs, &(&1.id == ji.job_id))
-            schedule_job_if_config(pipeline, pipeline_instance.counter, new_si, job_config, ji)
-          end
-          :ok
-        error ->
-          error
-      end
+      do_trigger_next_stage(pipeline, pipeline_instance, next_stage, current_idx)
     else
       :ok
+    end
+  end
+
+  defp do_trigger_next_stage(pipeline, pipeline_instance, next_stage, current_idx) do
+    now = DateTime.utc_now()
+
+    Repo.transaction(fn ->
+      new_stage_instance = insert_next_stage_instance(pipeline_instance.id, next_stage, current_idx, now)
+      scheduled_at = DateTime.to_naive(now)
+      next_stage_config = Repo.preload(next_stage, jobs: :tasks)
+      job_instances = insert_next_job_instances(new_stage_instance.id, next_stage_config.jobs, pipeline.name, pipeline_instance.counter, next_stage.name, scheduled_at)
+      {new_stage_instance, next_stage_config, job_instances}
+    end)
+    |> case do
+      {:ok, {new_si, next_stage_config, job_instances}} ->
+        schedule_next_jobs(pipeline, pipeline_instance.counter, new_si, next_stage_config.jobs, job_instances)
+        :ok
+      error ->
+        error
+    end
+  end
+
+  defp insert_next_stage_instance(pipeline_instance_id, next_stage, current_idx, now) do
+    %StageInstance{}
+    |> StageInstance.changeset(%{
+      pipeline_instance_id: pipeline_instance_id,
+      name: next_stage.name,
+      counter: 1,
+      order_id: current_idx + 2,
+      state: "Building",
+      result: "Unknown",
+      approval_type: next_stage.approval_type,
+      created_time: now,
+      fetch_materials: next_stage.fetch_materials,
+      clean_working_dir: next_stage.clean_working_directory
+    })
+    |> Repo.insert!()
+  end
+
+  defp insert_next_job_instances(stage_instance_id, jobs, pipeline_name, pipeline_counter, stage_name, scheduled_at) do
+    Enum.map(jobs, fn job ->
+      %JobInstance{}
+      |> JobInstance.changeset(%{
+        stage_instance_id: stage_instance_id,
+        job_id: job.id,
+        name: job.name,
+        state: "Scheduled",
+        result: "Unknown",
+        scheduled_at: scheduled_at,
+        run_on_all_agents: job.run_on_all_agents || false,
+        run_multiple_instance: false,
+        identifier: "#{pipeline_name}/#{pipeline_counter}/#{stage_name}/1/#{job.name}/1"
+      })
+      |> Repo.insert!()
+    end)
+  end
+
+  defp schedule_next_jobs(pipeline, counter, new_si, job_configs, job_instances) do
+    for ji <- job_instances do
+      job_config = Enum.find(job_configs, &(&1.id == ji.job_id))
+      schedule_job_if_config(pipeline, counter, new_si, job_config, ji)
     end
   end
 
@@ -957,5 +1147,39 @@ defmodule ExGoCD.Pipelines do
       {:ok, _} = add_material_to_pipeline(pipeline, material)
       material
     end)
+  end
+
+  defp check_and_trigger_downstreams(stage_instance) do
+    stage_instance = Repo.preload(stage_instance, [pipeline_instance: [pipeline: :stages]])
+    pipeline_instance = stage_instance.pipeline_instance
+    pipeline = pipeline_instance.pipeline
+
+    stages = Enum.sort_by(pipeline.stages || [], & &1.id)
+    current_idx = Enum.find_index(stages, &(&1.name == stage_instance.name))
+
+    if current_idx && current_idx + 1 == length(stages) do
+      trigger_completed_downstreams(pipeline.name)
+    end
+  end
+
+  defp trigger_completed_downstreams(pipeline_name) do
+    downstreams = Repo.all(
+      from p in Pipeline,
+        join: m in assoc(p, :materials),
+        where: m.type == "dependency" and m.url == ^pipeline_name,
+        preload: [:materials, stages: :jobs]
+    )
+
+    Enum.each(downstreams, &maybe_trigger_downstream(&1, pipeline_name))
+  end
+
+  defp maybe_trigger_downstream(dp, upstream_name) do
+    Logger.info("[Pipelines] Downstream check: triggering #{dp.name} due to completion of #{upstream_name}")
+    case trigger_pipeline(dp.name) do
+      {:ok, _instance} ->
+        Logger.info("[Pipelines] Downstream check: successfully triggered #{dp.name}")
+      {:error, reason} ->
+        Logger.warning("[Pipelines] Downstream check: could not trigger #{dp.name}: #{inspect(reason)}")
+    end
   end
 end

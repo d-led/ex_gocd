@@ -34,14 +34,7 @@ defmodule ExGoCDWeb.AgentsLive do
   @impl true
   def handle_info({event, _agent}, socket)
       when event in [:agent_registered, :agent_updated, :agent_enabled, :agent_disabled, :agent_deleted] do
-    new_agents = fetch_agents()
-    selected =
-      if socket.assigns[:selected_agents] do
-        MapSet.intersection(socket.assigns.selected_agents, MapSet.new(Enum.map(new_agents, & &1.uuid)))
-      else
-        MapSet.new()
-      end
-    {:noreply, assign(socket, agents: new_agents, selected_agents: selected)}
+    {:noreply, update_agents_list(socket)}
   end
 
   def handle_info({:pending_count, count}, socket) do
@@ -50,14 +43,7 @@ defmodule ExGoCDWeb.AgentsLive do
 
   @impl true
   def handle_event("refresh_agents", _params, socket) do
-    new_agents = fetch_agents()
-    selected =
-      if socket.assigns[:selected_agents] do
-        MapSet.intersection(socket.assigns.selected_agents, MapSet.new(Enum.map(new_agents, & &1.uuid)))
-      else
-        MapSet.new()
-      end
-    {:noreply, assign(socket, agents: new_agents, selected_agents: selected)}
+    {:noreply, update_agents_list(socket)}
   end
 
   @impl true
@@ -539,5 +525,16 @@ defmodule ExGoCDWeb.AgentsLive do
 
   defp return_forbidden(socket) do
     {:noreply, put_flash(socket, :error, "You are not authorized to perform this action.")}
+  end
+
+  defp update_agents_list(socket) do
+    new_agents = fetch_agents()
+    selected =
+      if socket.assigns[:selected_agents] do
+        MapSet.intersection(socket.assigns.selected_agents, MapSet.new(Enum.map(new_agents, & &1.uuid)))
+      else
+        MapSet.new()
+      end
+    assign(socket, agents: new_agents, selected_agents: selected)
   end
 end

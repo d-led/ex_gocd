@@ -2,9 +2,10 @@ defmodule ExGoCD.Materials.Poller do
   use GenServer
   require Logger
 
-  alias ExGoCD.Repo
+  alias ExGoCD.Materials.GitClient
   alias ExGoCD.Pipelines
   alias ExGoCD.Pipelines.Material
+  alias ExGoCD.Repo
 
   @moduledoc """
   A background GenServer that periodically polls Git materials for new revisions.
@@ -62,7 +63,7 @@ defmodule ExGoCD.Materials.Poller do
       |> Repo.preload(:pipelines)
 
     Enum.map(materials, fn material ->
-      case ExGoCD.Materials.GitClient.latest_revision(material.url, material.branch || "master") do
+      case GitClient.latest_revision(material.url, material.branch || "master") do
         {:ok, commit_info} ->
           check_and_trigger(material, commit_info)
 
@@ -83,20 +84,7 @@ defmodule ExGoCD.Materials.Poller do
       attrs = Map.put(commit_info, :material_id, material.id)
       case Pipelines.create_modification(attrs) do
         {:ok, _mod} ->
-          # Trigger associated pipelines
-          triggered =
-            Enum.map(material.pipelines, fn pipeline ->
-              case Pipelines.trigger_pipeline(pipeline.name) do
-                {:ok, instance} ->
-                  Logger.info("SCM Poller: triggered pipeline #{pipeline.name} (run ##{instance.counter}) due to commit #{commit_info.revision}")
-                  {pipeline.name, :triggered, instance.counter}
-
-                {:error, reason} ->
-                  Logger.warning("SCM Poller: failed to trigger pipeline #{pipeline.name}: #{inspect(reason)}")
-                  {pipeline.name, :error, reason}
-              end
-            end)
-
+          triggered = Enum.map(material.pipelines, &trigger_associated_pipeline(&1, commit_info.revision))
           {:new_commit, material.id, commit_info.revision, triggered}
 
         {:error, changeset} ->
@@ -106,6 +94,18 @@ defmodule ExGoCD.Materials.Poller do
     else
       Logger.debug("SCM Poller: no changes detected on #{material.url} [#{material.branch}]")
       {:no_change, material.id}
+    end
+  end
+
+  defp trigger_associated_pipeline(pipeline, revision) do
+    case Pipelines.trigger_pipeline(pipeline.name) do
+      {:ok, instance} ->
+        Logger.info("SCM Poller: triggered pipeline #{pipeline.name} (run ##{instance.counter}) due to commit #{revision}")
+        {pipeline.name, :triggered, instance.counter}
+
+      {:error, reason} ->
+        Logger.warning("SCM Poller: failed to trigger pipeline #{pipeline.name}: #{inspect(reason)}")
+        {pipeline.name, :error, reason}
     end
   end
 end

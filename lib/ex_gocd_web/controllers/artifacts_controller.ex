@@ -400,16 +400,6 @@ defmodule ExGoCDWeb.ArtifactsController do
 
   # Retrieves job run from the database based on pipeline coordinates
   defp get_run_by_params(pipeline_name, pipeline_counter, stage_name, stage_counter, job_name) do
-    import Ecto.Query
-    from(r in ExGoCD.AgentJobRuns.AgentJobRun,
-      where: r.pipeline_name == ^pipeline_name
-        and r.pipeline_counter == ^pipeline_counter
-        and r.stage_name == ^stage_name
-        and r.stage_counter == ^stage_counter
-        and r.job_name == ^job_name,
-      order_by: [desc: r.inserted_at],
-      limit: 1
-    )
-    |> ExGoCD.Repo.one()
+    ExGoCD.AgentJobRuns.get_run_by_params(pipeline_name, pipeline_counter, stage_name, stage_counter, job_name)
   end
 end

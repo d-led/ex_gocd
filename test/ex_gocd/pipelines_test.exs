@@ -7,15 +7,16 @@ defmodule ExGoCD.PipelinesTest do
   use ExGoCD.DataCase, async: false
 
   import Ecto.Query
+  alias Ecto.Adapters.SQL.Sandbox
   alias ExGoCD.Pipelines
-  alias ExGoCD.Pipelines.{Job, JobInstance, Pipeline, Stage, Task, StageInstance}
+  alias ExGoCD.Pipelines.{Job, JobInstance, Pipeline, Stage, StageInstance, Task}
   alias ExGoCD.Repo
   alias ExGoCD.Scheduler
 
   setup do
     pid = Process.whereis(ExGoCD.Scheduler)
     if pid do
-      Ecto.Adapters.SQL.Sandbox.allow(ExGoCD.Repo, self(), pid)
+      Sandbox.allow(ExGoCD.Repo, self(), pid)
     end
     Scheduler.clear_queue()
     :ok
@@ -110,6 +111,53 @@ defmodule ExGoCD.PipelinesTest do
       assert {:ok, instance} = Pipelines.trigger_pipeline(pipeline.name)
       assert instance.counter == 1
       assert Scheduler.pending_count() == n0 + 1
+    end
+
+    test "concurrency locks prevent trigger for locked pipeline" do
+      {pipeline, _stage, _job} = insert_pipeline_with_jobs("locked-pipe-test", 1)
+
+      # 1. Update pipeline to lockOnFailure
+      {:ok, pipeline} = pipeline |> Pipeline.changeset(%{lock_behavior: "lockOnFailure"}) |> Repo.update()
+
+      # 2. Trigger first run
+      assert {:ok, instance1} = Pipelines.trigger_pipeline(pipeline.name)
+      assert Pipelines.pipeline_building?(pipeline.id) == true
+      assert Pipelines.pipeline_locked?(pipeline) == true
+
+      # 3. Attempting to trigger again returns {:error, :pipeline_locked}
+      assert Pipelines.trigger_pipeline(pipeline.name) == {:error, :pipeline_locked}
+
+      # 4. Complete first run successfully
+      [stage_instance1] = from(si in StageInstance, where: si.pipeline_instance_id == ^instance1.id) |> Repo.all()
+      [job_instance1] = from(ji in JobInstance, where: ji.stage_instance_id == ^stage_instance1.id) |> Repo.all()
+      assert :ok = Pipelines.complete_job_instance(job_instance1.id, "Passed")
+
+      # 5. Since it passed, it should now be unlocked (as lockOnFailure unlocks on success)
+      pipeline_reloaded = Repo.get!(Pipeline, pipeline.id)
+      assert Pipelines.pipeline_building?(pipeline.id) == false
+      assert Pipelines.pipeline_locked?(pipeline_reloaded) == false
+
+      # 6. We can trigger again
+      assert {:ok, instance2} = Pipelines.trigger_pipeline(pipeline.name)
+
+      # 7. Complete second run with failure
+      [stage_instance2] = from(si in StageInstance, where: si.pipeline_instance_id == ^instance2.id) |> Repo.all()
+      [job_instance2] = from(ji in JobInstance, where: ji.stage_instance_id == ^stage_instance2.id) |> Repo.all()
+      assert :ok = Pipelines.complete_job_instance(job_instance2.id, "Failed")
+
+      # 8. Reload pipeline config and assert locked is true
+      pipeline_reloaded = Repo.get!(Pipeline, pipeline.id)
+      assert pipeline_reloaded.locked == true
+      assert Pipelines.pipeline_locked?(pipeline_reloaded) == true
+
+      # 9. Triggering again returns {:error, :pipeline_locked} even though it's not building anymore
+      assert Pipelines.pipeline_building?(pipeline.id) == false
+      assert Pipelines.trigger_pipeline(pipeline.name) == {:error, :pipeline_locked}
+
+      # 10. Manual unlock allows it to trigger again
+      assert {:ok, unlocked_pipe} = Pipelines.unlock_pipeline(pipeline.name)
+      assert unlocked_pipe.locked == false
+      assert {:ok, _instance3} = Pipelines.trigger_pipeline(pipeline.name)
     end
   end
 

@@ -6,6 +6,8 @@ defmodule ExGoCD.HTTPTestAgent do
   require Logger
   import Bitwise
 
+  alias ExGoCD.TestAgent.UUID
+
   @default_ping_interval 3000
   @host ~c"127.0.0.1"
   @port 4000
@@ -20,7 +22,7 @@ defmodule ExGoCD.HTTPTestAgent do
 
   @impl true
   def init(opts) do
-    uuid = opts[:uuid] || ExGoCD.TestAgent.UUID.uuid4()
+    uuid = opts[:uuid] || UUID.uuid4()
     hostname = opts[:hostname] || "http-test-agent-#{String.slice(uuid, 0, 8)}"
     ping_interval = opts[:ping_interval] || @default_ping_interval
     port = opts[:port] || @port
@@ -76,7 +78,17 @@ defmodule ExGoCD.HTTPTestAgent do
   end
 
   def handle_info({:tcp, socket, data}, %{socket: socket} = state) do
-    if not state.handshake_done do
+    if state.handshake_done do
+      # Process binary frames
+      new_buffer = state.buffer <> data
+      {frames, remaining} = parse_frames(new_buffer, [])
+
+      new_state = Enum.reduce(frames, state, fn frame, acc ->
+        handle_websocket_frame(frame, acc)
+      end)
+
+      {:noreply, %{new_state | buffer: remaining}}
+    else
       # Expect HTTP 101 Response
       if String.contains?(data, "101 Switching Protocols") do
         Logger.info("[HTTPTestAgent] WebSocket handshake successful!")
@@ -93,16 +105,6 @@ defmodule ExGoCD.HTTPTestAgent do
         send(self(), :register_and_connect)
         {:noreply, %{state | socket: nil}}
       end
-    else
-      # Process binary frames
-      new_buffer = state.buffer <> data
-      {frames, remaining} = parse_frames(new_buffer, [])
-      
-      new_state = Enum.reduce(frames, state, fn frame, acc ->
-        handle_websocket_frame(frame, acc)
-      end)
-
-      {:noreply, %{new_state | buffer: remaining}}
     end
   end
 
@@ -125,7 +127,7 @@ defmodule ExGoCD.HTTPTestAgent do
 
   def handle_info({:run_simulated_build, build_id, console_url}, state) do
     Logger.info("[HTTPTestAgent] Running simulated build tasks for: #{build_id}")
-    
+
     # 1. Report Preparing status
     send_report(state.socket, state.uuid, build_id, "Preparing", "Building", nil)
     post_log(console_url, "Preparing build workspace...\n")
@@ -139,7 +141,7 @@ defmodule ExGoCD.HTTPTestAgent do
 
     # 3. Report Completed status
     send_report(state.socket, state.uuid, build_id, "Completed", "Idle", "Passed")
-    
+
     Logger.info("[HTTPTestAgent] Finished simulated build: #{build_id}")
     {:noreply, %{state | runtime_status: "Idle", current_build: nil}}
   end
@@ -158,7 +160,7 @@ defmodule ExGoCD.HTTPTestAgent do
       {:ok, %{status: 200, body: token}} ->
         # 2. POST registration
         reg_url = "http://#{host_str}:#{state.port}/admin/agent"
-        
+
         ip_addr =
           case host_str do
             "localhost" -> "127.0.0.1"
@@ -187,7 +189,7 @@ defmodule ExGoCD.HTTPTestAgent do
   end
 
   defp connect_websocket(state) do
-    host_tcp = 
+    host_tcp =
       case state.host do
         s when is_binary(s) -> String.to_charlist(s)
         other -> other
@@ -283,10 +285,10 @@ defmodule ExGoCD.HTTPTestAgent do
         build_id = data["buildId"]
         console_url = data["consoleURI"]
         Logger.info("[HTTPTestAgent] Received build assignment for: #{build_id}")
-        
+
         # Trigger build execution asynchronously
         send(self(), {:run_simulated_build, build_id, console_url})
-        
+
         %{state | runtime_status: "Building", current_build: build_id}
 
       {:ok, %{"action" => "cancelBuild", "data" => %{"buildId" => build_id}}} ->
@@ -332,44 +334,45 @@ defmodule ExGoCD.HTTPTestAgent do
     {:ok, {:close, payload}, rest}
   end
   defp parse_frame(buffer) do
-    # Check if buffer has at least 2 bytes to check length
-    if byte_size(buffer) >= 2 do
-      <<_, len_byte, _::binary>> = buffer
-      len_field = len_byte &&& 0x7F
-      needed = 
-        cond do
-          len_field == 126 -> 4
-          len_field == 127 -> 10
-          true -> 2
-        end
+    if byte_size(buffer) < 2 do
+      :incomplete
+    else
+      do_parse_frame(buffer)
+    end
+  end
 
-      if byte_size(buffer) >= needed do
-        actual_len = 
-          case len_field do
-            126 ->
-              <<_, _, l::16, _::binary>> = buffer
-              l
-            127 ->
-              <<_, _, l::64, _::binary>> = buffer
-              l
-            _ ->
-              len_field
-          end
-        if byte_size(buffer) >= needed + actual_len do
-          # This should match one of the main match clauses, but fallback if unknown opcode
-          <<header::binary-size(needed), payload::binary-size(actual_len), rest::binary>> = buffer
-          opcode = binary_part(header, 0, 1) |> :binary.decode_unsigned()
-          {:ok, {opcode, payload}, rest}
-        else
-          :incomplete
-        end
+  defp do_parse_frame(buffer) do
+    <<_, len_byte, _::binary>> = buffer
+    len_field = len_byte &&& 0x7F
+    needed = frame_needed_bytes(len_field)
+
+    if byte_size(buffer) < needed do
+      :incomplete
+    else
+      actual_len = frame_actual_len(buffer, len_field)
+      if byte_size(buffer) >= needed + actual_len do
+        <<header::binary-size(needed), payload::binary-size(actual_len), rest::binary>> = buffer
+        opcode = binary_part(header, 0, 1) |> :binary.decode_unsigned()
+        {:ok, {opcode, payload}, rest}
       else
         :incomplete
       end
-    else
-      :incomplete
     end
   end
+
+  defp frame_needed_bytes(126), do: 4
+  defp frame_needed_bytes(127), do: 10
+  defp frame_needed_bytes(_), do: 2
+
+  defp frame_actual_len(buffer, 126) do
+    <<_, _, l::16, _::binary>> = buffer
+    l
+  end
+  defp frame_actual_len(buffer, 127) do
+    <<_, _, l::64, _::binary>> = buffer
+    l
+  end
+  defp frame_actual_len(_buffer, len_field), do: len_field
 
   defp send_json(socket, map) do
     payload = Jason.encode!(map)
@@ -386,7 +389,7 @@ defmodule ExGoCD.HTTPTestAgent do
       cond do
         len <= 125 ->
           <<129, 128 + len>>
-        len <= 65535 ->
+        len <= 65_535 ->
           <<129, 254, len::16>>
         true ->
           <<129, 255, len::64>>
