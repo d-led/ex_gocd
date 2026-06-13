@@ -1,6 +1,10 @@
 defmodule ExGoCD.Accounts do
   @moduledoc """
   Account and current-user helpers for authorization backed by PostgreSQL.
+
+  GoCD "open mode": when no admin user exists, the server grants full
+  administrative access to all users. Once at least one admin user is
+  configured, role-based access control is enforced.
   """
   import Ecto.Query, warn: false
   alias ExGoCD.Accounts.User
@@ -61,6 +65,17 @@ defmodule ExGoCD.Accounts do
   end
 
   @doc """
+  Returns true if at least one admin user exists — meaning GoCD's "security
+  mode" is active. When false, the system is in "open mode" and everyone
+  has administrative access.
+  """
+  @spec admin_configured?() :: boolean()
+  def admin_configured? do
+    from(u in User, where: fragment("? @> ARRAY[?]::varchar[]", u.roles, "admin"))
+    |> Repo.exists?()
+  end
+
+  @doc """
   Returns the current user from the session, loading from the DB when available.
   """
   @spec get_current_user(map()) :: User.t()
@@ -106,25 +121,25 @@ defmodule ExGoCD.Accounts do
   def get_current_user(_), do: default_user()
 
   defp default_user do
-    # Bootstrapping helper: if the DB is empty, default guest is admin.
-    # Otherwise, unauthenticated guest has empty roles.
-    case Repo.aggregate(User, :count, :id) do
-      0 ->
-        %User{
-          id: nil,
-          username: "guest",
-          display_name: "Guest Admin",
-          roles: ["admin"],
-          status: "Active"
-        }
-      _ ->
-        %User{
-          id: nil,
-          username: "guest",
-          display_name: "Guest Viewer",
-          roles: [],
-          status: "Active"
-        }
+    # GoCD open mode: if no admin user is configured, any unauthenticated
+    # visitor gets full admin access. Once an admin exists, unauthenticated
+    # guests have no roles (viewer only).
+    if admin_configured?() do
+      %User{
+        id: nil,
+        username: "guest",
+        display_name: "Guest Viewer",
+        roles: [],
+        status: "Active"
+      }
+    else
+      %User{
+        id: nil,
+        username: "guest",
+        display_name: "Guest Admin",
+        roles: ["admin"],
+        status: "Active"
+      }
     end
   end
 end

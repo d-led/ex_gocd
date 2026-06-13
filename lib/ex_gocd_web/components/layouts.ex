@@ -18,6 +18,7 @@ defmodule ExGoCDWeb.Layouts do
   """
   attr :current_path, :string, default: "/"
   attr :is_user_admin, :boolean, default: false
+  attr :current_user, :any, default: nil
 
   def site_header(assigns) do
     ~H"""
@@ -115,7 +116,7 @@ defmodule ExGoCDWeb.Layouts do
             <% end %>
           </ul>
         </div>
-        <div class="site-header_right">
+        <div class="site-header_right" style="display:flex;align-items:center;gap:16px">
           <a
             class="need_help"
             href="https://docs.gocd.org"
@@ -125,6 +126,22 @@ defmodule ExGoCDWeb.Layouts do
           >
             Need Help?
           </a>
+          <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:rgba(255,255,255,0.7)">
+            <%= if @current_user && @current_user.username != "guest" do %>
+              <span style="color:rgba(255,255,255,0.9);font-weight:600"><%= @current_user.display_name || @current_user.username %></span>
+              <form method="POST" action="/auth/logout" style="display:inline;margin:0">
+                <input type="hidden" name="_method" value="delete" />
+                <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
+                <button type="submit" style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:rgba(255,255,255,0.8);padding:3px 10px;border-radius:3px;font-size:11px;cursor:pointer" aria-label="Sign out">
+                  Sign out
+                </button>
+              </form>
+            <% else %>
+              <a href="/auth/login" style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);color:rgba(255,255,255,0.85);padding:3px 10px;border-radius:3px;font-size:11px;text-decoration:none" aria-label="Sign in">
+                Sign in
+              </a>
+            <% end %>
+          </div>
         </div>
       </nav>
     </header>

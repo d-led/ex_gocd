@@ -14,10 +14,23 @@ defmodule ExGoCDWeb.AdminLiveTest do
     Repo.insert!(%Pipeline{name: "demo-app", group: "testGroup", label_template: "${COUNT}"})
     Repo.insert!(%Pipeline{name: "e2e-tests", group: "testGroup", label_template: "${COUNT}"})
 
+    # Seed environments for the environments tab assertions
+    {:ok, _} = ExGoCD.Environments.create_environment(%{"name" => "staging"})
+    {:ok, _} = ExGoCD.Environments.create_environment(%{"name" => "production"})
+
+    # Seed default users — GoCD security mode requires at least one admin to enforce RBAC
+    {:ok, _} = ExGoCD.Accounts.create_user(%{username: "admin", display_name: "System Administrator", roles: ["admin", "developer"], status: "Active"})
+    {:ok, _} = ExGoCD.Accounts.create_user(%{username: "developer", display_name: "Lead Developer", roles: ["developer"], status: "Active"})
+    {:ok, _} = ExGoCD.Accounts.create_user(%{username: "viewer", display_name: "Guest Viewer", roles: [], status: "Active"})
+
     :ok
   end
 
   describe "Admin Dashboard Page" do
+    setup %{conn: conn} do
+      {:ok, conn: log_in_as(conn, "admin")}
+    end
+
     test "mounts and displays default overview tab", %{conn: conn} do
       {:ok, view, html} = live(conn, ~p"/admin")
 
@@ -197,7 +210,7 @@ defmodule ExGoCDWeb.AdminLiveTest do
 
       # Submit add user form
       view
-      |> form("form", %{
+      |> form("form[phx-submit='save_user']", %{
         "username" => "johndoe",
         "display_name" => "John Doe",
         "roles" => ["developer", "viewer"]
@@ -218,7 +231,7 @@ defmodule ExGoCDWeb.AdminLiveTest do
 
       # Modify display_name and roles
       view
-      |> form("form", %{
+      |> form("form[phx-submit='save_user']", %{
         "display_name" => "Johnathan Doe",
         "roles" => ["admin"]
       })

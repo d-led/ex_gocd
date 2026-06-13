@@ -35,4 +35,13 @@ defmodule ExGoCDWeb.ConnCase do
     ExGoCD.DataCase.setup_sandbox(tags)
     {:ok, conn: Phoenix.ConnTest.build_conn()}
   end
+
+  @doc """
+  Puts the given username in the Plug session so LiveView's on_mount hook
+  recognises the user as authenticated. Use this in tests that require
+  admin access to the admin panel.
+  """
+  def log_in_as(conn, username) do
+    Plug.Test.init_test_session(conn, %{"username" => username})
+  end
 end

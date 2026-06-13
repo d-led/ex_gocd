@@ -98,8 +98,9 @@ defmodule ExGoCD.AccountsTest do
       assert User.has_role?(user, :admin)
     end
 
-    test "unauthenticated non-empty DB returns default viewer guest user" do
-      {:ok, _} = Accounts.create_user(%{username: "admin", display_name: "Admin"})
+    test "unauthenticated guest is viewer when an admin-role user is configured" do
+      # Seeding a user with the admin role activates GoCD security mode
+      {:ok, _} = Accounts.create_user(%{username: "admin", display_name: "Admin", roles: ["admin"]})
       user = Accounts.get_current_user(%{})
       assert user.username == "guest"
       refute User.has_role?(user, :admin)
