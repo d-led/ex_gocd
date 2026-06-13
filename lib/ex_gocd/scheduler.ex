@@ -320,8 +320,8 @@ defmodule ExGoCD.Scheduler do
     end, [])
   end
 
-  # Dynamically generate Git checkout commands + Job Config tasks
-  defp build_command_from_job_instance(ji) do
+  @doc false
+  def build_command_from_job_instance(ji) do
     stage_instance = ji.stage_instance
     pipeline_instance = stage_instance.pipeline_instance
     pipeline = pipeline_instance.pipeline
@@ -340,21 +340,105 @@ defmodule ExGoCD.Scheduler do
     tasks = if job_config, do: Repo.preload(job_config, :tasks).tasks || [], else: []
     task_cmds =
       Enum.map(tasks, fn t ->
-        %{
-          "name" => t.type || "exec",
-          "command" => t.command,
-          "args" => t.arguments || [],
-          "workingDirectory" => t.working_directory || ""
-        }
+        if t.type == "fetch" do
+          build_fetch_artifact_command(t, pipeline_instance)
+        else
+          %{
+            "name" => t.type || "exec",
+            "command" => t.command,
+            "args" => t.arguments || [],
+            "workingDirectory" => t.working_directory || ""
+          }
+        end
       end)
 
-    all_cmds = export_cmds ++ checkout_cmds ++ task_cmds
+    upload_cmds = build_upload_artifact_commands(job_config)
+
+    all_cmds = export_cmds ++ checkout_cmds ++ task_cmds ++ upload_cmds
     final_cmds = ensure_non_empty_cmds(all_cmds)
 
     %{
       "name" => "compose",
       "subCommands" => final_cmds
     }
+  end
+
+  defp build_fetch_artifact_command(task, pipeline_instance) do
+    args = task.arguments || []
+
+    {src_pipeline_name, stage_name, job_name, src_file, dest_dir} =
+      case args do
+        [p, s, j, src, dest] -> {p, s, j, src, dest}
+        [s, j, src, dest] -> {pipeline_instance.pipeline.name, s, j, src, dest}
+        _ -> {pipeline_instance.pipeline.name, "default_stage", "default_job", "artifact.txt", "dest"}
+      end
+
+    src_counter =
+      case get_latest_passed_pipeline_counter(src_pipeline_name, stage_name) do
+        nil ->
+          case get_latest_pipeline_counter(src_pipeline_name) do
+            nil -> 1
+            counter -> counter
+          end
+
+        counter ->
+          counter
+      end
+
+    stage_counter = 1
+    src_path = "#{src_pipeline_name}/#{src_counter}/#{stage_name}/#{stage_counter}/#{job_name}/#{src_file}"
+
+    %{
+      "name" => "fetchArtifact",
+      "src" => src_path,
+      "dest" => dest_dir
+    }
+  end
+
+  defp get_latest_passed_pipeline_counter(pipeline_name, stage_name) do
+    query =
+      from pi in Pipelines.PipelineInstance,
+        join: p in assoc(pi, :pipeline),
+        join: si in assoc(pi, :stage_instances),
+        where: p.name == ^pipeline_name and si.name == ^stage_name and si.result == "Passed",
+        order_by: [desc: pi.counter],
+        limit: 1,
+        select: pi.counter
+
+    Repo.one(query)
+  end
+
+  defp get_latest_pipeline_counter(pipeline_name) do
+    query =
+      from pi in Pipelines.PipelineInstance,
+        join: p in assoc(pi, :pipeline),
+        where: p.name == ^pipeline_name,
+        order_by: [desc: pi.counter],
+        limit: 1,
+        select: pi.counter
+
+    Repo.one(query)
+  end
+
+  defp build_upload_artifact_commands(nil), do: []
+  defp build_upload_artifact_commands(job_config) do
+    configs =
+      case job_config.artifact_configs do
+        list when is_list(list) -> list
+        %{"artifacts" => list} when is_list(list) -> list
+        _ -> []
+      end
+
+    Enum.map(configs, fn config ->
+      src = config["src"] || ""
+      dest = config["dest"] || ""
+
+      %{
+        "name" => "uploadArtifact",
+        "src" => src,
+        "dest" => dest
+      }
+    end)
   end
 
   defp build_checkout_commands(%{fetch_materials: true}, pipeline_instance) do

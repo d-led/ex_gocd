@@ -245,4 +245,145 @@ defmodule ExGoCD.SchedulerTest do
         end
     end
   end
+
+  describe "artifact commands generation" do
+    alias ExGoCD.Pipelines.{Pipeline, Stage, Job, Task, PipelineInstance, StageInstance, JobInstance}
+    alias ExGoCD.Repo
+
+    test "generates uploadArtifact command from job config" do
+      # Set up a pipeline with artifact_configs
+      pipeline = Repo.insert!(%Pipeline{name: "upload-pipe", group: "test"})
+      stage = Repo.insert!(%Stage{name: "build-stage", pipeline_id: pipeline.id, approval_type: "success"})
+      job = Repo.insert!(%Job{
+        name: "compile-job",
+        stage_id: stage.id,
+        artifact_configs: %{"artifacts" => [%{"src" => "target/app.jar", "dest" => "libs"}]}
+      })
+      Repo.insert!(%Task{type: "exec", command: "echo", arguments: ["done"], job_id: job.id})
+
+      # Trigger instance
+      pipeline_instance = Repo.insert!(%PipelineInstance{
+        pipeline_id: pipeline.id,
+        counter: 1,
+        label: "upload-pipe/1",
+        natural_order: 1.0,
+        build_cause: %{}
+      })
+
+      stage_instance = Repo.insert!(%StageInstance{
+        pipeline_instance_id: pipeline_instance.id,
+        name: stage.name,
+        counter: 1,
+        order_id: 1,
+        state: "Building",
+        approval_type: "success",
+        created_time: DateTime.utc_now() |> DateTime.truncate(:second)
+      })
+
+      job_instance = Repo.insert!(%JobInstance{
+        stage_instance_id: stage_instance.id,
+        job_id: job.id,
+        name: job.name,
+        state: "Scheduled",
+        scheduled_at: NaiveDateTime.utc_now()
+      })
+
+      # Load with preloads
+      ji = Repo.get!(JobInstance, job_instance.id)
+           |> Repo.preload([:job, stage_instance: [pipeline_instance: :pipeline]])
+
+      cmd_spec = Scheduler.build_command_from_job_instance(ji)
+
+      assert %{
+        "name" => "compose",
+        "subCommands" => sub_cmds
+      } = cmd_spec
+
+      # Assert there is an uploadArtifact subcommand at the end
+      upload_cmd = List.last(sub_cmds)
+      assert upload_cmd == %{
+        "name" => "uploadArtifact",
+        "src" => "target/app.jar",
+        "dest" => "libs"
+      }
+    end
+
+    test "generates fetchArtifact command from fetch task" do
+      # Set up an upstream pipeline and run it so we have a passed instance
+      up_pipeline = Repo.insert!(%Pipeline{name: "upstream-pipe", group: "test"})
+      up_stage = Repo.insert!(%Stage{name: "up-stage", pipeline_id: up_pipeline.id, approval_type: "success"})
+      _up_job = Repo.insert!(%Job{name: "up-job", stage_id: up_stage.id})
+
+      up_pi = Repo.insert!(%PipelineInstance{
+        pipeline_id: up_pipeline.id,
+        counter: 42,
+        label: "upstream-pipe/42",
+        natural_order: 42.0,
+        build_cause: %{}
+      })
+
+      _up_si = Repo.insert!(%StageInstance{
+        pipeline_instance_id: up_pi.id,
+        name: up_stage.name,
+        counter: 1,
+        order_id: 1,
+        state: "Completed",
+        result: "Passed",
+        approval_type: "success",
+        created_time: DateTime.utc_now() |> DateTime.truncate(:second)
+      })
+
+      # Set up a downstream pipeline with a fetch task
+      down_pipeline = Repo.insert!(%Pipeline{name: "downstream-pipe", group: "test"})
+      down_stage = Repo.insert!(%Stage{name: "down-stage", pipeline_id: down_pipeline.id, approval_type: "success"})
+      down_job = Repo.insert!(%Job{name: "down-job", stage_id: down_stage.id})
+
+      # The fetch task arguments are: [pipeline, stage, job, src, dest]
+      Repo.insert!(%Task{
+        type: "fetch",
+        job_id: down_job.id,
+        arguments: ["upstream-pipe", "up-stage", "up-job", "target/app.jar", "libs"]
+      })
+
+      down_pi = Repo.insert!(%PipelineInstance{
+        pipeline_id: down_pipeline.id,
+        counter: 1,
+        label: "downstream-pipe/1",
+        natural_order: 1.0,
+        build_cause: %{}
+      })
+
+      down_si = Repo.insert!(%StageInstance{
+        pipeline_instance_id: down_pi.id,
+        name: down_stage.name,
+        counter: 1,
+        order_id: 1,
+        state: "Building",
+        approval_type: "success",
+        created_time: DateTime.utc_now() |> DateTime.truncate(:second)
+      })
+
+      down_ji = Repo.insert!(%JobInstance{
+        stage_instance_id: down_si.id,
+        job_id: down_job.id,
+        name: down_job.name,
+        state: "Scheduled",
+        scheduled_at: NaiveDateTime.utc_now()
+      })
+
+      ji = Repo.get!(JobInstance, down_ji.id)
+           |> Repo.preload([:job, stage_instance: [pipeline_instance: :pipeline]])
+
+      cmd_spec = Scheduler.build_command_from_job_instance(ji)
+      assert %{"subCommands" => sub_cmds} = cmd_spec
+
+      # Assert there is a fetchArtifact subcommand
+      fetch_cmd = Enum.find(sub_cmds, &(&1["name"] == "fetchArtifact"))
+      assert fetch_cmd == %{
+        "name" => "fetchArtifact",
+        "src" => "upstream-pipe/42/up-stage/1/up-job/target/app.jar",
+        "dest" => "libs"
+      }
+    end
+  end
 end
