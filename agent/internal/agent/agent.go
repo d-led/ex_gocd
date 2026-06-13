@@ -282,10 +282,13 @@ func (a *Agent) handleBuild(build *protocol.Build) {
 	}()
 
 	log.Printf("Executing build: %s", build.BuildId)
+	if build.BuildCommand != nil {
+		log.Printf("Build command: name=%q, command=%q, subcommands=%d", build.BuildCommand.Name, build.BuildCommand.Command, len(build.BuildCommand.SubCommands))
+	}
 	a.reportStatus(build.BuildId, "Building", "")
 
 	result := "Passed"
-	if build.BuildCommand != nil && build.BuildCommand.Command != "" {
+	if build.BuildCommand != nil && (build.BuildCommand.Command != "" || len(build.BuildCommand.SubCommands) > 0) {
 		if err := a.runBuildCommand(ctx, build); err != nil {
 			if err == context.Canceled {
 				result = "Cancelled"
@@ -392,6 +395,9 @@ func (a *Agent) runOneCommand(ctx context.Context, build *protocol.Build, cmd *p
 }
 
 func (a *Agent) httpClient() (*http.Client, error) {
+	if a.registrar == nil {
+		return nil, fmt.Errorf("registrar is not initialized")
+	}
 	tlsConfig, err := a.registrar.CreateTLSConfig()
 	if err != nil {
 		return nil, err
@@ -786,19 +792,35 @@ func unzipSecurely(zipPath string, destDir string) error {
 
 // streamReaderToConsole reads lines from r, prefixes each with "HH:mm:ss.SSS [prefix]", and POSTs to consoleURL.
 func (a *Agent) streamReaderToConsole(consoleURL, linePrefix string, r io.Reader) {
-	scanner := bufio.NewScanner(r)
-	scanner.Buffer(nil, 64*1024)
-	for scanner.Scan() {
-		line := scanner.Text()
-		ts := time.Now().Format("15:04:05.000")
-		payload := ts + " " + linePrefix + line + "\n"
-		if err := a.postConsole(consoleURL, payload); err != nil {
-			log.Printf("Console POST failed: %v", err)
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("Recovered panic in streamReaderToConsole: %v", r)
 		}
-	}
-	if err := scanner.Err(); err != nil {
-		payload := time.Now().Format("15:04:05.000") + " [scanner error] " + err.Error() + "\n"
-		_ = a.postConsole(consoleURL, payload)
+	}()
+
+	reader := bufio.NewReaderSize(r, 64*1024)
+	for {
+		line, isPrefix, err := reader.ReadLine()
+		if len(line) > 0 {
+			content := string(line)
+			ts := time.Now().Format("15:04:05.000")
+			payload := ts + " " + linePrefix + content
+			if isPrefix {
+				payload += " [truncated...]\n"
+			} else {
+				payload += "\n"
+			}
+			if err := a.postConsole(consoleURL, payload); err != nil {
+				log.Printf("Console POST failed: %v", err)
+			}
+		}
+		if err != nil {
+			if err != io.EOF {
+				payload := time.Now().Format("15:04:05.000") + " [reader error] " + err.Error() + "\n"
+				_ = a.postConsole(consoleURL, payload)
+			}
+			break
+		}
 	}
 }
 

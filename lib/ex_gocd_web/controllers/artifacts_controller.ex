@@ -81,6 +81,7 @@ defmodule ExGoCDWeb.ArtifactsController do
       case extract_zip_securely(upload.path, target_path) do
         :ok ->
           maybe_save_checksum(job_dir, checksum_upload)
+          ExGoCD.ArtifactCleanup.cleanup_if_needed()
           conn |> put_status(201) |> text("File was created successfully")
 
         {:error, :directory_traversal} ->
@@ -97,6 +98,7 @@ defmodule ExGoCDWeb.ArtifactsController do
       case File.copy(upload.path, target_path) do
         {:ok, _} ->
           maybe_save_checksum(job_dir, checksum_upload)
+          ExGoCD.ArtifactCleanup.cleanup_if_needed()
           conn |> put_status(201) |> text("File was created successfully")
 
         {:error, reason} ->

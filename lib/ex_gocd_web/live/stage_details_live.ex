@@ -265,13 +265,9 @@ defmodule ExGoCDWeb.StageDetailsLive do
                       <%= for job <- @stage.jobs do %>
                         <tr class="hover:bg-gray-50">
                           <td class="px-6 py-4 font-bold">
-                            <%= if job.agent_uuid do %>
-                              <.link navigate={~p"/agents/#{job.agent_uuid}/job_run_history/#{job.build_id}"} class="text-[#2d6ca2] hover:underline font-bold">
-                                {job.name}
-                              </.link>
-                            <% else %>
+                            <.link navigate={~p"/go/tab/build/detail/#{@pipeline_name}/#{@pipeline_counter}/#{@stage_name}/#{@stage_counter}/#{job.name}"} class="text-[#2d6ca2] hover:underline font-bold">
                               {job.name}
-                            <% end %>
+                            </.link>
                           </td>
                           <td class="px-6 py-4">{job.state}</td>
                           <td class="px-6 py-4">

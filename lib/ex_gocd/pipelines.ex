@@ -379,14 +379,88 @@ defmodule ExGoCD.Pipelines do
           do: "Failed",
           else: "Passed"
 
-      stage
-      |> StageInstance.changeset(%{
-        state: "Completed",
-        result: stage_result,
-        completed_at: now,
-        last_transitioned_time: DateTime.utc_now()
-      })
-      |> Repo.update()
+      case stage
+           |> StageInstance.changeset(%{
+             state: "Completed",
+             result: stage_result,
+             completed_at: now,
+             last_transitioned_time: DateTime.utc_now()
+           })
+           |> Repo.update() do
+        {:ok, updated_stage} ->
+          if stage_result == "Passed" do
+            trigger_next_stage(updated_stage)
+          end
+          :ok
+        error ->
+          error
+      end
+    end
+  end
+
+  defp trigger_next_stage(stage_instance) do
+    stage_instance = Repo.preload(stage_instance, [pipeline_instance: [pipeline: :stages]])
+    pipeline_instance = stage_instance.pipeline_instance
+    pipeline = pipeline_instance.pipeline
+
+    stages = Enum.sort_by(pipeline.stages || [], & &1.id)
+    current_idx = Enum.find_index(stages, &(&1.name == stage_instance.name))
+
+    if current_idx && current_idx + 1 < length(stages) do
+      next_stage = Enum.at(stages, current_idx + 1)
+      now = DateTime.utc_now()
+
+      Repo.transaction(fn ->
+        new_stage_instance =
+          %StageInstance{}
+          |> StageInstance.changeset(%{
+            pipeline_instance_id: pipeline_instance.id,
+            name: next_stage.name,
+            counter: 1,
+            order_id: current_idx + 2,
+            state: "Building",
+            result: "Unknown",
+            approval_type: next_stage.approval_type,
+            created_time: now,
+            fetch_materials: next_stage.fetch_materials,
+            clean_working_dir: next_stage.clean_working_directory
+          })
+          |> Repo.insert!()
+
+        scheduled_at = DateTime.to_naive(now)
+        next_stage_config = Repo.preload(next_stage, jobs: :tasks)
+
+        job_instances =
+          Enum.map(next_stage_config.jobs, fn job ->
+            %JobInstance{}
+            |> JobInstance.changeset(%{
+              stage_instance_id: new_stage_instance.id,
+              job_id: job.id,
+              name: job.name,
+              state: "Scheduled",
+              result: "Unknown",
+              scheduled_at: scheduled_at,
+              run_on_all_agents: job.run_on_all_agents || false,
+              run_multiple_instance: false,
+              identifier: "#{pipeline.name}/#{pipeline_instance.counter}/#{next_stage.name}/1/#{job.name}/1"
+            })
+            |> Repo.insert!()
+          end)
+
+        {new_stage_instance, next_stage_config, job_instances}
+      end)
+      |> case do
+        {:ok, {new_si, next_stage_config, job_instances}} ->
+          for ji <- job_instances do
+            job_config = Enum.find(next_stage_config.jobs, &(&1.id == ji.job_id))
+            schedule_job_if_config(pipeline, pipeline_instance.counter, new_si, job_config, ji)
+          end
+          :ok
+        error ->
+          error
+      end
+    else
+      :ok
     end
   end
 

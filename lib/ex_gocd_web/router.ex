@@ -56,6 +56,8 @@ defmodule ExGoCDWeb.Router do
       live "/go/pipeline/activity/:pipeline_name", PipelineActivityLive, :index
       live "/pipelines/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter", StageDetailsLive, :show
       live "/go/pipelines/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter", StageDetailsLive, :show
+      live "/tab/build/detail/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/:job_name", JobDetailsLive, :show
+      live "/go/tab/build/detail/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/:job_name", JobDetailsLive, :show
 
       # Admin Panel routes
       live "/admin", AdminLive, :index
@@ -99,6 +101,7 @@ defmodule ExGoCDWeb.Router do
 
     get "/stats", StatsController, :show
     post "/test/start_agents", TestController, :start_agents
+    post "/test/start_http_agents", TestController, :start_http_agents
 
     # Agent management (matching GoCD's agent API spec)
     post "/agents/register", AgentController, :register

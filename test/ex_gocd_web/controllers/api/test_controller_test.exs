@@ -32,4 +32,17 @@ defmodule ExGoCDWeb.API.TestControllerTest do
       TestAgentSupervisor.stop_all_agents()
     end
   end
+
+  describe "POST /api/test/start_http_agents" do
+    test "spawns N HTTP agents and returns success", %{conn: conn} do
+      conn = post(conn, "/api/test/start_http_agents", %{"count" => "2"})
+
+      assert response = json_response(conn, 200)
+      assert response["message"] == "Started 2 HTTP simulated agents."
+
+      # Verify supervisor started the processes
+      children = DynamicSupervisor.which_children(TestAgentSupervisor)
+      assert length(children) == 2
+    end
+  end
 end

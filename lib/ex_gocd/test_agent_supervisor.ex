@@ -21,6 +21,13 @@ defmodule ExGoCD.TestAgentSupervisor do
   end
 
   @doc """
+  Spawns a new HTTP/WebSocket simulated test agent under this supervisor.
+  """
+  def start_http_agent(opts \\ []) do
+    DynamicSupervisor.start_child(__MODULE__, {ExGoCD.HTTPTestAgent, opts})
+  end
+
+  @doc """
   Stops and terminates all currently running simulated agents.
   """
   def stop_all_agents do

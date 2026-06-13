@@ -12,7 +12,8 @@ config :ex_gocd,
   ecto_repos: [ExGoCD.Repo],
   generators: [timestamp_type: :utc_datetime],
   env: config_env(),
-  scheduler_reload_interval: 5000
+  scheduler_reload_interval: 5000,
+  max_artifact_storage_mb: 500
 
 # Configure the endpoint
 config :ex_gocd, ExGoCDWeb.Endpoint,

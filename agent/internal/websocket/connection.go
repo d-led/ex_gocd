@@ -97,6 +97,11 @@ func (c *Connection) SetCookie(cookie string) {
 
 // readPump reads messages from the WebSocket connection
 func (c *Connection) readPump() {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("Recovered panic in readPump: %v", r)
+		}
+	}()
 	defer close(c.receive)
 
 	c.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
@@ -136,6 +141,11 @@ func (c *Connection) readPump() {
 
 // writePump writes messages to the WebSocket connection
 func (c *Connection) writePump() {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("Recovered panic in writePump: %v", r)
+		}
+	}()
 	ticker := time.NewTicker(54 * time.Second) // Ping server periodically
 	defer ticker.Stop()
 
