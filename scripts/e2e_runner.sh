@@ -46,7 +46,7 @@ fi
 # 3. Schedule E2E Pipeline Job matching the Go agent resource 'go'
 echo "Scheduling E2E Pipeline Job..."
 SCHEDULE_RES=$(curl -s -X POST -H "Content-Type: application/json" \
-  -d '{"pipeline": "e2e-pipeline", "stage": "build-stage", "job": "build-job", "resources": ["go"]}' \
+  -d '{"pipeline": "e2e-pipeline", "stage": "build-stage", "job": "build-job", "resources": ["go"], "environments": ["test"]}' \
   "$SERVER_URL/api/jobs/schedule")
 echo "Schedule response: $SCHEDULE_RES"
 
