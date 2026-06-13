@@ -144,6 +144,9 @@ defmodule ExGoCD.MockData do
         ]
       }
     ]
+    |> Enum.map(fn p ->
+      Map.merge(%{paused: false, paused_by: nil, pause_cause: nil, paused_at: nil}, p)
+    end)
   end
 
   @doc """

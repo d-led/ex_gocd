@@ -83,6 +83,34 @@ defmodule ExGoCD.PipelinesTest do
       assert job2_instance.state == "Scheduled"
       assert Scheduler.pending_count() == 1
     end
+
+    test "paused pipeline returns error on trigger and is not enqueued" do
+      {pipeline, _stage, _job} = insert_pipeline_with_jobs("paused-pipe", 1)
+      n0 = Scheduler.pending_count()
+
+      # Pause the pipeline
+      assert {:ok, paused_pipe} = Pipelines.pause_pipeline(pipeline.name, "admin", "fixing build")
+      assert paused_pipe.paused == true
+      assert paused_pipe.paused_by == "admin"
+      assert paused_pipe.pause_cause == "fixing build"
+      assert paused_pipe.paused_at != nil
+
+      # Attempt trigger
+      assert Pipelines.trigger_pipeline(pipeline.name) == {:error, :pipeline_paused}
+      assert Scheduler.pending_count() == n0
+
+      # Unpause the pipeline
+      assert {:ok, unpaused_pipe} = Pipelines.unpause_pipeline(pipeline.name)
+      assert unpaused_pipe.paused == false
+      assert unpaused_pipe.paused_by == nil
+      assert unpaused_pipe.pause_cause == nil
+      assert unpaused_pipe.paused_at == nil
+
+      # Attempt trigger again
+      assert {:ok, instance} = Pipelines.trigger_pipeline(pipeline.name)
+      assert instance.counter == 1
+      assert Scheduler.pending_count() == n0 + 1
+    end
   end
 
   describe "rerun_stage/4" do

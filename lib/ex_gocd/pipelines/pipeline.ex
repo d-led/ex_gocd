@@ -24,6 +24,10 @@ defmodule ExGoCD.Pipelines.Pipeline do
           tracking_tool: map() | nil,
           template_name: String.t() | nil,
           display_order_weight: integer() | nil,
+          paused: boolean() | nil,
+          paused_by: String.t() | nil,
+          pause_cause: String.t() | nil,
+          paused_at: DateTime.t() | nil,
           stages: [Stage.t()] | Ecto.Association.NotLoaded.t(),
           materials: [Material.t()] | Ecto.Association.NotLoaded.t(),
           instances: [PipelineInstance.t()] | Ecto.Association.NotLoaded.t(),
@@ -42,6 +46,10 @@ defmodule ExGoCD.Pipelines.Pipeline do
     field :tracking_tool, :map
     field :template_name, :string
     field :display_order_weight, :integer, default: -1
+    field :paused, :boolean, default: false
+    field :paused_by, :string
+    field :pause_cause, :string
+    field :paused_at, :utc_datetime
 
     has_many :stages, Stage, on_delete: :delete_all
     many_to_many :materials, Material, join_through: "pipelines_materials", on_delete: :delete_all, on_replace: :delete
@@ -66,7 +74,11 @@ defmodule ExGoCD.Pipelines.Pipeline do
       :params,
       :tracking_tool,
       :template_name,
-      :display_order_weight
+      :display_order_weight,
+      :paused,
+      :paused_by,
+      :pause_cause,
+      :paused_at
     ])
     |> validate_required([:name])
     |> validate_format(:name, ~r/^[a-zA-Z0-9_\-\.]+$/,

@@ -254,4 +254,86 @@ defmodule ExGoCDWeb.DashboardLiveTest do
       assert html =~ "nonexistent-pipeline-xyz"
     end
   end
+
+  describe "pipeline pause/unpause UI" do
+    alias ExGoCD.Pipelines
+    alias ExGoCD.Repo
+
+    test "can open pause modal, pause a pipeline, show paused state, and unpause", %{conn: conn} do
+      System.put_env("USE_MOCK_DATA", "false")
+      on_exit(fn -> System.delete_env("USE_MOCK_DATA") end)
+
+      # Seed admin user to exit open mode
+      {:ok, _} = ExGoCD.Accounts.create_user(%{username: "admin", display_name: "System Administrator", roles: ["admin", "developer"], status: "Active"})
+
+      # Insert a pipeline config in the DB
+      pipeline = Repo.insert!(%Pipelines.Pipeline{name: "test-dashboard-pause", group: "test"})
+
+      # Log in as admin
+      conn = log_in_as(conn, "admin")
+      {:ok, view, html} = live(conn, ~p"/")
+
+      assert html =~ "test-dashboard-pause"
+
+      # Verify pause button is present and not unpause
+      assert has_element?(view, "button[aria-label='Pause Pipeline']")
+      refute has_element?(view, "button[aria-label='Pipeline Paused']")
+
+      # Open the pause modal
+      view
+      |> element("button[aria-label='Pause Pipeline']")
+      |> render_click()
+
+      # Verify the modal is open
+      assert has_element?(view, "#pause-modal")
+      assert render(view) =~ "Specify a reason for pausing schedule on pipeline test-dashboard-pause"
+
+      # Submit the pause cause form
+      view
+      |> form("#pause-pipeline-form", %{"pause_cause" => "maintenance downtime"})
+      |> render_submit()
+
+      # Verify the pipeline is now paused
+      html = render(view)
+      assert html =~ "Pipeline test-dashboard-pause paused successfully."
+      assert html =~ "Paused by admin (maintenance downtime)"
+      assert has_element?(view, "button[aria-label='Pipeline Paused']")
+      assert has_element?(view, "button[aria-label='Trigger Pipeline Disabled'].disabled")
+
+      # Unpause the pipeline
+      view
+      |> element("button[aria-label='Pipeline Paused']")
+      |> render_click()
+
+      # Verify it is unpaused
+      html = render(view)
+      assert html =~ "Pipeline test-dashboard-pause unpaused successfully."
+      refute html =~ "Paused by admin"
+      assert has_element?(view, "button[aria-label='Pause Pipeline']")
+      refute has_element?(view, "button[aria-label='Trigger Pipeline Disabled']")
+    end
+
+    test "viewers are blocked from pausing/unpausing", %{conn: conn} do
+      System.put_env("USE_MOCK_DATA", "false")
+      on_exit(fn -> System.delete_env("USE_MOCK_DATA") end)
+
+      # Seed admin and viewer users
+      {:ok, _} = ExGoCD.Accounts.create_user(%{username: "admin", display_name: "System Administrator", roles: ["admin", "developer"], status: "Active"})
+      {:ok, _} = ExGoCD.Accounts.create_user(%{username: "viewer", display_name: "Guest Viewer", roles: [], status: "Active"})
+
+      pipeline = Repo.insert!(%Pipelines.Pipeline{name: "test-viewer-pause", group: "test"})
+
+      # Log in as viewer
+      conn = log_in_as(conn, "viewer")
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      # Verify play and pause buttons are disabled visually
+      assert has_element?(view, "button[aria-label='Pause Pipeline'].disabled")
+      assert has_element?(view, "button[aria-label='Trigger Pipeline'].disabled")
+
+      # Try triggering the pause event directly to ensure backend guards enforce permission
+      assert render_click(view, "show_pause_modal", %{"name" => "test-viewer-pause"}) =~ "You do not have operate permissions"
+    end
+  end
 end
+

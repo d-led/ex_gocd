@@ -75,7 +75,61 @@ defmodule ExGoCD.Pipelines do
   """
   def trigger_pipeline(pipeline_name) when is_binary(pipeline_name) do
     pipeline = get_pipeline_by_name(pipeline_name)
-    if is_nil(pipeline), do: {:error, :pipeline_not_found}, else: do_trigger_pipeline(pipeline)
+    cond do
+      is_nil(pipeline) -> {:error, :pipeline_not_found}
+      pipeline.paused -> {:error, :pipeline_paused}
+      true -> do_trigger_pipeline(pipeline)
+    end
+  end
+
+  @doc """
+  Pauses a pipeline, preventing scheduled or manual triggers.
+  """
+  def pause_pipeline(pipeline_name, paused_by \\ "anonymous", pause_cause \\ "") when is_binary(pipeline_name) do
+    case get_pipeline_by_name(pipeline_name) do
+      nil -> {:error, :pipeline_not_found}
+      pipeline ->
+        pipeline
+        |> Pipeline.changeset(%{
+          paused: true,
+          paused_by: paused_by,
+          pause_cause: pause_cause,
+          paused_at: DateTime.utc_now() |> DateTime.truncate(:second)
+        })
+        |> Repo.update()
+        |> case do
+          {:ok, updated_pipeline} ->
+            Phoenix.PubSub.broadcast(ExGoCD.PubSub, "pipelines:updates", :pipelines_updated)
+            {:ok, updated_pipeline}
+          {:error, changeset} ->
+            {:error, changeset}
+        end
+    end
+  end
+
+  @doc """
+  Unpauses a pipeline.
+  """
+  def unpause_pipeline(pipeline_name) when is_binary(pipeline_name) do
+    case get_pipeline_by_name(pipeline_name) do
+      nil -> {:error, :pipeline_not_found}
+      pipeline ->
+        pipeline
+        |> Pipeline.changeset(%{
+          paused: false,
+          paused_by: nil,
+          pause_cause: nil,
+          paused_at: nil
+        })
+        |> Repo.update()
+        |> case do
+          {:ok, updated_pipeline} ->
+            Phoenix.PubSub.broadcast(ExGoCD.PubSub, "pipelines:updates", :pipelines_updated)
+            {:ok, updated_pipeline}
+          {:error, changeset} ->
+            {:error, changeset}
+        end
+    end
   end
 
   defp resolve_material_revisions(pipeline) do
@@ -500,7 +554,11 @@ defmodule ExGoCD.Pipelines do
       status: "Unknown",
       triggered_by: "—",
       last_run: nil,
-      stages: Enum.map(pipeline.stages || [], fn s -> %{name: s.name, status: "NotRun", duration: nil} end)
+      stages: Enum.map(pipeline.stages || [], fn s -> %{name: s.name, status: "NotRun", duration: nil} end),
+      paused: pipeline.paused,
+      paused_by: pipeline.paused_by,
+      pause_cause: pipeline.pause_cause,
+      paused_at: pipeline.paused_at
     }
   end
 
@@ -531,7 +589,11 @@ defmodule ExGoCD.Pipelines do
       status: pipeline_instance_status(instance),
       triggered_by: triggered_by,
       last_run: instance.inserted_at,
-      stages: filled_stages
+      stages: filled_stages,
+      paused: pipeline.paused,
+      paused_by: pipeline.paused_by,
+      pause_cause: pipeline.pause_cause,
+      paused_at: pipeline.paused_at
     }
   end
 

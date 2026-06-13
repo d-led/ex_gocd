@@ -13,6 +13,7 @@ defmodule ExGoCDWeb.Router do
 
   pipeline :api do
     plug :accepts, ["json"]
+    plug :fetch_session
     plug ExGoCDWeb.Plugs.GoCDAPIHeaders
   end
 
@@ -124,6 +125,10 @@ defmodule ExGoCDWeb.Router do
 
     # Schedule a job (enqueue for next idle agent; GoCD-style pipeline/stage/job)
     post "/jobs/schedule", JobController, :schedule
+
+    # Pipeline operations (pause/unpause)
+    post "/pipelines/:pipeline_name/pause", PipelineOperationsController, :pause
+    post "/pipelines/:pipeline_name/unpause", PipelineOperationsController, :unpause
   end
 
   scope "/api/admin", ExGoCDWeb.API.Admin do
@@ -152,6 +157,10 @@ defmodule ExGoCDWeb.Router do
     put "/agents/:uuid/disable", AgentController, :disable
     post "/builds/:build_id/console", BuildConsoleController, :append
     post "/jobs/schedule", JobController, :schedule
+
+    # Pipeline operations (pause/unpause)
+    post "/pipelines/:pipeline_name/pause", PipelineOperationsController, :pause
+    post "/pipelines/:pipeline_name/unpause", PipelineOperationsController, :unpause
   end
 
   # GoCD internal agent remoting API (HTTP-based, used by official Go agent)

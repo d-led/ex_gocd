@@ -19,7 +19,10 @@ defmodule ExGoCDWeb.DashboardLive do
      |> assign(:grouping_text, "Environment")
      |> assign(:dropdown_open, false)
      |> assign(:active_stage_summary, nil)
-     |> assign(:selected_jobs, MapSet.new())}
+     |> assign(:selected_jobs, MapSet.new())
+     |> assign(:show_pause_modal, false)
+     |> assign(:active_pause_pipeline, nil)
+     |> assign(:pause_cause_input, "")}
   end
 
   @impl true
@@ -93,6 +96,88 @@ defmodule ExGoCDWeb.DashboardLive do
             {:noreply, put_flash(socket, :error, "Failed to trigger pipeline.")}
         end
 
+      false ->
+        {:noreply, put_flash(socket, :error, "You do not have operate permissions for this pipeline.")}
+    end
+  end
+
+  @impl true
+  def handle_event("show_pause_modal", %{"name" => name}, socket) do
+    user = socket.assigns[:current_user]
+    case ExGoCD.Policies.permit?(ExGoCD.Policies.EnvironmentPolicy, :trigger_pipeline, user) do
+      true ->
+        {:noreply,
+         socket
+         |> assign(:show_pause_modal, true)
+         |> assign(:active_pause_pipeline, name)
+         |> assign(:pause_cause_input, "")}
+      false ->
+        {:noreply, put_flash(socket, :error, "You do not have operate permissions for this pipeline.")}
+    end
+  end
+
+  @impl true
+  def handle_event("close_pause_modal", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:show_pause_modal, false)
+     |> assign(:active_pause_pipeline, nil)
+     |> assign(:pause_cause_input, "")}
+  end
+
+  @impl true
+  def handle_event("pause_pipeline", %{"pause_cause" => cause}, socket) do
+    pipeline_name = socket.assigns.active_pause_pipeline
+    user = socket.assigns[:current_user]
+    case ExGoCD.Policies.permit?(ExGoCD.Policies.EnvironmentPolicy, :trigger_pipeline, user) do
+      true ->
+        username = (user && user.username) || "anonymous"
+        # If running mock data, mock the pause behavior locally
+        result =
+          if use_mock?() do
+            {:ok, nil}
+          else
+            Pipelines.pause_pipeline(pipeline_name, username, cause)
+          end
+
+        case result do
+          {:ok, _} ->
+            {:noreply,
+             socket
+             |> assign(:show_pause_modal, false)
+             |> assign(:active_pause_pipeline, nil)
+             |> assign(:pause_cause_input, "")
+             |> put_flash(:info, "Pipeline #{pipeline_name} paused successfully.")
+             |> load_pipelines()}
+          {:error, _} ->
+            {:noreply, put_flash(socket, :error, "Failed to pause pipeline.")}
+        end
+      false ->
+        {:noreply, put_flash(socket, :error, "You do not have operate permissions for this pipeline.")}
+    end
+  end
+
+  @impl true
+  def handle_event("unpause_pipeline", %{"name" => name}, socket) do
+    user = socket.assigns[:current_user]
+    case ExGoCD.Policies.permit?(ExGoCD.Policies.EnvironmentPolicy, :trigger_pipeline, user) do
+      true ->
+        result =
+          if use_mock?() do
+            {:ok, nil}
+          else
+            Pipelines.unpause_pipeline(name)
+          end
+
+        case result do
+          {:ok, _} ->
+            {:noreply,
+             socket
+             |> put_flash(:info, "Pipeline #{name} unpaused successfully.")
+             |> load_pipelines()}
+          {:error, _} ->
+            {:noreply, put_flash(socket, :error, "Failed to unpause pipeline.")}
+        end
       false ->
         {:noreply, put_flash(socket, :error, "You do not have operate permissions for this pipeline.")}
     end
@@ -360,6 +445,7 @@ defmodule ExGoCDWeb.DashboardLive do
   # Component functions - EXACT GoCD HTML structure
 
   defp pipeline_group(assigns) do
+    assigns = Map.put_new(assigns, :current_user, nil)
     ~H"""
     <div class="dashboard-group" role="region" aria-label={"Pipeline group: #{@name}"}>
       <div class="dashboard-group_title">
@@ -368,7 +454,7 @@ defmodule ExGoCDWeb.DashboardLive do
       <ul class="dashboard-group_items">
         <%= for pipeline <- @pipelines do %>
           <li class="dashboard-group_pipeline">
-            <.pipeline_widget pipeline={pipeline} />
+            <.pipeline_widget pipeline={pipeline} current_user={@current_user} />
           </li>
         <% end %>
       </ul>
@@ -377,6 +463,7 @@ defmodule ExGoCDWeb.DashboardLive do
   end
 
   defp pipeline_widget(assigns) do
+    assigns = Map.put_new(assigns, :current_user, nil)
     ~H"""
     <div class="pipeline">
       <div class="pipeline_header">
@@ -393,14 +480,33 @@ defmodule ExGoCDWeb.DashboardLive do
           </div>
         </div>
         <div>
+          <%
+            can_operate = ExGoCD.Policies.permit?(ExGoCD.Policies.EnvironmentPolicy, :trigger_pipeline, @current_user)
+            trigger_disabled = @pipeline.paused or not can_operate
+
+            play_class = if trigger_disabled, do: "button pipeline_btn play disabled", else: "button pipeline_btn play"
+            play_options_class = if trigger_disabled, do: "button pipeline_btn play_with_options disabled", else: "button pipeline_btn play_with_options"
+
+            pause_unpause_class =
+              cond do
+                @pipeline.paused and can_operate -> "button pipeline_btn unpause"
+                @pipeline.paused -> "button pipeline_btn unpause disabled"
+                can_operate -> "button pipeline_btn pause"
+                true -> "button pipeline_btn pause disabled"
+              end
+
+            pause_title = if @pipeline.paused, do: "Pipeline Paused", else: "Pause Pipeline"
+            play_title = if @pipeline.paused, do: "Trigger Pipeline Disabled", else: "Trigger Pipeline"
+            play_options_title = if @pipeline.paused, do: "Trigger with Options Disabled", else: "Trigger with Options"
+          %>
           <ul class="pipeline_operations">
             <li>
               <button
                 type="button"
-                aria-label="Trigger Pipeline"
-                title="Trigger Pipeline"
-                class="button pipeline_btn play"
-                phx-click="trigger_pipeline"
+                aria-label={play_title}
+                title={play_title}
+                class={play_class}
+                phx-click={if not trigger_disabled, do: "trigger_pipeline", else: nil}
                 phx-value-name={@pipeline.name}
               >
               </button>
@@ -408,23 +514,39 @@ defmodule ExGoCDWeb.DashboardLive do
             <li>
               <button
                 type="button"
-                aria-label="Trigger with Options"
-                title="Trigger with Options"
-                class="button pipeline_btn play_with_options"
+                aria-label={play_options_title}
+                title={play_options_title}
+                class={play_options_class}
               >
               </button>
             </li>
             <li>
               <button
                 type="button"
-                aria-label="Pause Pipeline"
-                title="Pause Pipeline"
-                class="button pipeline_btn pause"
+                aria-label={pause_title}
+                title={pause_title}
+                class={pause_unpause_class}
+                phx-click={
+                  cond do
+                    not can_operate -> nil
+                    @pipeline.paused -> "unpause_pipeline"
+                    true -> "show_pause_modal"
+                  end
+                }
+                phx-value-name={@pipeline.name}
               >
               </button>
             </li>
           </ul>
           <a href={"/pipeline/activity/#{@pipeline.name}"} class="pipeline_history">History</a>
+          <%= if @pipeline.paused do %>
+            <div class="pipeline_pause-message">
+              Paused by {@pipeline.paused_by || "anonymous"} ({if @pipeline.pause_cause == "", do: "", else: @pipeline.pause_cause})
+              <%= if @pipeline.paused_at do %>
+                <div title={format_server_time(@pipeline.paused_at)}>on {format_local_time(@pipeline.paused_at)}</div>
+              <% end %>
+            </div>
+          <% end %>
         </div>
       </div>
       <div class="pipeline_instances">
