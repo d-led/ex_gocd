@@ -10,7 +10,7 @@ defmodule ExGoCD.Pipelines.Material do
   use Ecto.Schema
   import Ecto.Changeset
 
-  alias ExGoCD.Pipelines.Pipeline
+  alias ExGoCD.Pipelines.{Pipeline, Modification}
 
   @type t :: %__MODULE__{
           id: integer() | nil,
@@ -24,6 +24,7 @@ defmodule ExGoCD.Pipelines.Material do
           filter_include: [String.t()] | nil,
           type_specific_config: map() | nil,
           pipelines: [Pipeline.t()] | Ecto.Association.NotLoaded.t(),
+          modifications: [Modification.t()] | Ecto.Association.NotLoaded.t(),
           inserted_at: DateTime.t() | nil,
           updated_at: DateTime.t() | nil
         }
@@ -40,6 +41,7 @@ defmodule ExGoCD.Pipelines.Material do
     field :type_specific_config, :map, default: %{}
 
     many_to_many :pipelines, Pipeline, join_through: "pipelines_materials"
+    has_many :modifications, Modification, on_delete: :delete_all
 
     timestamps(type: :utc_datetime)
   end

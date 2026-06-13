@@ -13,7 +13,8 @@ config :ex_gocd,
   generators: [timestamp_type: :utc_datetime],
   env: config_env(),
   scheduler_reload_interval: 5000,
-  max_artifact_storage_mb: 500
+  max_artifact_storage_mb: 500,
+  git_client: ExGoCD.Materials.GitClient.SystemImpl
 
 # Configure the endpoint
 config :ex_gocd, ExGoCDWeb.Endpoint,

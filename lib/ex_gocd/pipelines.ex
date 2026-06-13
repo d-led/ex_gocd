@@ -18,7 +18,8 @@ defmodule ExGoCD.Pipelines do
     PipelineInstance,
     Stage,
     StageInstance,
-    Task
+    Task,
+    Modification
   }
   alias ExGoCD.Repo
   alias ExGoCD.Scheduler
@@ -135,16 +136,11 @@ defmodule ExGoCD.Pipelines do
   defp resolve_material_revisions(pipeline) do
     Enum.map(pipeline.materials || [], fn material ->
       revision =
-        if material.type == "git" and is_binary(material.url) and material.url != "" and System.find_executable("git") do
-          branch = material.branch || "HEAD"
-          case System.cmd("git", ["ls-remote", material.url, branch]) do
-            {output, 0} ->
-              case String.split(output) do
-                [sha, _ref | _] -> sha
-                _ -> "HEAD"
-              end
-            _ ->
-              "HEAD"
+        if material.type == "git" and is_binary(material.url) and material.url != "" do
+          branch = material.branch || "master"
+          case ExGoCD.Materials.GitClient.latest_revision(material.url, branch) do
+            {:ok, %{revision: sha}} -> sha
+            _ -> "HEAD"
           end
         else
           "HEAD"
@@ -297,8 +293,29 @@ defmodule ExGoCD.Pipelines do
         join: p in assoc(pi, :pipeline),
         where: p.name == ^pipeline_name and pi.counter == ^counter,
         preload: [:pipeline, stage_instances: :job_instances]
+    Repo.one(query)
+  end
+
+  @doc """
+  Gets the latest modification for a given material.
+  """
+  def get_latest_modification(material_id) do
+    query =
+      from m in Modification,
+        where: m.material_id == ^material_id,
+        order_by: [desc: :modified_time, desc: :id],
+        limit: 1
 
     Repo.one(query)
+  end
+
+  @doc """
+  Creates a modification record.
+  """
+  def create_modification(attrs \\ %{}) do
+    %Modification{}
+    |> Modification.changeset(attrs)
+    |> Repo.insert()
   end
 
   @doc """

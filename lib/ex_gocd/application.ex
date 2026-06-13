@@ -18,7 +18,8 @@ defmodule ExGoCD.Application do
       ExGoCD.Scheduler,
       ExGoCD.AgentRegistry,
       ExGoCD.TestAgentSupervisor,
-      ExGoCDWeb.Endpoint
+      ExGoCDWeb.Endpoint,
+      ExGoCD.Materials.Poller
     ]
 
     children =

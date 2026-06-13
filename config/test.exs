@@ -1,7 +1,9 @@
 import Config
 
 config :ex_gocd,
-  scheduler_reload_interval: :none
+  scheduler_reload_interval: :none,
+  poller_interval: :none,
+  git_client: ExGoCD.Materials.GitClient.MockImpl
 
 # Configure your database
 #
