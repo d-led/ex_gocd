@@ -68,25 +68,33 @@ defmodule ExGoCDWeb.DashboardLive do
 
   @impl true
   def handle_event("trigger_pipeline", %{"name" => name}, socket) do
-    result =
-      if use_mock?() do
-        {:ok, %{name: name}}
-      else
-        Pipelines.trigger_pipeline(name)
-      end
+    user = socket.assigns[:current_user]
 
-    case result do
-      {:ok, _instance} ->
-        {:noreply,
-         socket
-         |> put_flash(:info, "Pipeline #{name} triggered. Jobs will run on idle agents.")
-         |> load_pipelines()}
+    case ExGoCD.Policies.permit?(ExGoCD.Policies.EnvironmentPolicy, :trigger_pipeline, user) do
+      true ->
+        result =
+          if use_mock?() do
+            {:ok, %{name: name}}
+          else
+            Pipelines.trigger_pipeline(name)
+          end
 
-      {:error, :pipeline_not_found} ->
-        {:noreply, put_flash(socket, :error, "Pipeline not found.")}
+        case result do
+          {:ok, _instance} ->
+            {:noreply,
+             socket
+             |> put_flash(:info, "Pipeline #{name} triggered. Jobs will run on idle agents.")
+             |> load_pipelines()}
 
-      {:error, _} ->
-        {:noreply, put_flash(socket, :error, "Failed to trigger pipeline.")}
+          {:error, :pipeline_not_found} ->
+            {:noreply, put_flash(socket, :error, "Pipeline not found.")}
+
+          {:error, _} ->
+            {:noreply, put_flash(socket, :error, "Failed to trigger pipeline.")}
+        end
+
+      false ->
+        {:noreply, put_flash(socket, :error, "You do not have operate permissions for this pipeline.")}
     end
   end
 

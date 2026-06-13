@@ -11,66 +11,67 @@ defmodule ExGoCDWeb.AdminLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    empty_groups = []
-    pipeline_groups = fetch_pipeline_groups(empty_groups)
+    unless socket.assigns[:is_user_admin] do
+      {:ok,
+       socket
+       |> put_flash(:error, "You do not have administration permissions.")
+       |> redirect(to: "/")}
+    else
+      empty_groups = []
+      pipeline_groups = fetch_pipeline_groups(empty_groups)
+      environments = fetch_environments_ui()
 
-    environments = [
-      %{name: "staging", pipelines: ["deploy-staging", "demo-app"], agents: 2},
-      %{name: "production", pipelines: ["deploy-production"], agents: 4}
-    ]
+      config_repos = [
+        %{
+          id: "gocd-config-repo",
+          url: "https://github.com/d-led/gocd_docker_compose_example.git",
+          plugin: "yaml-config-plugin",
+          status: "Good"
+        }
+      ]
 
-    config_repos = [
-      %{
-        id: "gocd-config-repo",
-        url: "https://github.com/d-led/gocd_docker_compose_example.git",
-        plugin: "yaml-config-plugin",
-        status: "Good"
-      }
-    ]
+      # Load existing database users
+      users = Accounts.list_users()
 
-    # Load or seed real database users
-    users =
-      case Accounts.list_users() do
-        [] ->
-          # Seed default mock users for convenience
-          {:ok, _} = Accounts.create_user(%{username: "admin", display_name: "System Administrator", roles: ["admin", "developer"], status: "Active"})
-          {:ok, _} = Accounts.create_user(%{username: "developer", display_name: "Lead Developer", roles: ["developer"], status: "Active"})
-          {:ok, _} = Accounts.create_user(%{username: "viewer", display_name: "Guest Viewer", roles: [], status: "Active"})
-          Accounts.list_users()
-        existing ->
-          existing
-      end
+      plugins = [
+        %{id: "git-material", name: "Git Material Plugin", version: "1.0.0", status: "Active"},
+        %{id: "docker-elastic-agent", name: "Docker Elastic Agent Plugin", version: "2.1.0", status: "Active"},
+        %{id: "slack-notifier", name: "Slack Notifications", version: "1.4.2", status: "Active"},
+        %{id: "artifact-store-s3", name: "S3 Artifact Store", version: "1.1.0", status: "Active"}
+      ]
 
-    plugins = [
-      %{id: "git-material", name: "Git Material Plugin", version: "1.0.0", status: "Active"},
-      %{id: "docker-elastic-agent", name: "Docker Elastic Agent Plugin", version: "2.1.0", status: "Active"},
-      %{id: "slack-notifier", name: "Slack Notifications", version: "1.4.2", status: "Active"},
-      %{id: "artifact-store-s3", name: "S3 Artifact Store", version: "1.1.0", status: "Active"}
-    ]
-
-    {:ok,
-     socket
-     |> assign(:empty_groups, empty_groups)
-     |> assign(:pipeline_groups, pipeline_groups)
-     |> assign(:filtered_groups, pipeline_groups)
-     |> assign(:environments, environments)
-     |> assign(:config_repos, config_repos)
-     |> assign(:users, users)
-     |> assign(:plugins, plugins)
-     |> assign(:search_query, "")
-     |> assign(:maintenance_mode, false)
-     |> assign(:backup_status, "Idle") # Idle, Running, Completed
-     |> assign(:backup_message, "")
-     |> assign(:new_group_name, "")
-     |> assign(:show_create_modal, false)
-     # User modals assigns
-     |> assign(:show_user_modal, false)
-     |> assign(:user_modal_type, nil) # :add_user, :edit_roles
-     |> assign(:selected_user, nil)
-     |> assign(:user_form, %{"username" => "", "display_name" => "", "roles" => []})
-     |> assign(:user_errors, %{})
-     |> assign(:flash_info, nil)
-     |> assign(:current_path, "/admin")}
+      {:ok,
+       socket
+       |> assign(:empty_groups, empty_groups)
+       |> assign(:pipeline_groups, pipeline_groups)
+       |> assign(:filtered_groups, pipeline_groups)
+       |> assign(:environments, environments)
+       |> assign(:config_repos, config_repos)
+       |> assign(:users, users)
+       |> assign(:plugins, plugins)
+       |> assign(:search_query, "")
+       |> assign(:maintenance_mode, false)
+       |> assign(:backup_status, "Idle") # Idle, Running, Completed
+       |> assign(:backup_message, "")
+       |> assign(:new_group_name, "")
+       |> assign(:show_create_modal, false)
+       # User modals assigns
+       |> assign(:show_user_modal, false)
+       |> assign(:user_modal_type, nil) # :add_user, :edit_roles
+       |> assign(:selected_user, nil)
+       |> assign(:user_form, %{"username" => "", "display_name" => "", "roles" => []})
+       |> assign(:user_errors, %{})
+       |> assign(:flash_info, nil)
+       |> assign(:current_path, "/admin")
+       # Environment Modal assigns
+       |> assign(:show_env_modal, false)
+       |> assign(:env_modal_type, nil)
+       |> assign(:selected_env, nil)
+       |> assign(:env_form_name, "")
+       |> assign(:env_form_pipelines, [])
+       |> assign(:env_form_variables, [])
+       |> assign(:available_pipelines, [])}
+    end
   end
 
   defp fetch_pipeline_groups(empty_groups) do
@@ -247,6 +248,17 @@ defmodule ExGoCDWeb.AdminLive do
 
       <%= if @show_user_modal do %>
         <.user_modal_layer type={@user_modal_type} form={@user_form} errors={@user_errors} user={@selected_user} />
+      <% end %>
+
+      <%= if @show_env_modal do %>
+        <.env_modal_layer
+          type={@env_modal_type}
+          name={@env_form_name}
+          available_pipelines={@available_pipelines}
+          selected_pipelines={@env_form_pipelines}
+          variables={@env_form_variables}
+          env={@selected_env}
+        />
       <% end %>
     </div>
     """
@@ -447,6 +459,13 @@ defmodule ExGoCDWeb.AdminLive do
   defp environments_tab(assigns) do
     ~H"""
     <div class="space-y-6">
+      <div class="flex justify-between items-center mb-2">
+        <h2 class="text-sm font-bold text-slate-700">Environment Configuration</h2>
+        <button phx-click="open_add_env_modal" class="px-2.5 py-1 bg-[#943a9e] hover:bg-purple-700 text-white text-[11px] font-bold rounded shadow-sm">
+          <i class="fa fa-plus mr-1"></i> Add Environment
+        </button>
+      </div>
+
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <%= for env <- @environments do %>
           <div class="bg-white rounded border border-[#d6e0e2] overflow-hidden shadow-sm">
@@ -454,9 +473,14 @@ defmodule ExGoCDWeb.AdminLive do
               <h3 class="text-xs font-bold text-slate-700 flex items-center gap-2">
                 <i class="fa fa-earth-americas text-[#943a9e]"></i> {env.name}
               </h3>
-              <span class="text-[10px] bg-slate-200 px-2 py-0.5 rounded font-bold text-slate-600">
-                {env.agents} Active Agents
-              </span>
+              <div class="flex items-center gap-3">
+                <span class="text-[10px] bg-slate-200 px-2 py-0.5 rounded font-bold text-slate-600">
+                  {env.agents} Active Agents
+                </span>
+                <button phx-click="delete_environment_ui" phx-value-name={env.name} data-confirm="Are you sure you want to delete this environment?" class="text-rose-500 hover:text-rose-700 text-xs cursor-pointer border-0 bg-transparent" title="Delete Environment">
+                  <i class="fa fa-trash-can"></i>
+                </button>
+              </div>
             </div>
 
             <div class="p-5 space-y-3">
@@ -467,14 +491,22 @@ defmodule ExGoCDWeb.AdminLive do
                     {pipe}
                   </span>
                 <% end %>
+                <%= if Enum.empty?(env.pipelines) do %>
+                  <span class="text-xs text-slate-400 italic">No pipelines assigned</span>
+                <% end %>
               </div>
 
               <div class="flex justify-end gap-3 pt-3 border-t border-[#e9edef]">
-                <button class="text-xs text-[#943a9e] hover:text-purple-800 font-bold">
+                <button phx-click="open_edit_env_modal" phx-value-name={env.name} class="text-xs text-[#943a9e] hover:text-purple-800 font-bold border-0 bg-transparent cursor-pointer">
                   Configure Environment
                 </button>
               </div>
             </div>
+          </div>
+        <% end %>
+        <%= if Enum.empty?(@environments) do %>
+          <div class="col-span-2 text-center py-12 bg-white border border-[#d6e0e2] rounded shadow-sm text-slate-400 italic text-xs">
+            No environments configured.
           </div>
         <% end %>
       </div>
@@ -990,5 +1022,317 @@ defmodule ExGoCDWeb.AdminLive do
      |> assign(:backup_status, "Completed")
      |> assign(:backup_message, "Backup saved to: #{backup_path} successfully at #{DateTime.utc_now() |> DateTime.to_string()}")
      |> assign(:flash_info, "Database config backup completed successfully.")}
+  end
+
+  # --- UI Environments Event Handlers ---
+
+  @impl true
+  def handle_event("open_add_env_modal", _params, socket) do
+    available = load_available_pipelines()
+    {:noreply,
+     socket
+     |> assign(:show_env_modal, true)
+     |> assign(:env_modal_type, :create)
+     |> assign(:selected_env, nil)
+     |> assign(:env_form_name, "")
+     |> assign(:env_form_pipelines, [])
+     |> assign(:env_form_variables, [])
+     |> assign(:available_pipelines, available)}
+  end
+
+  @impl true
+  def handle_event("close_env_modal", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:show_env_modal, false)
+     |> assign(:env_modal_type, nil)
+     |> assign(:selected_env, nil)}
+  end
+
+  @impl true
+  def handle_event("open_edit_env_modal", %{"name" => name}, socket) do
+    case ExGoCD.Environments.get_environment_by_name(name) do
+      nil ->
+        {:noreply, put_flash(socket, :error, "Environment not found.")}
+
+      env ->
+        available = load_available_pipelines(env.id)
+        selected_pipes = Enum.map(env.pipelines, & &1.name)
+        vars = Enum.map(env.environment_variables || [], fn var ->
+          %{
+            "name" => var["name"] || var[:name],
+            "value" => var["value"] || var[:value] || var["encrypted_value"] || var[:encrypted_value],
+            "secure" => var["secure"] || var[:secure] || false
+          }
+        end)
+
+        {:noreply,
+         socket
+         |> assign(:show_env_modal, true)
+         |> assign(:env_modal_type, :edit)
+         |> assign(:selected_env, env)
+         |> assign(:env_form_name, env.name)
+         |> assign(:env_form_pipelines, selected_pipes)
+         |> assign(:env_form_variables, vars)
+         |> assign(:available_pipelines, available)}
+    end
+  end
+
+  @impl true
+  def handle_event("add_env_var_row", _params, socket) do
+    vars = socket.assigns.env_form_variables ++ [%{"name" => "", "value" => "", "secure" => false}]
+    {:noreply, assign(socket, :env_form_variables, vars)}
+  end
+
+  @impl true
+  def handle_event("remove_env_var_row", %{"index" => idx_str}, socket) do
+    idx = String.to_integer(idx_str)
+    vars = List.delete_at(socket.assigns.env_form_variables, idx)
+    {:noreply, assign(socket, :env_form_variables, vars)}
+  end
+
+  @impl true
+  def handle_event("toggle_var_secure", %{"index" => idx_str}, socket) do
+    idx = String.to_integer(idx_str)
+    vars =
+      List.update_at(socket.assigns.env_form_variables, idx, fn var ->
+        sec = Map.get(var, "secure") || Map.get(var, :secure) || false
+        Map.put(var, "secure", !sec)
+      end)
+    {:noreply, assign(socket, :env_form_variables, vars)}
+  end
+
+  @impl true
+  def handle_event("delete_environment_ui", %{"name" => name}, socket) do
+    if System.get_env("USE_MOCK_DATA") == "true" do
+      envs = Enum.reject(socket.assigns.environments, &(&1.name == name))
+      {:noreply,
+       socket
+       |> assign(:environments, envs)
+       |> put_flash(:info, "Environment '#{name}' was deleted.")}
+    else
+      case ExGoCD.Environments.get_environment_by_name(name) do
+        nil ->
+          {:noreply, put_flash(socket, :error, "Environment not found.")}
+        env ->
+          {:ok, _} = ExGoCD.Environments.delete_environment(env)
+          envs = fetch_environments_ui()
+          {:noreply,
+           socket
+           |> assign(:environments, envs)
+           |> put_flash(:info, "Environment '#{name}' was deleted successfully.")}
+      end
+    end
+  end
+
+  @impl true
+  def handle_event("save_environment_ui", params, socket) do
+    selected_pipelines = Map.get(params, "pipelines", [])
+    vars_params = Map.get(params, "variables", %{})
+    variables =
+      vars_params
+      |> Map.values()
+      |> Enum.reject(fn var -> String.trim(var["name"]) == "" end)
+      |> Enum.map(fn var ->
+        sec = var["secure"] == "true"
+        base = %{
+          "name" => var["name"],
+          "secure" => sec
+        }
+        if sec do
+          Map.put(base, "encrypted_value", Base.encode64(var["value"]))
+        else
+          Map.put(base, "value", var["value"])
+        end
+      end)
+
+    if System.get_env("USE_MOCK_DATA") == "true" do
+      name = params["name"] || socket.assigns.env_form_name
+      new_env = %{
+        id: socket.assigns.selected_env && socket.assigns.selected_env.id || System.unique_integer([:positive]),
+        name: name,
+        pipelines: selected_pipelines,
+        agents: 0,
+        environment_variables: variables
+      }
+      envs =
+        if socket.assigns.env_modal_type == :create do
+          socket.assigns.environments ++ [new_env]
+        else
+          Enum.map(socket.assigns.environments, fn e ->
+            if e.name == socket.assigns.env_form_name, do: new_env, else: e
+          end)
+        end
+
+      {:noreply,
+       socket
+       |> assign(:environments, envs)
+       |> assign(:show_env_modal, false)
+       |> put_flash(:info, "Environment saved successfully (Mock).")}
+    else
+      res =
+        if socket.assigns.env_modal_type == :create do
+          ExGoCD.Environments.create_environment(%{
+            "name" => params["name"],
+            "pipelines" => selected_pipelines,
+            "environment_variables" => variables
+          })
+        else
+          ExGoCD.Environments.update_environment(socket.assigns.selected_env, %{
+            "pipelines" => selected_pipelines,
+            "environment_variables" => variables
+          })
+        end
+
+      case res do
+        {:ok, _env} ->
+          envs = fetch_environments_ui()
+          {:noreply,
+           socket
+           |> assign(:environments, envs)
+           |> assign(:show_env_modal, false)
+           |> put_flash(:info, "Environment saved successfully.")}
+
+        {:error, changeset} ->
+          error_msg =
+            Ecto.Changeset.traverse_errors(changeset, fn {msg, _} -> msg end)
+            |> Enum.map_join(", ", fn {k, v} -> "#{k}: #{v}" end)
+
+          {:noreply, put_flash(socket, :error, "Failed to save: #{error_msg}")}
+      end
+    end
+  end
+
+  # --- UI Environments Helpers ---
+
+  defp load_available_pipelines(env_id \\ nil) do
+    all_pipelines = ExGoCD.Pipelines.list_pipelines()
+
+    assigned_pipeline_ids =
+      if System.get_env("USE_MOCK_DATA") == "true" do
+        MapSet.new()
+      else
+        ExGoCD.Environments.list_environments()
+        |> Enum.reject(fn e -> env_id && e.id == env_id end)
+        |> Enum.flat_map(& &1.pipelines)
+        |> Enum.map(& &1.id)
+        |> MapSet.new()
+      end
+
+    Enum.filter(all_pipelines, fn p ->
+      not MapSet.member?(assigned_pipeline_ids, p.id)
+    end)
+  end
+
+  defp fetch_environments_ui do
+    if System.get_env("USE_MOCK_DATA") == "true" do
+      [
+        %{id: 1, name: "staging", pipelines: ["deploy-staging", "demo-app"], agents: 2},
+        %{id: 2, name: "production", pipelines: ["deploy-production"], agents: 4}
+      ]
+    else
+      ExGoCD.Environments.list_environments()
+      |> Enum.map(fn env ->
+        agents_count = length(ExGoCD.Agents.list_agents_in_environment(env.name))
+        pipe_names = Enum.map(env.pipelines, & &1.name)
+
+        %{
+          id: env.id,
+          name: env.name,
+          pipelines: pipe_names,
+          agents: agents_count,
+          environment_variables: env.environment_variables || []
+        }
+      end)
+    end
+  end
+
+  defp env_modal_layer(assigns) do
+    ~H"""
+    <div class="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div class="bg-white rounded border border-[#d6e0e2] shadow-xl w-full max-w-lg overflow-hidden">
+        <div class="bg-[#e7eef0] border-b border-[#d6e0e2] px-5 py-3 flex justify-between items-center">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-700">
+            <%= if @type == :create, do: "Create New Environment", else: "Configure Environment: #{@name}" %>
+          </h3>
+          <button type="button" phx-click="close_env_modal" class="text-slate-400 hover:text-slate-600 border-0 bg-transparent cursor-pointer">
+            <i class="fa fa-times"></i>
+          </button>
+        </div>
+
+        <form phx-submit="save_environment_ui" class="p-6 space-y-4 text-xs max-h-[80vh] overflow-y-auto">
+          <%= if @type == :create do %>
+            <div>
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Environment Name</label>
+              <input type="text" name="name" value={@name} required placeholder="e.g. production"
+                     class="w-full px-3 py-2 rounded bg-white border border-[#d6e0e2] text-xs text-[#333] focus:outline-none focus:border-[#943a9e]" />
+            </div>
+          <% end %>
+
+          <div>
+            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Assign Pipelines</label>
+            <%= if Enum.empty?(@available_pipelines) do %>
+              <p class="text-slate-400 italic">No unassigned pipelines available.</p>
+            <% else %>
+              <div class="grid grid-cols-2 gap-2 mt-2 bg-slate-50 p-4 rounded border border-[#e9edef] max-h-40 overflow-y-auto">
+                <%= for pipe <- @available_pipelines do %>
+                  <label class="flex items-center gap-2.5 font-medium text-slate-700 cursor-pointer">
+                    <input type="checkbox" name="pipelines[]" value={pipe.name} checked={pipe.name in @selected_pipelines}
+                           class="rounded border-[#d6e0e2] text-[#943a9e] focus:ring-[#943a9e]" />
+                    <span>{pipe.name}</span>
+                  </label>
+                <% end %>
+              </div>
+            <% end %>
+          </div>
+
+          <div>
+            <div class="flex justify-between items-center mb-2">
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Environment Variables</label>
+              <button type="button" phx-click="add_env_var_row" class="text-[#943a9e] hover:text-purple-800 font-bold text-[10px] uppercase border-0 bg-transparent cursor-pointer">
+                <i class="fa fa-plus mr-1"></i> Add Variable
+              </button>
+            </div>
+
+            <div class="space-y-2 max-h-48 overflow-y-auto">
+              <%= for {var, idx} <- Enum.with_index(@variables) do %>
+                <div class="flex gap-2 items-center">
+                  <input type="text" name={"variables[#{idx}][name]"} value={var["name"] || var[:name]} required placeholder="Name"
+                         class="w-1/3 px-2 py-1 rounded border border-[#d6e0e2] text-xs" />
+
+                  <input type={if(var["secure"] || var[:secure], do: "password", else: "text")}
+                         name={"variables[#{idx}][value]"} value={var["value"] || var[:value] || var["encrypted_value"] || var[:encrypted_value]} required placeholder="Value"
+                         class="flex-grow px-2 py-1 rounded border border-[#d6e0e2] text-xs" />
+
+                  <label class="flex items-center gap-1 cursor-pointer">
+                    <input type="checkbox" name={"variables[#{idx}][secure]"} value="true" checked={var["secure"] || var[:secure]}
+                           phx-click="toggle_var_secure" phx-value-index={idx}
+                           class="rounded border-[#d6e0e2] text-[#943a9e] focus:ring-[#943a9e]" />
+                    <span class="text-[9px] uppercase font-bold text-slate-400">Secure</span>
+                  </label>
+
+                  <button type="button" phx-click="remove_env_var_row" phx-value-index={idx} class="text-rose-500 hover:text-rose-700 p-1 border-0 bg-transparent cursor-pointer">
+                    <i class="fa fa-trash-can"></i>
+                  </button>
+                </div>
+              <% end %>
+              <%= if Enum.empty?(@variables) do %>
+                <p class="text-slate-400 italic">No environment variables configured.</p>
+              <% end %>
+            </div>
+          </div>
+
+          <div class="flex justify-end gap-3 pt-4 border-t border-[#e9edef]">
+            <button type="submit" class="px-4 py-2 bg-[#943a9e] hover:bg-purple-700 text-white font-bold rounded shadow-sm border-0 cursor-pointer">
+              Save Environment
+            </button>
+            <button type="button" phx-click="close_env_modal" class="px-4 py-2 bg-white border border-slate-350 text-slate-700 rounded hover:bg-slate-50 font-semibold cursor-pointer">
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+    """
   end
 end

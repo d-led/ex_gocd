@@ -319,25 +319,55 @@ func (a *Agent) runBuildCommand(ctx context.Context, build *protocol.Build) erro
 	if cmd == nil {
 		return nil
 	}
+	env := make(map[string]string)
+	return a.executeCommandTree(ctx, build, cmd, env)
+}
+
+func (a *Agent) executeCommandTree(ctx context.Context, build *protocol.Build, cmd *protocol.BuildCommand, env map[string]string) error {
 	if len(cmd.SubCommands) > 0 {
 		for _, sub := range cmd.SubCommands {
-			if err := a.runOneCommand(ctx, build, sub); err != nil {
+			if err := a.executeCommandTree(ctx, build, sub, env); err != nil {
 				return err
 			}
 		}
 		return nil
 	}
-	return a.runOneCommand(ctx, build, cmd)
+	return a.runOneCommand(ctx, build, cmd, env)
 }
 
 // runOneCommand runs a single BuildCommand (command + args), streaming output to build.ConsoleUrl when set.
 // ctx can be cancelled to kill the process (returns context.Canceled).
-func (a *Agent) runOneCommand(ctx context.Context, build *protocol.Build, cmd *protocol.BuildCommand) error {
+func (a *Agent) runOneCommand(ctx context.Context, build *protocol.Build, cmd *protocol.BuildCommand, env map[string]string) error {
 	switch cmd.Name {
 	case "uploadArtifact":
 		return a.runUploadArtifact(ctx, build, cmd)
 	case "fetchArtifact":
 		return a.runFetchArtifact(ctx, build, cmd)
+	case "export":
+		var name, value string
+		if cmd.Attributes != nil {
+			if n, ok := cmd.Attributes["name"].(string); ok {
+				name = n
+			}
+			if v, ok := cmd.Attributes["value"].(string); ok {
+				value = v
+			}
+		}
+		if name == "" && len(cmd.Args) >= 2 {
+			name = cmd.Args[0]
+			value = cmd.Args[1]
+		}
+		if name == "" && cmd.Command != "" {
+			name = cmd.Command
+			if len(cmd.Args) > 0 {
+				value = cmd.Args[0]
+			}
+		}
+		if name != "" {
+			env[name] = value
+			log.Printf("Exported env var %s", name)
+		}
+		return nil
 	}
 
 	path := cmd.Command
@@ -361,6 +391,12 @@ func (a *Agent) runOneCommand(ctx context.Context, build *protocol.Build, cmd *p
 
 	c := exec.CommandContext(ctx, resolvedPath, cmd.Args...)
 	c.Dir = absDir
+
+	// Merge environment variables
+	c.Env = os.Environ()
+	for k, v := range env {
+		c.Env = append(c.Env, fmt.Sprintf("%s=%s", k, v))
+	}
 
 	if build.ConsoleUrl != "" {
 		stdoutPipe, _ := c.StdoutPipe()

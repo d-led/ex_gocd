@@ -36,6 +36,11 @@ defmodule ExGoCDWeb.Router do
   scope "/", ExGoCDWeb do
     pipe_through :browser
 
+    # Session auth — GoCD-style login/logout
+    get "/auth/login", SessionController, :new
+    post "/auth/login", SessionController, :create
+    delete "/auth/logout", SessionController, :delete
+
     get "/api_json/pipelines/value_stream_map/:pipeline_name/:pipeline_counter", ValueStreamMapController, :show
     get "/api_json/materials/value_stream_map/:material_fingerprint/:revision", ValueStreamMapController, :show_material
     get "/api_json/go/pipelines/value_stream_map/:pipeline_name/:pipeline_counter", ValueStreamMapController, :show
@@ -119,6 +124,18 @@ defmodule ExGoCDWeb.Router do
 
     # Schedule a job (enqueue for next idle agent; GoCD-style pipeline/stage/job)
     post "/jobs/schedule", JobController, :schedule
+  end
+
+  scope "/api/admin", ExGoCDWeb.API.Admin do
+    pipe_through :api
+
+    resources "/environments", EnvironmentController, except: [:new, :edit], param: "name"
+  end
+
+  scope "/go/api/admin", ExGoCDWeb.API.Admin do
+    pipe_through :api
+
+    resources "/environments", EnvironmentController, except: [:new, :edit], param: "name"
   end
 
   scope "/go/api", ExGoCDWeb.API do

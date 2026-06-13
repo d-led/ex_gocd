@@ -320,7 +320,18 @@ defmodule ExGoCD.Scheduler do
   defp build_command_from_job_instance(ji) do
     stage_instance = ji.stage_instance
     pipeline_instance = stage_instance.pipeline_instance
+    pipeline = pipeline_instance.pipeline
     job_config = ji.job
+
+    # Prepend export commands for all environment variables (Environment -> Pipeline -> Stage -> Job)
+    env_vars = get_all_job_env_vars(pipeline, stage_instance, job_config)
+    export_cmds =
+      Enum.map(env_vars, fn var ->
+        %{
+          "name" => "export",
+          "args" => [var["name"], var["value"]]
+        }
+      end)
 
     # 1. Start with SCM checkout if stage_instance.fetch_materials is true
     checkout_cmds =
@@ -394,8 +405,8 @@ defmodule ExGoCD.Scheduler do
         }
       end)
 
-    # 3. Combine them into compose structure
-    all_cmds = checkout_cmds ++ task_cmds
+    # 3. Combine them into compose structure: exports must come first!
+    all_cmds = export_cmds ++ checkout_cmds ++ task_cmds
 
     # Default to echo if empty
     all_cmds =
@@ -411,13 +422,102 @@ defmodule ExGoCD.Scheduler do
     }
   end
 
-  # Helper to resolve environment name for a pipeline (using mock grouping or fallback)
+  # Helper to resolve environment name for a pipeline (using database or fallback)
   defp get_pipeline_environments(pipeline_name) do
-    case Enum.find(ExGoCD.MockData.pipelines_by_environment(), fn {_env, pipelines} ->
-      Enum.any?(pipelines, &(&1.name == pipeline_name))
-    end) do
-      nil -> []
-      {env, _} -> [env]
+    if Application.get_env(:ex_gocd, :use_mock_data) == "true" or
+       System.get_env("USE_MOCK_DATA") == "true" do
+      case Enum.find(ExGoCD.MockData.pipelines_by_environment(), fn {_env, pipelines} ->
+        Enum.any?(pipelines, &(&1.name == pipeline_name))
+      end) do
+        nil -> []
+        {env, _} -> [env]
+      end
+    else
+      case ExGoCD.Environments.get_pipeline_environment(pipeline_name) do
+        nil -> []
+        env -> [env.name]
+      end
+    end
+  end
+
+  # Helper to aggregate all environment variables across all hierarchy levels
+  defp get_all_job_env_vars(pipeline, stage_instance, job_config) do
+    env_vars =
+      if Application.get_env(:ex_gocd, :use_mock_data) == "true" or System.get_env("USE_MOCK_DATA") == "true" do
+        []
+      else
+        case ExGoCD.Environments.get_pipeline_environment(pipeline.name) do
+          nil -> []
+          env -> env.environment_variables || []
+        end
+      end
+
+    pipe_vars = map_to_gocd_vars(pipeline.environment_variables)
+
+    stage_config =
+      if Application.get_env(:ex_gocd, :use_mock_data) == "true" or System.get_env("USE_MOCK_DATA") == "true" do
+        nil
+      else
+        Repo.get_by(ExGoCD.Pipelines.Stage, pipeline_id: pipeline.id, name: stage_instance.name)
+      end
+    stage_vars = if stage_config, do: map_to_gocd_vars(stage_config.environment_variables), else: []
+
+    job_vars = if job_config, do: map_to_gocd_vars(job_config.environment_variables), else: []
+
+    merge_env_vars(env_vars, pipe_vars, stage_vars, job_vars)
+  end
+
+  defp map_to_gocd_vars(nil), do: []
+  defp map_to_gocd_vars(vars) when is_map(vars) do
+    Enum.map(vars, fn {k, v} ->
+      case v do
+        %{"value" => val} -> %{"name" => to_string(k), "value" => to_string(val)}
+        val -> %{"name" => to_string(k), "value" => to_string(val)}
+      end
+    end)
+  end
+  defp map_to_gocd_vars(_), do: []
+
+  defp merge_env_vars(env, pipe, stage, job) do
+    norm_env = list_to_var_map(env)
+    norm_pipe = list_to_var_map(pipe)
+    norm_stage = list_to_var_map(stage)
+    norm_job = list_to_var_map(job)
+
+    merged =
+      norm_env
+      |> Map.merge(norm_pipe)
+      |> Map.merge(norm_stage)
+      |> Map.merge(norm_job)
+
+    Map.values(merged)
+  end
+
+  defp list_to_var_map(list) do
+    Enum.reduce(list || [], %{}, fn var, acc ->
+      name = Map.get(var, "name") || Map.get(var, :name)
+      if name do
+        value = decrypt_variable(var)
+        Map.put(acc, name, %{"name" => name, "value" => value})
+      else
+        acc
+      end
+    end)
+  end
+
+  defp decrypt_variable(var) do
+    cond do
+      val = Map.get(var, "value") || Map.get(var, :value) ->
+        to_string(val)
+
+      enc = Map.get(var, "encrypted_value") || Map.get(var, :encrypted_value) ->
+        case Base.decode64(to_string(enc)) do
+          {:ok, decoded} -> decoded
+          _ -> to_string(enc)
+        end
+
+      true ->
+        ""
     end
   end
 
