@@ -78,7 +78,7 @@ jobs:
       with:
         name: Go Agent Tests
         path: agent/testresults.json
-        reporter: golang-json
+        reporter: go-json
 
   publish-server:
     name: Build and publish Server Docker image
