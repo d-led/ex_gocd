@@ -12,6 +12,7 @@ defmodule ExGoCD.AgentJobRuns do
   alias ExGoCD.Agents
   alias ExGoCD.PubSub
   alias ExGoCD.Repo
+  alias ExGoCD.VsmTracer
 
   @job_runs_topic_prefix "agent_job_runs:"
   @console_topic_prefix "agent_job_run_console:"
@@ -93,19 +94,30 @@ defmodule ExGoCD.AgentJobRuns do
       |> Repo.one()
 
     if run do
-      attrs = %{state: job_state}
-      attrs = if result, do: Map.put(attrs, :result, result), else: attrs
+      span_name = "job.#{String.downcase(job_state)}"
+      VsmTracer.trace(span_name, %{
+        "build.id" => build_id,
+        "job.name" => run.job_name,
+        "pipeline.name" => run.pipeline_name,
+        "stage.name" => run.stage_name,
+        "agent_uuid" => agent_uuid,
+        "state" => job_state,
+        "result" => result
+      }, fn ->
+        attrs = %{state: job_state}
+        attrs = if result, do: Map.put(attrs, :result, result), else: attrs
 
-      case run |> AgentJobRun.changeset(attrs) |> Repo.update() do
-        {:ok, updated} ->
-          broadcast_job_runs(agent_uuid, :run_updated)
-          broadcast_run_updated_for_console(build_id, updated)
-          maybe_complete_job_instance(updated, job_state, result)
-          {:ok, updated}
+        case run |> AgentJobRun.changeset(attrs) |> Repo.update() do
+          {:ok, updated} ->
+            broadcast_job_runs(agent_uuid, :run_updated)
+            broadcast_run_updated_for_console(build_id, updated)
+            maybe_complete_job_instance(updated, job_state, result)
+            {:ok, updated}
 
-        error ->
-          error
-      end
+          error ->
+            error
+        end
+      end)
     else
       {:error, :run_not_found}
     end

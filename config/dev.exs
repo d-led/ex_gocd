@@ -99,6 +99,22 @@ config :phoenix_live_view,
 # Disable swoosh api client as it is only required for production adapters.
 config :swoosh, :api_client, false
 
+# ── OpenTelemetry → Collector → Jaeger (dev only) ──────────────────────
+# Instrumentation (Phoenix + Ecto) attached by ExGoCD.Otel.setup/0.
+# Spans flow: ex_gocd → OTLP HTTP (localhost:4318) → Collector → Jaeger
+# Collector and Jaeger started via: docker compose up -d jaeger otel-collector
+# Jaeger UI: http://localhost:16686/search
+config :ex_gocd, :otel,
+  exporter: :otlp,
+  otlp_endpoint: "http://localhost:4318",
+  service_name: "ex_gocd"
+
+config :opentelemetry,
+  traces_exporter: {:opentelemetry_exporter, %{}}
+
+config :opentelemetry_exporter,
+  otlp_endpoint: "http://localhost:4318"
+
 # ── JSON log file for Fluent Bit → Loki (dev only) ──────────────────────
 # Console logging continues as normal. A JSON file sidecar is written for
 # Fluent Bit to tail and forward to Loki for Grafana log dashboards.

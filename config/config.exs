@@ -65,10 +65,10 @@ config :logger, :default_formatter,
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
 
-# OpenTelemetry — default config (overridden per environment)
+# OpenTelemetry — disabled by default in base config.
+# Only dev.exs enables it. test.exs and prod.exs keep it off.
 config :ex_gocd, :otel,
-  exporter: :otlp,
-  otlp_endpoint: "http://localhost:4318",
+  exporter: :none,
   service_name: "ex_gocd"
 
 # Import environment specific config. This must remain at the bottom

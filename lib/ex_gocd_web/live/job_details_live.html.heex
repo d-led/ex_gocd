@@ -53,11 +53,27 @@
       </button>
       <button
         phx-click="select_tab"
+        phx-value-tab="tests"
+        class={"px-4 py-3 text-xs font-bold font-mono tracking-wide border-b-2 " <>
+          if @active_tab == "tests", do: "border-[#2d6ca2] text-[#2d6ca2]", else: "border-transparent text-gray-500 hover:text-gray-700"}
+      >
+        <i class="fa fa-flask mr-1.5 text-gray-400"></i> Tests
+      </button>
+      <button
+        phx-click="select_tab"
         phx-value-tab="artifacts"
         class={"px-4 py-3 text-xs font-bold font-mono tracking-wide border-b-2 " <>
           if @active_tab == "artifacts", do: "border-[#2d6ca2] text-[#2d6ca2]", else: "border-transparent text-gray-500 hover:text-gray-700"}
       >
         <i class="fa fa-folder-open mr-1.5 text-gray-400"></i> Artifacts
+      </button>
+      <button
+        phx-click="select_tab"
+        phx-value-tab="materials"
+        class={"px-4 py-3 text-xs font-bold font-mono tracking-wide border-b-2 " <>
+          if @active_tab == "materials", do: "border-[#2d6ca2] text-[#2d6ca2]", else: "border-transparent text-gray-500 hover:text-gray-700"}
+      >
+        <i class="fa fa-code-branch mr-1.5 text-gray-400"></i> Materials
       </button>
     </nav>
 
@@ -66,12 +82,43 @@
       <%= case @active_tab do %>
         <% "console" -> %>
           <div class="bg-gray-950 rounded-lg p-6 font-mono text-gray-300 text-xs overflow-y-auto max-h-[600px] leading-relaxed shadow-inner border border-gray-900">
-            <%= if @run && @run.console_log && @run.console_log != "" do %>
-              <pre class="whitespace-pre-wrap select-text selection:bg-purple-900 selection:text-white"><%= @run.console_log %></pre>
+            <%= cond do %>
+              <% @run && is_map_key(@run, :console_log) && @run.console_log && @run.console_log != "" -> %>
+                <pre class="whitespace-pre-wrap select-text selection:bg-purple-900 selection:text-white"><%= @run.console_log %></pre>
+              <% @run && @run.state in ["Scheduled", "Assigned", "Preparing"] -> %>
+                <div class="text-gray-500 italic py-8 text-center flex flex-col items-center justify-center gap-2">
+                  <i class="fa fa-spinner animate-spin text-xl text-gray-600"></i>
+                  <span>Job is {@run.state}. Waiting for agent to start...</span>
+                </div>
+              <% @run && @run.state == "Building" -> %>
+                <div class="text-gray-500 italic py-8 text-center flex flex-col items-center justify-center gap-2">
+                  <i class="fa fa-spinner animate-spin text-xl text-gray-600"></i>
+                  <span>Job is building. Console output will appear here...</span>
+                </div>
+              <% true -> %>
+                <div class="text-gray-500 italic py-8 text-center flex flex-col items-center justify-center gap-2">
+                  <i class="fa fa-clock-o text-xl text-gray-600"></i>
+                  <span>No console output available for this job run.</span>
+                </div>
+            <% end %>
+          </div>
+
+        <% "tests" -> %>
+          <div class="tests-container">
+            <%= if has_test_report?(@pipeline_name, @pipeline_counter, @stage_name, @stage_counter, @job_name) do %>
+              <iframe
+                src={test_report_url(@pipeline_name, @pipeline_counter, @stage_name, @stage_counter, @job_name)}
+                class="w-full min-h-[500px] border border-gray-200 rounded"
+                title="Test Report"
+              ></iframe>
             <% else %>
-              <div class="text-gray-500 italic py-8 text-center flex flex-col items-center justify-center gap-2">
-                <i class="fa fa-spinner animate-spin text-xl text-gray-600"></i>
-                <span>Waiting for console log output...</span>
+              <div class="text-gray-500 italic py-12 text-center flex flex-col items-center justify-center gap-2 border border-dashed border-gray-200 rounded-lg bg-gray-50/50">
+                <i class="fa fa-flask text-2xl text-gray-300"></i>
+                <span>No test reports found for this job run.</span>
+                <p class="text-xs text-gray-400 max-w-md mt-1">
+                  To generate test reports, configure your job to produce JUnit XML files
+                  and upload them as artifacts in a <code class="bg-gray-200 px-1 rounded">testoutput/</code> directory.
+                </p>
               </div>
             <% end %>
           </div>
@@ -140,6 +187,39 @@
                   </table>
                 </div>
               <% end %>
+            <% end %>
+          </div>
+
+        <% "materials" -> %>
+          <div class="materials-container">
+            <%= if Enum.empty?(@materials) do %>
+              <div class="text-gray-500 italic py-12 text-center flex flex-col items-center justify-center gap-2 border border-dashed border-gray-200 rounded-lg bg-gray-50/50">
+                <i class="fa fa-code-branch text-2xl text-gray-300"></i>
+                <span>No material revisions recorded for this job run.</span>
+              </div>
+            <% else %>
+              <div class="border border-gray-200 rounded overflow-hidden">
+                <table class="min-w-full divide-y divide-gray-200 text-xs text-left">
+                  <thead>
+                    <tr class="bg-gray-50 text-[10px] uppercase font-bold text-gray-400 tracking-wider font-mono">
+                      <th class="px-6 py-3">Material</th>
+                      <th class="px-6 py-3">Type</th>
+                      <th class="px-6 py-3">Revision</th>
+                      <th class="px-6 py-3">Modified</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-gray-100 font-mono text-gray-700">
+                    <%= for material <- @materials do %>
+                      <tr class="hover:bg-gray-50/50">
+                        <td class="px-6 py-3.5 font-bold text-gray-800">{material.name}</td>
+                        <td class="px-6 py-3.5 text-gray-500">{material.type}</td>
+                        <td class="px-6 py-3.5 text-[11px] text-gray-600 font-mono">{material.revision}</td>
+                        <td class="px-6 py-3.5 text-gray-500">{material.modified_at}</td>
+                      </tr>
+                    <% end %>
+                  </tbody>
+                </table>
+              </div>
             <% end %>
           </div>
       <% end %>

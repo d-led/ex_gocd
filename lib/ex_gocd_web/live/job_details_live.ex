@@ -9,6 +9,7 @@ defmodule ExGoCDWeb.JobDetailsLive do
   alias ExGoCD.AgentJobRuns
   alias ExGoCD.Pipelines.JobInstance
   alias ExGoCD.Repo
+  alias ExGoCD.Pipelines.PipelineMaterialRevision
 
   @impl true
   def mount(params, _session, socket) do
@@ -26,38 +27,26 @@ defmodule ExGoCDWeb.JobDetailsLive do
     run =
       if use_mock do
         %{
-          build_id: "mock-build-id-123",
+          build_id: nil,
           pipeline_name: pipeline_name,
           pipeline_counter: pipeline_counter,
           stage_name: stage_name,
           stage_counter: stage_counter,
           job_name: job_name,
-          state: "Completed",
-          result: "Passed",
-          console_log: """
-          [go] Start to build pipeline: #{pipeline_name} / #{pipeline_counter} ...
-          [go] Fetching SCM materials from repository...
-          [go] Git material checkout successful: master at 9f8e7d6c5b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e
-          [go] Executing task command: mix compile
-            Compiling 12 files (.ex)
-            Generated ex_gocd app
-          [go] Executing task command: mix test
-            Finished in 1.4 seconds
-            297 tests, 0 failures
-          [go] Job '#{job_name}' completed successfully with result: Passed.
-          [go] Stage completed. Invalidation triggers cleared.
-          """
+          state: "Scheduled",
+          result: "Unknown",
+          console_log: nil
         }
       else
         run
       end
 
     job_instance =
-      if is_nil(job_instance) && use_mock do
+      if is_nil(job_instance) do
         %{
           name: job_name,
-          state: "Completed",
-          result: "Passed",
+          state: "Scheduled",
+          result: "Unknown",
           stage_instance: %{
             stage_name: stage_name,
             stage_counter: stage_counter,
@@ -78,6 +67,7 @@ defmodule ExGoCDWeb.JobDetailsLive do
     end
 
     artifacts = list_artifacts(pipeline_name, pipeline_counter, stage_name, stage_counter, job_name)
+    materials = list_materials(pipeline_name, pipeline_counter)
 
     {:ok,
      socket
@@ -90,6 +80,7 @@ defmodule ExGoCDWeb.JobDetailsLive do
      |> assign(:run, run)
      |> assign(:active_tab, "console")
      |> assign(:artifacts, artifacts)
+     |> assign(:materials, materials)
      |> assign(:page_title, "Job Details: #{job_name}")}
   end
 
@@ -204,7 +195,61 @@ defmodule ExGoCDWeb.JobDetailsLive do
     end
   end
 
-  defp format_size(bytes) when bytes < 1024, do: "#{bytes} B"
-  defp format_size(bytes) when bytes < 1024 * 1024, do: "#{Float.round(bytes / 1024, 1)} KB"
-  defp format_size(bytes), do: "#{Float.round(bytes / (1024 * 1024), 1)} MB"
+  def format_size(bytes) when bytes < 1024, do: "#{bytes} B"
+  def format_size(bytes) when bytes < 1024 * 1024, do: "#{Float.round(bytes / 1024, 1)} KB"
+  def format_size(bytes), do: "#{Float.round(bytes / (1024 * 1024), 1)} MB"
+
+  def has_test_report?(pipeline_name, pipeline_counter, stage_name, stage_counter, job_name) do
+    test_dir = Path.join([
+      artifacts_dir(),
+      pipeline_name,
+      to_string(pipeline_counter),
+      stage_name,
+      to_string(stage_counter),
+      job_name,
+      "testoutput"
+    ])
+    File.exists?(Path.join(test_dir, "index.html"))
+  end
+
+  def test_report_url(pipeline_name, pipeline_counter, stage_name, stage_counter, job_name) do
+    "/files/#{pipeline_name}/#{pipeline_counter}/#{stage_name}/#{stage_counter}/#{job_name}/testoutput/index.html"
+  end
+
+  defp list_materials(pipeline_name, pipeline_counter) do
+    query = from(pi in ExGoCD.Pipelines.PipelineInstance,
+      join: p in assoc(pi, :pipeline),
+      where: p.name == ^pipeline_name and pi.counter == ^pipeline_counter,
+      select: pi.id,
+      limit: 1
+    )
+
+    case Repo.one(query) do
+      nil -> []
+      pi_id ->
+        pmrs = Repo.all(
+          from(pmr in PipelineMaterialRevision,
+            join: m in assoc(pmr, :material),
+            left_join: mod in assoc(pmr, :modification),
+            where: pmr.pipeline_instance_id == ^pi_id,
+            select: %{
+              name: m.name,
+              type: m.type,
+              revision: mod.revision,
+              comment: mod.comment,
+              modified_at: mod.modified_time
+            }
+          )
+        )
+        Enum.map(pmrs, fn r ->
+          %{
+            name: r.name,
+            type: r.type,
+            revision: if(r.revision, do: String.slice(r.revision, 0, 12) <> "...", else: "—"),
+            comment: r.comment || "—",
+            modified_at: r.modified_at || "—"
+          }
+        end)
+    end
+  end
 end

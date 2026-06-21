@@ -37,7 +37,10 @@ config :swoosh, :api_client, false
 # Print only warnings and errors during test
 config :logger, level: :warning
 
-# Disable OpenTelemetry export in test (no collector running)
+# Disable OpenTelemetry SDK entirely in test (no collector running)
+config :opentelemetry, sdk_disabled: true
+
+# Also disable our own OTEL toggle (belt and suspenders)
 config :ex_gocd, :otel,
   exporter: :none,
   service_name: "ex_gocd_test"

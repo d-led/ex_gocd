@@ -28,6 +28,7 @@ defmodule ExGoCD.Pipelines do
   alias ExGoCD.Repo
   alias ExGoCD.Scheduler
   alias ExGoCD.Params
+  alias ExGoCD.VsmTracer
   alias ExGoCD.Agents
   alias ExGoCD.AuditLog
 
@@ -83,20 +84,22 @@ defmodule ExGoCD.Pipelines do
   """
   def trigger_pipeline(pipeline_name, options \\ %{}) when is_binary(pipeline_name) and is_map(options) do
     result =
-      with %Pipeline{} = pipeline <- get_pipeline_by_name(pipeline_name),
-           {:paused, false} <- {:paused, pipeline.paused},
-           {:locked, false} <- {:locked, pipeline_locked?(pipeline)},
-           pipeline = Repo.preload(pipeline, [:materials, :template, stages: [jobs: :tasks]]),
-           pipeline = resolve_template_stages(pipeline),
-           {:ok, proposed} <- resolve_proposed_revisions(pipeline, options),
-           :ok <- FanInResolver.verify_consistency(proposed) do
-        do_trigger_pipeline_with_proposed(pipeline, proposed, options)
-      else
-        nil -> {:error, :pipeline_not_found}
-        {:paused, true} -> {:error, :pipeline_paused}
-        {:locked, true} -> {:error, :pipeline_locked}
-        {:error, reason} -> {:error, reason}
-      end
+      VsmTracer.trace("pipeline.trigger", %{"pipeline.name" => pipeline_name}, fn ->
+        with %Pipeline{} = pipeline <- get_pipeline_by_name(pipeline_name),
+             {:paused, false} <- {:paused, pipeline.paused},
+             {:locked, false} <- {:locked, pipeline_locked?(pipeline)},
+             pipeline = Repo.preload(pipeline, [:materials, :template, stages: [jobs: :tasks]]),
+             pipeline = resolve_template_stages(pipeline),
+             {:ok, proposed} <- resolve_proposed_revisions(pipeline, options),
+             :ok <- FanInResolver.verify_consistency(proposed) do
+          do_trigger_pipeline_with_proposed(pipeline, proposed, options)
+        else
+          nil -> {:error, :pipeline_not_found}
+          {:paused, true} -> {:error, :pipeline_paused}
+          {:locked, true} -> {:error, :pipeline_locked}
+          {:error, reason} -> {:error, reason}
+        end
+      end)
 
     # Emit telemetry for pipeline trigger
     _ = emit_trigger_telemetry(pipeline_name, result)
@@ -1108,13 +1111,19 @@ defmodule ExGoCD.Pipelines do
   def assign_job_instance(job_instance_id, agent_uuid) when is_integer(job_instance_id) do
     ji = Repo.get(JobInstance, job_instance_id)
     if ji do
-      now = NaiveDateTime.utc_now()
-      res =
-        ji
-        |> JobInstance.changeset(%{state: "Assigned", agent_uuid: agent_uuid, assigned_at: now})
-        |> Repo.update()
-      Phoenix.PubSub.broadcast(ExGoCD.PubSub, "pipelines:updates", :pipelines_updated)
-      res
+      VsmTracer.trace("job.assign", %{
+        "job.name" => ji.name,
+        "agent_uuid" => agent_uuid,
+        "job_instance_id" => job_instance_id
+      }, fn ->
+        now = NaiveDateTime.utc_now()
+        res =
+          ji
+          |> JobInstance.changeset(%{state: "Assigned", agent_uuid: agent_uuid, assigned_at: now})
+          |> Repo.update()
+        Phoenix.PubSub.broadcast(ExGoCD.PubSub, "pipelines:updates", :pipelines_updated)
+        res
+      end)
     else
       {:error, :not_found}
     end
@@ -1127,8 +1136,14 @@ defmodule ExGoCD.Pipelines do
   def complete_job_instance(job_instance_id, result) when is_integer(job_instance_id) do
     ji = Repo.get(JobInstance, job_instance_id) |> Repo.preload(:stage_instance)
     if ji do
-      do_complete_job_instance(ji, result)
-      :ok
+      VsmTracer.trace("job.complete", %{
+        "job.name" => ji.name,
+        "result" => result,
+        "job_instance_id" => job_instance_id
+      }, fn ->
+        do_complete_job_instance(ji, result)
+        :ok
+      end)
     else
       {:error, :not_found}
     end

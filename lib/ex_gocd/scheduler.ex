@@ -13,6 +13,7 @@ defmodule ExGoCD.Scheduler do
   alias ExGoCD.Pipelines.JobInstance
   alias ExGoCD.PubSub
   alias ExGoCD.Repo
+  alias ExGoCD.VsmTracer
   alias ExGoCDWeb.AgentPresence
 
   @agent_topic_prefix "agent:"
@@ -86,32 +87,40 @@ defmodule ExGoCD.Scheduler do
 
   @impl true
   def handle_call({:schedule_job, spec}, _from, %{in_memory_queue: queue, db_pending_count: db_count} = state) do
-    if spec[:job_instance_id] do
-      new_db_count = db_count + 1
-      broadcast_pending_count(length(queue) + new_db_count)
-      trigger_assignment_for_idle_agents()
-      {:reply, {:ok, "db-#{spec.job_instance_id}"}, %{state | db_pending_count: new_db_count}}
-    else
-      id = "sched-#{System.unique_integer([:positive])}"
-      new_queue = queue ++ [Map.put(spec, :id, id)]
-      broadcast_pending_count(length(new_queue) + db_count)
-      trigger_assignment_for_idle_agents()
-      {:reply, {:ok, id}, %{state | in_memory_queue: new_queue}}
-    end
+    VsmTracer.trace("scheduler.enqueue", %{
+      "pipeline.name" => spec[:pipeline] || spec["pipeline"],
+      "stage.name" => spec[:stage] || spec["stage"],
+      "job.name" => spec[:job] || spec["job"]
+    }, fn ->
+      if spec[:job_instance_id] do
+        new_db_count = db_count + 1
+        broadcast_pending_count(length(queue) + new_db_count)
+        trigger_assignment_for_idle_agents()
+        {:reply, {:ok, "db-#{spec.job_instance_id}"}, %{state | db_pending_count: new_db_count}}
+      else
+        id = "sched-#{System.unique_integer([:positive])}"
+        new_queue = queue ++ [Map.put(spec, :id, id)]
+        broadcast_pending_count(length(new_queue) + db_count)
+        trigger_assignment_for_idle_agents()
+        {:reply, {:ok, id}, %{state | in_memory_queue: new_queue}}
+      end
+    end)
   end
 
   def handle_call({:try_assign_work, agent_uuid}, _from, state) do
-    if Map.has_key?(AgentPresence.list(@presence_topic), agent_uuid) do
-      case Agents.get_agent_by_uuid(agent_uuid) do
-        nil ->
-          {:reply, :agent_not_found, state}
+    VsmTracer.trace("scheduler.assign_work", %{"agent_uuid" => agent_uuid}, fn ->
+      if Map.has_key?(AgentPresence.list(@presence_topic), agent_uuid) do
+        case Agents.get_agent_by_uuid(agent_uuid) do
+          nil ->
+            {:reply, :agent_not_found, state}
 
-        agent ->
-          try_assign_to_idle_agent(agent_uuid, agent, state)
+          agent ->
+            try_assign_to_idle_agent(agent_uuid, agent, state)
+        end
+      else
+        {:reply, :agent_not_connected, state}
       end
-    else
-      {:reply, :agent_not_connected, state}
-    end
+    end)
   end
 
   def handle_call(:pending_count, _from, %{in_memory_queue: queue, db_pending_count: db_count} = state) do

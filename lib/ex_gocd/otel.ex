@@ -1,42 +1,34 @@
 defmodule ExGoCD.Otel do
   @moduledoc """
-  Optional OpenTelemetry setup for ex_gocd CI server.
+  OpenTelemetry instrumentation for ex_gocd CI server.
 
-  Set EX_GOCD_NO_OTEL=1 to disable. OTel pushes spans to the collector
-  (localhost:4318) which forwards to Jaeger. Fails gracefully if collector
-  is unavailable — the app works fine without it.
+  Set EX_GOCD_NO_OTEL=1 to disable all tracing. The OpenTelemetry SDK
+  starts via OTP with its own app env config (see config.exs). This module
+  attaches Phoenix and Ecto telemetry handlers to create spans.
+
+  Spans flow: ex_gocd → OTLP HTTP (localhost:4318) → Collector → Jaeger.
   """
 
-  @doc "Initialize OTel SDK. Called at app start. Non-blocking on failure."
+  @doc """
+  Attaches Phoenix and Ecto instrumentation handlers.
+  Called at app start. Fails gracefully if OTEL SDK is unavailable.
+  """
   def setup do
-    config = Application.get_env(:ex_gocd, :otel, [])
-    exporter = Keyword.get(config, :exporter, :otlp)
-    endpoint = Keyword.get(config, :otlp_endpoint, "http://localhost:4318")
-
+    # Ensure the SDK application is started (it's a dependency, but be safe)
     case Application.ensure_all_started(:opentelemetry) do
       {:ok, _} -> :ok
       {:error, _} ->
-        IO.puts("[OTel] opentelemetry app failed to start — traces disabled")
+        IO.puts("[OTel] SDK not available — traces disabled")
         :ok
     end
 
-    try do
-      :opentelemetry.set_default_tracer({:otel_tracer_default, %{}})
+    # Attach Phoenix instrumentation — creates spans for HTTP requests
+    OpentelemetryPhoenix.setup()
 
-      processors =
-        if exporter == :otlp do
-          [{:otel_batch_processor,
-            %{exporter: {:opentelemetry_exporter,
-              %{protocol: :http_protobuf, endpoints: [endpoint], compression: :gzip}}}}]
-        else
-          []
-        end
+    # Attach Ecto instrumentation — creates spans for DB queries
+    OpentelemetryEcto.setup([:ex_gocd, :repo])
 
-      apply(:opentelemetry, :set_processor_pipeline, [processors])
-      IO.puts("[OTel] Tracing enabled → #{endpoint}")
-    rescue
-      e -> IO.puts("[OTel] Setup failed: #{Exception.message(e)} — traces disabled")
-    end
+    IO.puts("[OTel] Instrumentation attached → http://localhost:4318")
 
     :ok
   end
