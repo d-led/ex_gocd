@@ -20,5 +20,72 @@ services:
     ports:
       - 8092:8080
 
+  # ---------------------------------------------------------------------------
+  # Observability stack: OTel Collector → Jaeger + Grafana
+  # ---------------------------------------------------------------------------
+
+  # OpenTelemetry Collector — receives OTLP from ex_gocd, exports to Jaeger
+  # http://localhost:4318 (OTLP HTTP), http://localhost:4317 (OTLP gRPC)
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.127.0
+    platform: linux/amd64
+    container_name: otel-collector
+    command: ["--config=/etc/otel-collector-config.yml"]
+    volumes:
+      - ./otel/collector-config.yml:/etc/otel-collector-config.yml
+    ports:
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+    depends_on:
+      - jaeger
+
+  # Jaeger — distributed tracing backend and UI
+  # http://localhost:16686/search
+  jaeger:
+    image: jaegertracing/all-in-one:1.71
+    platform: linux/amd64
+    container_name: jaeger
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+      - SPAN_STORAGE_TYPE=badger
+      - BADGER_EPHEMERAL=false
+      - BADGER_DIRECTORY_VALUE=/badger/data
+      - BADGER_DIRECTORY_KEY=/badger/key
+    volumes:
+      - data-jaeger:/badger
+    ports:
+      - "16686:16686"  # UI
+      - "4317:0"       # OTLP gRPC (internal only — exposed via collector)
+
+  # Grafana — observability dashboards
+  # http://localhost:3000 (anonymous Editor access, pre-configured dashboards)
+  grafana:
+    image: grafana/grafana:13.0.1-security-01
+    platform: linux/amd64
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./grafana/provisioning/:/etc/grafana/provisioning/
+      - ./grafana/grafana.ini:/etc/grafana/grafana.ini
+    environment:
+      GF_RENDERING_SERVER_URL: http://renderer:8081/render
+      GF_RENDERING_CALLBACK_URL: http://grafana:3000/
+      GF_LOG_FILTERS: rendering:debug
+    depends_on:
+      - jaeger
+      - renderer
+
+  # Grafana Image Renderer — for PDF/PNG report rendering
+  renderer:
+    image: grafana/grafana-image-renderer:v5.8.3
+    platform: linux/amd64
+    container_name: grafana-image-renderer
+    ports:
+      - "3081:8081"
+    environment:
+      ENABLE_METRICS: "true"
+
 volumes:
   data-postgres:
+  data-jaeger:

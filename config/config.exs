@@ -65,6 +65,12 @@ config :logger, :default_formatter,
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
 
+# OpenTelemetry — default config (overridden per environment)
+config :ex_gocd, :otel,
+  exporter: :otlp,
+  otlp_endpoint: "http://localhost:4318",
+  service_name: "ex_gocd"
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"

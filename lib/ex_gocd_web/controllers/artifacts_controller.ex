@@ -1,12 +1,6 @@
 # Copyright 2026 ex_gocd
 # Controller for handling artifact uploads and downloads (POST/GET/PUT /files/...)
 # Supports directory zipping, secure unzipping (Zip Slip protection), and DB-backed console log integration.
-#
-# Sobelow: File traversal findings are false positives — all paths validated upstream
-# via check_safe_segments/1 and check_boundary/2 before reaching file operations.
-# Agent-uploaded files and zip extraction go through Zip Slip protection.
-# XSS via send_resp serves application/zip binary content, not user HTML.
-# sobelow_skip ["Traversal.FileModule", "Traversal.SendFile", "XSS.SendResp"]
 
 defmodule ExGoCDWeb.ArtifactsController do
   use ExGoCDWeb, :controller

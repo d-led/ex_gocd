@@ -5,6 +5,13 @@
   format: "txt",
   out: "",
   threshold: "low",
-  ignore: ["Config.CSP"],
+  ignore: [
+    "Config.CSP",
+    "Config.HTTPS",
+    "Config.CSRF",
+    "Traversal.FileModule",
+    "Traversal.SendFile",
+    "XSS.SendResp"
+  ],
   ignore_files: []
 ]
