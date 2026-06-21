@@ -169,12 +169,17 @@ defmodule ExGoCDWeb.Router do
     post "/users", UserController, :create
     patch "/users/:username", UserController, :update
     delete "/users/:username", UserController, :delete
+
+    # Analytics
+    get "/analytics", AnalyticsController, :index
+    get "/analytics/:type", AnalyticsController, :show
   end
 
   scope "/api/admin", ExGoCDWeb.API.Admin do
     pipe_through :api
 
     resources "/pipelines", PipelineConfigController, except: [:new, :edit], param: "name"
+    resources "/templates", TemplateController, except: [:new, :edit], param: "name"
     resources "/environments", EnvironmentController, except: [:new, :edit], param: "name"
   end
 
@@ -187,10 +192,16 @@ defmodule ExGoCDWeb.Router do
     post "/access_tokens/:id/revoke", PersonalAccessTokenController, :revoke
   end
 
-  scope "/go/api/admin", ExGoCDWeb.API.Admin do
+    # Analytics
+    get "/analytics", AnalyticsController, :index
+    get "/analytics/:type", AnalyticsController, :show
+  end
+
+  scope "/api/admin", ExGoCDWeb.API.Admin do
     pipe_through :api
 
     resources "/pipelines", PipelineConfigController, except: [:new, :edit], param: "name"
+    resources "/templates", TemplateController, except: [:new, :edit], param: "name"
     resources "/environments", EnvironmentController, except: [:new, :edit], param: "name"
   end
 

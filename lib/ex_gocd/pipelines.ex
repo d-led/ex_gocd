@@ -1661,4 +1661,30 @@ defmodule ExGoCD.Pipelines do
   end
 
   defp emit_trigger_telemetry(_pipeline_name, _), do: :ok
+
+  # ── Template CRUD ─────────────────────────────────────────────────
+
+  def list_templates do
+    Repo.all(Template) |> Repo.preload(:pipelines)
+  end
+
+  def get_template_by_name(name) do
+    Repo.get_by(Template, name: name)
+  end
+
+  def create_template(attrs) do
+    %Template{}
+    |> Template.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  def update_template(%Template{} = template, attrs) do
+    template
+    |> Template.changeset(attrs)
+    |> Repo.update()
+  end
+
+  def delete_template(%Template{} = template) do
+    Repo.delete(template)
+  end
 end
