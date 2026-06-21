@@ -181,6 +181,11 @@ defmodule ExGoCDWeb.Router do
     get "/analytics/:type", AnalyticsController, :show
   end
 
+  scope "/api/admin/config_repos", ExGoCDWeb.API do
+    pipe_through :api
+    delete "/cleanup", ConfigRepoController, :cleanup_test_data
+  end
+
   scope "/api/admin", ExGoCDWeb.API.Admin do
     pipe_through :api
 

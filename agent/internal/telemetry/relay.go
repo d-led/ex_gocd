@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"os/exec"
 	"strings"
-	"sync"
 	"time"
 
 	agentlog "github.com/d-led/ex_gocd/agent/internal/log"
@@ -24,7 +23,6 @@ import (
 // to the real collector. Works cross-platform: Docker containers reach it
 // via the Docker host address; local child processes via 127.0.0.1.
 type Relay struct {
-	mu           sync.Mutex
 	port         int              // bound port
 	localEP      string           // "127.0.0.1:<port>"
 	dockerHostEP string           // e.g. "172.17.0.1:<port>" or "host.docker.internal:<port>" or ""

@@ -16,17 +16,11 @@ describe("Admin Config Repositories E2E Tests", () => {
     // Should show the config repos table
     cy.get("table").should("exist");
 
-    // Should show seeded repos
-    cy.contains("td", "eci-test/demo-workflows.git").should("exist");
-    cy.contains("td", "eci-test/demo-pipelines.git").should("exist");
-    cy.contains("td", "eci-test/gocd-pipelines.git").should("exist");
+    // Should show our seeded dogfood repo
+    cy.contains("td", "ex_gocd.git").should("exist");
   });
 
   it("displays source_type badges with correct colors", () => {
-    // GitHub Actions badge should be present
-    cy.contains("span", "GitHub Actions").should("exist");
-    // GitLab CI badge
-    cy.contains("span", "GitLab CI").should("exist");
     // GoCD Pipeline badge
     cy.contains("span", "GoCD Pipeline").should("exist");
   });
@@ -38,9 +32,7 @@ describe("Admin Config Repositories E2E Tests", () => {
   });
 
   it("status column shows meaningful labels", () => {
-    // The gocd_pipeline repo has last_parsed_at set → "Good"
-    cy.contains("span", "Good").should("exist");
-    // The github_actions and gitlab_ci repos have no last_parsed_at → "Never Synced"
+    // Our seeded repo has no last_parsed_at → "Never Synced"
     cy.contains("span", "Never Synced").should("exist");
   });
 

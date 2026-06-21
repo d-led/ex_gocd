@@ -192,10 +192,9 @@ func TestIdleTimeoutDoesNotTriggerBeforeExceeded(t *testing.T) {
 
 // TestIdleSinceResetAfterBuild verifies idle timer resets when a build completes.
 func TestIdleSinceResetAfterBuild(t *testing.T) {
-	// Simulate: agent starts idle → builds → goes idle again
-	idleSince := time.Now().Add(-10 * time.Minute) // was idle 10 min ago
-	// Build happens — idleSince resets
-	idleSince = time.Now()
+	// Simulate: agent was idle 10 min ago, then build happens — idleSince resets
+	_ = time.Now().Add(-10 * time.Minute) // was idle 10 min ago
+	idleSince := time.Now()
 
 	idleDuration := time.Since(idleSince)
 	const idleTimeout = 5 * time.Minute

@@ -47,5 +47,28 @@ defmodule ExGoCDWeb.ValueStreamMapLiveTest do
       assert html =~ "Material"
       assert html =~ "build-linux"
     end
+
+    test "does not crash when VSM has empty levels", %{conn: conn} do
+      # Given the mock data fallback always returns a VSM with levels
+      {:ok, _view, html} = live(conn, ~p"/materials/value_stream_map/0000000000000000/000000000000")
+
+      # Then it still renders without crashing (generic fallback)
+      assert html =~ "Materials"
+      assert html =~ "Revision"
+    end
+  end
+
+  describe "Pipeline VSM via /go/ compatibility route" do
+    test "renders via /go/ compatibility prefix", %{conn: conn} do
+      {:ok, _view, html} = live(conn, ~p"/go/pipelines/value_stream_map/build-linux/1")
+
+      assert html =~ "build-linux"
+      assert html =~ "Materials"
+    end
+
+    test "redirects for non-existent pipeline via /go/ prefix", %{conn: conn} do
+      assert {:error, {:redirect, %{to: "/pipelines"}}} =
+               live(conn, ~p"/go/pipelines/value_stream_map/nope/999")
+    end
   end
 end

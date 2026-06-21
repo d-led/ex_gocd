@@ -1,0 +1,50 @@
+# ── ex_gocd Pipeline-as-Code ────────────────────────────────────────────
+# Dogfood config: this repo is also a GoCD config repo.
+# The server pulls pipeline definitions from here.
+#
+# See: http://localhost:4000/admin/config_repos
+
+pipelines:
+  # ── CI pipeline (runs on ci-agent with elixir+postgres) ────────────────
+  ex_gocd_ci:
+    group: dogfood
+    stages:
+      - build:
+          jobs:
+            test:
+              resources: [elixir, postgres]
+              tasks:
+                - exec:
+                    command: mix
+                    arguments: [deps.get]
+                - exec:
+                    command: mix
+                    arguments: [compile, --warnings-as-errors]
+                - exec:
+                    command: mix
+                    arguments: [test]
+            quality:
+              resources: [elixir]
+              tasks:
+                - exec:
+                    command: mix
+                    arguments: [deps.get]
+                - exec:
+                    command: mix
+                    arguments: [credo, --strict]
+
+  # ── Docker pipeline (runs on docker-agent or elastic-docker-agent) ─────
+  ex_gocd_docker:
+    group: dogfood
+    stages:
+      - smoke:
+          jobs:
+            docker-smoke:
+              resources: [docker]
+              tasks:
+                - exec:
+                    command: docker
+                    arguments: [version]
+                - exec:
+                    command: docker
+                    arguments: [run, --rm, alpine, echo, "hello from dogfood docker pipeline"]
