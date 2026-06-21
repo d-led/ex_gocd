@@ -23,7 +23,7 @@ services:
 
   ex-gocd-server:
     build:
-      context: ../..
+      context: ../../..
       dockerfile: Dockerfile
     ports:
       - '4003:4000'

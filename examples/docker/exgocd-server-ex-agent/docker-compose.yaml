@@ -22,7 +22,7 @@ services:
 
   ex-gocd-server:
     build:
-      context: ../..
+      context: ../../..
       dockerfile: Dockerfile
     ports:
       - '4002:4000'
@@ -44,7 +44,7 @@ services:
 
   ex-gocd-agent:
     build:
-      context: ../../agent
+      context: ../../../agent
       dockerfile: Dockerfile
     depends_on:
       ex-gocd-server:

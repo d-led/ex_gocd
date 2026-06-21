@@ -21,7 +21,7 @@ services:
 
   ex-gocd-agent:
     build:
-      context: ../../agent
+      context: ../../../agent
       dockerfile: Dockerfile
     depends_on:
       go-server:
