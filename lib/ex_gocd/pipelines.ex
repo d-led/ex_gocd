@@ -30,6 +30,8 @@ defmodule ExGoCD.Pipelines do
   alias ExGoCD.Params
   alias ExGoCD.Agents
 
+  require OpenTelemetry.Tracer, as: Tracer
+
   @doc """
   Lists all pipeline configs with stages and jobs (and tasks) preloaded.
   """
@@ -81,20 +83,26 @@ defmodule ExGoCD.Pipelines do
   Returns {:ok, pipeline_instance} or {:error, changeset}.
   """
   def trigger_pipeline(pipeline_name, options \\ %{}) when is_binary(pipeline_name) and is_map(options) do
-    with %Pipeline{} = pipeline <- get_pipeline_by_name(pipeline_name),
-         {:paused, false} <- {:paused, pipeline.paused},
-         {:locked, false} <- {:locked, pipeline_locked?(pipeline)},
-         pipeline = Repo.preload(pipeline, [:materials, :template, stages: [jobs: :tasks]]),
-         pipeline = resolve_template_stages(pipeline),
-         {:ok, proposed} <- resolve_proposed_revisions(pipeline, options),
-         :ok <- FanInResolver.verify_consistency(proposed) do
-      do_trigger_pipeline_with_proposed(pipeline, proposed, options)
-    else
-      nil -> {:error, :pipeline_not_found}
-      {:paused, true} -> {:error, :pipeline_paused}
-      {:locked, true} -> {:error, :pipeline_locked}
-      {:error, reason} -> {:error, reason}
-    end
+    result =
+      with %Pipeline{} = pipeline <- get_pipeline_by_name(pipeline_name),
+           {:paused, false} <- {:paused, pipeline.paused},
+           {:locked, false} <- {:locked, pipeline_locked?(pipeline)},
+           pipeline = Repo.preload(pipeline, [:materials, :template, stages: [jobs: :tasks]]),
+           pipeline = resolve_template_stages(pipeline),
+           {:ok, proposed} <- resolve_proposed_revisions(pipeline, options),
+           :ok <- FanInResolver.verify_consistency(proposed) do
+        do_trigger_pipeline_with_proposed(pipeline, proposed, options)
+      else
+        nil -> {:error, :pipeline_not_found}
+        {:paused, true} -> {:error, :pipeline_paused}
+        {:locked, true} -> {:error, :pipeline_locked}
+        {:error, reason} -> {:error, reason}
+      end
+
+    # Emit telemetry for pipeline trigger
+    _ = emit_trigger_telemetry(pipeline_name, result)
+
+    result
   end
 
   @doc """
@@ -441,7 +449,18 @@ defmodule ExGoCD.Pipelines do
 
   defp do_trigger_pipeline_with_proposed(pipeline, proposed, options) do
     counter = next_counter(pipeline.id)
-    now = DateTime.utc_now()
+
+    # Wrap in VSM trace span
+    tracer_id = ExGoCD.Otel.vsm_tracer()
+    Tracer.with_span(tracer_id, "pipeline.#{pipeline.name}", %{
+      attributes: %{
+        "pipeline.name" => pipeline.name,
+        "pipeline.counter" => counter,
+        "ci.pipeline.trigger" => "manual"
+      },
+      kind: :server
+    }) do
+      now = DateTime.utc_now()
     params = Params.merge_params(pipeline.parameters, options)
     label = pipeline.label_template
     |> Params.interpolate(params)
@@ -513,22 +532,8 @@ defmodule ExGoCD.Pipelines do
             run_multiple = job.run_instance_count not in [nil, ""]
 
             for i <- 1..count do
-              identifier_suffix = if run_multiple and count > 1, do: "/run-#{i}", else: ""
-              identifier = "#{pipeline.name}/#{counter}/#{first_stage.name}/1/#{job.name}/1#{identifier_suffix}"
-
-              %JobInstance{}
-              |> JobInstance.changeset(%{
-                stage_instance_id: stage_instance.id,
-                job_id: job.id,
-                name: job.name,
-                state: "Scheduled",
-                result: "Unknown",
-                scheduled_at: scheduled_at,
-                run_on_all_agents: run_on_all,
-                run_multiple_instance: run_multiple,
-                identifier: identifier
-              })
-              |> Repo.insert!()
+              insert_job_instance(job, pipeline, stage_instance, first_stage, scheduled_at,
+                run_on_all: run_on_all, run_multiple: run_multiple, count: count, run_index: i, counter: counter)
             end
           end)
 
@@ -537,6 +542,8 @@ defmodule ExGoCD.Pipelines do
 
     case result do
       {:ok, {instance, first_stage, stage_instance, job_instances}} ->
+        Tracer.set_status(:ok, "")
+
         for ji <- job_instances do
           job_config = Enum.find(first_stage.jobs, &(&1.id == ji.job_id))
           schedule_job_if_config(pipeline, counter, stage_instance, job_config, ji, params)
@@ -545,8 +552,10 @@ defmodule ExGoCD.Pipelines do
         {:ok, instance}
 
       {:error, reason} ->
+        Tracer.set_status(:error, "Pipeline trigger failed")
         {:error, reason}
     end
+    end  # Tracer.with_span
   end
 
   # Determines how many JobInstances to create for a job config.
@@ -572,6 +581,29 @@ defmodule ExGoCD.Pipelines do
 
       true -> 1
     end
+  end
+
+  defp insert_job_instance(job, pipeline, stage_instance, first_stage, scheduled_at, opts) do
+    run_multiple = Keyword.get(opts, :run_multiple, false)
+    count = Keyword.get(opts, :count, 1)
+    i = Keyword.get(opts, :run_index, 1)
+
+    identifier_suffix = if run_multiple and count > 1, do: "/run-#{i}", else: ""
+    identifier = "#{pipeline.name}/#{Keyword.get(opts, :counter, 1)}/#{first_stage.name}/1/#{job.name}/1#{identifier_suffix}"
+
+    %JobInstance{}
+    |> JobInstance.changeset(%{
+      stage_instance_id: stage_instance.id,
+      job_id: job.id,
+      name: job.name,
+      state: "Scheduled",
+      result: "Unknown",
+      scheduled_at: scheduled_at,
+      run_on_all_agents: Keyword.get(opts, :run_on_all, false),
+      run_multiple_instance: run_multiple,
+      identifier: identifier
+    })
+    |> Repo.insert!()
   end
 
   defp build_material_revisions_map(pipeline, proposed) do
@@ -1451,4 +1483,24 @@ defmodule ExGoCD.Pipelines do
         Logger.warning("[Pipelines] Downstream check: could not trigger #{dp.name}: #{inspect(reason)}")
     end
   end
+
+  # Emit OpenTelemetry telemetry events for pipeline triggers.
+  defp emit_trigger_telemetry(pipeline_name, {:ok, %PipelineInstance{counter: counter}}) do
+    :telemetry.execute([:ex_gocd, :pipeline, :trigger], %{count: 1}, %{
+      pipeline_name: pipeline_name,
+      counter: counter,
+      status: :ok
+    })
+  end
+
+  defp emit_trigger_telemetry(pipeline_name, {:error, reason}) do
+    :telemetry.execute([:ex_gocd, :pipeline, :trigger], %{count: 1}, %{
+      pipeline_name: pipeline_name,
+      counter: 0,
+      status: :error,
+      error: reason
+    })
+  end
+
+  defp emit_trigger_telemetry(_pipeline_name, _), do: :ok
 end

@@ -27,7 +27,7 @@ services:
   # OpenTelemetry Collector — receives OTLP from ex_gocd, exports to Jaeger
   # http://localhost:4318 (OTLP HTTP), http://localhost:4317 (OTLP gRPC)
   otel-collector:
-    image: otel/opentelemetry-collector-contrib:0.127.0
+    image: otel/opentelemetry-collector-contrib:latest
     platform: linux/amd64
     container_name: otel-collector
     command: ["--config=/etc/otel-collector-config.yml"]
@@ -42,7 +42,7 @@ services:
   # Jaeger — distributed tracing backend and UI
   # http://localhost:16686/search
   jaeger:
-    image: jaegertracing/all-in-one:1.71
+    image: jaegertracing/all-in-one:latest
     platform: linux/amd64
     container_name: jaeger
     environment:
@@ -55,12 +55,11 @@ services:
       - data-jaeger:/badger
     ports:
       - "16686:16686"  # UI
-      - "4317:0"       # OTLP gRPC (internal only — exposed via collector)
 
   # Grafana — observability dashboards
   # http://localhost:3000 (anonymous Editor access, pre-configured dashboards)
   grafana:
-    image: grafana/grafana:13.0.1-security-01
+    image: grafana/grafana:latest
     platform: linux/amd64
     container_name: grafana
     ports:
@@ -78,7 +77,7 @@ services:
 
   # Grafana Image Renderer — for PDF/PNG report rendering
   renderer:
-    image: grafana/grafana-image-renderer:v5.8.3
+    image: grafana/grafana-image-renderer:latest
     platform: linux/amd64
     container_name: grafana-image-renderer
     ports:

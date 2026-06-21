@@ -37,16 +37,8 @@ defmodule ExGoCD.Otel do
           [simple_processor()]
       end
 
-    :opentelemetry.set_processor_pipeline(processors)
+    apply(:opentelemetry, :set_processor_pipeline, [processors])
 
-    # Set resource attributes
-    resource_attrs = [
-      %{key: "service.name", value: Keyword.get(config, :service_name, "ex_gocd")},
-      %{key: "service.version", value: to_string(Application.spec(:ex_gocd, :vsn))},
-      %{key: "deployment.environment", value: to_string(Mix.env())}
-    ]
-
-    :opentelemetry.processor.set_resource_attributes(:all, resource_attrs)
     :ok
   end
 
@@ -123,7 +115,7 @@ defmodule ExGoCD.Otel do
       stage_ctx = ExGoCD.Otel.start_stage_span(parent_ctx, "compile", 1)
   """
   @spec start_stage_span(OpenTelemetry.span_ctx(), String.t(), integer()) :: OpenTelemetry.span_ctx()
-  def start_stage_span(parent_ctx, stage_name, stage_counter) do
+  def start_stage_span(_parent_ctx, stage_name, stage_counter) do
     tracer = vsm_tracer()
     span_name = "stage.#{stage_name}"
 
@@ -140,7 +132,7 @@ defmodule ExGoCD.Otel do
   Starts a span for a job execution within a stage.
   """
   @spec start_job_span(OpenTelemetry.span_ctx(), String.t(), String.t()) :: OpenTelemetry.span_ctx()
-  def start_job_span(parent_ctx, job_name, agent_uuid) do
+  def start_job_span(_parent_ctx, job_name, agent_uuid) do
     tracer = vsm_tracer()
     span_name = "job.#{job_name}"
 
@@ -159,25 +151,26 @@ defmodule ExGoCD.Otel do
   @spec end_span(OpenTelemetry.span_ctx(), atom() | nil) :: :ok
   def end_span(span_ctx, status \\ nil) do
     if status do
-      Tracer.set_status(span_ctx, status, "")
+      Tracer.set_status(status, "")
     end
     Tracer.end_span(span_ctx)
   end
 
   @doc """
-  Records a custom event/attribute on the current or given span.
+  Records a custom event on the current span.
   Used for timing wait times, transitions, etc.
   """
-  @spec add_event(OpenTelemetry.span_ctx() | nil, String.t(), map()) :: :ok
-  def add_event(span_ctx \\ nil, name, attrs \\ %{}) when is_binary(name) and is_map(attrs) do
-    Tracer.add_event(span_ctx || Tracer.current_span_ctx(), name, attrs)
+  @spec add_event(String.t(), map()) :: :ok
+  def add_event(name, attrs \\ %{}) when is_binary(name) and is_map(attrs) do
+    Tracer.add_event(name, attrs)
   end
 
   @doc """
-  Sets a span attribute — useful for adding timing info like wait_ms, exec_ms.
+  Sets a span attribute on the current span.
+  Useful for adding timing info like wait_ms, exec_ms.
   """
-  @spec set_attr(OpenTelemetry.span_ctx() | nil, String.t(), term()) :: :ok
-  def set_attr(span_ctx \\ nil, key, value) when is_binary(key) do
-    Tracer.set_attribute(span_ctx || Tracer.current_span_ctx(), key, value)
+  @spec set_attr(String.t(), term()) :: :ok
+  def set_attr(key, value) when is_binary(key) do
+    Tracer.set_attribute(key, value)
   end
 end

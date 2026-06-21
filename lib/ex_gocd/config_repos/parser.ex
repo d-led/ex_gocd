@@ -162,97 +162,107 @@ defmodule ExGoCD.ConfigRepos.Parser do
       unless exists? do
         case Repo.get_by(ExGoCD.Pipelines.Material, url: mat_attrs.url, type: mat_attrs.type) do
           nil ->
-            {:ok, material} =
-              %ExGoCD.Pipelines.Material{}
-              |> ExGoCD.Pipelines.Material.changeset(mat_attrs)
-              |> Repo.insert()
-
-            # Link to pipeline
-            Repo.insert_all("pipelines_materials", [%{
-              pipeline_id: pipeline.id,
-              material_id: material.id
-            }])
+            link_new_material(mat_attrs, pipeline.id, existing_mats)
 
           material ->
-            # Already exists, just link if not already linked
-            unless Enum.any?(existing_mats, &(&1.id == material.id)) do
-              Repo.insert_all("pipelines_materials", [%{
-                pipeline_id: pipeline.id,
-                material_id: material.id
-              }])
-            end
+            link_existing_material(material, existing_mats, pipeline.id)
         end
       end
     end)
+  end
+
+  defp link_new_material(mat_attrs, pipeline_id, _existing_mats) do
+    {:ok, material} =
+      %ExGoCD.Pipelines.Material{}
+      |> ExGoCD.Pipelines.Material.changeset(mat_attrs)
+      |> Repo.insert()
+
+    Repo.insert_all("pipelines_materials", [%{
+      pipeline_id: pipeline_id,
+      material_id: material.id
+    }])
+  end
+
+  defp link_existing_material(material, existing_mats, pipeline_id) do
+    unless Enum.any?(existing_mats, &(&1.id == material.id)) do
+      Repo.insert_all("pipelines_materials", [%{
+        pipeline_id: pipeline_id,
+        material_id: material.id
+      }])
+    end
   end
 
   defp upsert_stages(pipeline, stage_defs) when is_list(stage_defs) do
     existing_stages = Repo.preload(pipeline, stages: [jobs: :tasks]).stages || []
 
     Enum.each(stage_defs, fn stage_def ->
-      stage_name = stage_def["name"]
-      stage_attrs = %{
-        name: stage_name,
-        pipeline_id: pipeline.id,
-        approval_type: stage_def["approval_type"] || "success",
-        fetch_materials: Map.get(stage_def, "fetch_materials", true),
-        clean_working_directory: Map.get(stage_def, "clean_working_directory", false),
-        environment_variables: stage_def["environment_variables"] || %{}
-      }
-
-      stage =
-        case Enum.find(existing_stages, &(&1.name == stage_name)) do
-          nil ->
-            {:ok, new_stage} =
-              %ExGoCD.Pipelines.Stage{}
-              |> ExGoCD.Pipelines.Stage.changeset(stage_attrs)
-              |> Repo.insert()
-            new_stage
-
-          existing ->
-            existing
-            |> ExGoCD.Pipelines.Stage.changeset(stage_attrs)
-            |> Repo.update!()
-            existing
-        end
-
+      stage = find_or_create_stage(stage_def, existing_stages, pipeline.id)
       upsert_jobs(stage, stage_def["jobs"] || [])
     end)
+  end
+
+  defp find_or_create_stage(stage_def, existing_stages, pipeline_id) do
+    stage_name = stage_def["name"]
+    stage_attrs = %{
+      name: stage_name,
+      pipeline_id: pipeline_id,
+      approval_type: stage_def["approval_type"] || "success",
+      fetch_materials: Map.get(stage_def, "fetch_materials", true),
+      clean_working_directory: Map.get(stage_def, "clean_working_directory", false),
+      environment_variables: stage_def["environment_variables"] || %{}
+    }
+
+    case Enum.find(existing_stages, &(&1.name == stage_name)) do
+      nil ->
+        {:ok, new_stage} =
+          %ExGoCD.Pipelines.Stage{}
+          |> ExGoCD.Pipelines.Stage.changeset(stage_attrs)
+          |> Repo.insert()
+        new_stage
+
+      existing ->
+        existing
+        |> ExGoCD.Pipelines.Stage.changeset(stage_attrs)
+        |> Repo.update!()
+        existing
+    end
   end
 
   defp upsert_jobs(stage, job_defs) when is_list(job_defs) do
     existing_jobs = Repo.preload(stage, jobs: :tasks).jobs || []
 
     Enum.each(job_defs, fn job_def ->
-      job_name = job_def["name"]
-      job_attrs = %{
-        name: job_name,
-        stage_id: stage.id,
-        resources: job_def["resources"] || [],
-        run_on_all_agents: job_def["run_on_all_agents"] || false,
-        environment_variables: job_def["environment_variables"] || %{},
-        timeout: job_def["timeout"],
-        run_instance_count: job_def["run_instance_count"]
-      }
-
-      job =
-        case Enum.find(existing_jobs, &(&1.name == job_name)) do
-          nil ->
-            {:ok, new_job} =
-              %ExGoCD.Pipelines.Job{}
-              |> ExGoCD.Pipelines.Job.changeset(job_attrs)
-              |> Repo.insert()
-            new_job
-
-          existing ->
-            existing
-            |> ExGoCD.Pipelines.Job.changeset(job_attrs)
-            |> Repo.update!()
-            existing
-        end
-
+      job = find_or_create_job(job_def, existing_jobs, stage.id)
       upsert_tasks(job, job_def["tasks"] || [])
     end)
+  end
+
+  defp find_or_create_job(job_def, existing_jobs, stage_id) do
+    job_name = job_def["name"]
+    job_attrs = %{
+      name: job_name,
+      stage_id: stage_id,
+      resources: job_def["resources"] || [],
+      run_on_all_agents: job_def["run_on_all_agents"] || false,
+      environment_variables: job_def["environment_variables"] || %{},
+      timeout: job_def["timeout"],
+      run_instance_count: job_def["run_instance_count"]
+    }
+
+    case Enum.find(existing_jobs, &(&1.name == job_name)) do
+      nil ->
+        {:ok, new_job} =
+          %ExGoCD.Pipelines.Job{}
+          |> ExGoCD.Pipelines.Job.changeset(job_attrs)
+          |> Repo.insert()
+        new_job
+
+      existing ->
+        existing
+        |> ExGoCD.Pipelines.Job.changeset(job_attrs)
+        |> Repo.update!()
+        existing
+    end
   end
 
   defp upsert_tasks(job, task_defs) when is_list(task_defs) do

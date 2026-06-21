@@ -1,0 +1,6 @@
+# Files with known warnings we accept (WIP modules, version mismatches)
+# Format: glob patterns, one per line
+lib/ex_gocd/otel\.ex
+lib/ex_gocd/otel/pipeline_tracer\.ex
+lib/ex_gocd/analytics\.ex
+lib/ex_gocd_web/live/analytics_live

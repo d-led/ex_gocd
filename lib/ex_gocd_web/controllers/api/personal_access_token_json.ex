@@ -29,11 +29,8 @@ defmodule ExGoCDWeb.API.PersonalAccessTokenJSON do
   end
 
   defp get_username(token) do
-    cond do
-      Ecto.assoc_loaded?(token.user) && token.user ->
-        token.user.username
-      true ->
-        nil
+    if Ecto.assoc_loaded?(token.user) && token.user do
+      token.user.username
     end
   end
 

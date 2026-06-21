@@ -72,6 +72,16 @@ defmodule ExGoCDWeb.Layouts do
                 Materials
               </a>
             </li>
+            <li role="none" class={if active_tab?(assigns, :analytics), do: "active", else: ""}>
+              <a
+                href="/analytics"
+                role="menuitem"
+                tabindex="0"
+                aria-current={if active_tab?(assigns, :analytics), do: "page", else: "false"}
+              >
+                Analytics
+              </a>
+            </li>
             <%= if @is_user_admin do %>
               <li role="none" class={if active_tab?(assigns, :admin), do: "active is-drop-down", else: "is-drop-down"}>
                 <a
@@ -156,6 +166,7 @@ defmodule ExGoCDWeb.Layouts do
       :dashboard -> current_path in ["/", "/pipelines", "/go/pipelines"]
       :agents -> String.starts_with?(current_path, "/agents") or String.starts_with?(current_path, "/go/agents")
       :materials -> String.starts_with?(current_path, "/materials") or String.starts_with?(current_path, "/go/materials")
+      :analytics -> String.starts_with?(current_path, "/analytics")
       :admin -> String.starts_with?(current_path, "/admin") or String.starts_with?(current_path, "/go/admin")
     end
   end

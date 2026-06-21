@@ -10,11 +10,6 @@ defmodule ExGoCD.Application do
     # Allow running tests without Postgres (e.g. CI or converter-only tests)
     skip_db? = System.get_env("EX_GOCD_TEST_NO_DB") == "1"
 
-    # Initialize OpenTelemetry unless disabled (e.g. in test unless explicitly enabled)
-    unless System.get_env("EX_GOCD_NO_OTEL") == "1" do
-      ExGoCD.Otel.setup()
-    end
-
     base = [
       ExGoCDWeb.Telemetry,
       {DNSCluster, query: Application.get_env(:ex_gocd, :dns_cluster_query) || :ignore},
