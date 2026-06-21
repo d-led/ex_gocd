@@ -183,4 +183,70 @@ defmodule ExGoCD.Analytics do
       total_duration_sec: (first && first.inserted_at && last && DateTime.diff(last, first.inserted_at)),
       stages: ss}
   end
+
+  # ── Agent State Transitions ───────────────────────────────────────
+
+  @doc """
+  Records an agent state change for utilization tracking.
+  Called by ExGoCD.Agents.update_agent/2 when state changes.
+  """
+  def record_agent_transition(agent_uuid, from_state, to_state) do
+    %AgentTransition{}
+    |> AgentTransition.changeset(%{
+      agent_uuid: agent_uuid,
+      from_state: from_state,
+      to_state: to_state,
+      transitioned_at: DateTime.utc_now()
+    })
+    |> Repo.insert()
+  end
+
+  @doc """
+  Returns agent state transitions in a time window.
+  """
+  def agent_transitions(agent_uuid, start_dt, end_dt) do
+    Repo.all(
+      from t in AgentTransition,
+        where: t.agent_uuid == ^agent_uuid,
+        where: t.transitioned_at >= ^start_dt,
+        where: t.transitioned_at <= ^end_dt,
+        order_by: [asc: :transitioned_at]
+    )
+  end
+
+  @doc """
+  Agent utilization ratio (0..1) in the time window.
+  """
+  def agent_utilization(agent_uuid, start_dt, end_dt) do
+    transitions = agent_transitions(agent_uuid, start_dt, end_dt)
+    busy_seconds = calc_busy_seconds(transitions, start_dt, end_dt)
+    total_seconds = DateTime.diff(end_dt, start_dt)
+
+    if total_seconds > 0 do
+      Float.round(busy_seconds / total_seconds, 4)
+    else
+      0.0
+    end
+  end
+
+  defp calc_busy_seconds(transitions, window_start, window_end) do
+    calc_busy(transitions, window_start, window_end, nil, 0)
+  end
+
+  defp calc_busy([], _ws, we, busy_since, acc) do
+    if busy_since, do: acc + DateTime.diff(we, busy_since), else: acc
+  end
+
+  defp calc_busy([t | rest], ws, we, busy_since, acc) do
+    if t.to_state == "Building" do
+      calc_busy(rest, ws, we, t.transitioned_at, acc)
+    else
+      if busy_since do
+        new_acc = acc + DateTime.diff(t.transitioned_at, busy_since)
+        calc_busy(rest, ws, we, nil, new_acc)
+      else
+        calc_busy(rest, ws, we, nil, acc)
+      end
+    end
+  end
 end
