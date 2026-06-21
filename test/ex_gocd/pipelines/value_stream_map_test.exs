@@ -76,4 +76,98 @@ defmodule ExGoCD.Pipelines.ValueStreamMapTest do
       end
     end
   end
+
+  describe "get_pipeline_vsm/2 with DB data" do
+    setup do
+      {:ok, pipeline} =
+        %ExGoCD.Pipelines.Pipeline{}
+        |> ExGoCD.Pipelines.Pipeline.changeset(%{name: "ci", group: "default", label_template: "${COUNT}"})
+        |> ExGoCD.Repo.insert()
+
+      {:ok, mat} =
+        %ExGoCD.Pipelines.Material{}
+        |> ExGoCD.Pipelines.Material.changeset(%{type: "git", url: "https://github.com/exgocd/ci.git", branch: "main"})
+        |> ExGoCD.Repo.insert()
+
+      ExGoCD.Repo.insert_all("pipelines_materials", [%{pipeline_id: pipeline.id, material_id: mat.id}])
+
+      pipeline = ExGoCD.Repo.get(ExGoCD.Pipelines.Pipeline, pipeline.id) |> ExGoCD.Repo.preload(:materials)
+
+      {:ok, stage} =
+        %ExGoCD.Pipelines.Stage{}
+        |> ExGoCD.Pipelines.Stage.changeset(%{name: "build", pipeline_id: pipeline.id, order_id: 0})
+        |> ExGoCD.Repo.insert()
+
+      now = DateTime.utc_now() |> DateTime.truncate(:second)
+      created_time = DateTime.add(now, -300)
+      completed_at = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+
+      {:ok, instance} =
+        %ExGoCD.Pipelines.PipelineInstance{}
+        |> ExGoCD.Pipelines.PipelineInstance.changeset(%{
+          pipeline_id: pipeline.id, counter: 4, label: "4", natural_order: 4.0,
+          build_cause: %{"materialRevisions" => []}
+        })
+        |> Ecto.Changeset.put_change(:inserted_at, now)
+        |> ExGoCD.Repo.insert()
+
+      {:ok, stage_instance} =
+        %ExGoCD.Pipelines.StageInstance{}
+        |> ExGoCD.Pipelines.StageInstance.changeset(%{
+          stage_id: stage.id, pipeline_instance_id: instance.id,
+          name: "build", counter: 1, order_id: 0, state: "Completed", result: "Passed",
+          approval_type: "success", created_time: created_time, completed_at: completed_at
+        })
+        |> ExGoCD.Repo.insert()
+
+      {:ok, pipeline: pipeline, instance: instance, stage_instance: stage_instance}
+    end
+
+    test "renders VSM for a DB pipeline instance", %{pipeline: pipeline} do
+      {:ok, vsm} = ValueStreamMap.get_pipeline_vsm(pipeline.name, 4)
+      assert vsm["current_pipeline"] == "ci"
+      assert length(vsm["levels"]) >= 2
+      [mat_level, pipe_level | _] = vsm["levels"]
+      assert Enum.any?(mat_level["nodes"], &(&1["name"] =~ "github.com"))
+      [pipe_node] = pipe_level["nodes"]
+      assert pipe_node["node_type"] == "PIPELINE"
+      assert pipe_node["name"] == "ci"
+    end
+
+    test "includes trigger_info, fan_in, fan_out", %{pipeline: pipeline} do
+      {:ok, vsm} = ValueStreamMap.get_pipeline_vsm(pipeline.name, 4)
+      [_, pipe_level | _] = vsm["levels"]
+      [pipe_node] = pipe_level["nodes"]
+      [inst] = pipe_node["instances"]
+      assert inst["trigger_info"]["triggered_by"] == "Manual"
+      assert is_integer(pipe_node["fan_in"])
+      assert is_integer(pipe_node["fan_out"])
+    end
+
+    test "handles nil build_cause gracefully" do
+      {:ok, p} =
+        %ExGoCD.Pipelines.Pipeline{}
+        |> ExGoCD.Pipelines.Pipeline.changeset(%{name: "nil-cause-pipe", group: "default", label_template: "${COUNT}"})
+        |> ExGoCD.Repo.insert()
+
+      {:ok, _} =
+        %ExGoCD.Pipelines.PipelineInstance{}
+        |> ExGoCD.Pipelines.PipelineInstance.changeset(%{
+          pipeline_id: p.id, counter: 1, label: "1", natural_order: 1.0, build_cause: nil
+        })
+        |> ExGoCD.Repo.insert()
+
+      {:ok, vsm} = ValueStreamMap.get_pipeline_vsm("nil-cause-pipe", 1)
+      assert vsm["current_pipeline"] == "nil-cause-pipe"
+    end
+
+    test "computes duration with mixed DateTime/NaiveDateTime", %{pipeline: pipeline} do
+      {:ok, vsm} = ValueStreamMap.get_pipeline_vsm(pipeline.name, 4)
+      [_, pipe_level | _] = vsm["levels"]
+      [pipe_node] = pipe_level["nodes"]
+      [inst] = pipe_node["instances"]
+      stage = hd(inst["stages"])
+      assert is_integer(stage["duration"])
+    end
+  end
 end

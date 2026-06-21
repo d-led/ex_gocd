@@ -112,21 +112,16 @@ defmodule ExGoCD.VsmTracer do
     case :otel_tracer.current_span_ctx(ctx) do
       :undefined ->
         map
-      {:span_ctx, _version, _trace_id, _span_id, _parent_id, _flags, _tracestate,
-       _is_recording, false = _is_valid, _timestamp, _instrumentation_scope} ->
-        map
-      {:span_ctx, _version, <<0::128>>, _span_id, _parent_id, _flags, _tracestate,
-       _is_recording, _is_valid, _timestamp, _instrumentation_scope} ->
-        map
       {:span_ctx, _version, trace_id, span_id, _parent_id, _flags, _tracestate,
        _is_recording, _is_valid, _timestamp, _instrumentation_scope}
-      when is_binary(trace_id) and is_integer(span_id) ->
-        # Erlang OTel SDK: trace_id is a 32-char hex string, span_id is an integer.
-        # Build W3C traceparent: 00-{trace_id}-{span_id_hex}-01
-        span_hex = Integer.to_string(span_id, 16) |> String.pad_leading(16, "0")
+      when is_binary(trace_id) and byte_size(trace_id) > 0 and
+           is_integer(span_id) and span_id > 0 ->
+        # Erlang OTel SDK: trace_id is 32-char hex string, span_id is integer.
+        # is_valid is always false — ignore it and build traceparent anyway.
+        span_hex = Integer.to_string(span_id, 16) |> String.downcase() |> String.pad_leading(16, "0")
         traceparent = "00-#{trace_id}-#{span_hex}-01"
         Map.put(map, "traceparent", traceparent)
-      _span_ctx ->
+      _ ->
         map
     end
   end
