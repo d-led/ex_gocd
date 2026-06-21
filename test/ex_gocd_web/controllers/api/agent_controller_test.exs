@@ -377,4 +377,58 @@ defmodule ExGoCDWeb.API.AgentControllerTest do
       assert %{"error" => "Agent not found"} = json_response(conn, 404)
     end
   end
+
+  describe "DELETE /api/agents (bulk)" do
+    setup do
+      {:ok, _} = Agents.register_agent(%{uuid: @valid_uuid, hostname: "agent-a", ipaddress: "127.0.0.1"})
+      {:ok, _} = Agents.register_agent(%{uuid: @another_uuid, hostname: "agent-b", ipaddress: "127.0.0.2"})
+      # Disable both before deleting
+      Agents.disable_agent(@valid_uuid)
+      Agents.disable_agent(@another_uuid)
+      :ok
+    end
+
+    test "bulk deletes disabled agents", %{conn: conn} do
+      conn = delete(conn, ~p"/api/agents", %{uuids: [@valid_uuid, @another_uuid]})
+      assert %{"message" => msg} = json_response(conn, 200)
+      assert msg =~ "Deleted 2 agent(s)"
+    end
+
+    test "returns 400 when uuids missing", %{conn: conn} do
+      conn = delete(conn, ~p"/api/agents", %{})
+      assert %{"error" => _} = json_response(conn, 400)
+    end
+
+    test "rejects empty uuids array", %{conn: conn} do
+      conn = delete(conn, ~p"/api/agents", %{uuids: []})
+      assert %{"message" => msg} = json_response(conn, 200)
+      assert msg =~ "Deleted 0"
+    end
+  end
+
+  describe "PATCH /api/agents (bulk update)" do
+    setup do
+      {:ok, _} = Agents.register_agent(%{uuid: @valid_uuid, hostname: "agent-a", ipaddress: "127.0.0.1"})
+      {:ok, _} = Agents.register_agent(%{uuid: @another_uuid, hostname: "agent-b", ipaddress: "127.0.0.2"})
+      :ok
+    end
+
+    test "bulk disables agents", %{conn: conn} do
+      conn = patch(conn, ~p"/api/agents", %{uuids: [@valid_uuid, @another_uuid], agent_config_state: "Disabled"})
+      assert %{"message" => msg} = json_response(conn, 200)
+      assert msg =~ "Updated 2"
+    end
+
+    test "bulk enables agents", %{conn: conn} do
+      Agents.disable_agent(@valid_uuid)
+      conn = patch(conn, ~p"/api/agents", %{uuids: [@valid_uuid], agent_config_state: "Enabled"})
+      assert %{"message" => msg} = json_response(conn, 200)
+      assert msg =~ "Updated 1"
+    end
+
+    test "returns 400 when uuids missing", %{conn: conn} do
+      conn = patch(conn, ~p"/api/agents", %{agent_config_state: "Disabled"})
+      assert %{"error" => _} = json_response(conn, 400)
+    end
+  end
 end

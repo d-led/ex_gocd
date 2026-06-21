@@ -36,6 +36,44 @@ defmodule ExGoCD.SchedulerTest do
 
       assert Scheduler.pending_count() >= 1
     end
+
+    test "run_on_all_agents creates one entry per enabled agent" do
+      Scheduler.clear_queue()
+      {:ok, _} = Agents.register_agent(%{uuid: @uuid, hostname: "agent-a", ipaddress: "127.0.0.1"})
+      {:ok, _} = Agents.register_agent(%{uuid: @uuid_b, hostname: "agent-b", ipaddress: "127.0.0.2"})
+
+      # Schedule with run_on_all_agents
+      assert {:ok, count} = Scheduler.schedule_job(%{
+        "pipeline" => "agent-test",
+        "stage" => "test",
+        "job" => "test-job",
+        "run_on_all_agents" => true,
+        "resources" => [],
+        "environments" => []
+      })
+
+      # Should have 2 entries (one per enabled agent)
+      assert count == 2
+      assert Scheduler.pending_count() == 2
+    end
+
+    test "run_on_all_agents filters by resources" do
+      Scheduler.clear_queue()
+      {:ok, _} = Agents.register_agent(%{uuid: @uuid, hostname: "agent-a", ipaddress: "127.0.0.1", resources: ["docker"]})
+      {:ok, _} = Agents.register_agent(%{uuid: @uuid_b, hostname: "agent-b", ipaddress: "127.0.0.2", resources: []})
+
+      assert {:ok, count} = Scheduler.schedule_job(%{
+        "pipeline" => "agent-test",
+        "stage" => "test",
+        "job" => "test-job",
+        "run_on_all_agents" => true,
+        "resources" => ["docker"],
+        "environments" => []
+      })
+
+      # Only 1 agent has "docker" resource
+      assert count == 1
+    end
   end
 
   describe "try_assign_work/1" do

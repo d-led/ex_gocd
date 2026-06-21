@@ -6,15 +6,17 @@ defmodule ExGoCDWeb.AgentsLive do
   gated by is_user_admin (from AgentPolicy).
   """
   use ExGoCDWeb, :live_view
-  alias ExGoCD.Agents
-  alias ExGoCD.Scheduler
+  alias ExGoCD.{Accounts, Agents, Scheduler}
+  alias ExGoCD.Accounts.User
 
   @impl true
-  def mount(_params, _session, socket) do
+  def mount(_params, session, socket) do
     if connected?(socket) do
       Agents.subscribe()
       ExGoCD.Scheduler.subscribe()
     end
+
+    current_user = Accounts.get_current_user(session)
 
     {:ok,
      socket
@@ -27,7 +29,9 @@ defmodule ExGoCDWeb.AgentsLive do
        sort_order: :asc,
        page_title: "Agents",
        current_path: "/agents",
-       pending_scheduled: pending_scheduled_count()
+       pending_scheduled: pending_scheduled_count(),
+       is_user_admin: User.has_role?(current_user, :admin),
+       current_user: current_user
      )}
   end
 
