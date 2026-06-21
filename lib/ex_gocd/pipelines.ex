@@ -11,7 +11,7 @@ defmodule ExGoCD.Pipelines do
   """
   import Ecto.Query
   require Logger
-  alias ExGoCD.Materials.GitClient
+  alias ExGoCD.Materials.ScmClient
   alias ExGoCD.Pipelines.CycleDetector
   alias ExGoCD.Pipelines.FanInResolver
   alias ExGoCD.Pipelines.Job
@@ -360,6 +360,18 @@ defmodule ExGoCD.Pipelines do
         mod = get_or_create_latest_modification(material)
         {:cont, {:ok, Map.put(acc, material.id, {:git, mod})}}
 
+      "svn" ->
+        mod = get_or_create_latest_modification(material)
+        {:cont, {:ok, Map.put(acc, material.id, {:svn, mod})}}
+
+      "hg" ->
+        mod = get_or_create_latest_modification(material)
+        {:cont, {:ok, Map.put(acc, material.id, {:hg, mod})}}
+
+      "p4" ->
+        mod = get_or_create_latest_modification(material)
+        {:cont, {:ok, Map.put(acc, material.id, {:p4, mod})}}
+
       "dependency" ->
         resolve_proposed_dependency(material, acc)
 
@@ -396,13 +408,17 @@ defmodule ExGoCD.Pipelines do
     end
   end
 
-  defp get_material_revision(%{type: "git", url: url, branch: branch}) when is_binary(url) and url != "" do
-    case GitClient.latest_revision(url, branch || "master") do
-      {:ok, %{revision: sha}} -> sha
-      _ -> "HEAD"
+  defp get_material_revision(mat) do
+    # Only attempt real SCM lookup for materials with non-empty URLs
+    if mat.url && mat.url != "" do
+      case ScmClient.latest_revision(mat) do
+        {:ok, %{revision: sha}} -> sha
+        _ -> "HEAD"
+      end
+    else
+      "HEAD"
     end
   end
-  defp get_material_revision(_material), do: "HEAD"
 
   defp get_latest_passed_instance(pipeline_name) do
     from(pi in PipelineInstance,

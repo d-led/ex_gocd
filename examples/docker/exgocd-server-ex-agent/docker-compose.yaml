@@ -1,0 +1,52 @@
+# Example 2: ex_gocd server with ex_gocd Go agent
+#
+# Full ex_gocd stack: our Phoenix server + PostgreSQL + our Go agent.
+# Access ex_gocd dashboard at http://localhost:4000
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ex_gocd_prod
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  ex-gocd-server:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    ports:
+      - '4000:4000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: "ecto://postgres:postgres@postgres/ex_gocd_prod"
+      SECRET_KEY_BASE: "demo-secret-key-base-do-not-use-in-production"
+      PHX_HOST: "localhost"
+      PORT: "4000"
+    volumes:
+      - exgocd_artifacts:/app/artifacts
+
+  ex-gocd-agent:
+    build:
+      context: ../../agent
+      dockerfile: Dockerfile
+    depends_on:
+      - ex-gocd-server
+    environment:
+      AGENT_SERVER_URL: "http://ex-gocd-server:4000"
+      EX_GOCD_DEMO_COOKIE: "ex-gocd-demo-cookie"
+      AGENT_AUTO_REGISTER_KEY: "ex-gocd-demo-cookie"
+      AGENT_AUTO_REGISTER_RESOURCES: "go,linux"
+
+volumes:
+  pgdata:
+  exgocd_artifacts:

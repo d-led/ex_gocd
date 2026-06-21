@@ -2,7 +2,7 @@ defmodule ExGoCD.Materials.Poller do
   use GenServer
   require Logger
 
-  alias ExGoCD.Materials.GitClient
+  alias ExGoCD.Materials.ScmClient
   alias ExGoCD.Pipelines
   alias ExGoCD.Pipelines.Material
   alias ExGoCD.Repo
@@ -67,13 +67,13 @@ defmodule ExGoCD.Materials.Poller do
     Logger.debug("SCM Poller: starting check...")
     import Ecto.Query
 
-    # Fetch all git materials
+    # Fetch all auto-update materials of supported types
     materials =
-      Repo.all(from m in Material, where: m.type == "git" and m.auto_update == true)
+      Repo.all(from m in Material, where: m.type in ["git", "svn", "hg", "p4"] and m.auto_update == true)
       |> Repo.preload(:pipelines)
 
     Enum.map(materials, fn material ->
-      case GitClient.latest_revision(material.url, material.branch || "master") do
+      case ScmClient.latest_revision(material) do
         {:ok, commit_info} ->
           check_and_trigger(material, commit_info)
 
@@ -132,7 +132,7 @@ defmodule ExGoCD.Materials.Poller do
       |> Enum.filter(&(normalize_git_url(&1.url) == target_norm))
 
     Enum.map(materials, fn material ->
-      case GitClient.latest_revision(material.url, material.branch || "master") do
+      case ScmClient.latest_revision(material) do
         {:ok, commit_info} ->
           check_and_trigger(material, commit_info)
 

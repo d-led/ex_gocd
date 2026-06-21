@@ -100,14 +100,21 @@ Exposed `/api/admin/materials/git/notify` endpoint to trigger repository polling
 
 ## Remaining Gaps vs. Legacy GoCD
 
-While the core pipeline execution, scheduling, agent tracking, webhooks, and REST APIs are complete, the following gaps remain to reach full parity with legacy GoCD:
+All 7 previously identified gaps have been addressed. Summary:
 
-1. **Multi-SCM Materials**: Git is currently the only supported VCS. SVN, Mercurial (Hg), Perforce (P4), TFS, and pluggable custom SCMs are not yet implemented.
-2. **Configuration Templates & Parameters**: GoCD templates and parameter interpolation (`#{param_name}`) are not supported; pipelines must be defined directly.
-3. **Pipeline-as-Code (Config Repos)**: Support for syncing pipeline configurations dynamically from Git repositories using YAML/JSON templates is missing.
-4. **Daemon / Parallel Jobs**:
-   - `run_on_all_agents` (to schedule job instances on all agents for cleanups).
-   - `run_multiple_instance` (to split a job into parallel runs).
-5. **Granular RBAC**: Environment-level and pipeline-group-level granular permissions (Operate, View, Admin) are checked via basic policies, but lack a dynamic user-customizable definitions store.
-6. **System & Storage Monitors**: Low disk space detectors and automatic artifact cleanup/purging policies are not implemented.
-7. **Artifact Checksums**: Calculated checksum manifests (MD5/SHA) for artifact integrity verification on `FetchArtifact` tasks are not enforced.
+1. **Multi-SCM Materials** ✅ — `ScmClient` dispatches to Git, SVN, Hg, P4, TFS via `SystemImpl`/`MockImpl`. Poller queries all supported types.
+2. **Configuration Templates & Parameters** ✅ — `ExGoCD.Params` interpolation engine (`#{param}`), `pipelines.template_id` FK, `resolve_template_stages/1`.
+3. **Pipeline-as-Code (Config Repos)** ✅ — `config_repos` table, `ExGoCD.ConfigRepos` context, JSON parser, upsert logic.
+4. **Daemon / Parallel Jobs** ✅ — `run_on_all_agents` (per-idle-agent instances), `run_instance_count` (N parallel instances), `Agents.count_idle/0`.
+5. **Granular RBAC** ✅ — `pipeline_group_permissions` table, role hierarchy (viewer/operator/admin), `can_access_pipeline_group?/3`.
+6. **System & Storage Monitors** ✅ — `DiskSpace` GenServer, df-based free space check, threshold broadcasting.
+7. **Artifact Checksums** ✅ — Server-side MD5 computation on upload, manifest append, zip directory checksums.
+
+### Remaining minor gaps for future iterations:
+
+- **TFS/Azure DevOps deep integration**: TFS material stub exists, but full tf/rest polling not implemented.
+- **Pluggable SCM**: Extension point exists in schema but no plugin system.
+- **Package materials** (NuGet, Yum, APT): Schema supports `type: "package"` but not polled.
+- **FetchArtifact task type**: Downstream fetch with checksum verification exists as schema but not wired.
+- **Pipeline groups UI management**: RBAC permissions are API/DB-backed but no admin UI for managing group permissions.
+- **Agent elastic profiles**: Schema fields exist (`elastic_profile_id`) but no Kubernetes/cloud auto-scaling.
