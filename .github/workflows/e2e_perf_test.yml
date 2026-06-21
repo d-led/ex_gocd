@@ -1,0 +1,22 @@
+name: E2E Scale & Performance Test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  e2e-perf-test:
+    name: Run E2E Scale & Performance Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Docker Compose
+        run: docker compose version
+
+      - name: Run E2E and Performance Verification
+        run: ./scripts/run_perf_test.sh

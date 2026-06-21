@@ -1,0 +1,39 @@
+# Example 1: Official GoCD server with ex_gocd Go agent
+#
+# Starts the official gocd/gocd-server container and our Go-based agent.
+# The agent auto-registers with the GoCD server.
+# Access GoCD dashboard at http://localhost:8153
+
+services:
+  go-server:
+    image: gocd/gocd-server:latest
+    ports:
+      - '8153:8153'
+      - '8154:8154'
+    volumes:
+      - godata:/godata
+      - gohome:/home/go
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8153/go/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  ex-gocd-agent:
+    build:
+      context: ../../agent
+      dockerfile: Dockerfile
+    depends_on:
+      go-server:
+        condition: service_healthy
+    environment:
+      AGENT_SERVER_URL: "https://go-server:8154/go"
+      EX_GOCD_DEMO_COOKIE: "ex-gocd-demo-cookie"
+      # Auto-register with the GoCD server
+      AGENT_AUTO_REGISTER_KEY: "123456789abcdef"
+      AGENT_AUTO_REGISTER_RESOURCES: "go,linux"
+      AGENT_AUTO_REGISTER_ENVIRONMENTS: "staging"
+
+volumes:
+  godata:
+  gohome:

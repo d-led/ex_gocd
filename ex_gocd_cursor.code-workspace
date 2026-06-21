@@ -1,0 +1,19 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../gocd"
+		},
+		{
+			"path": "../docs.go.cd"
+		},
+		{
+			"path": "../api.go.cd"
+		},
+		{
+			"path": "../gocd_docker_compose_example"
+		}
+	]
+}

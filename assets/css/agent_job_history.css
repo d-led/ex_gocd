@@ -1,0 +1,245 @@
+/* Agent Job History Page Styles */
+
+.agent-job-history-page {
+  padding: 20px;
+  background-color: #f5f5f5;
+}
+
+/* Page Header */
+.agent-job-history-page .page-header {
+  margin-bottom: 20px;
+}
+
+.agent-job-history-page .page-header_title {
+  font-size: 24px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 8px;
+}
+
+.agent-info {
+  font-size: 14px;
+  color: #666;
+}
+
+.agent-hostname {
+  font-weight: 600;
+  color: #333;
+}
+
+/* Pagination Controls */
+.pagination-controls {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.btn-pagination {
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: #333;
+}
+
+.btn-pagination:hover:not(:disabled) {
+  background: #f0f0f0;
+  border-color: #bbb;
+}
+
+.btn-pagination:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: #f5f5f5;
+}
+
+/* Job History Table */
+.job-history-table-container {
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  overflow-x: auto;
+  margin-bottom: 16px;
+}
+
+.job-history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.job-history-table thead {
+  background: #f9f9f9;
+  border-bottom: 2px solid #ddd;
+}
+
+.job-history-table th {
+  padding: 12px 16px;
+  text-align: left;
+  font-weight: 600;
+  color: #333;
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+}
+
+.job-history-table th.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.job-history-table th.sortable:hover {
+  background: #f0f0f0;
+}
+
+.job-history-table th .fa-sort {
+  margin-left: 4px;
+  opacity: 0.4;
+  font-size: 10px;
+}
+
+.job-history-table td {
+  padding: 12px 16px;
+  border-top: 1px solid #eee;
+  vertical-align: top;
+}
+
+.job-history-table tbody tr:hover {
+  background: #fafafa;
+}
+
+/* Job name cell: link must be the click target so left/right-click work (no overlay capturing) */
+.job-history-table .job-name-cell {
+  position: relative;
+}
+
+.job-link {
+  color: #337ab7;
+  text-decoration: none;
+  font-weight: 500;
+  display: inline-block;
+  position: relative;
+  z-index: 1;
+}
+
+.job-link:hover {
+  text-decoration: underline;
+}
+
+/* State transition: link so it's clickable and right-clickable (open in new tab, copy link) */
+.state-transition-cell {
+  position: relative;
+}
+
+.state-transition-link,
+.state-transition-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 22px;
+  color: #555;
+  font-size: 16px;
+  text-decoration: none;
+}
+
+.state-transition-link {
+  position: relative;
+  z-index: 1;
+  cursor: pointer;
+}
+
+.state-transition-link:hover {
+  color: #337ab7;
+}
+
+.state-transition-icon {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* Result Status */
+.result-passed {
+  color: #5cb85c;
+  font-weight: 600;
+}
+
+.result-failed {
+  color: #d9534f;
+  font-weight: 600;
+}
+
+.result-cancelled {
+  color: #f0ad4e;
+  font-weight: 600;
+}
+
+.result-unknown {
+  color: #999;
+  font-weight: 600;
+}
+
+/* Empty State */
+.empty-state {
+  text-align: center;
+  padding: 40px 20px !important;
+  color: #999;
+  font-style: italic;
+}
+
+/* Agent Job Run Detail (Console) Page */
+.agent-job-run-detail-page {
+  padding: 20px;
+  background-color: #f5f5f5;
+}
+
+.agent-job-run-detail-page .page-header {
+  margin-bottom: 16px;
+}
+
+.agent-job-run-detail-page .page-header_title {
+  font-size: 20px;
+  font-weight: 600;
+  color: #333;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.agent-job-run-detail-page .back-link {
+  color: #337ab7;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.agent-job-run-detail-page .back-link:hover {
+  text-decoration: underline;
+}
+
+.agent-job-run-detail-page .run-meta {
+  font-size: 13px;
+  color: #666;
+  margin-top: 8px;
+  display: flex;
+  gap: 16px;
+}
+
+.agent-job-run-detail-page .console-log {
+  background: #1e1e1e;
+  color: #d4d4d4;
+  padding: 16px;
+  border-radius: 4px;
+  font-family: ui-monospace, monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  margin: 0;
+  min-height: 200px;
+}

@@ -1,0 +1,54 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+
+  web:
+    image: ${SERVER_IMAGE:-ghcr.io/d-led/ex_gocd:latest}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "4000:4000"
+    environment:
+      - DATABASE_URL=ecto://postgres:postgres@postgres/postgres
+      - SECRET_KEY_BASE=Prdu+ZZ5W0wm41lvF4MgIHGsUb8f8ipnuPM7FZby/fB6BJePv/aegKeKP0XU4rcW
+      - EX_GOCD_TEST_MODE=1
+      - PORT=4000
+      - PHX_SERVER=true
+      - PHX_HOST=web
+    # Run migrations first, then start Phoenix server
+    command: sh -c "/app/bin/ex_gocd eval \"ExGoCD.Release.migrate\" && /app/bin/ex_gocd start"
+
+  go-agent:
+    image: ${AGENT_IMAGE:-ghcr.io/d-led/ex_gocd-agent:latest}
+    depends_on:
+      - web
+    environment:
+      - AGENT_SERVER_URL=http://web:4000
+      - EX_GOCD_DEMO_COOKIE=ex-gocd-demo-cookie
+      - AGENT_AUTO_REGISTER_KEY=ex-gocd-demo-cookie
+      - AGENT_AUTO_REGISTER_RESOURCES=simulated,go
+      - AGENT_AUTO_REGISTER_ENVIRONMENTS=test
+    # Give the server a few seconds to start up fully before connecting
+    entrypoint: sh -c "sleep 5 && gocd-agent"
+
+  test-runner:
+    image: alpine:latest
+    depends_on:
+      - web
+      - go-agent
+    volumes:
+      - .:/app
+    environment:
+      - SERVER_URL=http://web:4000
+      - DATABASE_URL=postgresql://postgres:postgres@postgres/postgres
+    command: sh -c "apk add --no-cache curl bash postgresql-client && bash /app/scripts/e2e_runner.sh"

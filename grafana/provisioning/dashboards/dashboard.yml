@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: 'CI Observability'
+    folder: 'CI Observability'
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /etc/grafana/provisioning/dashboards
+      foldersFromFilesStructure: true

@@ -1,0 +1,229 @@
+// Copyright © 2026 ex_gocd
+// Licensed under the Apache License, Version 2.0
+
+package agent
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"runtime"
+	"syscall"
+	"time"
+
+	"github.com/d-led/ex_gocd/agent/internal/client"
+	"github.com/d-led/ex_gocd/agent/internal/config"
+	"github.com/d-led/ex_gocd/agent/internal/console"
+	"github.com/d-led/ex_gocd/agent/internal/executor"
+	"github.com/d-led/ex_gocd/agent/pkg/protocol"
+	"github.com/google/uuid"
+)
+
+// Agent represents the GoCD agent
+type Agent struct {
+	cfg    *config.Config
+	client *client.Client
+	state  protocol.AgentState
+}
+
+// New creates a new agent
+func New(cfg *config.Config) (*Agent, error) {
+	// Load or generate UUID
+	if err := loadOrGenerateUUID(cfg); err != nil {
+		return nil, fmt.Errorf("failed to initialize UUID: %w", err)
+	}
+
+	return &Agent{
+		cfg:    cfg,
+		client: client.New(cfg),
+		state:  protocol.StateIdle,
+	}, nil
+}
+
+// Start starts the agent main loop
+func (a *Agent) Start(ctx context.Context) error {
+	fmt.Printf("GoCD Agent starting...\n")
+	fmt.Printf("  UUID: %s\n", a.cfg.UUID)
+	fmt.Printf("  Hostname: %s\n", a.cfg.Hostname)
+	fmt.Printf("  Server: %s\n", a.cfg.ServerURL)
+	fmt.Printf("  WorkDir: %s\n", a.cfg.WorkDir)
+
+	// Register with server
+	if err := a.register(ctx); err != nil {
+		return fmt.Errorf("registration failed: %w", err)
+	}
+
+	fmt.Println("Agent registered successfully")
+
+	// Start heartbeat
+	heartbeatTicker := time.NewTicker(a.cfg.HeartbeatInterval)
+	defer heartbeatTicker.Stop()
+
+	// Start work polling
+	workTicker := time.NewTicker(a.cfg.WorkPollInterval)
+	defer workTicker.Stop()
+
+	fmt.Println("Agent running, polling for work...")
+
+	for {
+		select {
+		case <-ctx.Done():
+			fmt.Println("Agent shutting down...")
+			return nil
+
+		case <-heartbeatTicker.C:
+			if err := a.sendHeartbeat(ctx); err != nil {
+				fmt.Printf("Heartbeat failed: %v\n", err)
+			}
+
+		case <-workTicker.C:
+			if a.state == protocol.StateIdle {
+				if err := a.pollAndExecuteWork(ctx); err != nil {
+					fmt.Printf("Work execution failed: %v\n", err)
+				}
+			}
+		}
+	}
+}
+
+// register registers the agent with the server
+func (a *Agent) register(ctx context.Context) error {
+	// Get disk space
+	var usableSpace int64 = 1024 * 1024 * 1024 * 100 // 100GB placeholder
+	var stat syscall.Statfs_t
+	if err := syscall.Statfs(a.cfg.WorkDir, &stat); err == nil {
+		usableSpace = int64(stat.Bavail * uint64(stat.Bsize))
+	}
+
+	reg := &protocol.AgentRegistration{
+		Hostname:        a.cfg.Hostname,
+		IPAddress:       a.cfg.IPAddress,
+		OperatingSystem: runtime.GOOS,
+		UsableSpace:     usableSpace,
+		Resources:       a.cfg.AutoRegisterResources,
+		Environments:    a.cfg.AutoRegisterEnvironments,
+		AutoRegisterKey: a.cfg.AutoRegisterKey,
+	}
+
+	resp, err := a.client.Register(ctx, reg)
+	if err != nil {
+		return err
+	}
+
+	// Server might assign a different UUID
+	if resp.UUID != "" && resp.UUID != a.cfg.UUID {
+		a.cfg.UUID = resp.UUID
+		if err := saveUUID(a.cfg); err != nil {
+			return fmt.Errorf("failed to save UUID: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// sendHeartbeat sends a heartbeat to the server
+func (a *Agent) sendHeartbeat(ctx context.Context) error {
+	// Get disk space
+	var usableSpace int64 = 1024 * 1024 * 1024 * 100 // 100GB placeholder
+	var stat syscall.Statfs_t
+	if err := syscall.Statfs(a.cfg.WorkDir, &stat); err == nil {
+		usableSpace = int64(stat.Bavail * uint64(stat.Bsize))
+	}
+
+	hb := &protocol.AgentHeartbeat{
+		UUID:            a.cfg.UUID,
+		State:           a.state,
+		OperatingSystem: runtime.GOOS,
+		UsableSpace:     usableSpace,
+	}
+
+	return a.client.Heartbeat(ctx, hb)
+}
+
+// pollAndExecuteWork polls for work and executes it
+func (a *Agent) pollAndExecuteWork(ctx context.Context) error {
+	work, err := a.client.GetWork(ctx)
+	if err != nil {
+		return err
+	}
+
+	if work == nil {
+		// No work available
+		return nil
+	}
+
+	return a.executeJob(ctx, work)
+}
+
+// executeJob executes a job
+func (a *Agent) executeJob(ctx context.Context, work *protocol.Work) error {
+	fmt.Printf("\n=== Starting job: %s ===\n", work.JobName)
+	fmt.Printf("Pipeline: %s, Stage: %s\n", work.PipelineName, work.StageName)
+
+	a.state = protocol.StateBuilding
+	defer func() { a.state = protocol.StateIdle }()
+
+	// Report job start
+	status := &protocol.JobStatus{
+		JobID:     work.JobID,
+		UUID:      a.cfg.UUID,
+		State:     "Building",
+		Timestamp: time.Now(),
+	}
+	if err := a.client.ReportStatus(ctx, status); err != nil {
+		fmt.Printf("Warning: failed to report status: %v\n", err)
+	}
+
+	// Create console log writer
+	consoleWriter := console.New(a.client, work.JobID)
+	defer consoleWriter.Close()
+
+	// Also write to stdout
+	multiWriter := console.NewMultiWriter(consoleWriter, os.Stdout)
+
+	// Create executor
+	exec := executor.New(a.cfg.WorkDir, work.Environment, multiWriter)
+
+	// Execute tasks
+	err := exec.ExecuteTasks(ctx, work.Tasks)
+
+	// Report completion
+	result := "Passed"
+	if err != nil {
+		result = "Failed"
+		fmt.Printf("\n=== Job failed: %v ===\n", err)
+	} else {
+		fmt.Printf("\n=== Job completed successfully ===\n")
+	}
+
+	status = &protocol.JobStatus{
+		JobID:     work.JobID,
+		UUID:      a.cfg.UUID,
+		State:     "Completed",
+		Result:    result,
+		Timestamp: time.Now(),
+	}
+
+	return a.client.ReportStatus(ctx, status)
+}
+
+// loadOrGenerateUUID loads existing UUID or generates a new one
+func loadOrGenerateUUID(cfg *config.Config) error {
+	uuidFile := cfg.UUIDFile()
+
+	// Try to load existing UUID
+	data, err := os.ReadFile(uuidFile)
+	if err == nil {
+		cfg.UUID = string(data)
+		return nil
+	}
+
+	// Generate new UUID
+	cfg.UUID = uuid.New().String()
+	return saveUUID(cfg)
+}
+
+// saveUUID saves the UUID to disk
+func saveUUID(cfg *config.Config) error {
+	return os.WriteFile(cfg.UUIDFile(), []byte(cfg.UUID), 0644)
+}
