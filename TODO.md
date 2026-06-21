@@ -35,6 +35,10 @@
 - [x] `JobInstance` "Cancelled" state validation
 - [x] Unreachable `_ -> :ok` clause
 - [x] Layout test aria-label mismatch
+- [x] **Dashboard REST API** — `GET /api/dashboard` JSON with pipeline groups, latest status
+- [x] **Pipeline config admin CRUD API** — `GET/POST/PUT/DELETE /api/admin/pipelines/:name`
+- [x] **Credo F-issues** — extracted helpers to reduce nesting depth
+- [x] **CCTray controller** — fixed unused `conn` variable warning
 
 ### Admin Menu Audit (2026-06-21)
 All 18 admin sub-menu links route to AdminLive tabs. UI shells exist. Backend gaps:

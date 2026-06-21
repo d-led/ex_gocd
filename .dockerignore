@@ -1,0 +1,28 @@
+# Git
+.git
+.gitignore
+
+# Elixir / Mix
+_build
+deps
+.elixir_ls
+.hex
+.mix
+erl_crash.dump
+cover
+*.ez
+
+# Node.js
+node_modules
+assets/node_modules
+npm-debug.log
+
+# Temporary / OS
+tmp
+.DS_Store
+
+# Test / Coverage / logs
+*.log
+*.sarif
+cypress/screenshots
+cypress/videos

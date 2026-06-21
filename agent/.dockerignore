@@ -1,0 +1,26 @@
+# Git
+.git
+.gitignore
+
+# Go binaries and build artifacts
+bin/
+gocd-agent
+gocd-agent.exe
+*.test
+*.out
+*.exe
+*.dll
+*.so
+*.dylib
+vendor/
+
+# Local work directory
+work/
+
+# IDE / Editor config
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
