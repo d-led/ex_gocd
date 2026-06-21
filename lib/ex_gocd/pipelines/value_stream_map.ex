@@ -391,7 +391,8 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
   end
 
   defp get_db_or_mock_modification(mat, instance) do
-    revisions = instance.build_cause["materialRevisions"] || []
+    cause = instance.build_cause || %{}
+    revisions = cause["materialRevisions"] || []
 
     case Enum.find(revisions, &(&1["url"] == mat.url)) do
       nil -> get_mock_modification(mat)
@@ -464,11 +465,19 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
   end
 
   defp diff_time(completed_at, created_time) do
-    case {DateTime.from_naive(completed_at, "Etc/UTC"), DateTime.from_naive(created_time, "Etc/UTC")} do
-      {{:ok, c_dt}, {:ok, cr_dt}} -> DateTime.diff(c_dt, cr_dt, :second)
-      _ -> 45
+    c_dt = to_utc_datetime(completed_at)
+    cr_dt = to_utc_datetime(created_time)
+    if c_dt && cr_dt, do: DateTime.diff(c_dt, cr_dt, :second), else: 45
+  end
+
+  defp to_utc_datetime(%DateTime{} = dt), do: DateTime.shift_zone!(dt, "Etc/UTC")
+  defp to_utc_datetime(%NaiveDateTime{} = ndt) do
+    case DateTime.from_naive(ndt, "Etc/UTC") do
+      {:ok, dt} -> dt
+      _ -> nil
     end
   end
+  defp to_utc_datetime(_), do: nil
 
   defp get_all_mock_materials do
     MockData.get_all_mock_materials()

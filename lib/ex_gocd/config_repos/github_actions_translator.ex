@@ -21,6 +21,7 @@ defmodule ExGoCD.ConfigRepos.GitHubActionsTranslator do
   @behaviour ExGoCD.ConfigRepos.Translator
 
   alias ExGoCD.ConfigRepos.ExternalPipelineIR
+  alias ExGoCD.ConfigRepos.TranslatorHelpers
 
   @impl true
   def translate(%ExternalPipelineIR{source_type: "github_actions"} = ir, selections) do
@@ -38,7 +39,7 @@ defmodule ExGoCD.ConfigRepos.GitHubActionsTranslator do
   defp skip_attrs(ir, selections) do
     prefix = Map.get(selections, :pipeline_name_prefix, "")
     %{
-      name: pipeline_name(ir, prefix),
+      name: TranslatorHelpers.pipeline_name(ir, prefix),
       group: prefix,
       stages: [],
       materials: []
@@ -57,7 +58,7 @@ defmodule ExGoCD.ConfigRepos.GitHubActionsTranslator do
     timer = build_timer(ir)
 
     attrs = %{
-      name: pipeline_name(ir, prefix),
+      name: TranslatorHelpers.pipeline_name(ir, prefix),
       group: prefix,
       label_template: "${COUNT}",
       stages: stages,
@@ -69,7 +70,7 @@ defmodule ExGoCD.ConfigRepos.GitHubActionsTranslator do
 
   defp build_translate_stages(ir, selected_jobs) do
     ir.jobs
-    |> filter_jobs(selected_jobs)
+    |> TranslatorHelpers.filter_jobs(selected_jobs)
     |> Enum.map(fn {job_name, job_data} ->
       # Filter out action steps in translate mode
       run_steps = Enum.filter(job_data.steps, &(&1.type == "run"))
@@ -142,7 +143,7 @@ defmodule ExGoCD.ConfigRepos.GitHubActionsTranslator do
 
     stages =
       ir.jobs
-      |> filter_jobs(selected_jobs)
+      |> TranslatorHelpers.filter_jobs(selected_jobs)
       |> Enum.map(fn {job_name, job_data} ->
         event = extract_event_type(ir)
 
@@ -175,7 +176,7 @@ defmodule ExGoCD.ConfigRepos.GitHubActionsTranslator do
       end)
 
     %{
-      name: pipeline_name(ir, prefix),
+      name: TranslatorHelpers.pipeline_name(ir, prefix),
       group: prefix,
       stages: stages,
       materials: build_materials(ir, nil)
@@ -183,20 +184,6 @@ defmodule ExGoCD.ConfigRepos.GitHubActionsTranslator do
   end
 
   # --- Helpers ---
-
-  defp pipeline_name(ir, prefix) do
-    name = ir.name |> String.replace(~r/[^a-zA-Z0-9_-]/, "-") |> String.trim("-")
-    if prefix != "" and prefix != nil do
-      "#{prefix}-#{name}"
-    else
-      name
-    end
-  end
-
-  defp filter_jobs(jobs, nil), do: jobs
-  defp filter_jobs(jobs, selected) when is_list(selected) do
-    Enum.filter(jobs, fn {name, _} -> name in selected end)
-  end
 
   defp extract_event_type(ir) do
     case ir.triggers do

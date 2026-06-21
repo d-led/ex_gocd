@@ -114,15 +114,20 @@ defmodule ExGoCD.VsmTracer do
         map
       {:span_ctx, _version, _trace_id, _span_id, _parent_id, _flags, _tracestate,
        _is_recording, false = _is_valid, _timestamp, _instrumentation_scope} ->
-        # span is invalid (e.g. SDK disabled with noop tracer)
         map
       {:span_ctx, _version, <<0::128>>, _span_id, _parent_id, _flags, _tracestate,
        _is_recording, _is_valid, _timestamp, _instrumentation_scope} ->
-        # all-zero trace ID (noop tracer) — skip
         map
+      {:span_ctx, _version, trace_id, span_id, _parent_id, _flags, _tracestate,
+       _is_recording, _is_valid, _timestamp, _instrumentation_scope}
+      when is_binary(trace_id) and is_integer(span_id) ->
+        # Erlang OTel SDK: trace_id is a 32-char hex string, span_id is an integer.
+        # Build W3C traceparent: 00-{trace_id}-{span_id_hex}-01
+        span_hex = Integer.to_string(span_id, 16) |> String.pad_leading(16, "0")
+        traceparent = "00-#{trace_id}-#{span_hex}-01"
+        Map.put(map, "traceparent", traceparent)
       _span_ctx ->
-        headers = :otel_propagator_text_map.inject(%{})
-        Map.merge(map, headers)
+        map
     end
   end
 end

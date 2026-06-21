@@ -111,23 +111,31 @@ defmodule ExGoCD.ConfigRepos.TranslationEngine do
           |> Pipelines.Stage.changeset(Map.put(stage_attrs, :pipeline_id, pipeline.id))
           |> Repo.insert()
 
-        Enum.each(stage_attrs[:jobs] || [], fn job_attrs ->
-          {:ok, job} =
-            %Pipelines.Job{}
-            |> Pipelines.Job.changeset(Map.merge(job_attrs, %{stage_id: stage.id}) |> Map.drop([:tasks, :resources]))
-            |> Ecto.Changeset.put_change(:resources, job_attrs[:resources] || [])
-            |> Repo.insert()
-
-          Enum.each(job_attrs[:tasks] || [], fn task_attrs ->
-            {:ok, _task} =
-              %Pipelines.Task{}
-              |> Pipelines.Task.changeset(Map.put(task_attrs, :job_id, job.id))
-              |> Repo.insert()
-          end)
-        end)
+        create_jobs_for_stage(stage, stage_attrs)
       end)
 
       {:ok, pipeline}
+    end)
+  end
+
+  defp create_jobs_for_stage(stage, stage_attrs) do
+    Enum.each(stage_attrs[:jobs] || [], fn job_attrs ->
+      {:ok, job} =
+        %Pipelines.Job{}
+        |> Pipelines.Job.changeset(Map.merge(job_attrs, %{stage_id: stage.id}) |> Map.drop([:tasks, :resources]))
+        |> Ecto.Changeset.put_change(:resources, job_attrs[:resources] || [])
+        |> Repo.insert()
+
+      create_tasks_for_job(job, job_attrs)
+    end)
+  end
+
+  defp create_tasks_for_job(job, job_attrs) do
+    Enum.each(job_attrs[:tasks] || [], fn task_attrs ->
+      {:ok, _task} =
+        %Pipelines.Task{}
+        |> Pipelines.Task.changeset(Map.put(task_attrs, :job_id, job.id))
+        |> Repo.insert()
     end)
   end
 

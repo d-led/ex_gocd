@@ -78,10 +78,7 @@ defmodule ExGoCD.ConfigRepos.GitLabCIParser do
   defp extract_env_vars(vars) when is_map(vars) do
     # GitLab variables can be string values or {value:, description:, options:} maps
     Map.new(vars, fn {k, v} ->
-      val = cond do
-        is_map(v) -> Map.get(v, "value", to_string(v))
-        true -> to_string(v)
-      end
+      val = if is_map(v), do: Map.get(v, "value", to_string(v)), else: to_string(v)
       {k, val}
     end)
   end
