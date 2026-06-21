@@ -20,6 +20,7 @@ services:
       retries: 10
 
   ex-gocd-agent:
+    image: ghcr.io/d-led/ex_gocd-agent:latest
     build:
       context: ../../../agent
       dockerfile: Dockerfile
