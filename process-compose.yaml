@@ -30,8 +30,8 @@ processes:
       timeout_seconds: 10
     depends_on: {}
     availability:
-      restart: on_failure
-      max_restarts: 5
+      restart: always
+      max_restarts: 0
 
   # ── CI Agent (elixir, postgres resources) ───────────────────────────
   ci-agent:
@@ -52,8 +52,8 @@ processes:
       server:
         condition: process_healthy
     availability:
-      restart: on_failure
-      max_restarts: 5
+      restart: always
+      max_restarts: 0
 
   # ── Docker Agent (docker resource, socket mounted) ──────────────────
   docker-agent:
@@ -76,5 +76,5 @@ processes:
       server:
         condition: process_healthy
     availability:
-      restart: on_failure
-      max_restarts: 5
+      restart: always
+      max_restarts: 0

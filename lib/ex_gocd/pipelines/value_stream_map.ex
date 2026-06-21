@@ -128,7 +128,7 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
           "locator" => "/pipelines/value_stream_map/#{pipeline_name}/#{instance.counter}",
           "stages" => stages,
           "trigger_info" => %{
-            "triggered_by" => instance.trigger_message || "Manual",
+            "triggered_by" => Map.get(instance, :trigger_message) || instance.label || "Manual",
             "triggered_at" => instance.inserted_at && Calendar.strftime(instance.inserted_at, "%d %b %Y, %H:%M:%S"),
             "materials" => Enum.map(materials, fn m ->
               %{

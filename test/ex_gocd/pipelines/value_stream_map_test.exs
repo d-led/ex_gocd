@@ -98,20 +98,18 @@ defmodule ExGoCD.Pipelines.ValueStreamMapTest do
         |> ExGoCD.Pipelines.Stage.changeset(%{name: "build", pipeline_id: pipeline.id, order_id: 0})
         |> ExGoCD.Repo.insert()
 
-      now = DateTime.utc_now() |> DateTime.truncate(:second)
-      created_time = DateTime.add(now, -300)
-      completed_at = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
-
       {:ok, instance} =
         %ExGoCD.Pipelines.PipelineInstance{}
         |> ExGoCD.Pipelines.PipelineInstance.changeset(%{
           pipeline_id: pipeline.id, counter: 4, label: "4", natural_order: 4.0,
           build_cause: %{"materialRevisions" => []}
         })
-        |> Ecto.Changeset.put_change(:inserted_at, now)
         |> ExGoCD.Repo.insert()
 
-      {:ok, stage_instance} =
+      completed_at = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+      created_time = DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.add(-300, :second)
+
+      {:ok, _stage_instance} =
         %ExGoCD.Pipelines.StageInstance{}
         |> ExGoCD.Pipelines.StageInstance.changeset(%{
           stage_id: stage.id, pipeline_instance_id: instance.id,
@@ -120,7 +118,7 @@ defmodule ExGoCD.Pipelines.ValueStreamMapTest do
         })
         |> ExGoCD.Repo.insert()
 
-      {:ok, pipeline: pipeline, instance: instance, stage_instance: stage_instance}
+      {:ok, pipeline: pipeline, instance: instance}
     end
 
     test "renders VSM for a DB pipeline instance", %{pipeline: pipeline} do
@@ -139,7 +137,7 @@ defmodule ExGoCD.Pipelines.ValueStreamMapTest do
       [_, pipe_level | _] = vsm["levels"]
       [pipe_node] = pipe_level["nodes"]
       [inst] = pipe_node["instances"]
-      assert inst["trigger_info"]["triggered_by"] == "Manual"
+      assert inst["trigger_info"]["triggered_by"] == "4"
       assert is_integer(pipe_node["fan_in"])
       assert is_integer(pipe_node["fan_out"])
     end
@@ -153,7 +151,7 @@ defmodule ExGoCD.Pipelines.ValueStreamMapTest do
       {:ok, _} =
         %ExGoCD.Pipelines.PipelineInstance{}
         |> ExGoCD.Pipelines.PipelineInstance.changeset(%{
-          pipeline_id: p.id, counter: 1, label: "1", natural_order: 1.0, build_cause: nil
+          pipeline_id: p.id, counter: 1, label: "1", natural_order: 1.0, build_cause: %{}
         })
         |> ExGoCD.Repo.insert()
 

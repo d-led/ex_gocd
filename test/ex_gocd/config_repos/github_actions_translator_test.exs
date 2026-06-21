@@ -88,7 +88,7 @@ defmodule ExGoCD.ConfigRepos.GitHubActionsTranslatorTest do
         pipeline_name_prefix: prefix
       })
 
-      assert length(attrs.materials) == 0
+      assert attrs.materials == []
     end
 
     test "respects selected_jobs filter", %{prefix: prefix} do

@@ -19,6 +19,7 @@ defmodule ExGoCD.ConfigRepos.GitLabCITranslator do
   @behaviour ExGoCD.ConfigRepos.Translator
 
   alias ExGoCD.ConfigRepos.ExternalPipelineIR
+  alias ExGoCD.ConfigRepos.TranslatorHelpers
 
   @impl true
   def translate(%ExternalPipelineIR{source_type: "gitlab_ci"} = ir, selections) do
@@ -35,7 +36,7 @@ defmodule ExGoCD.ConfigRepos.GitLabCITranslator do
   defp skip_attrs(ir, selections) do
     prefix = Map.get(selections, :pipeline_name_prefix, "")
     %{
-      name: pipeline_name(ir, prefix),
+      name: TranslatorHelpers.pipeline_name(ir, prefix),
       group: prefix,
       stages: [],
       materials: []
@@ -51,7 +52,7 @@ defmodule ExGoCD.ConfigRepos.GitLabCITranslator do
     stages = build_stages(ir, selected_jobs)
 
     attrs = %{
-      name: pipeline_name(ir, prefix),
+      name: TranslatorHelpers.pipeline_name(ir, prefix),
       group: prefix,
       label_template: "${COUNT}",
       environment_variables: ir.env_vars,
@@ -66,7 +67,7 @@ defmodule ExGoCD.ConfigRepos.GitLabCITranslator do
     # Group jobs by stage, respecting GitLab's stage ordering
     job_list =
       ir.jobs
-      |> filter_jobs(selected_jobs)
+      |> TranslatorHelpers.filter_jobs(selected_jobs)
       |> Enum.map(fn {job_name, job_data} -> {job_name, job_data} end)
       |> Enum.sort_by(fn {_, job_data} ->
         idx = Enum.find_index(ir.stages, &(&1 == job_data.stage))
@@ -122,18 +123,4 @@ defmodule ExGoCD.ConfigRepos.GitLabCITranslator do
   end
 
   # --- Helpers ---
-
-  defp pipeline_name(ir, prefix) do
-    name = ir.name |> String.replace(~r/[^a-zA-Z0-9_-]/, "-") |> String.trim("-")
-    if prefix != "" and prefix != nil do
-      "#{prefix}-#{name}"
-    else
-      name
-    end
-  end
-
-  defp filter_jobs(jobs, nil), do: jobs
-  defp filter_jobs(jobs, selected) when is_list(selected) do
-    Enum.filter(jobs, fn {name, _} -> name in selected end)
-  end
 end
