@@ -56,6 +56,11 @@ type Agent struct {
 	// idleSince is set when entering Idle state, cleared when building.
 	idleSince time.Time
 
+	// Heartbeat tracking: lastAck is updated on phx_reply. If the server stops
+	// acknowledging pings, we log a warning (once per missed window).
+	lastAck        time.Time
+	missedAckLogged bool
+
 	// Current build cancellation: guarded by buildMu
 	buildMu       sync.Mutex
 	currentBuild  string             // buildId of running build, or ""
@@ -75,6 +80,7 @@ func New(cfg *config.Config) (*Agent, error) {
 		registrar: registration.New(cfg),
 		state:     "Idle",
 		idleSince: time.Now(),
+		lastAck:   time.Now(),
 	}, nil
 }
 
@@ -203,6 +209,8 @@ func (a *Agent) runWithConnection(ctx context.Context, tlsConfig *tls.Config) er
 	}
 	defer conn.Close()
 	a.conn = conn
+	a.lastAck = time.Now() // reset heartbeat timer on fresh connection
+	a.missedAckLogged = false
 	agentlog.Logger.Info().Msg("WebSocket connected")
 
 	// Send join so the server establishes the channel
@@ -243,6 +251,13 @@ func (a *Agent) runWithConnection(ctx context.Context, tlsConfig *tls.Config) er
 			}
 
 		case <-pingTicker.C:
+			// Warn if server hasn't acknowledged the previous ping within 2× heartbeat window.
+			if ackAge := time.Since(a.lastAck); ackAge > a.config.HeartbeatInterval*2 {
+				if !a.missedAckLogged {
+					agentlog.Logger.Warn().Dur("since_last_ack", ackAge.Round(time.Second)).Msg("Server not acknowledging heartbeats")
+					a.missedAckLogged = true
+				}
+			}
 			a.sendPing()
 
 		case msg, ok := <-conn.Receive():
@@ -262,7 +277,8 @@ func (a *Agent) handleMessage(msg *protocol.Message) error {
 	switch msg.Action {
 	case "phx_reply":
 		// Phoenix channel reply to our ping (heartbeat ack). Connection is active.
-		agentlog.Logger.Info().Msg("Heartbeat acknowledged")
+		a.lastAck = time.Now()
+		a.missedAckLogged = false
 
 	case "presence_diff":
 		// Phoenix Presence broadcast (server tracks who is on the channel). No action needed.

@@ -100,6 +100,19 @@ defmodule ExGoCD.Agents do
   end
 
   @doc """
+  Soft deletes ALL disabled agents. Returns count of deleted agents.
+  """
+  def clean_disabled_agents do
+    if use_mock?() do
+      0
+    else
+      agents = Repo.all(from a in Agent, where: a.disabled == true and a.deleted == false)
+      Enum.each(agents, fn a -> do_delete_agent(a) end)
+      length(agents)
+    end
+  end
+
+  @doc """
   Lists only active agents (not disabled, not deleted).
   """
   @spec list_active_agents() :: [Agent.t()]
