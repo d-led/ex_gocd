@@ -383,6 +383,46 @@ defmodule ExGoCD.Agents do
   end
 
   @doc """
+  Bulk soft deletes agents by UUID. Only disabled agents can be deleted.
+  Returns {:ok, count} or {:error, reason}.
+  """
+  def bulk_delete_agents(uuids) when is_list(uuids) do
+    if use_mock?() do
+      {:ok, Enum.count(uuids)}
+    else
+      agents = Repo.all(from a in Agent, where: a.uuid in ^uuids and a.deleted == false)
+
+      enabled = Enum.filter(agents, &(not &1.disabled))
+      if enabled != [] do
+        {:error, "Cannot delete enabled agents: #{inspect(Enum.map(enabled, & &1.uuid))}"}
+      else
+        count = Enum.count(agents)
+        Enum.each(agents, fn a -> do_delete_agent(a) end)
+        {:ok, count}
+      end
+    end
+  end
+
+  @doc """
+  Bulk enable/disable agents by UUID.
+  Returns {:ok, count} or {:error, reason}.
+  """
+  def bulk_update_agents(uuids, disabled) when is_list(uuids) and is_boolean(disabled) do
+    if use_mock?() do
+      {:ok, Enum.count(uuids)}
+    else
+      agents = Repo.all(from a in Agent, where: a.uuid in ^uuids and a.deleted == false)
+      count = Enum.count(agents)
+
+      Enum.each(agents, fn agent ->
+        {:ok, _} = update_agent(agent, %{disabled: disabled})
+      end)
+
+      {:ok, count}
+    end
+  end
+
+  @doc """
   Adds resources to an agent.
   """
   @spec add_resources(Agent.t(), [String.t()]) :: {:ok, Agent.t()} | {:error, Ecto.Changeset.t()}

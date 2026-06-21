@@ -117,23 +117,28 @@ defmodule ExGoCD.Scheduler do
         trigger_assignment_for_idle_agents()
         {:reply, {:ok, id}, %{state | in_memory_queue: new_queue}}
       end
+      VsmTracer.set_status(:ok)
     end)
   end
 
   def handle_call({:try_assign_work, agent_uuid, parent_ctx}, _from, state) do
     VsmTracer.attach_ctx(parent_ctx)
     VsmTracer.trace("scheduler.assign_work", %{"agent.uuid" => agent_uuid}, fn ->
-      if connected?(agent_uuid) do
+      result = if connected?(agent_uuid) do
         case Agents.get_agent_by_uuid(agent_uuid) do
           nil ->
+            VsmTracer.set_status({:error, "agent not found"})
             {:reply, :agent_not_found, state}
 
           agent ->
             try_assign_to_idle_agent(agent_uuid, agent, state)
         end
       else
+        VsmTracer.set_status({:error, "agent not connected"})
         {:reply, :agent_not_connected, state}
       end
+      VsmTracer.set_status(:ok)
+      result
     end)
   end
 

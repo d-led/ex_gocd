@@ -182,6 +182,8 @@ func (a *Agent) runWithConnection(ctx context.Context, tlsConfig *tls.Config) er
 		trace.WithAttributes(
 			attribute.String("agent.uuid", a.config.UUID),
 			attribute.String("server.url", a.config.ServerURL.String()),
+			attribute.String("net.peer.name", a.config.ServerURL.Hostname()),
+			attribute.String("net.peer.port", a.config.ServerURL.Port()),
 		),
 	)
 
@@ -542,8 +544,11 @@ func (a *Agent) runOneCommand(ctx context.Context, build *protocol.Build, cmd *p
 			}
 			cmdSpan.RecordError(err)
 			cmdSpan.SetStatus(codes.Error, err.Error())
+			setExitCode(cmdSpan, err)
+			return err
 		}
-		return err
+		cmdSpan.SetAttributes(attribute.Int("cmd.exit_code", 0))
+		return nil
 	}
 
 	c.Stdout = os.Stdout
@@ -556,8 +561,21 @@ func (a *Agent) runOneCommand(ctx context.Context, build *protocol.Build, cmd *p
 		}
 		cmdSpan.RecordError(err)
 		cmdSpan.SetStatus(codes.Error, err.Error())
+		setExitCode(cmdSpan, err)
+		return err
 	}
-	return err
+	cmdSpan.SetAttributes(attribute.Int("cmd.exit_code", 0))
+	return nil
+}
+
+// setExitCode extracts the process exit code from an exec error and sets it as a span attribute.
+func setExitCode(span trace.Span, err error) {
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
+		span.SetAttributes(attribute.Int("cmd.exit_code", exitErr.ExitCode()))
+	} else {
+		span.SetAttributes(attribute.Int("cmd.exit_code", -1))
+	}
 }
 
 func (a *Agent) httpClient() (*http.Client, error) {

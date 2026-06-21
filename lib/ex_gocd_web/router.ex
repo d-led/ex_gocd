@@ -128,6 +128,8 @@ defmodule ExGoCDWeb.Router do
     # Agent management (matching GoCD's agent API spec)
     post "/agents/register", AgentController, :register
     get "/agents", AgentController, :index
+    delete "/agents", AgentController, :bulk_delete
+    patch "/agents", AgentController, :bulk_update
     get "/agents/:uuid", AgentController, :show
     patch "/agents/:uuid", AgentController, :update
     delete "/agents/:uuid", AgentController, :delete
@@ -218,6 +220,8 @@ defmodule ExGoCDWeb.Router do
 
     post "/agents/register", AgentController, :register
     get "/agents", AgentController, :index
+    delete "/agents", AgentController, :bulk_delete
+    patch "/agents", AgentController, :bulk_update
     get "/agents/:uuid", AgentController, :show
     patch "/agents/:uuid", AgentController, :update
     delete "/agents/:uuid", AgentController, :delete

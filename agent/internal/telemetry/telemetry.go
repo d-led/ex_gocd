@@ -19,6 +19,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"runtime"
 
 	agentlog "github.com/d-led/ex_gocd/agent/internal/log"
 
@@ -66,6 +67,8 @@ func Setup() (shutdown func(context.Context) error) {
 		resource.WithAttributes(
 			semconv.ServiceName(svcName),
 			semconv.HostName(hostname),
+			semconv.ProcessRuntimeName("go"),
+			semconv.ProcessRuntimeVersion(runtime.Version()),
 		),
 	)
 	if err != nil {

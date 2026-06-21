@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -141,8 +142,14 @@ func runOnce(attempt int) (err error) {
 	)
 	defer func() {
 		if r := recover(); r != nil {
-			crashSpan.SetAttributes(attribute.String("panic", fmt.Sprintf("%v", r)))
+			stack := make([]byte, 4096)
+			n := runtime.Stack(stack, false)
+			crashSpan.SetAttributes(
+				attribute.String("panic", fmt.Sprintf("%v", r)),
+				attribute.String("stack", string(stack[:n])),
+			)
 			crashSpan.SetStatus(codes.Error, "agent panic")
+			crashSpan.RecordError(fmt.Errorf("panic: %v", r))
 			crashSpan.End()
 			agentlog.Logger.Error().Int("attempt", attempt).Interface("panic", r).Msg("gocd-agent panicked, recovering")
 			err = fmt.Errorf("panic recovered: %v", r)

@@ -207,7 +207,8 @@ Cypress.Commands.add('closeModificationsModal', () => {
 // --- Screenshot helpers ---
 
 Cypress.Commands.add('appScreenshot', (name) => {
-  const src = `cypress/screenshots/screenshot.cy.js/${name}.png`;
+  const specName = Cypress.spec.name.replace(/\.cy\.(js|ts|jsx|tsx)$/, '');
+  const src = `cypress/screenshots/${specName}.cy.js/${name}.png`;
   const dest = `docs/screenshots/${name}.png`;
   cy.screenshot(name, { capture: 'viewport' });
   cy.task('copyScreenshot', { src, dest }, { log: false }).then((res) => {

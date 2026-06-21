@@ -178,16 +178,17 @@ defmodule ExGoCDWeb.AgentsLive do
 
   def handle_event("schedule_test_job", _params, socket) do
     if socket.assigns[:is_user_admin] do
-      case Scheduler.schedule_job(%{}) do
-        {:ok, _id} ->
-          {:noreply,
-           socket
-           |> put_flash(:info, "Job scheduled. Next idle agent will pick it up.")
-           |> assign(pending_scheduled: pending_scheduled_count())}
+      enabled_agents = Agents.list_active_agents()
+      count = length(enabled_agents)
 
-        {:error, _} ->
-          {:noreply, put_flash(socket, :error, "Failed to schedule job")}
-      end
+      Enum.each(enabled_agents, fn agent ->
+        Scheduler.schedule_job(%{"agent_uuid" => agent.uuid})
+      end)
+
+      {:noreply,
+       socket
+       |> put_flash(:info, "Test job scheduled on #{count} enabled agent(s).")
+       |> assign(pending_scheduled: pending_scheduled_count())}
     else
       return_forbidden(socket)
     end

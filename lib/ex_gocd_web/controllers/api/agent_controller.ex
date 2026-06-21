@@ -163,6 +163,40 @@ defmodule ExGoCDWeb.API.AgentController do
     end
   end
 
+  @doc """
+  DELETE /api/agents (bulk)
+  Body: {"uuids": ["uuid1","uuid2"]}
+  Soft deletes multiple disabled agents. Only disabled agents can be deleted.
+  """
+  def bulk_delete(conn, params) do
+    if is_list(params["uuids"]) do
+      {:ok, count} = Agents.bulk_delete_agents(params["uuids"])
+      json(conn, %{message: "Deleted #{count} agent(s)."})
+    else
+      conn |> put_status(:bad_request) |> json(%{error: "Missing uuids array"})
+    end
+  end
+
+  @doc """
+  PATCH /api/agents (bulk update)
+  Body: {"uuids": [...], "agent_config_state": "Enabled"|"Disabled"}
+  """
+  def bulk_update(conn, params) do
+    uuids = params["uuids"]
+    if is_list(uuids) do
+      normalized = normalize_patch_params(params)
+      case Map.fetch(normalized, "disabled") do
+        {:ok, d} ->
+          {:ok, count} = Agents.bulk_update_agents(uuids, d)
+          json(conn, %{message: "Updated #{count} agent(s)."})
+        :error ->
+          conn |> put_status(:bad_request) |> json(%{error: "Missing agent_config_state"})
+      end
+    else
+      conn |> put_status(:bad_request) |> json(%{error: "Missing uuids array"})
+    end
+  end
+
   # GoCD spec uses agent_config_state (Enabled|Disabled); we store disabled (boolean).
   defp normalize_patch_params(params) do
     params

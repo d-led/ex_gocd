@@ -45,6 +45,7 @@ defmodule ExGoCDWeb.AgentChannel do
         case Agents.touch_agent_on_heartbeat(uuid, normalized) do
           :ok ->
             VsmTracer.set_attr("agent.auth_result", "ok")
+            VsmTracer.set_status(:ok)
             socket = assign_agent_socket(socket, uuid)
             socket = maybe_assign_cookie_to_send(socket, uuid)
             send(self(), :after_join)
@@ -52,6 +53,7 @@ defmodule ExGoCDWeb.AgentChannel do
 
           {:error, :cookie_mismatch} ->
             VsmTracer.set_attr("agent.auth_result", "cookie_mismatch")
+            VsmTracer.set_status({:error, "cookie mismatch"})
             # Allow join so we can push setCookie; agent will send cookie on next ping
             socket = assign_agent_socket(socket, uuid)
             socket = maybe_assign_cookie_to_send(socket, uuid)
@@ -60,6 +62,7 @@ defmodule ExGoCDWeb.AgentChannel do
 
           {:error, :not_found} ->
             VsmTracer.set_attr("agent.auth_result", "not_found")
+            VsmTracer.set_status({:error, "agent not found"})
             socket = assign_agent_socket(socket, uuid)
             send(self(), :after_join)
             {:ok, socket}
@@ -88,7 +91,6 @@ defmodule ExGoCDWeb.AgentChannel do
     _ctx = Process.delete(:agent_connect_ctx)
 
     if payload do
-      IO.puts("[agent_channel] after_join has_traceparent=#{Map.has_key?(payload, "traceparent")} tp=#{String.slice(Map.get(payload, "traceparent", ""), 0, 30)}")
       push(socket, "setCookie", payload)
     end
 

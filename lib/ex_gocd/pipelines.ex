@@ -1214,6 +1214,10 @@ defmodule ExGoCD.Pipelines do
           |> JobInstance.changeset(%{state: "Assigned", agent_uuid: agent_uuid, assigned_at: now})
           |> Repo.update()
         Phoenix.PubSub.broadcast(ExGoCD.PubSub, "pipelines:updates", :pipelines_updated)
+        case res do
+          {:ok, _} -> VsmTracer.set_status(:ok)
+          {:error, cs} -> VsmTracer.set_status({:error, "job assign failed: #{inspect(cs.errors)}"})
+        end
         res
       end)
     else
