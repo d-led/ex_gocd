@@ -26,6 +26,7 @@ defmodule ExGoCD.Agents.Agent do
           operating_system: String.t() | nil,
           free_space: integer() | nil,
           state: String.t() | nil,
+          capabilities: [String.t()] | nil,
           inserted_at: DateTime.t() | nil,
           updated_at: DateTime.t() | nil
         }
@@ -47,6 +48,7 @@ defmodule ExGoCD.Agents.Agent do
     field :operating_system, :string
     field :free_space, :integer
     field :state, :string, default: "Idle"
+    field :capabilities, {:array, :string}, default: []
 
     timestamps(type: :utc_datetime)
   end
@@ -73,7 +75,8 @@ defmodule ExGoCD.Agents.Agent do
       :working_dir,
       :operating_system,
       :free_space,
-      :state
+      :state,
+      :capabilities
     ])
     |> validate_required([:uuid, :hostname, :ipaddress])
     |> validate_format(:uuid, ~r/^[a-f0-9-]{36}$/i, message: "must be a valid UUID")
@@ -100,7 +103,8 @@ defmodule ExGoCD.Agents.Agent do
       :working_dir,
       :operating_system,
       :free_space,
-      :state
+      :state,
+      :capabilities
     ])
     |> validate_required([:uuid, :hostname, :ipaddress])
     |> validate_format(:uuid, ~r/^[a-f0-9-]{36}$/i, message: "must be a valid UUID")

@@ -1,5 +1,7 @@
 # Plan: External CI Pipeline Sync & Execution
 
+> **Progress**: 🚧 Phase 0 in progress | Phase 1-6 not started
+
 **TL;DR**: Make ex_gocd a run-to target for GitHub Actions and GitLab CI repos. Sync workflow/pipeline YAML files via config_repos, offer translation into GoCD native pipelines or direct execution via `act`/`gitlab-runner exec`. Add elastic agent support (Docker + K8s). Wizard-driven import with persisted selections and change detection.
 
 ---

@@ -10,6 +10,7 @@ defmodule ExGoCD.Pipelines.Pipeline do
   use Ecto.Schema
   import Ecto.Changeset
 
+  alias ExGoCD.ConfigRepos.ConfigRepo
   alias ExGoCD.Pipelines.{Material, PipelineInstance, Stage, Template}
 
   @type t :: %__MODULE__{
@@ -27,6 +28,9 @@ defmodule ExGoCD.Pipelines.Pipeline do
           template_name: String.t() | nil,
           template_id: integer() | nil,
           template: Template.t() | nil | Ecto.Association.NotLoaded.t(),
+          config_repo_id: integer() | nil,
+          config_repo: ConfigRepo.t() | nil | Ecto.Association.NotLoaded.t(),
+          source_file_path: String.t() | nil,
           display_order_weight: integer() | nil,
           paused: boolean() | nil,
           paused_by: String.t() | nil,
@@ -54,6 +58,8 @@ defmodule ExGoCD.Pipelines.Pipeline do
     field :template_name, :string
 
     belongs_to :template, Template
+    belongs_to :config_repo, ConfigRepo
+    field :source_file_path, :string
     field :display_order_weight, :integer, default: -1
     field :paused, :boolean, default: false
     field :paused_by, :string
@@ -87,6 +93,8 @@ defmodule ExGoCD.Pipelines.Pipeline do
       :tracking_tool,
       :template_name,
       :template_id,
+      :config_repo_id,
+      :source_file_path,
       :display_order_weight,
       :paused,
       :paused_by,

@@ -14,6 +14,7 @@ RUN --mount=type=cache,target=/root/.hex \
 
 # Set build environment
 ENV MIX_ENV="prod"
+ENV ERL_FLAGS="+jit_disable"
 
 # Install Elixir dependencies
 COPY mix.exs mix.lock ./
@@ -64,6 +65,7 @@ WORKDIR /app
 
 # Set build environment
 ENV MIX_ENV="prod"
+ENV ERL_FLAGS="+jit_disable"
 
 # Copy dependencies and pre-compiled build artifacts from compiler stage
 COPY --from=compiler /app /app

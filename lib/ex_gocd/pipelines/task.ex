@@ -21,6 +21,7 @@ defmodule ExGoCD.Pipelines.Task do
           run_if: String.t() | nil,
           timeout: integer() | nil,
           on_cancel: map() | nil,
+          external_config: map() | nil,
           job_id: integer() | nil,
           job: Job.t() | nil | Ecto.Association.NotLoaded.t(),
           inserted_at: DateTime.t() | nil,
@@ -35,6 +36,7 @@ defmodule ExGoCD.Pipelines.Task do
     field :run_if, :string, default: "passed"
     field :timeout, :integer
     field :on_cancel, :map
+    field :external_config, :map, default: %{}
 
     belongs_to :job, Job
 
@@ -55,10 +57,11 @@ defmodule ExGoCD.Pipelines.Task do
       :run_if,
       :timeout,
       :on_cancel,
+      :external_config,
       :job_id
     ])
     |> validate_required([:type, :job_id])
-    |> validate_inclusion(:type, ["exec", "ant", "nant", "rake", "fetch", "plugin"])
+    |> validate_inclusion(:type, ["exec", "ant", "nant", "rake", "fetch", "plugin", "external"])
     |> validate_inclusion(:run_if, ["passed", "failed", "any"])
     |> validate_command_for_type()
     |> foreign_key_constraint(:job_id)
