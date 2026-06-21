@@ -12,6 +12,7 @@
 #           AGENT_AUTO_REGISTER_ENVIRONMENTS, AGENT_AUTO_REGISTER_KEY,
 #           AGENT_HOSTNAME, AGENT_UUID, AGENT_NEW_UUID, EX_GOCD_DEMO_COOKIE
 set -euo pipefail
+shopt -s nullglob 2>/dev/null || true
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -41,7 +42,7 @@ export EX_GOCD_DEMO_COOKIE="${EX_GOCD_DEMO_COOKIE:-ex-gocd-demo-cookie}"
 
 # ── Kill stale agent (PID file named {uuid}.pid) ─────────────────────
 AGENT_RUN_DIR="$AGENT_WORK_DIR/agent"
-for pidfile in "$AGENT_RUN_DIR"/*.pid 2>/dev/null; do
+for pidfile in "$AGENT_RUN_DIR"/*.pid; do
   [[ -f "$pidfile" ]] || continue
   OLD_PID=$(cat "$pidfile" 2>/dev/null || true)
   if [[ -n "$OLD_PID" ]] && kill -0 "$OLD_PID" 2>/dev/null; then
@@ -54,7 +55,7 @@ for pidfile in "$AGENT_RUN_DIR"/*.pid 2>/dev/null; do
 done
 
 # ── Clean up old per-PID work directories (from pre-UUID era) ─────────
-for pid_dir in "$AGENT_WORK_DIR"/[0-9]*/ 2>/dev/null; do
+for pid_dir in "$AGENT_WORK_DIR"/[0-9]*/; do
   [[ -d "$pid_dir" ]] || continue
   echo "→ Removing old per-PID work dir: $pid_dir"
   rm -rf "$pid_dir"

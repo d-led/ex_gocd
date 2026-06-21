@@ -2,32 +2,30 @@ defmodule ExGoCDWeb.API.UserController do
   use ExGoCDWeb, :controller
 
   alias ExGoCD.Accounts
-  alias ExGoCD.Accounts.User
-  alias ExGoCD.Repo
 
   @doc "GET /api/users"
   def index(conn, _params) do
-    users = Repo.all(User)
+    users = Accounts.list_users()
     json(conn, %{users: Enum.map(users, &user_json/1)})
   end
 
-  @doc "GET /api/users/:login"
-  def show(conn, %{"login" => login}) do
-    case Accounts.get_user_by_login(login) do
+  @doc "GET /api/users/:username"
+  def show(conn, %{"username" => username}) do
+    case Accounts.get_user_by_username(username) do
       nil ->
-        conn |> put_status(:not_found) |> json(%{message: "User '#{login}' not found."})
+        conn |> put_status(:not_found) |> json(%{message: "User '#{username}' not found."})
       user ->
         json(conn, user_json(user))
     end
   end
 
   @doc "POST /api/users"
-  def create(conn, %{"login" => login} = params) do
+  def create(conn, %{"username" => username} = params) do
     case Accounts.create_user(%{
-      login: login,
-      email: params["email"],
-      display_name: params["display_name"] || login,
-      admin: Map.get(params, "admin", false)
+      username: username,
+      display_name: params["display_name"] || username,
+      roles: params["roles"] || [],
+      status: params["status"] || "Active"
     }) do
       {:ok, user} ->
         conn |> put_status(:created) |> json(user_json(user))
@@ -36,13 +34,14 @@ defmodule ExGoCDWeb.API.UserController do
     end
   end
 
-  @doc "PATCH /api/users/:login"
-  def update(conn, %{"login" => login} = params) do
-    case Accounts.get_user_by_login(login) do
+  @doc "PATCH /api/users/:username"
+  def update(conn, %{"username" => username} = params) do
+    case Accounts.get_user_by_username(username) do
       nil ->
-        conn |> put_status(:not_found) |> json(%{message: "User '#{login}' not found."})
+        conn |> put_status(:not_found) |> json(%{message: "User '#{username}' not found."})
       user ->
-        attrs = Map.take(params, ~w(email display_name admin))
+        attrs = Map.take(params, ~w(display_name roles status))
+        attrs = if attrs == %{}, do: %{display_name: user.display_name}, else: attrs
         case Accounts.update_user(user, attrs) do
           {:ok, updated} -> json(conn, user_json(updated))
           {:error, changeset} -> conn |> put_status(:unprocessable_entity) |> json(%{message: "Update failed.", errors: format_errors(changeset)})
@@ -50,24 +49,23 @@ defmodule ExGoCDWeb.API.UserController do
     end
   end
 
-  @doc "DELETE /api/users/:login"
-  def delete(conn, %{"login" => login}) do
-    case Accounts.get_user_by_login(login) do
+  @doc "DELETE /api/users/:username"
+  def delete(conn, %{"username" => username}) do
+    case Accounts.get_user_by_username(username) do
       nil ->
-        conn |> put_status(:not_found) |> json(%{message: "User '#{login}' not found."})
+        conn |> put_status(:not_found) |> json(%{message: "User '#{username}' not found."})
       user ->
         Accounts.delete_user(user)
-        json(conn, %{message: "User '#{login}' deleted."})
+        json(conn, %{message: "User '#{username}' deleted."})
     end
   end
 
   defp user_json(user) do
     %{
-      login: user.login,
+      username: user.username,
       display_name: user.display_name,
-      email: user.email,
-      admin: user.admin,
-      enabled: user.enabled
+      roles: user.roles,
+      status: user.status
     }
   end
 

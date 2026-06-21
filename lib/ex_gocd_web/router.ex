@@ -158,6 +158,13 @@ defmodule ExGoCDWeb.Router do
     get "/stages/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter", StageController, :show
     get "/stages/:pipeline_name/:stage_name/history", StageController, :history
     post "/stages/:pipeline_name/:pipeline_counter/:stage_name/cancel", StageController, :cancel
+
+    # User management (GoCD users v3)
+    get "/users", UserController, :index
+    get "/users/:username", UserController, :show
+    post "/users", UserController, :create
+    patch "/users/:username", UserController, :update
+    delete "/users/:username", UserController, :delete
   end
 
   scope "/api/admin", ExGoCDWeb.API.Admin do
@@ -230,6 +237,13 @@ defmodule ExGoCDWeb.Router do
     get "/stages/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter", StageController, :show
     get "/stages/:pipeline_name/:stage_name/history", StageController, :history
     post "/stages/:pipeline_name/:pipeline_counter/:stage_name/cancel", StageController, :cancel
+
+    # User management (GoCD users v3)
+    get "/users", UserController, :index
+    get "/users/:username", UserController, :show
+    post "/users", UserController, :create
+    patch "/users/:username", UserController, :update
+    delete "/users/:username", UserController, :delete
   end
 
   # GoCD internal agent remoting API (HTTP-based, used by official Go agent)
