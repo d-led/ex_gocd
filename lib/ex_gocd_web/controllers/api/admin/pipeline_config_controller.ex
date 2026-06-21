@@ -2,7 +2,6 @@ defmodule ExGoCDWeb.API.Admin.PipelineConfigController do
   use ExGoCDWeb, :controller
 
   alias ExGoCD.{Pipelines, Repo}
-  alias ExGoCD.Pipelines.{Pipeline, Stage, Job, Task}
 
   @doc "GET /api/admin/pipelines/:name"
   def show(conn, %{"name" => name}) do

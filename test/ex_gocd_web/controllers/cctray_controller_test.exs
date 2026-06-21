@@ -1,9 +1,7 @@
 defmodule ExGoCDWeb.CCTrayControllerTest do
   use ExGoCDWeb.ConnCase, async: true
 
-  import Ecto.Query
-
-  alias ExGoCD.{Repo, Pipelines}
+  alias ExGoCD.Repo
   alias ExGoCD.Pipelines.{Pipeline, PipelineInstance, Stage, StageInstance}
 
   setup do
@@ -144,7 +142,7 @@ defmodule ExGoCDWeb.CCTrayControllerTest do
       result: result,
       approval_type: "success",
       created_time: now,
-      completed_at: now,
+      completed_at: NaiveDateTime.truncate(now, :second),
       latest_run: true,
       artifacts_deleted: false
     })

@@ -67,7 +67,7 @@ defmodule ExGoCDWeb.CCTrayController do
   defp format_time(nil), do: ""
   defp format_time(dt), do: Calendar.strftime(dt, "%Y-%m-%dT%H:%M:%SZ")
 
-  defp project_to_xml(project, conn) do
+  defp project_to_xml(project, _conn) do
     ~s(  <Project name="#{escape_xml(project.name)}" activity="#{project.activity}" lastBuildStatus="#{project.last_build_status}" lastBuildLabel="#{project.last_build_label}" lastBuildTime="#{project.last_build_time}" webUrl="#{escape_xml(project.web_url)}" />)
   end
 
