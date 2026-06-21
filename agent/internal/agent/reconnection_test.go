@@ -47,15 +47,19 @@ func TestBackoffResetsAfterStableConnection(t *testing.T) {
 	const maxRetryDelay = 60 * time.Second
 	const minStableConnection = 30 * time.Second
 
-	// Simulate: build up backoff over several disconnects
-	retryDelay := computeBackoff(0, baseRetryDelay, maxRetryDelay)
-	assert.Equal(t, 2*time.Second, retryDelay)
-	retryDelay = computeBackoff(1, baseRetryDelay, maxRetryDelay)
-	assert.Equal(t, 4*time.Second, retryDelay)
-	retryDelay = computeBackoff(2, baseRetryDelay, maxRetryDelay)
-	assert.Equal(t, 8*time.Second, retryDelay)
+	// Simulate agent reconnect loop: after each failed connect, wait current delay
+	// then double it for next iteration.
+	retryDelay := baseRetryDelay
 
-	// Connection was stable for 45s (> minStableConnection) — backoff should reset
+	// 3 failed reconnects build up backoff
+	retryDelay = waitAndDouble(retryDelay, maxRetryDelay) // waited 2s → now 4s
+	assert.Equal(t, 4*time.Second, retryDelay)
+	retryDelay = waitAndDouble(retryDelay, maxRetryDelay) // waited 4s → now 8s
+	assert.Equal(t, 8*time.Second, retryDelay)
+	retryDelay = waitAndDouble(retryDelay, maxRetryDelay) // waited 8s → now 16s
+	assert.Equal(t, 16*time.Second, retryDelay)
+
+	// Connection was stable for 45s (>= minStableConnection) — backoff resets
 	connUptime := 45 * time.Second
 	if connUptime >= minStableConnection {
 		retryDelay = baseRetryDelay
@@ -63,8 +67,8 @@ func TestBackoffResetsAfterStableConnection(t *testing.T) {
 	assert.Equal(t, baseRetryDelay, retryDelay,
 		"Backoff should reset to base after stable connection")
 
-	// Next disconnect without stable connection should grow from base
-	retryDelay = computeBackoff(0, retryDelay, maxRetryDelay)
+	// Next disconnect starts from base: wait 2s → double to 4s
+	retryDelay = waitAndDouble(retryDelay, maxRetryDelay)
 	assert.Equal(t, 4*time.Second, retryDelay)
 }
 
@@ -75,23 +79,34 @@ func TestBackoffDoesNotResetForShortConnection(t *testing.T) {
 	const maxRetryDelay = 60 * time.Second
 	const minStableConnection = 30 * time.Second
 
-	// Build up backoff
-	retryDelay := computeBackoff(0, baseRetryDelay, maxRetryDelay) // 2s
-	retryDelay = computeBackoff(1, retryDelay, maxRetryDelay)       // 4s
-	retryDelay = computeBackoff(2, retryDelay, maxRetryDelay)       // 8s
-	assert.Equal(t, 8*time.Second, retryDelay)
+	retryDelay := baseRetryDelay
+
+	// Build up backoff over 3 failed reconnects
+	retryDelay = waitAndDouble(retryDelay, maxRetryDelay) // 2s → 4s
+	retryDelay = waitAndDouble(retryDelay, maxRetryDelay) // 4s → 8s
+	retryDelay = waitAndDouble(retryDelay, maxRetryDelay) // 8s → 16s
+	assert.Equal(t, 16*time.Second, retryDelay)
 
 	// Connection only up for 5s (< minStableConnection) — backoff should NOT reset
 	connUptime := 5 * time.Second
 	if connUptime >= minStableConnection {
 		retryDelay = baseRetryDelay
 	}
-	assert.Equal(t, 8*time.Second, retryDelay,
+	assert.Equal(t, 16*time.Second, retryDelay,
 		"Backoff should NOT reset for short-lived connection")
 
-	// Next disconnect should continue growing
-	retryDelay = computeBackoff(3, retryDelay, maxRetryDelay)
-	assert.Equal(t, 16*time.Second, retryDelay)
+	// Next disconnect continues from current backoff: wait 16s → double to 32s
+	retryDelay = waitAndDouble(retryDelay, maxRetryDelay)
+	assert.Equal(t, 32*time.Second, retryDelay)
+}
+
+// waitAndDouble mimics the agent's pattern: sleep current delay, then double (capped).
+func waitAndDouble(current time.Duration, maxDelay time.Duration) time.Duration {
+	next := current * 2
+	if next > maxDelay {
+		next = maxDelay
+	}
+	return next
 }
 
 // TestErrServerUnavailableIsDetectable verifies the sentinel error is usable with errors.Is.
@@ -108,16 +123,7 @@ func TestErrServerUnavailableIsDetectable(t *testing.T) {
 	assert.Contains(t, wrapped.Error(), "connection refused")
 }
 
-// computeBackoff mimics the agent's exponential backoff logic.
-func computeBackoff(step int, current time.Duration, maxDelay time.Duration) time.Duration {
-	next := current * 2
-	if next > maxDelay {
-		next = maxDelay
-	}
-	return next
-}
-
-// wrapError mimics fmt.Errorf("%w: %s: %w", sentinel, msg, err)
+// TestErrServerUnavailableIsDetectable verifies the sentinel error is usable with errors.Is.
 func wrapError(sentinel error, msg string, err error) error {
 	return &joinedError{sentinel: sentinel, msg: msg, err: err}
 }

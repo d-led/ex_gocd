@@ -1,6 +1,6 @@
 # Plan: External CI Pipeline Sync & Execution
 
-> **Progress**: 🚧 Phase 0 in progress | Phase 1-6 not started
+> **Progress**: ✅ Phase 0 done | 📋 Wizard workflow spec written (18 scenarios) | 🚧 Phase 1 next | Phase 2-6 not started
 
 **TL;DR**: Make ex_gocd a run-to target for GitHub Actions and GitLab CI repos. Sync workflow/pipeline YAML files via config_repos, offer translation into GoCD native pipelines or direct execution via `act`/`gitlab-runner exec`. Add elastic agent support (Docker + K8s). Wizard-driven import with persisted selections and change detection.
 
@@ -390,3 +390,418 @@ GitLab CI `when: manual` jobs ARE handled in v1 — they translate to GoCD stage
 | **File discovery** | Root `.github/workflows/` + root `.gitlab-ci.yml` | Subdirectory scanning, glob patterns |
 | **Execution** | act (GH), gitlab-runner exec (GL) via agent capabilities | Custom action execution, act environment setup |
 | **Elastic agents** | Docker + K8s provisioning, cleanup | Autoscaling, spot instance support, multi-cloud |
+
+---
+
+## Wizard Workflow Specification — Full Test-Driven Spec
+
+> All test data MUST use the prefix `eci-test-` (External CI Test) to prevent collisions
+> with production data. This applies to: config repo URLs, pipeline names, pipeline groups,
+> material URLs, stage names, job names. Every test cleans up after itself via `on_exit`
+> or setup/teardown callbacks.
+
+### Fixture Workflow YAMLs (in-memory or temp files, not real repos)
+
+Tests use in-memory fixture YAML strings passed directly to parsers/translators (Phase 1-2)
+OR write to temp directories for file discovery (Phase 3 wizard). No actual git clone needed.
+
+**Fixture A: Simple GH Actions workflow** (`ci.yml`)
+```yaml
+name: CI
+on:
+  push:
+    branches: [main]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "building"
+      - run: make test
+  deploy:
+    needs: [build]
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "deploying"
+```
+
+**Fixture B: GH Actions workflow with custom action** (`release.yml`)
+```yaml
+name: Release
+on:
+  workflow_dispatch:
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm publish
+```
+
+**Fixture C: GitLab CI with includes** (root `.gitlab-ci.yml` + include file)
+Root:
+```yaml
+include:
+  - local: /ci/build.gitlab-ci.yml
+stages:
+  - build
+  - test
+test-job:
+  stage: test
+  script: echo "testing"
+```
+Included (`ci/build.gitlab-ci.yml`):
+```yaml
+build-job:
+  stage: build
+  script: make build
+```
+
+**Fixture D: GitLab CI with nested includes** (for include resolution depth testing)
+
+### Test Naming Convention
+
+```
+test/ex_gocd_web/live/external_ci_repo_wizard_live_test.exs
+test/ex_gocd/config_repos/external_ci_wizard_test.exs   (context-level integration)
+```
+
+Test module names: `ExGoCDWeb.ExternalCIRepoWizardLiveTest`, `ExGoCD.ConfigRepos.ExternalCIWizardTest`
+
+---
+
+### Scenario S1: Happy Path — Add GH Actions Repo, Translate All
+
+**Given** a config repo with `source_type: "github_actions"` and URL `eci-test-s1-repo`
+
+**When** the wizard runs discovery:
+1. Create config_repo record with `url: "https://github.com/eci-test-s1/repo.git"`, `source_type: "github_actions"`
+2. Run `FileDiscovery.discover(config_repo)` with fixture A and B as discovered files
+3. Assert 2 files discovered: `.github/workflows/ci.yml` (type `github_workflow`), `.github/workflows/release.yml` (type `github_workflow`)
+4. Both files have `status: "new"`, checksums computed
+5. Both files stored in `config_repo_files`
+
+**When** the wizard saves with default selections (translate all):
+1. For each file, create `ConfigRepoFileSelection` with `mode: "translate"`, `selected_jobs: nil` (=all), `selected_triggers: nil` (=all)
+2. Run `TranslationEngine.translate_and_persist(config_repo, [selection1, selection2])`
+3. Assert 2 pipelines created:
+   - `eci-test-s1-ci` in group `eci-test-s1-repo`, with `config_repo_id` set, `source_file_path: ".github/workflows/ci.yml"`
+   - `eci-test-s1-release` in group `eci-test-s1-repo`, with `config_repo_id` set, `source_file_path: ".github/workflows/release.yml"`
+4. Pipeline `eci-test-s1-ci` has 2 stages: `build` and `deploy`
+5. Stage `deploy` has `approval_type: "success"` and depends on `build` (via `needs`)
+6. Pipeline `eci-test-s1-ci` has a git material with branch filter `main`
+7. Pipeline `eci-test-s1-release` has no material (workflow_dispatch = manual trigger)
+8. Fixture B has 1 skipped action (`actions/checkout@v4`), 1 exec step
+
+**When** config repo is deleted:
+1. `Repo.delete(config_repo)` 
+2. Assert `config_repo_files` records deleted (FK cascade)
+3. Assert `config_repo_file_selections` records deleted (FK cascade)
+4. Assert pipelines still exist but `config_repo_id` is nilified
+
+---
+
+### Scenario S2: Selective Job Translation
+
+**Given** config repo `eci-test-s2-repo` with fixture A
+
+**When** wizard saves with `selected_jobs: ["build"]` only:
+1. Selection: `mode: "translate"`, `selected_jobs: %{included: ["build"]}`, `selected_triggers: nil`
+2. Run translation
+3. Assert 1 pipeline created: `eci-test-s2-ci`
+4. Pipeline has exactly 1 stage: `build`
+5. Stage `deploy` is NOT created (excluded by selection)
+
+**When** wizard is re-run and selection changed to `selected_jobs: ["deploy"]`:
+1. Run translation again
+2. Pipeline `eci-test-s2-ci` now has 1 stage: `deploy`
+3. Stage `build` is gone (replaced, not merged)
+
+---
+
+### Scenario S3: Execute Mode Selection
+
+**Given** config repo `eci-test-s3-repo` with fixture A
+
+**When** wizard saves with `mode: "execute_act"` for `ci.yml`:
+1. Selection: `mode: "execute_act"`, `selected_jobs: nil`
+2. Run translation
+3. Assert 1 pipeline created: `eci-test-s3-ci`
+4. Pipeline has 1 stage, 1 job, 1 task
+5. Task has `type: "external"`, `external_config: %{executor: "act", workflow_file: ".github/workflows/ci.yml", job_name: nil, event: "push"}`
+6. If `selected_jobs: ["build"]`, `external_config.job_name` = `"build"`
+
+---
+
+### Scenario S4: Skip Mode
+
+**Given** config repo `eci-test-s4-repo` with fixtures A and B
+
+**When** wizard saves: fixture A `mode: "translate"`, fixture B `mode: "skip"`:
+1. Assert 1 pipeline created (from fixture A only)
+2. No pipeline for fixture B
+3. `config_repo_file_selections` for fixture B has `mode: "skip"`
+
+---
+
+### Scenario S5: Mixed Modes
+
+**Given** config repo `eci-test-s5-repo` with fixtures A, B, C
+
+**When** wizard saves:
+- fixture A (ci.yml): `mode: "translate"`, `selected_jobs: ["build"]`
+- fixture B (release.yml): `mode: "execute_act"`, `selected_jobs: ["publish"]`
+- fixture C (.gitlab-ci.yml): `mode: "skip"`
+
+**Then**:
+1. Pipeline `eci-test-s5-ci` created with 1 stage (`build`), exec tasks
+2. Pipeline `eci-test-s5-release` created with 1 external task (act, job `publish`)
+3. No pipeline for fixture C
+4. All 3 selections persisted in DB
+5. Translation returns `{:ok, 2}` (2 pipelines created)
+
+---
+
+### Scenario S6: Re-Sync — File Added
+
+**Given** config repo `eci-test-s6-repo` initially synced with only fixture A (ci.yml)
+
+**When** repo changes: fixture B (release.yml) is added:
+1. Run `FileDiscovery` → returns [ci.yml (same checksum), release.yml (new)]
+2. Run `TranslationEngine.sync_changes(config_repo)`
+3. Diff emitted: `{added: ["release.yml"], removed: [], modified: [], unchanged: ["ci.yml"]}`
+4. File `ci.yml` status stays `"active"`
+5. File `release.yml` inserted with `status: "new"`
+6. If auto-translate enabled: pipeline `eci-test-s6-release` created
+7. If manual mode: `release.yml` flagged as `"new"` for wizard review
+
+---
+
+### Scenario S7: Re-Sync — File Deleted
+
+**Given** config repo `eci-test-s7-repo` synced with fixtures A and B
+
+**When** fixture B (release.yml) removed from repo:
+1. Run sync_changes
+2. Diff: `{added: [], removed: ["release.yml"], modified: [], unchanged: ["ci.yml"]}`
+3. File `release.yml` status → `"deleted"`
+4. Pipeline `eci-test-s7-release` NOT auto-deleted (warn only)
+5. Selection for release.yml preserved (not deleted)
+6. Config repo status updated with warning message
+
+---
+
+### Scenario S8: Re-Sync — File Modified
+
+**Given** config repo `eci-test-s8-repo` synced with fixture A
+
+**When** fixture A content changes (e.g., add a new job `lint`):
+1. Checksum differs from stored checksum
+2. Diff: `{added: [], removed: [], modified: ["ci.yml"], unchanged: []}`
+3. File status → `"modified"`, raw_content updated, checksum updated
+4. If mode is `"translate"`: pipeline `eci-test-s8-ci` re-translated → now has 3 stages (build, deploy, lint)
+5. If mode is `"execute_act"`: status marked `"modified"`, wizard flag set for review
+6. Old pipeline stages not orphaned (upsert by name)
+
+---
+
+### Scenario S9: Re-Sync — File Renamed
+
+**Given** config repo synced with `ci.yml`
+
+**When** file renamed to `ci-main.yml`:
+1. File discovery returns `ci-main.yml` (same checksum as old `ci.yml`)
+2. This is detected as: old `ci.yml` deleted + new `ci-main.yml` added
+3. Checksum matching is optional: if checksums match across rename, wizard suggests "file renamed" instead of "delete + add"
+4. If checksum differs: treated as delete + add (S7 + S6 combined)
+5. Pipeline from old file gets `source_file_path` warning, pipeline from new file created
+
+---
+
+### Scenario S10: Delete Config Repo — Full Cleanup
+
+**Given** config repo `eci-test-s10-repo` with 2 files, 2 selections, 2 pipelines
+
+**When** `ConfigRepos.delete_config_repo(config_repo)`:
+1. `config_repo_files` cascade-deleted (2 rows)
+2. `config_repo_file_selections` cascade-deleted (2 rows)
+3. Associated pipelines: `config_repo_id` nilified (on_delete: :nilify_all), pipelines remain
+4. Pipeline `source_file_path` remains (historical trace)
+5. No orphaned FK violations
+
+---
+
+### Scenario S11: GitLab CI with Includes
+
+**Given** config repo `eci-test-s11-repo` with `source_type: "gitlab_ci"`
+
+**When** discovery runs on fixture C (root + include):
+1. `FileDiscovery` finds `.gitlab-ci.yml` (root)
+2. Include resolver discovers `ci/build.gitlab-ci.yml` as `gitlab_include`
+3. Both files stored in `config_repo_files`:
+   - `.gitlab-ci.yml` with `source_type: "gitlab_pipeline"`
+   - `ci/build.gitlab-ci.yml` with `source_type: "gitlab_include"`
+4. Parser resolves includes: IR for root pipeline includes `build-job` from the included file
+5. Wizard shows 1 pipeline file (root) + 1 include file (nested, auto-included)
+
+**When** translated:
+1. Pipeline `eci-test-s11` created with stages: `build`, `test`
+2. Stage `build` has job `build-job` with exec task `make build`
+3. Stage `test` has job `test-job` with exec task `echo "testing"`
+4. Stages ordered correctly (build before test)
+
+---
+
+### Scenario S12: GitLab CI Include Changes on Re-Sync
+
+**Given** config repo `eci-test-s12-repo` synced with fixture C
+
+**When** included file `ci/build.gitlab-ci.yml` is modified (add a new job):
+1. Include file checksum changed → `status: "modified"`
+2. Root file checksum unchanged → `status: "active"`
+3. Sync_changes triggers re-parse of root (because includes changed)
+4. Pipeline re-translated with new job
+5. Wizard shows: root file "modified (due to include change)" or root unchanged + include modified
+
+---
+
+### Scenario S13: Include Loop Detection
+
+**Given** config repo with self-referencing includes:
+
+Root `.gitlab-ci.yml`:
+```yaml
+include:
+  - local: ci/build.gitlab-ci.yml
+```
+`ci/build.gitlab-ci.yml`:
+```yaml
+include:
+  - local: ../.gitlab-ci.yml
+```
+
+**When** parser resolves includes:
+1. Include resolver detects circular reference
+2. Returns `{:error, "circular include detected: .gitlab-ci.yml → ci/build.gitlab-ci.yml → .gitlab-ci.yml"}`
+3. File status → error, error_message set on config_repo
+
+---
+
+### Scenario S14: Wizard Step Navigation
+
+**Given** wizard LiveView mounted at `/admin/config_repos/new/external`
+
+**When** user navigates:
+1. **Step 1 (Repository)**: Enter URL `https://github.com/eci-test-s14/repo.git`, select `github_actions`, click Next
+   - Assert form assigns populated: `url`, `source_type`
+   - Assert URL format validated (must be http:// or git@)
+2. **Step 2 (Discovery)**: Discovery runs, shows fixture A and B files with checkboxes
+   - Expand fixture A → see jobs: `build`, `deploy`
+   - All files checked by default
+   - Click Next
+3. **Step 3 (Mode & Selection)**: Per-file mode selection
+   - For fixture A: select Translate, check only `build` job, select trigger `push`
+   - For fixture B: select Skip
+   - Advanced: set resource override `eci-test`
+   - Click Next
+4. **Step 4 (Review & Save)**:
+   - Summary shows: `ci.yml` → Translate (1 job, 1 trigger), `release.yml` → Skip
+   - Resource override visible
+   - Click "Save & Sync"
+   - Assert redirected to admin config_repos page with flash message
+   - Assert pipeline created, selections persisted
+
+**When** user clicks "Prev" at any step:
+- Previous step rendered with form data preserved
+
+---
+
+### Scenario S15: Re-Sync Wizard — Diff Display
+
+**Given** previously synced config repo `eci-test-s15-repo`
+
+**When** "Sync Config" button clicked:
+1. Wizard opens at Step 2 (Discovery) with diff mode
+2. Shows 3 sections:
+   - ✨ **New files** (1): `release.yml` — checkbox, expandable
+   - 📝 **Modified files** (1): `ci.yml` — shows old vs new checksum, expandable
+   - 🗑 **Deleted files** (1): `old-workflow.yml` — info only, no checkbox
+3. Unchanged files not shown (or shown collapsed)
+4. Previous selections pre-populated for unchanged files
+5. New files default to mode from previous sync or "translate"
+
+---
+
+### Scenario S16: Config Repo Row Display in Admin
+
+**Given** admin config_repos tab with real DB data
+
+**When** page loads:
+1. Table shows all config_repos from DB (not hardcoded)
+2. Each row shows: Repo Identifier (id or url), URL, Source Type badge, File Count, Last Sync, Status, Actions
+3. Source Type badges: 🟢 "GoCD Pipeline", 🟣 "GitHub Actions", 🟠 "GitLab CI"
+4. Status: 🟢 "Good" (no errors), 🟡 "Out of Sync" (modified files), 🔴 "Error" (parse failure)
+5. Actions: "Sync Config" button (opens re-sync wizard), "Edit", "Delete"
+6. Empty state: "No config repositories configured. Add one to get started."
+
+---
+
+### Scenario S17: Error Handling — Invalid YAML
+
+**Given** config repo with a malformed workflow file
+
+**When** discovery + parse runs:
+1. File stored with `status: "new"`, `raw_content` set
+2. Parse attempt fails: `{:error, "Invalid YAML at line 5: ..."}`
+3. File not marked as error — error is on the config_repo level
+4. Config repo `error_message` set to `"Failed to parse .github/workflows/broken.yml: Invalid YAML..."`
+5. Admin UI shows status 🔴 "Error" with tooltip showing error message
+
+---
+
+### Scenario S18: Empty Repo — No Workflow Files
+
+**Given** config repo with no `.github/workflows/` and no `.gitlab-ci.yml`
+
+**When** discovery runs:
+1. Returns empty list
+2. Wizard Step 2 shows: "No workflow or pipeline files found in this repository."
+3. User can still save the config repo (empty, will sync later)
+4. Re-sync later when files added → S6 flow triggered
+
+---
+
+### Data Cleanup Contract
+
+Every test module MUST:
+
+```elixir
+setup do
+  prefix = "eci-test-#{System.unique_integer([:positive])}-"
+  {:ok, prefix: prefix}
+end
+
+# Each test uses the prefix for all created records:
+# config_repo.url = "https://github.com/#{prefix}/repo.git"
+# pipeline.name = "#{prefix}-ci"
+# pipeline.group = "#{prefix}-group"
+```
+
+Or use a shared `cleanup` helper that deletes by prefix pattern:
+
+```elixir
+def cleanup_by_prefix(prefix) do
+  Repo.delete_all(from p in Pipeline, where: like(p.name, ^"#{prefix}%"))
+  Repo.delete_all(from cr in ConfigRepo, where: like(cr.url, ^"%#{prefix}%"))
+end
+```
+
+Tests must not depend on execution order. Each test creates its own records.
+
+### Implementation Order for Wizard
+
+1. **Context layer first** (TDD): `ConfigRepos` context functions for file discovery, selection CRUD, sync_changes
+2. **Parser + IR** (Phase 1): needed for file expansion in wizard Step 2
+3. **TranslationEngine** (Phase 2): needed for Step 4 save
+4. **LiveView** (Phase 3): `ExternalCIRepoWizardLive` — 4-step form
+5. **Admin LiveView** update: replace hardcoded config_repos with DB data
+6. **Router**: add `/admin/config_repos/new/external` route
