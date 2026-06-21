@@ -75,20 +75,16 @@ do_server() {
 
 # ── Agent ────────────────────────────────────────────────────────────────
 do_agent() {
-  cyan "Starting GoCD agent (resources: $AGENT_RESOURCES, work dir: $AGENT_WORK_DIR)..."
-  cd "$AGENT_DIR"
+  cyan "Starting agent via start-agent.sh (resources: $AGENT_RESOURCES, work dir: $AGENT_WORK_DIR)..."
 
   export AGENT_SERVER_URL="$SERVER_URL"
   export AGENT_WORK_DIR="$AGENT_WORK_DIR"
   export AGENT_AUTO_REGISTER_RESOURCES="$AGENT_RESOURCES"
   export AGENT_AUTO_REGISTER_ENVIRONMENTS="production"
   export AGENT_HOSTNAME="$AGENT_NAME"
+  export AGENT_CI_MODE=1
 
-  cyan "Agent → $AGENT_SERVER_URL"
-  cyan "Work dir: $AGENT_WORK_DIR"
-  cyan "Resources: $AGENT_RESOURCES"
-
-  exec go run .
+  exec "$ROOT/scripts/start-agent.sh"
 }
 
 # ── Trigger ──────────────────────────────────────────────────────────────

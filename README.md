@@ -66,7 +66,10 @@ Runs the `ex_gocd` pipeline against this repo — agent auto-registers with `eli
 # Full setup: seed DB → start server → start agent
 ./scripts/run-ci-locally.sh
 
-# Or just the agent (server already running)
+# Or just the agent (server already running):
+#   CI mode with elixir+postgres resources, work dir in /tmp
+./scripts/start-agent.sh AGENT_CI_MODE=1
+#   or via symlink (auto-detects CI mode):
 ./scripts/run-ci-agent.sh
 
 # Trigger the pipeline via API
