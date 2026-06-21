@@ -77,11 +77,10 @@ defmodule ExGoCD.LoggerJSON do
   @impl true
   def code_change(_old, state, _extra), do: {:ok, state}
 
-  defp format_timestamp({date, {h, m, s, ms}}) do
-    # ms is milliseconds in Erlang timestamp; convert to microseconds for NaiveDateTime
-    time = Time.new!(h, m, s, {ms * 1000, 6})
-
-    NaiveDateTime.new!(date, time)
-    |> NaiveDateTime.to_iso8601()
+  defp format_timestamp({date, {h, m, s, us}}) do
+    # us is microseconds in Erlang timestamp
+    time = Time.new!(h, m, s, {us, 6})
+    {:ok, ndt} = NaiveDateTime.new(date, time)
+    NaiveDateTime.to_iso8601(ndt)
   end
 end
