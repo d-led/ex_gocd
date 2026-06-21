@@ -1,5 +1,5 @@
 # Stage 1: Compiler (Runs natively on the host platform for fast compilation)
-FROM --platform=$BUILDPLATFORM hexpm/elixir:1.18.4-erlang-25.3.2.3-debian-bookworm-20260610-slim AS compiler
+FROM --platform=$BUILDPLATFORM hexpm/elixir:1.18.4-erlang-26.2.5.21-debian-bookworm-20260610-slim AS compiler
 
 # Install build dependencies
 RUN apt-get update -y && apt-get install -y build-essential git && apt-get clean && rm -rf /var/lib/apt/lists/*
@@ -55,7 +55,7 @@ RUN --mount=type=cache,target=/app/deps,sharing=shared \
 
 
 # Stage 2: Builder (Runs on the target platform to package the release with the target ERTS)
-FROM hexpm/elixir:1.18.4-erlang-25.3.2.3-debian-bookworm-20260610-slim AS builder
+FROM hexpm/elixir:1.18.4-erlang-26.2.5.21-debian-bookworm-20260610-slim AS builder
 
 # Install git since git dependencies need git checks during release load
 RUN apt-get update -y && apt-get install -y git && apt-get clean && rm -rf /var/lib/apt/lists/*
@@ -64,7 +64,7 @@ WORKDIR /app
 
 # Set build environment
 ENV MIX_ENV="prod"
-ENV ERL_AFLAGS="-emu_flavor emu"
+ENV ERL_AFLAGS="+JMsingle true"
 
 # Copy dependencies and pre-compiled build artifacts from compiler stage
 COPY --from=compiler /app /app

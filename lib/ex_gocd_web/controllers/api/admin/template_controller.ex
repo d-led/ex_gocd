@@ -1,8 +1,7 @@
 defmodule ExGoCDWeb.API.Admin.TemplateController do
   use ExGoCDWeb, :controller
 
-  alias ExGoCD.{Pipelines, Repo}
-  alias ExGoCD.Pipelines.Template
+  alias ExGoCD.Pipelines
 
   @doc "GET /api/admin/templates"
   def index(conn, _params) do

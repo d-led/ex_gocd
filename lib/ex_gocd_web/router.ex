@@ -192,19 +192,6 @@ defmodule ExGoCDWeb.Router do
     post "/access_tokens/:id/revoke", PersonalAccessTokenController, :revoke
   end
 
-    # Analytics
-    get "/analytics", AnalyticsController, :index
-    get "/analytics/:type", AnalyticsController, :show
-  end
-
-  scope "/api/admin", ExGoCDWeb.API.Admin do
-    pipe_through :api
-
-    resources "/pipelines", PipelineConfigController, except: [:new, :edit], param: "name"
-    resources "/templates", TemplateController, except: [:new, :edit], param: "name"
-    resources "/environments", EnvironmentController, except: [:new, :edit], param: "name"
-  end
-
   scope "/go/api/current_user", ExGoCDWeb.API do
     pipe_through :api
 
