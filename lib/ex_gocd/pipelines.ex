@@ -173,7 +173,11 @@ defmodule ExGoCD.Pipelines do
 
   defp material_type_to_atom("git"), do: :git
   defp material_type_to_atom("dependency"), do: :pipeline
-  defp material_type_to_atom(other), do: String.to_atom(other)
+  defp material_type_to_atom("svn"), do: :svn
+  defp material_type_to_atom("hg"), do: :hg
+  defp material_type_to_atom("p4"), do: :p4
+  defp material_type_to_atom("tfs"), do: :tfs
+  defp material_type_to_atom(_other), do: :unknown
 
   @doc """
   Pauses a pipeline, preventing scheduled or manual triggers.

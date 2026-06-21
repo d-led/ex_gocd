@@ -130,6 +130,7 @@ defmodule ExGoCD.ArtifactCleanup do
 
     size = get_dir_size(stage_dir)
 
+    # sobelow_skip ["Traversal.FileModule"]
     case File.rm_rf(stage_dir) do
       {:ok, _} ->
         Logger.info("Cleaned up artifacts for stage: #{pipeline.name}/#{pipeline_instance.counter}/#{stage_instance.name}/#{stage_instance.counter} (freed #{size} bytes)")

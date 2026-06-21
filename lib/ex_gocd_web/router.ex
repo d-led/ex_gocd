@@ -1,6 +1,11 @@
 defmodule ExGoCDWeb.Router do
   use ExGoCDWeb, :router
 
+  # Sobelow CSRF: :api pipeline uses TokenAuthPlug (bearer token), not session cookies.
+  # :agent_remoting pipeline uses agent cookie auth; agents are not browsers.
+  # CSRF tokens are not applicable to these machine-to-machine pipelines.
+  @sobelow_skip ["Config.CSRF"]
+
   pipeline :browser do
     plug :accepts, ["html"]
     plug :fetch_session
@@ -12,6 +17,7 @@ defmodule ExGoCDWeb.Router do
   end
 
   pipeline :api do
+    # sobelow_skip ["CSRF"]
     plug :accepts, ["json"]
     plug :fetch_session
     plug ExGoCDWeb.Plugs.TokenAuthPlug
@@ -25,6 +31,7 @@ defmodule ExGoCDWeb.Router do
     plug :put_secure_browser_headers
   end
 
+  # sobelow_skip ["CSRF"]
   pipeline :agent_remoting do
     plug :accepts, ["html", "json"]
     plug :fetch_session
