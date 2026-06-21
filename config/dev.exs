@@ -69,8 +69,14 @@ config :ex_gocd, ExGoCDWeb.Endpoint,
     ]
   ]
 
-# Enable dev routes for dashboard and mailbox
-config :ex_gocd, dev_routes: true
+# In mock data mode (USE_MOCK_DATA=true), suppress polling and use MockImpl
+if System.get_env("USE_MOCK_DATA") == "true" do
+  config :ex_gocd,
+    poller_interval: :none,
+    enable_timer_scheduler: false,
+    scm_client: ExGoCD.Materials.ScmClient.MockImpl,
+    git_client: ExGoCD.Materials.GitClient.MockImpl
+end
 
 # Do not include metadata nor timestamps in development logs
 config :logger, :default_formatter, format: "[$level] $message\n"

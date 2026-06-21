@@ -35,9 +35,14 @@ services:
       PORT: "4000"
     volumes:
       - exgocd_artifacts:/app/artifacts
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/api/v1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   gocd-java-agent:
-    image: gocd/gocd-agent-alpine:v25.4.0
+    image: gocd/gocd-agent-alpine:latest
     depends_on:
       - ex-gocd-server
     environment:

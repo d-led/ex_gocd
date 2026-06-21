@@ -6,7 +6,7 @@
 
 services:
   go-server:
-    image: gocd/gocd-server:v25.4.0
+    image: gocd/gocd-server:latest
     ports:
       - '8153:8153'
       - '8154:8154'

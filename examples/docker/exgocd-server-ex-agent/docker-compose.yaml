@@ -34,13 +34,19 @@ services:
       PORT: "4000"
     volumes:
       - exgocd_artifacts:/app/artifacts
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/api/v1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   ex-gocd-agent:
     build:
       context: ../../agent
       dockerfile: Dockerfile
     depends_on:
-      - ex-gocd-server
+      ex-gocd-server:
+        condition: service_healthy
     environment:
       AGENT_SERVER_URL: "http://ex-gocd-server:4000"
       EX_GOCD_DEMO_COOKIE: "ex-gocd-demo-cookie"
