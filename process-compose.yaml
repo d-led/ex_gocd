@@ -39,7 +39,7 @@ processes:
     working_dir: "agent"
     environment:
       - "AGENT_SERVER_URL=http://localhost:4000"
-      - "AGENT_WORK_DIR=work"
+      - "AGENT_WORK_DIR=/tmp/ex_gocd_agent_work"
       - "AGENT_CI_MODE=1"
       - "AGENT_AUTO_REGISTER_RESOURCES=elixir,postgres"
       - "AGENT_HOSTNAME=ci-agent"
@@ -61,7 +61,7 @@ processes:
     working_dir: "agent"
     environment:
       - "AGENT_SERVER_URL=http://localhost:4000"
-      - "AGENT_WORK_DIR=work_docker"
+      - "AGENT_WORK_DIR=//tmp/ex_gocd_agent_docker_work"
       - "AGENT_AUTO_REGISTER_RESOURCES=docker"
       - "AGENT_HOSTNAME=docker-agent"
       - "AGENT_UUID=docker-agent-00000000-0000-4000-a000-000000000001"
