@@ -39,20 +39,32 @@ defmodule ExGoCDWeb.ValueStreamMapLive do
         Map.has_key?(params, "material_fingerprint") ->
           fingerprint = params["material_fingerprint"]
           revision = params["revision"]
-          {:ok, vsm} = ValueStreamMap.get_material_vsm(fingerprint, revision)
-          material_name =
-            case hd(hd(vsm["levels"])["nodes"]) do
-              node -> node["name"]
-            end
-          socket
-          |> assign(:vsm, vsm)
-          |> assign(:type, :material)
-          |> assign(:title, "Value Stream Map of #{Path.basename(material_name || "")}")
-          |> assign(:entity_label, "Material")
-          |> assign(:entity_name, material_name)
-          |> assign(:entity_counter_label, "Revision")
-          |> assign(:entity_counter, String.slice(revision, 0, 12))
-          |> assign(:entity_locator, "/materials?search=#{String.slice(revision, 0, 8)}")
+
+          case ValueStreamMap.get_material_vsm(fingerprint, revision) do
+            {:ok, vsm} ->
+              material_name =
+                vsm
+                |> Map.get("levels", [])
+                |> List.first(%{})
+                |> Map.get("nodes", [])
+                |> List.first(%{})
+                |> Map.get("name")
+
+              socket
+              |> assign(:vsm, vsm)
+              |> assign(:type, :material)
+              |> assign(:title, "Value Stream Map of #{Path.basename(material_name || "")}")
+              |> assign(:entity_label, "Material")
+              |> assign(:entity_name, material_name)
+              |> assign(:entity_counter_label, "Revision")
+              |> assign(:entity_counter, String.slice(revision, 0, 12))
+              |> assign(:entity_locator, "/materials?search=#{String.slice(revision, 0, 8)}")
+
+            _ ->
+              socket
+              |> put_flash(:error, "Value Stream Map not found for this material.")
+              |> redirect(to: "/materials")
+          end
       end
 
     {:noreply, socket}
