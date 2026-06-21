@@ -29,12 +29,7 @@ defmodule ExGoCDWeb.AdminLive do
       # Load existing database users
       users = Accounts.list_users()
 
-      plugins = [
-        %{id: "git-material", name: "Git Material Plugin", version: "1.0.0", status: "Active"},
-        %{id: "docker-elastic-agent", name: "Docker Elastic Agent Plugin", version: "2.1.0", status: "Active"},
-        %{id: "slack-notifier", name: "Slack Notifications", version: "1.4.2", status: "Active"},
-        %{id: "artifact-store-s3", name: "S3 Artifact Store", version: "1.1.0", status: "Active"}
-      ]
+      plugins = []
 
       {:ok,
        socket

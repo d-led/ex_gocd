@@ -16,6 +16,7 @@ defmodule ExGoCDWeb.Router do
     plug :fetch_session
     plug ExGoCDWeb.Plugs.TokenAuthPlug
     plug ExGoCDWeb.Plugs.GoCDAPIHeaders
+    plug OpenApiSpex.Plug.PutApiSpec, module: ExGoCDWeb.ApiSpec
   end
 
   pipeline :form do
@@ -52,6 +53,12 @@ defmodule ExGoCDWeb.Router do
 
     # CCTray XML feed for CI monitoring tools
     get "/go/cctray.xml", CCTrayController, :index
+  end
+
+  # Swagger UI — served outside any scope to avoid module prefixing
+  scope "/swaggerui" do
+    get "/", OpenApiSpex.Plug.SwaggerUI, path: "/api/openapi", as: :swaggerui
+  end
 
     live_session :gocd, on_mount: [{ExGoCDWeb.LiveSession, :assign_current_user}] do
       live "/", DashboardLive, :index
@@ -179,6 +186,12 @@ defmodule ExGoCDWeb.Router do
     # Analytics
     get "/analytics", AnalyticsController, :index
     get "/analytics/:type", AnalyticsController, :show
+  end
+
+  # OpenAPI spec JSON — no module scope prefix (third-party plug)
+  scope "/api" do
+    pipe_through :api
+    get "/openapi", OpenApiSpex.Plug.RenderSpec, []
   end
 
   scope "/api/admin/config_repos", ExGoCDWeb.API do

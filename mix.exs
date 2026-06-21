@@ -92,7 +92,8 @@ defmodule ExGoCD.MixProject do
       {:dialyxir, "~> 1.4", only: [:dev], runtime: false},
       {:logger_backends, "~> 1.0"},
       {:yaml_elixir, "~> 2.11"},
-      {:ex_json_schema, "~> 0.10"}
+      {:ex_json_schema, "~> 0.10"},
+      {:open_api_spex, "~> 3.22"}
     ]
   end
 
