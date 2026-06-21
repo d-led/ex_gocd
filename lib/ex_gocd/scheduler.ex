@@ -43,9 +43,11 @@ defmodule ExGoCD.Scheduler do
   - resources (optional) — list of required resource tags; agent must have all
   - environments (optional) — list of env names; agent must be in at least one
   - build_command (optional) — %{"name" => _, "command" => _, "args" => _}
+  - parent_ctx (optional) — OTEL context for cross-process trace linking
   """
   def schedule_job(spec) when is_map(spec) do
-    GenServer.call(__MODULE__, {:schedule_job, normalize_job_spec(spec)})
+    parent_ctx = VsmTracer.current_ctx()
+    GenServer.call(__MODULE__, {:schedule_job, normalize_job_spec(spec), parent_ctx})
   end
 
   @doc """
@@ -53,7 +55,7 @@ defmodule ExGoCD.Scheduler do
   Returns :assigned | :no_work | :agent_busy | :agent_not_connected | :agent_not_found.
   """
   def try_assign_work(agent_uuid) when is_binary(agent_uuid) do
-    GenServer.call(__MODULE__, {:try_assign_work, agent_uuid})
+    GenServer.call(__MODULE__, {:try_assign_work, agent_uuid, nil})
   end
 
   @doc """
@@ -86,7 +88,8 @@ defmodule ExGoCD.Scheduler do
   end
 
   @impl true
-  def handle_call({:schedule_job, spec}, _from, %{in_memory_queue: queue, db_pending_count: db_count} = state) do
+  def handle_call({:schedule_job, spec, parent_ctx}, _from, %{in_memory_queue: queue, db_pending_count: db_count} = state) do
+    VsmTracer.attach_ctx(parent_ctx)
     VsmTracer.trace("scheduler.enqueue", %{
       "pipeline.name" => spec[:pipeline] || spec["pipeline"],
       "stage.name" => spec[:stage] || spec["stage"],
@@ -107,7 +110,8 @@ defmodule ExGoCD.Scheduler do
     end)
   end
 
-  def handle_call({:try_assign_work, agent_uuid}, _from, state) do
+  def handle_call({:try_assign_work, agent_uuid, parent_ctx}, _from, state) do
+    VsmTracer.attach_ctx(parent_ctx)
     VsmTracer.trace("scheduler.assign_work", %{"agent_uuid" => agent_uuid}, fn ->
       if Map.has_key?(AgentPresence.list(@presence_topic), agent_uuid) do
         case Agents.get_agent_by_uuid(agent_uuid) do

@@ -200,16 +200,15 @@ defmodule ExGoCDWeb.JobDetailsLive do
   def format_size(bytes), do: "#{Float.round(bytes / (1024 * 1024), 1)} MB"
 
   def has_test_report?(pipeline_name, pipeline_counter, stage_name, stage_counter, job_name) do
-    test_dir = Path.join([
+    job_dir = Path.join([
       artifacts_dir(),
       pipeline_name,
       to_string(pipeline_counter),
       stage_name,
       to_string(stage_counter),
-      job_name,
-      "testoutput"
+      job_name
     ])
-    File.exists?(Path.join(test_dir, "index.html"))
+    ExGoCD.TestReport.exists?(job_dir)
   end
 
   def test_report_url(pipeline_name, pipeline_counter, stage_name, stage_counter, job_name) do

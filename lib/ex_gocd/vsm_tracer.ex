@@ -11,6 +11,13 @@ defmodule ExGoCD.VsmTracer do
   completes.  When called outside an HTTP request context (e.g. GenServer),
   spans become root spans; when called inside a Phoenix request, they nest
   under the HTTP span.
+
+  ## Cross-process context propagation
+
+  `current_ctx/0` captures the OTEL context of the calling process.
+  Pass it to a GenServer as `:parent_ctx`, then call `attach_ctx/1`
+  in the GenServer's handler before creating spans.  This links
+  scheduler/agent spans under the HTTP trigger span in Jaeger.
   """
 
   require OpenTelemetry.Tracer, as: Tracer
@@ -30,6 +37,30 @@ defmodule ExGoCD.VsmTracer do
   # ── public helpers ────────────────────────────────────────────────────
 
   @doc """
+  Captures the current OpenTelemetry context (span + baggage).
+  Returns `nil` if the SDK is disabled or no span is active.
+  Pass this to GenServers as `:parent_ctx` for cross-process linking.
+  """
+  @spec current_ctx() :: :otel_ctx.t() | nil
+  def current_ctx do
+    ctx = :otel_ctx.get_current()
+    # Return nil if no spans are active (empty context)
+    if :otel_tracer.current_span_ctx(ctx) == :undefined, do: nil, else: ctx
+  end
+
+  @doc """
+  Attaches a previously captured OTEL context to the current process.
+  Call this at the start of a GenServer handler before creating spans.
+  No-op if ctx is nil.
+  """
+  @spec attach_ctx(:otel_ctx.t() | nil) :: :ok
+  def attach_ctx(nil), do: :ok
+  def attach_ctx(ctx) do
+    :otel_ctx.attach(ctx)
+    :ok
+  end
+
+  @doc """
   Wraps `fun` in a span named `span_name` with `attrs` set as span attributes.
   Returns the result of `fun`.
   """
@@ -40,15 +71,6 @@ defmodule ExGoCD.VsmTracer do
     Tracer.with_span(span_name, start_opts) do
       fun.()
     end
-  end
-
-  @doc """
-  Creates a span and sets attributes from a keyword list, then runs `fun`.
-  Convenience for callers that prefer keyword lists.
-  """
-  @spec trace_kw(String.t(), keyword(), (-> result)) :: result when result: term()
-  def trace_kw(span_name, kw_attrs \\ [], fun) when is_function(fun, 0) do
-    trace(span_name, Map.new(kw_attrs), fun)
   end
 
   @doc """

@@ -82,6 +82,7 @@ defmodule ExGoCDWeb.ArtifactsController do
         :ok ->
           maybe_save_checksum(job_dir, checksum_upload)
           compute_and_save_checksums(target_path, job_dir)
+          maybe_generate_test_report(job_dir)
           ExGoCD.ArtifactCleanup.cleanup_if_needed()
           conn |> put_status(201) |> text("File was created successfully")
 
@@ -100,6 +101,7 @@ defmodule ExGoCDWeb.ArtifactsController do
         {:ok, _} ->
           maybe_save_checksum(job_dir, checksum_upload)
           compute_and_save_checksum(target_path, job_dir)
+          maybe_generate_test_report(job_dir)
           ExGoCD.ArtifactCleanup.cleanup_if_needed()
           conn |> put_status(201) |> text("File was created successfully")
 
@@ -114,6 +116,25 @@ defmodule ExGoCDWeb.ArtifactsController do
     save_checksum(job_dir, checksum_upload)
   end
   defp maybe_save_checksum(_job_dir, _), do: :ok
+
+  # Trigger test report generation if testoutput/ exists with XML files
+  defp maybe_generate_test_report(job_dir) do
+    test_dir = Path.join(job_dir, "testoutput")
+
+    if File.dir?(test_dir) do
+      case File.ls(test_dir) do
+        {:ok, files} ->
+          if Enum.any?(files, &String.ends_with?(&1, ".xml")) do
+            ExGoCD.TestReport.generate(job_dir)
+          end
+
+        {:error, _} ->
+          :ok
+      end
+    end
+
+    :ok
+  end
 
   # GET /files/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/:job_name/*file_path
   def show(conn, %{

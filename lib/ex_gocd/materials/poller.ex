@@ -67,11 +67,28 @@ defmodule ExGoCD.Materials.Poller do
     Logger.debug("SCM Poller: starting check...")
     import Ecto.Query
 
-    # Fetch all auto-update materials of supported types
     materials =
       Repo.all(from m in Material, where: m.type in ["git", "svn", "hg", "p4"] and m.auto_update == true)
       |> Repo.preload(:pipelines)
 
+    poll_materials(materials)
+  end
+
+  defp do_poll_for_url(url) do
+    Logger.debug("SCM Poller: starting check for url #{url}...")
+    import Ecto.Query
+
+    target_norm = normalize_git_url(url)
+
+    materials =
+      Repo.all(from m in Material, where: m.type == "git" and m.auto_update == true)
+      |> Repo.preload(:pipelines)
+      |> Enum.filter(&(normalize_git_url(&1.url) == target_norm))
+
+    poll_materials(materials)
+  end
+
+  defp poll_materials(materials) do
     Enum.map(materials, fn material ->
       case ScmClient.latest_revision(material) do
         {:ok, commit_info} ->
@@ -117,30 +134,6 @@ defmodule ExGoCD.Materials.Poller do
         Logger.warning("SCM Poller: failed to trigger pipeline #{pipeline.name}: #{inspect(reason)}")
         {pipeline.name, :error, reason}
     end
-  end
-
-  defp do_poll_for_url(url) do
-    Logger.debug("SCM Poller: starting check for url #{url}...")
-    import Ecto.Query
-
-    target_norm = normalize_git_url(url)
-
-    # Fetch all git materials
-    materials =
-      Repo.all(from m in Material, where: m.type == "git" and m.auto_update == true)
-      |> Repo.preload(:pipelines)
-      |> Enum.filter(&(normalize_git_url(&1.url) == target_norm))
-
-    Enum.map(materials, fn material ->
-      case ScmClient.latest_revision(material) do
-        {:ok, commit_info} ->
-          check_and_trigger(material, commit_info)
-
-        {:error, reason} ->
-          Logger.error("SCM Poller: failed to check material #{material.url}: #{inspect(reason)}")
-          {:error, material.id, reason}
-      end
-    end)
   end
 
   @doc """
