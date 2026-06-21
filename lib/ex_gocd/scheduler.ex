@@ -6,6 +6,7 @@ defmodule ExGoCD.Scheduler do
   use GenServer
 
   import Ecto.Query
+  require Logger
 
   alias ExGoCD.AgentJobRuns
   alias ExGoCD.Agents
