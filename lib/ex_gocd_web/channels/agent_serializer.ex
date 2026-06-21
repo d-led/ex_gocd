@@ -26,7 +26,7 @@ defmodule ExGoCDWeb.AgentSerializer do
       if event == "phx_join" do
         %{"identifier" => data}
       else
-        Map.put(data || %{}, "ackId", ack_id)
+        Map.put(data, "ackId", ack_id)
       end
 
     ref = ack_id || "1"

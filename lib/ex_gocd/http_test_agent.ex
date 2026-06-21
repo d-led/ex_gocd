@@ -351,7 +351,9 @@ defmodule ExGoCD.HTTPTestAgent do
     else
       actual_len = frame_actual_len(buffer, len_field)
       if byte_size(buffer) >= needed + actual_len do
-        <<header::binary-size(needed), payload::binary-size(actual_len), rest::binary>> = buffer
+        header = binary_part(buffer, 0, needed)
+        payload = binary_part(buffer, needed, actual_len)
+        rest = binary_part(buffer, needed + actual_len, byte_size(buffer) - needed - actual_len)
         opcode = binary_part(header, 0, 1) |> :binary.decode_unsigned()
         {:ok, {opcode, payload}, rest}
       else

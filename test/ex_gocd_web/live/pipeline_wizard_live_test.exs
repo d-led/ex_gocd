@@ -3,7 +3,6 @@ defmodule ExGoCDWeb.PipelineWizardLiveTest do
 
   import Phoenix.LiveViewTest
   alias ExGoCD.Pipelines
-  alias ExGoCD.Repo
 
   describe "Pipeline Wizard LiveView" do
     test "mounts and displays Step 1", %{conn: conn} do

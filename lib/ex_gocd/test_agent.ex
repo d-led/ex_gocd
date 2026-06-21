@@ -10,8 +10,6 @@ defmodule ExGoCD.TestAgent do
   alias ExGoCD.TestAgent.UUID
   alias ExGoCDWeb.AgentPresence
 
-  require Logger
-
   @presence_topic "agent"
 
   def start_link(opts) do

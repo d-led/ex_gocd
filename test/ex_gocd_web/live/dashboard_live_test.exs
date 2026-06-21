@@ -267,7 +267,7 @@ defmodule ExGoCDWeb.DashboardLiveTest do
       {:ok, _} = ExGoCD.Accounts.create_user(%{username: "admin", display_name: "System Administrator", roles: ["admin", "developer"], status: "Active"})
 
       # Insert a pipeline config in the DB
-      pipeline = Repo.insert!(%Pipelines.Pipeline{name: "test-dashboard-pause", group: "test"})
+      _pipeline = Repo.insert!(%Pipelines.Pipeline{name: "test-dashboard-pause", group: "test"})
 
       # Log in as admin
       conn = log_in_as(conn, "admin")
@@ -321,7 +321,7 @@ defmodule ExGoCDWeb.DashboardLiveTest do
       {:ok, _} = ExGoCD.Accounts.create_user(%{username: "admin", display_name: "System Administrator", roles: ["admin", "developer"], status: "Active"})
       {:ok, _} = ExGoCD.Accounts.create_user(%{username: "viewer", display_name: "Guest Viewer", roles: [], status: "Active"})
 
-      pipeline = Repo.insert!(%Pipelines.Pipeline{name: "test-viewer-pause", group: "test"})
+      _pipeline = Repo.insert!(%Pipelines.Pipeline{name: "test-viewer-pause", group: "test"})
 
       # Log in as viewer
       conn = log_in_as(conn, "viewer")

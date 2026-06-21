@@ -508,7 +508,7 @@ See [AGENTS.md](../../../AGENTS.md) for comprehensive implementation plan. File-
 - [x] Job queue and work assignment (server) — **scheduling**: Scheduler GenServer, assign on idle ping, send `build` message
 - [x] Cancel build: Go agent handles `cancelBuild` (kill process, report Cancelled); server broadcasts to agent; Cancel button on job run detail
 - [x] Pipeline trigger from dashboard: Pipelines context (list, get_by_name, trigger_pipeline), dashboard loads from DB when pipelines exist (else mock), Play button triggers pipeline; job_instance_id links agent runs to JobInstance; stage completes when all jobs done
-- [ ] Artifact upload and fetch-artifact
+- [x] Artifact upload and fetch-artifact
 - [ ] End-to-end job execution tests (e.g. agent + original GoCD server)
 
 ---
