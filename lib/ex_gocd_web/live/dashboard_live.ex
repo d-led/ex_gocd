@@ -676,4 +676,36 @@ defmodule ExGoCDWeb.DashboardLive do
     "#{minutes}m #{secs}s"
   end
   defp format_duration(_), do: "—"
+
+  # Status dot — CSS class for coloured circle indicator
+  def status_dot_class(job) do
+    state = (job[:state] || "unknown") |> String.downcase()
+    result = (job[:result] || "unknown") |> String.downcase()
+
+    base = "status-dot"
+
+    cond do
+      state in ["building", "preparing", "completing"] -> "#{base} building"
+      state in ["scheduled", "assigned"] -> "#{base} scheduled"
+      result == "passed" -> "#{base} passed"
+      result == "failed" -> "#{base} failed"
+      result == "cancelled" -> "#{base} cancelled"
+      true -> "#{base} unknown"
+    end
+  end
+
+  # Accessibility label for screen readers
+  def status_dot_label(job) do
+    state = (job[:state] || "Unknown") |> String.capitalize()
+    result = (job[:result] || "Unknown")
+
+    cond do
+      state in ["Building", "Preparing", "Completing"] -> "Status: #{state}"
+      state in ["Scheduled", "Assigned"] -> "Status: #{state}, waiting for agent"
+      result == "Passed" -> "Status: Passed"
+      result == "Failed" -> "Status: Failed"
+      result == "Cancelled" -> "Status: Cancelled"
+      true -> "Status: #{state}"
+    end
+  end
 end

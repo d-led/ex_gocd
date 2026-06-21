@@ -212,7 +212,7 @@
                   </td>
                   <td class="col-job-name">
                     <span class="flex items-center gap-1.5">
-                      <span class={"status-dot " <> String.downcase(job.result || "unknown")}></span>
+                      <span class={status_dot_class(job)} aria-label={status_dot_label(job)} role="img"></span>
                       <.link
                         navigate={~p"/go/tab/build/detail/#{@active_stage_summary.pipeline_name}/#{@active_stage_summary.pipeline_counter}/#{@active_stage_summary.stage_name}/#{@active_stage_summary.stage_counter}/#{job.name}"}
                         class="font-bold text-gray-800 hover:text-[#2d6ca2] hover:underline"
