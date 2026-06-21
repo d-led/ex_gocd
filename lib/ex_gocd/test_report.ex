@@ -107,7 +107,7 @@ defmodule ExGoCD.TestReport do
     end
   end
 
-  defp extract_suite({:xmlElement, :testsuite, :testsuite, _, _, _, _, attrs, children, _, _}, default_name) do
+  defp extract_suite({:xmlElement, :testsuite, :testsuite, _, _, _, _, attrs, children, _, _, _}, default_name) do
     cases = extract_testcases(children, [])
     %{
       name: get_xml_attr(attrs, ~c"name", String.to_charlist(default_name)) |> List.to_string(),
@@ -122,7 +122,7 @@ defmodule ExGoCD.TestReport do
 
   defp extract_testcases([], acc), do: acc
 
-  defp extract_testcases([{:xmlElement, :testcase, :testcase, _, _, _, _, attrs, children, _, _} | rest], acc) do
+  defp extract_testcases([{:xmlElement, :testcase, :testcase, _, _, _, _, attrs, children, _, _, _} | rest], acc) do
     tc = %{
       name: get_xml_attr(attrs, ~c"name", ~c"unknown") |> List.to_string(),
       classname: get_xml_attr(attrs, ~c"classname", ~c"") |> List.to_string(),
@@ -139,7 +139,7 @@ defmodule ExGoCD.TestReport do
   defp case_result(children) do
     has_tag = fn tag ->
       Enum.any?(children, fn
-        {:xmlElement, ^tag, ^tag, _, _, _, _, _, _, _, _} -> true
+        {:xmlElement, ^tag, ^tag, _, _, _, _, _, _, _, _, _} -> true
         _ -> false
       end)
     end
@@ -158,12 +158,12 @@ defmodule ExGoCD.TestReport do
 
   defp extract_failure_type(children) do
     child = Enum.find(children, fn
-      {:xmlElement, tag, _, _, _, _, _, _, _, _, _} when tag in [:failure, :error] -> true
+      {:xmlElement, tag, _, _, _, _, _, _, _, _, _, _} when tag in [:failure, :error] -> true
       _ -> false
     end)
 
     case child do
-      {:xmlElement, _, _, _, _, _, _, attrs, _, _, _} ->
+      {:xmlElement, _, _, _, _, _, _, _, attrs, _, _, _} ->
         get_xml_attr(attrs, ~c"type", nil) |> to_string_or_nil()
       _ -> nil
     end
@@ -186,7 +186,7 @@ defmodule ExGoCD.TestReport do
     end)
 
     case child do
-      {:xmlElement, _, _, _, _, _, _, sub_children, _, _} ->
+      {:xmlElement, _, _, _, _, _, _, _, sub_children, _, _, _} ->
         text = extract_text(sub_children)
         if text == "", do: nil, else: text
       _ -> nil
