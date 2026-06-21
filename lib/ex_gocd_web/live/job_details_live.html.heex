@@ -96,10 +96,23 @@
                   <span>Job is building. Console output will appear here...</span>
                 </div>
               <% true -> %>
-                <div class="text-gray-500 italic py-8 text-center flex flex-col items-center justify-center gap-2">
-                  <i class="fa fa-clock-o text-xl text-gray-600"></i>
-                  <span>No console output available for this job run.</span>
-                </div>
+                <%= if @job_instance && @job_instance.result == "Failed" do %>
+                  <div class="text-red-400 py-8 text-center flex flex-col items-center justify-center gap-3">
+                    <i class="fa fa-times-circle text-2xl text-red-500"></i>
+                    <span class="font-bold">Job Failed</span>
+                    <span class="text-gray-500 text-[11px] max-w-sm">
+                      <%= failure_reason(@job_instance) %>
+                    </span>
+                    <p class="text-gray-600 text-[10px] mt-1 max-w-md">
+                      No console output was captured. This could mean the job never started (no agent available, resource mismatch, or configuration error).
+                    </p>
+                  </div>
+                <% else %>
+                  <div class="text-gray-500 italic py-8 text-center flex flex-col items-center justify-center gap-2">
+                    <i class="fa fa-clock-o text-xl text-gray-600"></i>
+                    <span>No console output available for this job run.</span>
+                  </div>
+                <% end %>
             <% end %>
           </div>
 

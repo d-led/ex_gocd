@@ -631,6 +631,11 @@ defmodule ExGoCD.Scheduler do
     VsmTracer.set_attr("job.name", job)
     VsmTracer.set_attr("build.id", build_id)
 
+    # Store the current OTel context so agent status reports (job.status_update,
+    # job.complete) can continue this trace rather than creating orphan spans.
+    parent_ctx = VsmTracer.current_ctx()
+    if parent_ctx, do: ExGoCD.VsmContextStore.put(build_id, parent_ctx)
+
     build_locator = "#{pipeline}/#{pipeline_counter}/#{stage}/#{stage_counter}/#{job}/1"
 
     build_command =
@@ -649,6 +654,13 @@ defmodule ExGoCD.Scheduler do
       "artifactUploadBaseUrl" => artifact_upload_base_url
     }
     |> VsmTracer.inject_context()
+
+    # Debug: verify traceparent injection for Go agent cross-process tracing
+    if payload["traceparent"] do
+      Logger.debug("[OTel] traceparent injected for build #{build_id}: #{String.slice(payload["traceparent"], 0, 55)}...")
+    else
+      Logger.warning("[OTel] No traceparent injected for build #{build_id} — agent spans will be orphaned")
+    end
 
     opts = [
       job_instance_id: job_spec[:job_instance_id],

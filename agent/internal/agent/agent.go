@@ -342,6 +342,7 @@ func (a *Agent) handleBuild(build *protocol.Build) {
 
 	// Extract W3C traceparent from server build payload → link agent spans
 	// under the server's pipeline.trigger trace.
+	logger.Info().Msgf("Build traceparent: %q (len=%d)", build.TraceParent, len(build.TraceParent))
 	parentCtx := telemetry.ParentContextFromTraceParent(ctx, build.TraceParent, build.TraceState)
 
 	tracer := otel.Tracer("gocd-agent")

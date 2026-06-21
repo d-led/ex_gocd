@@ -279,6 +279,41 @@ defmodule ExGoCDWeb.JobDetailsLive do
     "/files/#{pipeline_name}/#{pipeline_counter}/#{stage_name}/#{stage_counter}/#{job_name}/testoutput/index.html"
   end
 
+  def failure_reason(job_instance) do
+    state = job_instance[:state] || "Unknown"
+    result = job_instance[:result] || "Unknown"
+
+    cond do
+      state == "Scheduled" and result == "Failed" ->
+        "Job was scheduled but never started. Check if an agent matching the required resources (#{job_resource_summary(job_instance)}) is available and enabled."
+
+      state == "Assigned" and result == "Failed" ->
+        "Job was assigned to an agent but failed to start. The agent may have lost connectivity or the working directory was invalid."
+
+      state == "Cancelled" ->
+        "Job was cancelled manually or by the system."
+
+      result == "Failed" ->
+        "Job completed with failure. Check the console log above for error details."
+
+      true ->
+        "Job state: #{state}, result: #{result}."
+    end
+  end
+
+  defp job_resource_summary(job_instance) do
+    # Try to get resources from the job config
+    job_name = job_instance[:name]
+    if job_name do
+      case ExGoCD.Repo.get_by(ExGoCD.Pipelines.Job, name: job_name) do
+        nil -> "none"
+        job -> if Enum.empty?(job.resources || []), do: "none", else: Enum.join(job.resources, ", ")
+      end
+    else
+      "unknown"
+    end
+  end
+
   defp list_materials(pipeline_name, pipeline_counter) do
     query = from(pi in ExGoCD.Pipelines.PipelineInstance,
       join: p in assoc(pi, :pipeline),
@@ -296,8 +331,9 @@ defmodule ExGoCDWeb.JobDetailsLive do
             left_join: mod in assoc(pmr, :modification),
             where: pmr.pipeline_instance_id == ^pi_id,
             select: %{
-              name: m.name,
+              url: m.url,
               type: m.type,
+              branch: m.branch,
               revision: mod.revision,
               comment: mod.comment,
               modified_at: mod.modified_time
@@ -306,8 +342,8 @@ defmodule ExGoCDWeb.JobDetailsLive do
         )
         Enum.map(pmrs, fn r ->
           %{
-            name: r.name,
-            type: r.type,
+            name: r.url || "unknown",
+            type: r.type || "git",
             revision: if(r.revision, do: String.slice(r.revision, 0, 12) <> "...", else: "—"),
             comment: r.comment || "—",
             modified_at: r.modified_at || "—"

@@ -395,16 +395,16 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
         }
       String.contains?(mat.url || "", "gocd/docs") ->
         %{
-          username: "GoCD Team",
-          email: "support@gocd.org",
+          username: "ExGoCD Team",
+          email: "dev@exgocd.local",
           revision: "98a7b6c5d4e3f2a10987654321abcdef01234567",
           comment: "Update materials page documentation for rewrite",
           modified_time: ~U[2026-06-11 11:30:00Z]
         }
       true ->
         %{
-          username: "gocd-admin",
-          email: "admin@gocd.org",
+          username: "exgocd-admin",
+          email: "admin@exgocd.local",
           revision: "f0e1d2c3b4a5968776655443322110abcdef0123",
           comment: "Initial commit for repository integration",
           modified_time: ~U[2026-06-11 10:15:00Z]

@@ -20,6 +20,9 @@ defmodule ExGoCD.Application do
       ExGoCD.Otel.setup()
     end
 
+    # ETS table for cross-process trace context propagation (assign → agent report)
+    ExGoCD.VsmContextStore.setup()
+
     base = [
       ExGoCDWeb.Telemetry,
       {DNSCluster, query: Application.get_env(:ex_gocd, :dns_cluster_query) || :ignore},

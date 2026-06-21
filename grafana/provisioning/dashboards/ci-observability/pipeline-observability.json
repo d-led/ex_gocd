@@ -21,6 +21,17 @@
       "includeVars": false,
       "keepTime": true,
       "targetBlank": true,
+      "title": "Logs Dashboard",
+      "tooltip": "Structured logs from Loki",
+      "type": "link",
+      "url": "/d/ci-logs"
+    },
+    {
+      "asDropdown": false,
+      "icon": "external-link",
+      "includeVars": false,
+      "keepTime": true,
+      "targetBlank": true,
       "title": "ex_gocd Built-in Analytics",
       "tooltip": "Pipeline MTTR, pass rate, build/wait times",
       "type": "link",
@@ -30,39 +41,14 @@
   "liveNow": false,
   "panels": [
     {
-      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 0 },
+      "gridPos": { "h": 4, "w": 24, "x": 0, "y": 0 },
       "id": 1,
       "options": {
         "code": { "language": "plaintext", "showLineNumbers": false, "showMiniMap": false },
-        "content": "# ex_gocd CI Observability\n\n**OpenTelemetry tracing** is configured for this CI server. Every pipeline trigger creates a correlated trace (VSM) spanning all stages and jobs.\n\n### Quick Links\n- **[Jaeger Trace Explorer →](http://localhost:16686/search)** — Search distributed traces. Select service `ex_gocd` and operation `pipeline.*` to see pipeline VSM traces.\n- **[Built-in Analytics →](http://localhost:4000/analytics)** — Pipeline MTTR, pass rate, build/wait times, agent utilization. No external tools needed.\n\n### How to see traces\n1. Trigger a pipeline (e.g. `demo` or `ex_gocd`) from the [Pipelines dashboard](http://localhost:4000/pipelines)\n2. Open **[Jaeger](http://localhost:16686/search)**, select service `ex_gocd`, click **Find Traces**\n3. Each trace shows the full pipeline execution: trigger → stage → job spans with timing",
+        "content": "# ex_gocd CI Pipeline Observability\n\nEvery pipeline trigger creates a correlated OTel trace: `pipeline.trigger` → `scheduler.enqueue` → `scheduler.assign_work` → `job.assign` → `job.status_update` → `job.complete`. Agents connecting produce `agent.connect` spans.\n\n**[Jaeger →](http://localhost:16686/search)** by `service=ex_gocd`  |  **[Logs →](/d/ci-logs)** Loki viewer  |  **[Analytics →](http://localhost:4000/analytics)** MTTR/pass-rate",
         "mode": "markdown"
       },
-      "pluginVersion": "9.5.0",
-      "title": "Getting Started",
-      "type": "text"
-    },
-    {
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
-      "id": 2,
-      "options": {
-        "code": { "language": "plaintext", "showLineNumbers": false, "showMiniMap": false },
-        "content": "## Architecture\n\n```\nex_gocd server                    Docker Compose\n     |                                |\n     | OTLP (localhost:4318)          |\n     v                                v\n+---------------+    +----------+   +---------+\n| OTel          |--->|  Jaeger  |<--| Grafana |\n| Collector     |    |  :16686  |   |  :3000  |\n+---------------+    +----------+   +---------+\n```\n\nTraces flow: **ex_gocd → OTel Collector → Jaeger**\n\nGrafana dashboards query Jaeger for trace data.\n\nConfig files:\n- `otel/collector-config.yml` — Collector pipeline\n- `config/config.exs` — OTel app config (`:ex_gocd, :otel`)\n- `lib/ex_gocd/otel.ex` — SDK setup\n- `lib/ex_gocd/otel/pipeline_tracer.ex` — Pipeline VSM instrumentation",
-        "mode": "markdown"
-      },
-      "pluginVersion": "9.5.0",
-      "title": "Architecture",
-      "type": "text"
-    },
-    {
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
-      "id": 3,
-      "options": {
-        "code": { "language": "plaintext", "showLineNumbers": false, "showMiniMap": false },
-        "content": "## Trace Structure\n\nEach pipeline trigger creates a trace like:\n\n```\nTrace: pipeline.build-linux (counter: 147)\n├── span: pipeline.build-linux [3.2s]          ← trigger\n│   └── event: wait.start / wait.end           ← scheduler timing\n├── span: stage.compile [2.1s]                 ← stage\n│   └── span: job.compile [1.8s]               ← job on agent\n└── span: stage.test [1.1s]\n    └── span: job.test [0.9s]\n```\n\n**Attributes per span:**\n- `pipeline.name`, `pipeline.counter`\n- `stage.name`, `stage.counter`\n- `job.name`, `agent.uuid`\n- `job.wait_ms` (computed on assignment)\n\n**Status codes:** `Ok` (passed), `Error` (failed/cancelled)",
-        "mode": "markdown"
-      },
-      "pluginVersion": "9.5.0",
-      "title": "Trace Structure",
+      "title": "Overview",
       "type": "text"
     },
     {
@@ -74,39 +60,106 @@
           "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
         }
       },
-      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 14 },
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 4 },
       "id": 10,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": { "calcs": ["count"], "fields": "", "values": false },
-        "textMode": "auto"
-      },
-      "targets": [
-        {
-          "datasource": { "type": "jaeger", "uid": "jaeger" },
-          "queryType": "search",
-          "refId": "A",
-          "service": "ex_gocd",
-          "operation": "pipeline.*"
-        }
-      ],
-      "title": "Traces (24h)",
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["count"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [{ "datasource": { "type": "jaeger", "uid": "jaeger" }, "queryType": "search", "refId": "A", "service": "ex_gocd", "operation": "pipeline.trigger" }],
+      "title": "Pipeline Triggers",
       "type": "stat"
+    },
+    {
+      "datasource": { "type": "jaeger", "uid": "jaeger" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "thresholds" }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 0 }] } }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 4 },
+      "id": 11,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["count"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [{ "datasource": { "type": "jaeger", "uid": "jaeger" }, "queryType": "search", "refId": "A", "service": "ex_gocd", "operation": "pipeline.trigger", "tags": "{\"error\":\"true\"}" }],
+      "title": "Trigger Errors",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "jaeger", "uid": "jaeger" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "thresholds" }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] } }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 4 },
+      "id": 12,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["count"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [{ "datasource": { "type": "jaeger", "uid": "jaeger" }, "queryType": "search", "refId": "A", "service": "ex_gocd", "operation": "job.complete" }],
+      "title": "Job Completions",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "jaeger", "uid": "jaeger" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "thresholds" }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 0 }] } }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 4 },
+      "id": 13,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["count"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [{ "datasource": { "type": "jaeger", "uid": "jaeger" }, "queryType": "search", "refId": "A", "service": "ex_gocd", "operation": "job.complete", "tags": "{\"error\":\"true\"}" }],
+      "title": "Job Failures",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "jaeger", "uid": "jaeger" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 4 },
+      "id": 14,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["count"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [{ "datasource": { "type": "jaeger", "uid": "jaeger" }, "queryType": "search", "refId": "A", "service": "ex_gocd", "operation": "agent.connect" }],
+      "title": "Agent Connects",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "jaeger", "uid": "jaeger" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 4 },
+      "id": 15,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["count"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [{ "datasource": { "type": "jaeger", "uid": "jaeger" }, "queryType": "search", "refId": "A", "service": "ex_gocd", "operation": "scheduler.assign_work" }],
+      "title": "Work Assignments",
+      "type": "stat"
+    },
+    {
+      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 8 },
+      "id": 20,
+      "options": {
+        "code": { "language": "plaintext", "showLineNumbers": false, "showMiniMap": false },
+        "content": "## Trace Structure (actual spans)\n\nEach pipeline trigger creates a single trace:\n\n```\nTrace ID: a1b2c3... (service: ex_gocd)\n│\n├── pipeline.trigger  [pipeline.name=demo, pipeline.counter=42]\n│   ├── scheduler.enqueue  [stage.name=build, job.name=compile]\n│   └── scheduler.assign_work  [agent.uuid=abc, pipeline.name=demo]\n│       └── job.assign  [agent.uuid=abc, job.instance_id=5]\n│           ├── job.status_update  [job.state=Building]\n│           ├── job.status_update  [job.state=Completing]\n│           └── job.status_update  [job.state=Completed, job.result=Passed]\n│               └── job.complete  [job.result=Passed, status=Ok]\n│\n├── agent.connect  [agent.uuid=abc, agent.hostname=worker-1]\n```\n\n**Span status**: `Ok` (green) = Passed; `Error` (red) = Failed/Cancelled.\n**Log correlation**: logs carry `trace_id` + `span_id` — click through from Jaeger to Loki.\n**Config**: `lib/ex_gocd/vsm_tracer.ex`, `lib/ex_gocd/logger_json.ex`, `otel/collector-config.yml`.",
+        "mode": "markdown"
+      },
+      "title": "Trace Structure",
+      "type": "text"
+    },
+    {
+      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 8 },
+      "id": 21,
+      "options": {
+        "code": { "language": "plaintext", "showLineNumbers": false, "showMiniMap": false },
+        "content": "## Attribute Reference\n\nAll spans use OpenTelemetry `dot.case` convention:\n\n| Attribute | Spans | Example |\n|---|---|---|\n| `pipeline.name` | all pipeline/job | `demo` |\n| `pipeline.counter` | all pipeline/job | `42` |\n| `stage.name` | scheduler + job | `build` |\n| `stage.counter` | scheduler + job | `1` |\n| `job.name` | all job spans | `compile` |\n| `job.instance_id` | job.assign, job.complete | `5` |\n| `job.state` | job.status_update | `Building` |\n| `job.result` | job.complete, job.status_update | `Passed` |\n| `agent.uuid` | agent + job spans | `abc123-def...` |\n| `agent.hostname` | agent.connect | `worker-1` |\n| `build.id` | scheduler, job.status_update | `build-12345` |\n\n### Filtering in Jaeger\n- `pipeline.name=demo` — all traces for that pipeline\n- `pipeline.counter=42` — a specific run\n- `error=true` — only failed spans\n- `operation=pipeline.trigger` — only trigger spans",
+        "mode": "markdown"
+      },
+      "title": "Attribute Reference",
+      "type": "text"
     }
   ],
-  "refresh": "",
+  "refresh": "30s",
   "schemaVersion": 38,
   "style": "dark",
-  "tags": ["ci", "pipelines", "observability"],
+  "tags": ["ci", "pipelines", "observability", "traces"],
   "templating": { "list": [] },
   "time": { "from": "now-24h", "to": "now" },
   "timepicker": {},
   "timezone": "",
   "title": "CI Pipeline Observability",
   "uid": "ci-pipeline-obs",
-  "version": 2,
+  "version": 3,
   "weekStart": ""
 }

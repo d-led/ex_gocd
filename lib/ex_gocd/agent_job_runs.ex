@@ -94,6 +94,11 @@ defmodule ExGoCD.AgentJobRuns do
       |> Repo.one()
 
     if run do
+      # Restore the trace context stored at assignment time so this span
+      # continues the pipeline trace rather than becoming an orphan root.
+      parent_ctx = ExGoCD.VsmContextStore.take(build_id)
+      VsmTracer.attach_ctx(parent_ctx)
+
       VsmTracer.trace("job.status_update", %{
         "build.id" => build_id,
         "job.name" => run.job_name,

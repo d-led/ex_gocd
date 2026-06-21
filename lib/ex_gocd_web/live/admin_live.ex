@@ -159,7 +159,7 @@ defmodule ExGoCDWeb.AdminLive do
               <% _ -> %>Admin
             <% end %>
           </h1>
-          <a href="https://docs.gocd.org" target="_blank" class="text-[#943a9e] text-base hover:text-purple-800" aria-label="Help">
+          <a href="https://github.com/d-led/ex_gocd" target="_blank" class="text-[#943a9e] text-base hover:text-purple-800" aria-label="Help">
             <i class="fa-solid fa-circle-question"></i>
           </a>
         </div>

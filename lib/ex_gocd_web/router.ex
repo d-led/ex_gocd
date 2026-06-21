@@ -50,6 +50,9 @@ defmodule ExGoCDWeb.Router do
     get "/api_json/go/pipelines/value_stream_map/:pipeline_name/:pipeline_counter", ValueStreamMapController, :show
     get "/api_json/go/materials/value_stream_map/:material_fingerprint/:revision", ValueStreamMapController, :show_material
 
+    # CCTray XML feed for CI monitoring tools
+    get "/go/cctray.xml", CCTrayController, :index
+
     live_session :gocd, on_mount: [{ExGoCDWeb.LiveSession, :assign_current_user}] do
       live "/", DashboardLive, :index
       live "/pipelines", DashboardLive, :index
@@ -135,6 +138,7 @@ defmodule ExGoCDWeb.Router do
     get "/jobs/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/:job_name", JobController, :show
     get "/jobs/:pipeline_name/:stage_name/:job_name/history", JobController, :history
 
+    get "/dashboard", DashboardController, :show
     get "/version", VersionController, :show
 
     # Pipeline operations (pause/unpause/approve/status/unlock/schedule)
@@ -170,6 +174,7 @@ defmodule ExGoCDWeb.Router do
   scope "/api/admin", ExGoCDWeb.API.Admin do
     pipe_through :api
 
+    resources "/pipelines", PipelineConfigController, except: [:new, :edit], param: "name"
     resources "/environments", EnvironmentController, except: [:new, :edit], param: "name"
   end
 
@@ -185,6 +190,7 @@ defmodule ExGoCDWeb.Router do
   scope "/go/api/admin", ExGoCDWeb.API.Admin do
     pipe_through :api
 
+    resources "/pipelines", PipelineConfigController, except: [:new, :edit], param: "name"
     resources "/environments", EnvironmentController, except: [:new, :edit], param: "name"
   end
 
@@ -214,6 +220,7 @@ defmodule ExGoCDWeb.Router do
     get "/jobs/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/:job_name", JobController, :show
     get "/jobs/:pipeline_name/:stage_name/:job_name/history", JobController, :history
 
+    get "/dashboard", DashboardController, :show
     get "/version", VersionController, :show
 
     # Pipeline operations (pause/unpause/approve/status/unlock/schedule)

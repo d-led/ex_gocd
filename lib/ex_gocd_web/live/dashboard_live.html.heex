@@ -213,13 +213,12 @@
                   <td class="col-job-name">
                     <span class="flex items-center gap-1.5">
                       <span class={"status-dot " <> String.downcase(job.result || "unknown")}></span>
-                      <span class="font-bold text-gray-800">{job.name}</span>
                       <.link
                         navigate={~p"/go/tab/build/detail/#{@active_stage_summary.pipeline_name}/#{@active_stage_summary.pipeline_counter}/#{@active_stage_summary.stage_name}/#{@active_stage_summary.stage_counter}/#{job.name}"}
-                        class="console-icon-link ml-1.5 inline-flex items-center"
-                        title="Job Logs / Console Output"
+                        class="font-bold text-gray-800 hover:text-[#2d6ca2] hover:underline"
+                        title="View job details: #{job.name}"
                       >
-                        <i class="fa-solid fa-terminal text-[10px] text-gray-400 hover:text-gray-700"></i>
+                        {job.name}
                       </.link>
                     </span>
                   </td>

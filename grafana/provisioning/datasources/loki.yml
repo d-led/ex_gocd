@@ -8,3 +8,10 @@ datasources:
     access: proxy
     editable: true
     isDefault: true
+    jsonData:
+      derivedFields:
+        - name: traceID
+          matcherRegex: '"trace_id":"(\w+)"'
+          url: '$${__value.raw}'
+          datasourceUid: jaeger
+          urlDisplayLabel: 'Jaeger trace'

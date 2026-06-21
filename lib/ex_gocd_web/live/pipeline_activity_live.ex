@@ -201,7 +201,7 @@ defmodule ExGoCDWeb.PipelineActivityLive do
         modifications: [
           %{
             revision: "f0e1d2c3b4a5968776655443322110abcdef0123",
-            user: "gocd-admin <admin@gocd.org>",
+            user: "exgocd-admin <admin@exgocd.local>",
             comment: "initial configuration setup",
             fingerprint: "8d78bc9f6c661806"
           }

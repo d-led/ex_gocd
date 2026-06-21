@@ -129,7 +129,7 @@ defmodule ExGoCDWeb.Layouts do
         <div class="site-header_right" style="display:flex;align-items:center;gap:16px">
           <a
             class="need_help"
-            href="https://docs.gocd.org"
+            href="https://github.com/d-led/ex_gocd"
             target="_blank"
             rel="noopener noreferrer"
             aria-label="Need Help? Opens in new window"

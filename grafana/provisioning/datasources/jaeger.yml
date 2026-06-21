@@ -10,8 +10,11 @@ datasources:
     isDefault: false
     jsonData:
       tracesToLogsV2:
-        datasourceUid: jaeger
+        datasourceUid: loki
         spanStartTimeShift: "1h"
         spanEndTimeShift: "1h"
         filterByTraceID: true
         filterBySpanID: true
+        tags:
+          - key: "service.name"
+            value: "ex_gocd"

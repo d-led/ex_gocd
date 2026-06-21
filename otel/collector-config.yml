@@ -1,5 +1,5 @@
 # OpenTelemetry Collector configuration for ex_gocd observability stack
-# Receives OTLP traces from the ex_gocd server and exports to Jaeger.
+# Receives OTLP traces from ex_gocd server, exports to Jaeger + Prometheus metrics.
 receivers:
   otlp:
     protocols:
@@ -27,6 +27,10 @@ exporters:
     endpoint: jaeger:4317
     tls:
       insecure: true
+  # Export metrics to Prometheus (scraped by Grafana)
+  prometheus:
+    endpoint: 0.0.0.0:8889
+    namespace: ex_gocd
   # Also log to stdout for debugging
   debug:
     verbosity: detailed
@@ -37,3 +41,7 @@ service:
       receivers: [otlp]
       processors: [memory_limiter, attributes, batch]
       exporters: [otlp, debug]
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, attributes, batch]
+      exporters: [prometheus, debug]

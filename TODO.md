@@ -24,11 +24,31 @@
 - [x] **Stage cancel** — `Pipelines.cancel_stage/3` marks jobs Cancelled, broadcasts update. Fixed JobInstance validation to accept "Cancelled" state.
 - [x] **Unreachable clause** — removed `_ -> :ok` dead code from trigger_pipeline case
 
-### Fixes
+### Fixes (2026-06-21 session)
 - [x] charlist `~c""` deprecation (Elixir 1.20)
 - [x] xmerl tuple patterns (10-12 element tuples)
 - [x] vsm_tracer unused variable warning
 - [x] Credo: `with→case`, poller dedup
+- [x] Material crash (`m.name` → `m.url`) in job details
+- [x] Job name clickable in dashboard → job details
+- [x] Failure reason when no console log
+- [x] `JobInstance` "Cancelled" state validation
+- [x] Unreachable `_ -> :ok` clause
+- [x] Layout test aria-label mismatch
+
+### Admin Menu Audit (2026-06-21)
+All 18 admin sub-menu links route to AdminLive tabs. UI shells exist. Backend gaps:
+- **config_xml**: ❌ XML export
+- **package_repositories**: ❌ CRUD
+- **elastic_agent_configs**: ❌ Profiles
+- **config_repos**: ⚠️ Schema, no sync engine
+- **artifact_stores**: ❌ Config
+- **secret_configs**: ❌ Management
+- **scms**: ❌ CRUD
+- **backup**: ❌ Execution
+- **plugins**: ❌ Listing
+- **auth_configs/roles**: ❌ CRUD
+- **templates**: ⚠️ Schema, no API
 
 ## 🔴 P1: Remaining
 

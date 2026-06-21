@@ -202,11 +202,11 @@ defmodule ExGoCDWeb.MaterialsLive do
              "upgrade actions and fix compilation warnings", ~U[2026-06-11 12:00:00Z]}
 
           String.contains?(mat.url || "", "gocd/docs") ->
-            {"GoCD Team", "support@gocd.org", "98a7b6c5d4e3f2a10987654321abcdef01234567",
+            {"ExGoCD Team", "dev@exgocd.local", "98a7b6c5d4e3f2a10987654321abcdef01234567",
              "Update materials page documentation for rewrite", ~U[2026-06-11 11:30:00Z]}
 
           true ->
-            {"gocd-admin", "admin@gocd.org", "f0e1d2c3b4a5968776655443322110abcdef0123",
+            {"exgocd-admin", "admin@exgocd.local", "f0e1d2c3b4a5968776655443322110abcdef0123",
              "Initial commit for repository integration", ~U[2026-06-11 10:15:00Z]}
         end
 
@@ -540,13 +540,13 @@ defmodule ExGoCDWeb.MaterialsLive do
       String.contains?(material.url || "", "gocd/docs") ->
         [
           %{
-            username: "GoCD Team <support@gocd.org>",
+            username: "ExGoCD Team <dev@exgocd.local>",
             revision: "98a7b6c5d4e3f2a10987654321abcdef01234567",
             comment: "Update materials page documentation for rewrite",
             modified_time: ~U[2026-06-11 11:30:00Z]
           },
           %{
-            username: "GoCD Team <support@gocd.org>",
+            username: "ExGoCD Team <dev@exgocd.local>",
             revision: "87a6b5c4d3e2f1a0987654321abcdef012345678",
             comment: "Clarify pipeline dependencies layout in documentation",
             modified_time: ~U[2026-06-11 10:00:00Z]
@@ -556,7 +556,7 @@ defmodule ExGoCDWeb.MaterialsLive do
       true ->
         [
           %{
-            username: "gocd-admin <admin@gocd.org>",
+            username: "exgocd-admin <admin@exgocd.local>",
             revision: "f0e1d2c3b4a5968776655443322110abcdef0123",
             comment: "Initial commit for repository integration",
             modified_time: ~U[2026-06-11 10:15:00Z]

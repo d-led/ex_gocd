@@ -82,7 +82,7 @@ defmodule ExGoCDWeb.LayoutsTest do
       html = render_component(&Layouts.site_header/1, assigns)
 
       assert html =~ ~s(Need Help?)
-      assert html =~ ~s(href="https://docs.gocd.org")
+      assert html =~ ~s(href="https://github.com/d-led/ex_gocd")
       assert html =~ ~s(target="_blank")
       assert html =~ ~s(rel="noopener noreferrer")
       assert html =~ ~s(aria-label="Need Help? Opens in new window")
