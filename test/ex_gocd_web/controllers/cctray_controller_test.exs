@@ -132,7 +132,7 @@ defmodule ExGoCDWeb.CCTrayControllerTest do
   end
 
   defp insert_stage_instance(pipeline_instance_id, name, counter, state, result) do
-    now = DateTime.utc_now()
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
     Repo.insert!(%StageInstance{
       pipeline_instance_id: pipeline_instance_id,
       name: name,
