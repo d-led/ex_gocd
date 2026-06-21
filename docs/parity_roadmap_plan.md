@@ -46,50 +46,68 @@ Lock lifecycle managed in `do_complete_stage/3`: sets `locked: true` on failure 
 
 ---
 
-## Phase 4: Timer-Triggered Pipelines (Next)
+## Phase 4: Timer-Triggered Pipelines ✅ DONE
 
-Pipeline configs have a `timer` field (cron spec string, e.g. `"0 0 22 ? * MON-FRI"`) and `timer_only_on_changes` flag but nothing evaluates them.
+Pipeline configs have a `timer` field (cron spec string, e.g. `"0 0 22 ? * MON-FRI"`) and `timer_only_on_changes` flag.
 
-### 1. Schema Update
-Add `timer_only_on_changes` boolean field to `pipelines` table (the `timer` string field already exists).
+### 1. Schema Update ✅
+Added `timer_only_on_changes` boolean field to `pipelines` table.
 
-### 2. `ExGoCD.Materials.TimerScheduler` GenServer
-- On startup, read all pipelines with a non-nil `timer` field.
-- Parse the cron spec and register a recurring `:schedule` timer for each.
-- On each tick: if `timer_only_on_changes == true`, skip if no new material revisions since last run; otherwise call `Pipelines.trigger_pipeline/1` with trigger cause `"timer"`.
-- Re-register timers when pipeline config changes (subscribe to `"pipelines:updates"` PubSub).
-
-### 3. Trigger Flow Integration
-`trigger_pipeline/1` already handles the full flow. Timer calls it with no extra changes needed except recording the build cause as `"Timer"` in `PipelineInstance.build_cause`.
-
-### 4. Tests
-- Given a pipeline with `timer: "* * * * *"` and `timer_only_on_changes: false`, after one cron tick, a new `PipelineInstance` exists.
-- Given `timer_only_on_changes: true` and no new modifications since last run, no new instance is created.
-- Given `timer_only_on_changes: true` and a new modification, instance is created.
+### 2. `ExGoCD.Materials.TimerScheduler` GenServer ✅
+- GenServer starts on application boot, subscribing to `pipelines:updates`.
+- Computes Quartz-style cron schedules, executing ticks to trigger jobs.
+- Implements `timer_only_on_changes` checking of SCM modifications since last run.
 
 ---
 
-## Phase 5: Manual Stage Gate
+## Phase 5: Manual Stage Gate ✅ DONE
 
-`approval_type: "manual"` is stored and validated on `Stage` but `trigger_next_stage` currently advances to the next stage automatically regardless of its approval type.
+`approval_type: "manual"` is stored and validated on `Stage`.
 
-### 1. Gate in `trigger_next_stage`
-In `do_complete_stage → maybe_trigger_next_stage → trigger_next_stage`: check if `next_stage.approval_type == "manual"`. If so, create the `StageInstance` in state `"Awaiting"` (not `"Building"`) and do NOT schedule any job instances yet.
+### 1. Gate in `trigger_next_stage` ✅
+Stages with manual gates transition to `"Awaiting"` state and do not schedule jobs until approved.
 
-### 2. `Pipelines.approve_stage/3`
-```
-approve_stage(pipeline_name, pipeline_counter, stage_name) :: {:ok, stage_instance} | {:error, reason}
-```
-- Finds the awaiting `StageInstance`.
-- Transitions it from `"Awaiting"` → `"Building"`.
-- Schedules its `JobInstance`s into the `Scheduler`.
-- Broadcasts `pipelines:updates`.
+### 2. `Pipelines.approve_stage/3` ✅
+Approve stage actions transition stages to `"Building"` and dispatch jobs to the `Scheduler`.
 
-### 3. API / LiveView
-- REST endpoint: `POST /go/pipelines/:pipeline_name/:counter/:stage_name/run` (mirrors GoCD API v1).
-- Dashboard LiveView: show a "▶ Approve" button on awaiting stages for users with operate permission.
+### 3. API / LiveView ✅
+Exposed REST endpoint `POST /go/pipelines/:pipeline_name/:counter/:stage_name/run` and added visual "Approve" actions to the UI.
 
-### 4. Tests
-- Given a pipeline with stage1 (auto) → stage2 (manual): after stage1 passes, stage2 `StageInstance` exists in state `"Awaiting"` with no scheduled jobs.
-- Calling `approve_stage/3` transitions stage2 to `"Building"` and enqueues jobs.
-- Calling `trigger_pipeline` while stage2 is awaiting returns `{:error, :pipeline_locked}` for `lockOnFailure` pipelines (pipeline is still considered "active").
+---
+
+## Phase 6: REST API Parity & Personal Access Tokens (PATs) ✅ DONE
+
+### 1. Version, Pause, and Lock APIs ✅
+Exposed REST endpoints to check version status, pause/unpause pipelines, and unlock active runs.
+
+### 2. Schedule Trigger Overrides ✅
+Added options to trigger pipelines with customized SCM revisions and environment variables.
+
+### 3. Personal Access Tokens ✅
+Implemented user token generation, hashes storage, Bearer authentication plug, and token management APIs.
+
+---
+
+## Phase 7: SCM Post-Commit Webhooks ✅ DONE
+
+### 1. Webhook Receivers ✅
+Implemented GitHub and GitLab webhook endpoints with secret token verification and payload signature verification.
+
+### 2. Git Notification API ✅
+Exposed `/api/admin/materials/git/notify` endpoint to trigger repository polling manually.
+
+---
+
+## Remaining Gaps vs. Legacy GoCD
+
+While the core pipeline execution, scheduling, agent tracking, webhooks, and REST APIs are complete, the following gaps remain to reach full parity with legacy GoCD:
+
+1. **Multi-SCM Materials**: Git is currently the only supported VCS. SVN, Mercurial (Hg), Perforce (P4), TFS, and pluggable custom SCMs are not yet implemented.
+2. **Configuration Templates & Parameters**: GoCD templates and parameter interpolation (`#{param_name}`) are not supported; pipelines must be defined directly.
+3. **Pipeline-as-Code (Config Repos)**: Support for syncing pipeline configurations dynamically from Git repositories using YAML/JSON templates is missing.
+4. **Daemon / Parallel Jobs**:
+   - `run_on_all_agents` (to schedule job instances on all agents for cleanups).
+   - `run_multiple_instance` (to split a job into parallel runs).
+5. **Granular RBAC**: Environment-level and pipeline-group-level granular permissions (Operate, View, Admin) are checked via basic policies, but lack a dynamic user-customizable definitions store.
+6. **System & Storage Monitors**: Low disk space detectors and automatic artifact cleanup/purging policies are not implemented.
+7. **Artifact Checksums**: Calculated checksum manifests (MD5/SHA) for artifact integrity verification on `FetchArtifact` tasks are not enforced.
