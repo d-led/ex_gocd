@@ -14,7 +14,6 @@ defmodule ExGoCD.VsmTracer do
   """
 
   require OpenTelemetry.Tracer, as: Tracer
-  require Logger
 
   @typedoc "Common span attributes shared across all VSM spans"
   @type vsm_attrs :: %{
