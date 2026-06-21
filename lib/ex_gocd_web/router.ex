@@ -181,6 +181,10 @@ defmodule ExGoCDWeb.Router do
     resources "/pipelines", PipelineConfigController, except: [:new, :edit], param: "name"
     resources "/templates", TemplateController, except: [:new, :edit], param: "name"
     resources "/environments", EnvironmentController, except: [:new, :edit], param: "name"
+
+    get "/maintenance_mode/info", MaintenanceModeController, :show
+    post "/maintenance_mode/enable", MaintenanceModeController, :enable
+    post "/maintenance_mode/disable", MaintenanceModeController, :disable
   end
 
   scope "/api/current_user", ExGoCDWeb.API do

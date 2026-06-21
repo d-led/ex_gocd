@@ -1,4 +1,12 @@
+if System.get_env("CI") do
+  ExUnit.configure(
+    formatters: [ExUnit.CLIFormatter, JUnitFormatter],
+    junit_formatter: [report_dir: "/Users/dmitryledentsov/src/gocd-rewrite/ex_gocd/_build/test-results"]
+  )
+end
+
 ExUnit.start()
+
 
 # When running without Postgres (EX_GOCD_TEST_NO_DB=1), Repo is not started; skip sandbox.
 if System.get_env("EX_GOCD_TEST_NO_DB") != "1" do

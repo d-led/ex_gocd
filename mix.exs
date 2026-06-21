@@ -86,7 +86,9 @@ defmodule ExGoCD.MixProject do
       {:opentelemetry_phoenix, "~> 1.1"},
       {:opentelemetry_ecto, "~> 1.2"},
       {:excoveralls, "~> 0.18", only: [:test]},
+      {:junit_formatter, "~> 3.4", only: [:test]},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+
       {:dialyxir, "~> 1.4", only: [:dev], runtime: false},
       {:logger_backends, "~> 1.0"},
       {:yaml_elixir, "~> 2.11"},
