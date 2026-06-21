@@ -69,19 +69,64 @@ defmodule ExGoCDWeb.ValueStreamMapLive do
       "Building" -> "bg-[#5bc0de]"
       "Cancelled" -> "bg-[#f0ad4e]"
       "Awaiting" -> "bg-[#e7eef0] border border-[#b6cdd2]"
+      "Completed" -> "bg-[#5cb85c]"
       _ -> "bg-gray-300"
+    end
+  end
+
+  defp pipeline_node_status(node) do
+    inst = (node["instances"] || []) |> List.first()
+    if is_nil(inst), do: nil, else: do_pipeline_node_status(inst)
+  end
+
+  defp do_pipeline_node_status(inst) do
+    stages = inst["stages"] || []
+    statuses = Enum.map(stages, & &1["status"])
+
+    cond do
+      Enum.any?(statuses, &(&1 == "Failed")) -> "Failed"
+      Enum.any?(statuses, &(&1 == "Building")) -> "Building"
+      Enum.any?(statuses, &(&1 == "Cancelled")) -> "Cancelled"
+      Enum.all?(statuses, &(&1 in ["Passed", "Completed"])) -> "Passed"
+      Enum.any?(statuses, &(&1 == "Awaiting")) -> "Awaiting"
+      true -> "Unknown"
+    end
+  end
+
+  defp node_status_border(status) do
+    case status do
+      "Passed" -> "border-[#5cb85c] border-2"
+      "Failed" -> "border-[#d9534f] border-2"
+      "Building" -> "border-[#5bc0de] border-2"
+      "Cancelled" -> "border-[#f0ad4e] border-2"
+      "Awaiting" -> "border-[#b6cdd2] border-2"
+      _ -> "border-[#2fa8b6]"
+    end
+  end
+
+  defp node_status_badge(status) do
+    case status do
+      "Passed" -> "bg-[#5cb85c] text-white"
+      "Failed" -> "bg-[#d9534f] text-white"
+      "Building" -> "bg-[#5bc0de] text-white"
+      "Cancelled" -> "bg-[#f0ad4e] text-white"
+      "Awaiting" -> "bg-[#e7eef0] text-gray-600"
+      _ -> "bg-gray-300 text-gray-600"
     end
   end
 
   defp vsm_node_widget(assigns) do
     ~H"""
+    <%
+      p_status = if @node["node_type"] == "PIPELINE", do: pipeline_node_status(@node), else: nil
+      current_overrides = if @is_current, do: "border-[#943a9e] border-2 ring-4 ring-purple-100", else: node_status_border(p_status)
+    %>
     <div
       id={"node-#{@node["id"]}"}
       data-id={@node["id"]}
       data-parents={Jason.encode!(@node["parents"] || [])}
       data-dependents={Jason.encode!(@node["dependents"] || [])}
-      class={"vsm-node p-3 md:p-4 border rounded shadow-sm w-64 md:w-72 flex flex-col justify-between transition-all duration-200 bg-white relative z-10 " <>
-        if(@is_current, do: "border-[#943a9e] border-2 ring-4 ring-purple-100", else: "border-[#2fa8b6] hover:border-[#1d747e] hover:shadow-md")}
+      class={"vsm-node p-3 md:p-4 border rounded shadow-sm w-64 md:w-72 flex flex-col justify-between transition-all duration-200 bg-white relative z-10 " <> current_overrides <> if(!@is_current && p_status, do: " hover:shadow-md", else: "")}
     >
 
       <%= if @is_current do %>
@@ -128,6 +173,11 @@ defmodule ExGoCDWeb.ValueStreamMapLive do
           <%= if @is_current do %>
             <span class="text-[9px] bg-purple-100 text-[#943a9e] font-extrabold px-1.5 py-0.5 rounded uppercase font-mono">Current</span>
           <% end %>
+          <%= if p_status do %>
+            <span class={"text-[9px] font-bold px-1.5 py-0.5 rounded uppercase font-mono " <> node_status_badge(p_status)}>
+              {p_status}
+            </span>
+          <% end %>
           <%= if @node["fan_in"] && @node["fan_in"] > 1 do %>
             <span class="text-[9px] bg-amber-100 text-amber-700 font-bold px-1.5 py-0.5 rounded uppercase font-mono" title="Multiple upstreams converge here">
               FI:{@node["fan_in"]}
@@ -168,7 +218,7 @@ defmodule ExGoCDWeb.ValueStreamMapLive do
                   <li class="relative">
                     <.link
                       navigate={stage["locator"]}
-                      class={"w-5 h-5 block rounded-sm transition-transform hover:scale-105 " <> stage_status_bg(stage["status"])}
+                      class={"w-6 h-6 block rounded-sm transition-transform hover:scale-110 " <> stage_status_bg(stage["status"])}
                       title={"#{stage["name"]} (#{stage["status"]})"}
                       aria-label={"#{stage["name"]} (#{stage["status"]})"}
                     >
