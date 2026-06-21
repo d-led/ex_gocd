@@ -14,6 +14,7 @@ defmodule ExGoCDWeb.Router do
   pipeline :api do
     plug :accepts, ["json"]
     plug :fetch_session
+    plug ExGoCDWeb.Plugs.TokenAuthPlug
     plug ExGoCDWeb.Plugs.GoCDAPIHeaders
   end
 
@@ -137,6 +138,11 @@ defmodule ExGoCDWeb.Router do
     post "/pipelines/:pipeline_name/unlock", PipelineOperationsController, :unlock
     post "/pipelines/:pipeline_name/schedule", PipelineOperationsController, :schedule
     post "/pipelines/:pipeline_name/:counter/:stage_name/run", PipelineOperationsController, :approve_stage
+
+    # SCM post-commit and push webhooks
+    post "/admin/materials/git/notify", WebhookController, :git_notify
+    post "/webhooks/github/notify", WebhookController, :github_notify
+    post "/webhooks/gitlab/notify", WebhookController, :gitlab_notify
   end
 
   scope "/api/admin", ExGoCDWeb.API.Admin do
@@ -145,10 +151,28 @@ defmodule ExGoCDWeb.Router do
     resources "/environments", EnvironmentController, except: [:new, :edit], param: "name"
   end
 
+  scope "/api/current_user", ExGoCDWeb.API do
+    pipe_through :api
+
+    get "/access_tokens", PersonalAccessTokenController, :index
+    get "/access_tokens/:id", PersonalAccessTokenController, :show
+    post "/access_tokens", PersonalAccessTokenController, :create
+    post "/access_tokens/:id/revoke", PersonalAccessTokenController, :revoke
+  end
+
   scope "/go/api/admin", ExGoCDWeb.API.Admin do
     pipe_through :api
 
     resources "/environments", EnvironmentController, except: [:new, :edit], param: "name"
+  end
+
+  scope "/go/api/current_user", ExGoCDWeb.API do
+    pipe_through :api
+
+    get "/access_tokens", PersonalAccessTokenController, :index
+    get "/access_tokens/:id", PersonalAccessTokenController, :show
+    post "/access_tokens", PersonalAccessTokenController, :create
+    post "/access_tokens/:id/revoke", PersonalAccessTokenController, :revoke
   end
 
   scope "/go/api", ExGoCDWeb.API do
@@ -175,6 +199,11 @@ defmodule ExGoCDWeb.Router do
     post "/pipelines/:pipeline_name/unlock", PipelineOperationsController, :unlock
     post "/pipelines/:pipeline_name/schedule", PipelineOperationsController, :schedule
     post "/pipelines/:pipeline_name/:counter/:stage_name/run", PipelineOperationsController, :approve_stage
+
+    # SCM post-commit and push webhooks
+    post "/admin/materials/git/notify", WebhookController, :git_notify
+    post "/webhooks/github/notify", WebhookController, :github_notify
+    post "/webhooks/gitlab/notify", WebhookController, :gitlab_notify
   end
 
   # GoCD internal agent remoting API (HTTP-based, used by official Go agent)

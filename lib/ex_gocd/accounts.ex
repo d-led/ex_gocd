@@ -8,6 +8,7 @@ defmodule ExGoCD.Accounts do
   """
   import Ecto.Query, warn: false
   alias ExGoCD.Accounts.User
+  alias ExGoCD.Accounts.PersonalAccessToken
   alias ExGoCD.Repo
 
   @doc """
@@ -144,6 +145,81 @@ defmodule ExGoCD.Accounts do
         roles: ["admin"],
         status: "Active"
       }
+    end
+  end
+
+  @doc """
+  Lists all active and revoked personal access tokens for a given user.
+  """
+  def list_user_tokens(user_id) do
+    PersonalAccessToken
+    |> where(user_id: ^user_id)
+    |> Repo.all()
+  end
+
+  @doc """
+  Gets a specific personal access token for a user.
+  """
+  def get_user_token(user_id, token_id) do
+    Repo.get_by(PersonalAccessToken, id: token_id, user_id: user_id)
+  end
+
+  @doc """
+  Generates and saves a new personal access token for a user.
+  """
+  def create_user_token(user_id, description) when is_binary(description) do
+    # Generate 40-character secure random hex token
+    raw_token = :crypto.strong_rand_bytes(20) |> Base.encode16(case: :lower)
+    token_hash = :crypto.hash(:sha256, raw_token) |> Base.encode16(case: :lower)
+
+    attrs = %{
+      user_id: user_id,
+      description: description,
+      token_hash: token_hash,
+      revoked: false
+    }
+
+    case %PersonalAccessToken{} |> PersonalAccessToken.changeset(attrs) |> Repo.insert() do
+      {:ok, token} ->
+        token = Repo.preload(token, :user)
+        {:ok, %{token | token: raw_token}}
+
+      {:error, changeset} ->
+        {:error, changeset}
+    end
+  end
+
+  @doc """
+  Revokes a personal access token.
+  """
+  def revoke_token(token, revoked_by, cause \\ nil) do
+    attrs = %{
+      revoked: true,
+      revoked_at: DateTime.utc_now() |> DateTime.truncate(:second),
+      revoked_by: revoked_by,
+      revoke_cause: cause
+    }
+
+    token
+    |> PersonalAccessToken.changeset(attrs)
+    |> Repo.update()
+  end
+
+  @doc """
+  Verifies a raw token value, updating its `last_used_at` timestamp if valid.
+  """
+  def verify_access_token(raw_token) when is_binary(raw_token) do
+    token_hash = :crypto.hash(:sha256, raw_token) |> Base.encode16(case: :lower)
+
+    case Repo.get_by(PersonalAccessToken, token_hash: token_hash, revoked: false) do
+      nil ->
+        {:error, :invalid_token}
+
+      token ->
+        token = Repo.preload(token, :user)
+        now = DateTime.utc_now() |> DateTime.truncate(:second)
+        {:ok, _} = token |> PersonalAccessToken.changeset(%{last_used_at: now}) |> Repo.update()
+        {:ok, token.user}
     end
   end
 end

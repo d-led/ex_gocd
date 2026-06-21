@@ -21,6 +21,10 @@ defmodule ExGoCD.Materials.Poller do
     GenServer.call(__MODULE__, :poll_now)
   end
 
+  def poll_materials_by_url(url) when is_binary(url) do
+    GenServer.call(__MODULE__, {:poll_materials_by_url, url})
+  end
+
   # Callbacks
   @impl true
   def init(opts) do
@@ -45,6 +49,12 @@ defmodule ExGoCD.Materials.Poller do
   @impl true
   def handle_call(:poll_now, _from, state) do
     results = do_poll()
+    {:reply, {:ok, results}, state}
+  end
+
+  @impl true
+  def handle_call({:poll_materials_by_url, url}, _from, state) do
+    results = do_poll_for_url(url)
     {:reply, {:ok, results}, state}
   end
 
@@ -108,4 +118,42 @@ defmodule ExGoCD.Materials.Poller do
         {pipeline.name, :error, reason}
     end
   end
+
+  defp do_poll_for_url(url) do
+    Logger.debug("SCM Poller: starting check for url #{url}...")
+    import Ecto.Query
+
+    target_norm = normalize_git_url(url)
+
+    # Fetch all git materials
+    materials =
+      Repo.all(from m in Material, where: m.type == "git" and m.auto_update == true)
+      |> Repo.preload(:pipelines)
+      |> Enum.filter(&(normalize_git_url(&1.url) == target_norm))
+
+    Enum.map(materials, fn material ->
+      case GitClient.latest_revision(material.url, material.branch || "master") do
+        {:ok, commit_info} ->
+          check_and_trigger(material, commit_info)
+
+        {:error, reason} ->
+          Logger.error("SCM Poller: failed to check material #{material.url}: #{inspect(reason)}")
+          {:error, material.id, reason}
+      end
+    end)
+  end
+
+  @doc """
+  Canonicalizes a git repository URL (resolves SSH/HTTPS/Git protocols and suffix/prefixes).
+  """
+  def normalize_git_url(url) when is_binary(url) do
+    url
+    |> String.trim()
+    |> String.replace(~r/^(https?|git|ssh|git\+ssh):\/\//, "")
+    |> String.replace(~r/^git@/, "")
+    |> String.replace(~r/:/, "/")
+    |> String.replace(~r/\.git$/, "")
+    |> String.downcase()
+  end
+  def normalize_git_url(_), do: ""
 end
