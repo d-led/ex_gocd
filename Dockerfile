@@ -8,15 +8,25 @@ RUN apt-get update -y && apt-get install -y build-essential git && apt-get clean
 WORKDIR /app
 
 # Install hex + rebar
-RUN mix local.hex --force && mix local.rebar --force
+RUN --mount=type=cache,target=/root/.hex \
+    --mount=type=cache,target=/root/.mix \
+    mix local.hex --force && mix local.rebar --force
 
 # Set build environment
 ENV MIX_ENV="prod"
 
 # Install Elixir dependencies
 COPY mix.exs mix.lock ./
-RUN mix deps.get --only $MIX_ENV
-RUN mix deps.compile
+RUN --mount=type=cache,target=/root/.hex \
+    --mount=type=cache,target=/root/.mix \
+    --mount=type=cache,target=/app/deps \
+    mix deps.get --only $MIX_ENV
+
+RUN --mount=type=cache,target=/root/.hex \
+    --mount=type=cache,target=/root/.mix \
+    --mount=type=cache,target=/app/deps,sharing=shared \
+    --mount=type=cache,target=/app/_build,sharing=shared \
+    mix deps.compile
 
 # Copy configuration and source files
 COPY config config
@@ -25,13 +35,25 @@ COPY priv priv
 COPY assets assets
 
 # Compile the application first so colocated hooks are available to esbuild.
-RUN mix compile
+RUN --mount=type=cache,target=/root/.hex \
+    --mount=type=cache,target=/root/.mix \
+    --mount=type=cache,target=/app/deps,sharing=shared \
+    --mount=type=cache,target=/app/_build,sharing=shared \
+    mix compile
 
 # Compile assets and digest them
-RUN mix assets.deploy
+RUN --mount=type=cache,target=/root/.hex \
+    --mount=type=cache,target=/root/.mix \
+    --mount=type=cache,target=/app/deps,sharing=shared \
+    --mount=type=cache,target=/app/_build,sharing=shared \
+    mix assets.deploy
 
 # Build the release
-RUN mix release
+RUN --mount=type=cache,target=/root/.hex \
+    --mount=type=cache,target=/root/.mix \
+    --mount=type=cache,target=/app/deps,sharing=shared \
+    --mount=type=cache,target=/app/_build,sharing=shared \
+    mix release && cp -r _build/prod/rel/ex_gocd /app/release
 
 # Stage 2: Runner (distroless-like slim debian runner)
 FROM debian:bookworm-slim AS runner
@@ -47,7 +69,7 @@ WORKDIR /app
 RUN chown nobody /app
 
 # Copy the compiled release
-COPY --from=builder --chown=nobody /app/_build/prod/rel/ex_gocd ./
+COPY --from=builder --chown=nobody /app/release ./
 
 USER nobody
 
