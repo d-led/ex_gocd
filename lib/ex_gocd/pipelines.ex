@@ -88,6 +88,7 @@ defmodule ExGoCD.Pipelines do
         with %Pipeline{} = pipeline <- get_pipeline_by_name(pipeline_name),
              {:paused, false} <- {:paused, pipeline.paused},
              {:locked, false} <- {:locked, pipeline_locked?(pipeline)},
+             {:maintenance, false} <- {:maintenance, ExGoCD.MaintenanceMode.enabled?()},
              pipeline = Repo.preload(pipeline, [:materials, :template, stages: [jobs: :tasks]]),
              pipeline = resolve_template_stages(pipeline),
              {:ok, proposed} <- resolve_proposed_revisions(pipeline, options),
@@ -106,6 +107,7 @@ defmodule ExGoCD.Pipelines do
           nil -> {:error, :pipeline_not_found}
           {:paused, true} -> {:error, :pipeline_paused}
           {:locked, true} -> {:error, :pipeline_locked}
+          {:maintenance, true} -> {:error, :maintenance_mode}
           {:error, reason} -> {:error, reason}
         end
       end)

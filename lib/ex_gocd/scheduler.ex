@@ -56,7 +56,8 @@ defmodule ExGoCD.Scheduler do
   Returns :assigned | :no_work | :agent_busy | :agent_not_connected | :agent_not_found.
   """
   def try_assign_work(agent_uuid) when is_binary(agent_uuid) do
-    GenServer.call(__MODULE__, {:try_assign_work, agent_uuid, nil})
+    parent_ctx = VsmTracer.current_ctx()
+    GenServer.call(__MODULE__, {:try_assign_work, agent_uuid, parent_ctx})
   end
 
   @doc """
@@ -98,6 +99,11 @@ defmodule ExGoCD.Scheduler do
       "stage.counter" => spec[:stage_counter] || spec["stage_counter"],
       "job.name" => spec[:job] || spec["job"]
     }, fn ->
+      # Capture current context for cross-process trace propagation.
+      # Stored in the job spec so assign_and_send can inject traceparent
+      # even when assignment happens via async agent ping (try_assign_work).
+      enqueue_ctx = VsmTracer.current_ctx()
+
       if spec[:job_instance_id] do
         new_db_count = db_count + 1
         broadcast_pending_count(length(queue) + new_db_count)
@@ -105,7 +111,8 @@ defmodule ExGoCD.Scheduler do
         {:reply, {:ok, "db-#{spec.job_instance_id}"}, %{state | db_pending_count: new_db_count}}
       else
         id = "sched-#{System.unique_integer([:positive])}"
-        new_queue = queue ++ [Map.put(spec, :id, id)]
+        spec_with_ctx = Map.put(spec, :enqueue_ctx, enqueue_ctx)
+        new_queue = queue ++ [Map.put(spec_with_ctx, :id, id)]
         broadcast_pending_count(length(new_queue) + db_count)
         trigger_assignment_for_idle_agents()
         {:reply, {:ok, id}, %{state | in_memory_queue: new_queue}}
@@ -639,6 +646,12 @@ defmodule ExGoCD.Scheduler do
     stage = job_spec.stage
     stage_counter = job_spec.stage_counter
     job = job_spec.job
+
+    # Attach the pipeline trigger's trace context stored at enqueue time.
+    # This ensures inject_context produces a traceparent that links the
+    # Go agent's spans under the pipeline.trigger trace, even when
+    # assignment happens via try_assign_work (agent ping path).
+    VsmTracer.attach_ctx(job_spec[:enqueue_ctx])
 
     # Enrich the parent scheduler.assign_work span with what was assigned
     VsmTracer.set_attr("pipeline.name", pipeline)

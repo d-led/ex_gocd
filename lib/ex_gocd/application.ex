@@ -34,7 +34,8 @@ defmodule ExGoCD.Application do
       ExGoCDWeb.Endpoint,
       ExGoCD.Materials.Poller,
       ExGoCD.Materials.TimerScheduler,
-      ExGoCD.Pipelines.ConsoleActivityMonitor
+      ExGoCD.Pipelines.ConsoleActivityMonitor,
+      ExGoCD.MaintenanceMode
     ]
 
     children =
