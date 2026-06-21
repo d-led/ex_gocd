@@ -1,7 +1,7 @@
 defmodule ExGoCD.ConfigRepos.GitLabCITranslatorTest do
   use ExGoCD.DataCase, async: true
 
-  alias ExGoCD.ConfigRepos.{ExternalPipelineIR, GitLabCITranslator, GitLabCIParser}
+  alias ExGoCD.ConfigRepos.{GitLabCITranslator, GitLabCIParser}
 
   @prefix "eci-test-glct"
 

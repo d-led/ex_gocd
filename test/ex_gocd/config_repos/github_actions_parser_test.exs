@@ -49,11 +49,6 @@ defmodule ExGoCD.ConfigRepos.GitHubActionsParserTest do
         - run: npm publish
   """
 
-  @fixture_invalid ~s"""
-  not: valid
-  yaml: but still parses
-  """
-
   describe "parse_workflow/2" do
     test "parses simple push-triggered workflow" do
       {:ok, ir} = GitHubActionsParser.parse_workflow(@fixture_simple, ".github/workflows/ci.yml")

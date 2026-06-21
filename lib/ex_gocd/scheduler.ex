@@ -101,47 +101,9 @@ defmodule ExGoCD.Scheduler do
       "job.name" => job_name
     }, fn ->
       enqueue_ctx = VsmTracer.current_ctx()
-
-      cond do
-        # Run on all enabled agents matching resources/environments
-        Map.get(spec, :run_on_all_agents) || Map.get(spec, "run_on_all_agents") ->
-          matching = Agents.list_active_agents()
-            |> Enum.filter(fn agent ->
-              resources_match?(spec[:resources] || [], MapSet.new(agent.resources |> Enum.map(&String.downcase/1))) and
-                envs_match?(spec[:environments] || [], MapSet.new(agent.environments |> Enum.map(&String.downcase/1)))
-            end)
-
-          count = length(matching)
-          ids = Enum.map(matching, fn agent ->
-            id = "sched-#{System.unique_integer([:positive])}"
-            Map.merge(spec, %{
-              id: id, enqueue_ctx: enqueue_ctx, agent_uuid: agent.uuid,
-              job: "#{job_name}-runonall-#{String.slice(agent.uuid, 0, 8)}"
-            })
-          end)
-
-          new_queue = queue ++ ids
-          broadcast_pending_count(length(new_queue) + db_count)
-          trigger_assignment_for_idle_agents()
-          {:reply, {:ok, count}, %{state | in_memory_queue: new_queue}}
-
-        # DB job instance
-        spec[:job_instance_id] ->
-          new_db_count = db_count + 1
-          broadcast_pending_count(length(queue) + new_db_count)
-          trigger_assignment_for_idle_agents()
-          {:reply, {:ok, "db-#{spec.job_instance_id}"}, %{state | db_pending_count: new_db_count}}
-
-        # Regular in-memory schedule
-        true ->
-          id = "sched-#{System.unique_integer([:positive])}"
-          spec_with_ctx = Map.put(spec, :enqueue_ctx, enqueue_ctx)
-          new_queue = queue ++ [Map.put(spec_with_ctx, :id, id)]
-          broadcast_pending_count(length(new_queue) + db_count)
-          trigger_assignment_for_idle_agents()
-          {:reply, {:ok, id}, %{state | in_memory_queue: new_queue}}
-      end
+      result = do_enqueue(spec, job_name, enqueue_ctx, queue, db_count, state)
       VsmTracer.set_status(:ok)
+      result
     end)
   end
 
@@ -175,6 +137,59 @@ defmodule ExGoCD.Scheduler do
     # which rolls back all changes per test.
     broadcast_pending_count(0)
     {:reply, :ok, %{state | in_memory_queue: [], db_pending_count: 0}}
+  end
+
+  # -- private enqueue helpers -------------------------------------------------
+
+  defp do_enqueue(spec, job_name, enqueue_ctx, queue, db_count, state) do
+    cond do
+      Map.get(spec, :run_on_all_agents) || Map.get(spec, "run_on_all_agents") ->
+        enqueue_run_on_all(spec, job_name, enqueue_ctx, queue, db_count, state)
+
+      spec[:job_instance_id] ->
+        enqueue_db_instance(spec, queue, db_count, state)
+
+      true ->
+        enqueue_in_memory(spec, enqueue_ctx, queue, db_count, state)
+    end
+  end
+
+  defp enqueue_run_on_all(spec, job_name, enqueue_ctx, queue, db_count, state) do
+    matching = Agents.list_active_agents()
+      |> Enum.filter(fn agent ->
+        resources_match?(spec[:resources] || [], MapSet.new(agent.resources |> Enum.map(&String.downcase/1))) and
+          envs_match?(spec[:environments] || [], MapSet.new(agent.environments |> Enum.map(&String.downcase/1)))
+      end)
+
+    count = length(matching)
+    ids = Enum.map(matching, fn agent ->
+      id = "sched-#{System.unique_integer([:positive])}"
+      Map.merge(spec, %{
+        id: id, enqueue_ctx: enqueue_ctx, agent_uuid: agent.uuid,
+        job: "#{job_name}-runonall-#{String.slice(agent.uuid, 0, 8)}"
+      })
+    end)
+
+    new_queue = queue ++ ids
+    broadcast_pending_count(length(new_queue) + db_count)
+    trigger_assignment_for_idle_agents()
+    {:reply, {:ok, count}, %{state | in_memory_queue: new_queue}}
+  end
+
+  defp enqueue_db_instance(spec, queue, db_count, state) do
+    new_db_count = db_count + 1
+    broadcast_pending_count(length(queue) + new_db_count)
+    trigger_assignment_for_idle_agents()
+    {:reply, {:ok, "db-#{spec.job_instance_id}"}, %{state | db_pending_count: new_db_count}}
+  end
+
+  defp enqueue_in_memory(spec, enqueue_ctx, queue, db_count, state) do
+    id = "sched-#{System.unique_integer([:positive])}"
+    spec_with_ctx = Map.put(spec, :enqueue_ctx, enqueue_ctx)
+    new_queue = queue ++ [Map.put(spec_with_ctx, :id, id)]
+    broadcast_pending_count(length(new_queue) + db_count)
+    trigger_assignment_for_idle_agents()
+    {:reply, {:ok, id}, %{state | in_memory_queue: new_queue}}
   end
 
   @impl true
@@ -280,7 +295,8 @@ defmodule ExGoCD.Scheduler do
       resources: get_val(spec, "resources", :resources, []),
       environments: get_val(spec, "environments", :environments, []),
       build_command: get_val(spec, "build_command", :build_command, nil),
-      agent_uuid: get_val(spec, "agent_uuid", :agent_uuid, nil)
+      agent_uuid: get_val(spec, "agent_uuid", :agent_uuid, nil),
+      run_on_all_agents: get_val(spec, "run_on_all_agents", :run_on_all_agents, nil)
     }
 
     case Map.get(spec, "job_instance_id") || Map.get(spec, :job_instance_id) do

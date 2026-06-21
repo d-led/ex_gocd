@@ -1,7 +1,7 @@
 defmodule ExGoCD.ConfigRepos.GitHubActionsTranslatorTest do
   use ExGoCD.DataCase, async: true
 
-  alias ExGoCD.ConfigRepos.{ExternalPipelineIR, GitHubActionsTranslator, GitHubActionsParser}
+  alias ExGoCD.ConfigRepos.{GitHubActionsTranslator, GitHubActionsParser}
 
   @prefix "eci-test-ghat"
 

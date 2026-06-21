@@ -31,10 +31,38 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 )
 
+// otelRelay is the local OTLP relay that child processes push spans to.
+// Set by Setup(), nil when tracing is disabled.
+var otelRelay *Relay
+
+// OTLPRelayEndpoint returns the relay's local loopback address (127.0.0.1:<port>),
+// or empty if tracing is disabled or relay failed to start.
+func OTLPRelayEndpoint() string {
+	if otelRelay == nil {
+		return ""
+	}
+	return otelRelay.Endpoint()
+}
+
+// OTLPDockerHostEndpoint returns the address Docker containers should use to
+// reach the relay (e.g. "172.17.0.1:<port>"), or empty if not detected.
+func OTLPDockerHostEndpoint() string {
+	if otelRelay == nil {
+		return ""
+	}
+	return otelRelay.DockerHostEndpoint()
+}
+
 // Setup initialises the OpenTelemetry SDK and returns a shutdown function.
 // Safe no-op when OTEL_TRACES_EXPORTER is not "otlp" or the collector is
 // unavailable — the agent works fine without tracing.
+//
+// Also starts an OTLP relay on 127.0.0.1:0 so that spawned child processes
+// (build commands, docker containers) can push spans to the agent instead
+// of needing to know the collector's address. Call OTLPRelayEndpoint() to
+// get the bound address.
 func Setup() (shutdown func(context.Context) error) {
+	otelRelay = nil // reset on re-init
 	noop := func(_ context.Context) error { return nil }
 
 	if os.Getenv("OTEL_TRACES_EXPORTER") != "otlp" {
@@ -45,6 +73,20 @@ func Setup() (shutdown func(context.Context) error) {
 	endpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
 	if endpoint == "" {
 		endpoint = "localhost:4318"
+	}
+
+	// Start OTLP relay on 0.0.0.0:<random> so Docker containers can reach it.
+	// Also detects Docker host address for cross-platform container access.
+	relay := NewRelay(endpoint)
+	relayPort, err := relay.Start()
+	if err != nil {
+		agentlog.Logger.Warn().Err(err).Msg("OTLP relay start failed — child processes won't have span relay")
+	} else {
+		otelRelay = relay
+		os.Setenv("AGENT_OTLP_RELAY_ENDPOINT", fmt.Sprintf("127.0.0.1:%d", relayPort))
+		if dh := relay.DockerHostEndpoint(); dh != "" {
+			os.Setenv("AGENT_OTLP_DOCKER_HOST_ENDPOINT", dh)
+		}
 	}
 
 	svcName := os.Getenv("OTEL_SERVICE_NAME")
@@ -92,6 +134,9 @@ func Setup() (shutdown func(context.Context) error) {
 		Msg("OTel tracing enabled")
 
 	return func(ctx context.Context) error {
+		if otelRelay != nil {
+			_ = otelRelay.Shutdown(ctx)
+		}
 		if err := tp.Shutdown(ctx); err != nil {
 			return fmt.Errorf("OTel shutdown: %w", err)
 		}

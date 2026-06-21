@@ -558,8 +558,20 @@ func (a *Agent) runOneCommand(ctx context.Context, build *protocol.Build, cmd *p
 	c := exec.CommandContext(cmdCtx, resolvedPath, cmd.Args...)
 	c.Dir = absDir
 
-	// Merge environment variables
+	// Merge environment variables.
+	// Base is the agent's own environment (so docker, PATH, etc. are inherited).
+	// Inject OTEL endpoint pointing at the agent's local relay so spawned processes
+	// (including docker containers on any platform) can push spans without knowing
+	// the collector address.
 	c.Env = os.Environ()
+	if relayEp := telemetry.OTLPRelayEndpoint(); relayEp != "" {
+		c.Env = append(c.Env, "OTEL_EXPORTER_OTLP_ENDPOINT=http://"+relayEp)
+		// Also set Docker host endpoint for containers spawned via docker run.
+		// 127.0.0.1 from inside a container points to the container, not the host.
+		if dhEp := telemetry.OTLPDockerHostEndpoint(); dhEp != "" {
+			c.Env = append(c.Env, "OTEL_EXPORTER_OTLP_ENDPOINT_DOCKER=http://"+dhEp)
+		}
+	}
 	for k, v := range env {
 		c.Env = append(c.Env, fmt.Sprintf("%s=%s", k, v))
 	}

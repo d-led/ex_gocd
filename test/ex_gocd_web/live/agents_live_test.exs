@@ -3,8 +3,21 @@ defmodule ExGoCDWeb.AgentsLiveTest do
 
   import Phoenix.LiveViewTest
   alias ExGoCD.Agents
+  alias ExGoCD.Accounts
 
   @valid_uuid "550e8400-e29b-41d4-a716-446655440000"
+
+  # Helper: creates a session map that get_current_user/1 will recognize as admin.
+  defp admin_session do
+    # Create a real admin user in DB so get_current_user finds it
+    {:ok, user} = Accounts.create_user(%{
+      username: "agents-test-admin",
+      display_name: "Test Admin",
+      password: "test123456",
+      roles: ["admin"]
+    })
+    %{"username" => user.username}
+  end
 
   describe "Agents page rendering" do
     test "renders agents page with header", %{conn: conn} do
@@ -22,7 +35,7 @@ defmodule ExGoCDWeb.AgentsLiveTest do
     end
 
     test "shows agent count summary", %{conn: conn} do
-      {:ok, registered} = Agents.register_agent(%{
+      {:ok, _registered} = Agents.register_agent(%{
         uuid: @valid_uuid, hostname: "test-agent", ipaddress: "127.0.0.1"
       })
 
@@ -42,10 +55,14 @@ defmodule ExGoCDWeb.AgentsLiveTest do
     end
 
     test "schedule test job button exists", %{conn: conn} do
+      # Set session with admin user so the schedule button is visible
+      session = admin_session()
+      conn = Plug.Test.init_test_session(conn, session)
+
       {:ok, view, _html} = live(conn, ~p"/agents")
 
       # Click the schedule test job button
-      html = view |> element("button", "Schedule Test Job") |> render_click()
+      html = view |> element("button", "SCHEDULE TEST JOB") |> render_click()
 
       # Should show a flash message about scheduling
       assert html =~ "scheduled"
