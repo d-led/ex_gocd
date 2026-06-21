@@ -110,12 +110,12 @@ defmodule ExGoCD.TestReport do
   defp extract_suite({:xmlElement, :testsuite, :testsuite, _, _, _, _, attrs, children, _, _, _}, default_name) do
     cases = extract_testcases(children, [])
     %{
-      name: get_xml_attr(attrs, ~c"name", String.to_charlist(default_name)) |> List.to_string(),
-      tests: get_xml_attr(attrs, ~c"tests", ~c"0") |> List.to_string() |> parse_int(),
-      failures: get_xml_attr(attrs, ~c"failures", ~c"0") |> List.to_string() |> parse_int(),
-      errors: get_xml_attr(attrs, ~c"errors", ~c"0") |> List.to_string() |> parse_int(),
-      skipped: get_xml_attr(attrs, ~c"skipped", ~c"0") |> List.to_string() |> parse_int(),
-      time: get_xml_attr(attrs, ~c"time", ~c"0") |> List.to_string() |> parse_float(),
+      name: get_xml_attr(attrs, :name, String.to_charlist(default_name)) |> List.to_string(),
+      tests: get_xml_attr(attrs, :tests, ~c"0") |> List.to_string() |> parse_int(),
+      failures: get_xml_attr(attrs, :failures, ~c"0") |> List.to_string() |> parse_int(),
+      errors: get_xml_attr(attrs, :errors, ~c"0") |> List.to_string() |> parse_int(),
+      skipped: get_xml_attr(attrs, :skipped, ~c"0") |> List.to_string() |> parse_int(),
+      time: get_xml_attr(attrs, :time, ~c"0") |> List.to_string() |> parse_float(),
       cases: Enum.reverse(cases)
     }
   end
@@ -124,9 +124,9 @@ defmodule ExGoCD.TestReport do
 
   defp extract_testcases([{:xmlElement, :testcase, :testcase, _, _, _, _, attrs, children, _, _, _} | rest], acc) do
     tc = %{
-      name: get_xml_attr(attrs, ~c"name", ~c"unknown") |> List.to_string(),
-      classname: get_xml_attr(attrs, ~c"classname", ~c"") |> List.to_string(),
-      time: get_xml_attr(attrs, ~c"time", ~c"0") |> List.to_string() |> parse_float(),
+      name: get_xml_attr(attrs, :name, ~c"unknown") |> List.to_string(),
+      classname: get_xml_attr(attrs, :classname, ~c"") |> List.to_string(),
+      time: get_xml_attr(attrs, :time, ~c"0") |> List.to_string() |> parse_float(),
       result: case_result(children),
       message: extract_message(children),
       type: extract_failure_type(children)
@@ -164,14 +164,14 @@ defmodule ExGoCD.TestReport do
 
     case child do
       {:xmlElement, _, _, _, _, _, _, _, attrs, _, _, _} ->
-        get_xml_attr(attrs, ~c"type", nil) |> to_string_or_nil()
+        get_xml_attr(attrs, :type, nil) |> to_string_or_nil()
       _ -> nil
     end
   end
 
   defp get_xml_attr(attrs, name, default) do
-    case List.keyfind(attrs, name, 0) do
-      {:xmlAttribute, ^name, _, _, _, _, _, value, _} -> value
+    case List.keyfind(attrs, name, 1) do
+      {:xmlAttribute, ^name, _, _, _, _, _, _, value, _} -> value
       _ -> default
     end
   end
