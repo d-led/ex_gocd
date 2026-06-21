@@ -143,6 +143,68 @@ topbar.config({barColors: {0: "#29d"}, shadowColor: "rgba(0, 0, 0, .3)"})
 window.addEventListener("phx:page-loading-start", _info => topbar.show(300))
 window.addEventListener("phx:page-loading-stop", _info => topbar.hide())
 
+// --- Mobile navigation toggle (burger menu) ---
+;(function() {
+  const navbtn = document.querySelector('.navbtn')
+  const mainNav = document.getElementById('main-navigation')
+  const bar = navbtn ? navbtn.querySelector('.bar') : null
+  if (!navbtn || !mainNav || !bar) return
+
+  let isOpen = false
+
+  function close() {
+    isOpen = false
+    navbtn.setAttribute('aria-expanded', 'false')
+    navbtn.setAttribute('aria-label', 'Open navigation menu')
+    mainNav.removeAttribute('aria-expanded')
+    bar.classList.remove('animate')
+    document.body.classList.remove('menu-open')
+    document.documentElement.style.overflow = ''
+  }
+
+  function open() {
+    isOpen = true
+    navbtn.setAttribute('aria-expanded', 'true')
+    navbtn.setAttribute('aria-label', 'Close navigation menu')
+    mainNav.setAttribute('aria-expanded', 'true')
+    bar.classList.add('animate')
+    document.body.classList.add('menu-open')
+    document.documentElement.style.overflow = 'hidden'
+  }
+
+  function toggle() { isOpen ? close() : open() }
+
+  navbtn.addEventListener('click', toggle)
+
+  // Close on Escape
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && isOpen) { close(); navbtn.focus() }
+  })
+
+  // Handle clicks inside the mobile nav: close on links, toggle admin sub-menu
+  mainNav.addEventListener('click', (e) => {
+    if (!isOpen) return
+
+    const dropDown = e.target.closest('li.is-drop-down')
+    const clickedAnchor = e.target.closest('a')
+
+    // Mobile: toggle admin sub-menu on tap (instead of hover)
+    if (dropDown && window.innerWidth < 768 && clickedAnchor && clickedAnchor.parentElement === dropDown && !e.target.closest('.sub-navigation')) {
+      e.preventDefault()
+      dropDown.classList.toggle('sub-open')
+      return
+    }
+
+    // Close menu when any nav link is clicked
+    if (clickedAnchor) close()
+  })
+
+  // Close on resize above mobile breakpoint
+  window.addEventListener('resize', () => {
+    if (isOpen && window.innerWidth >= 768) close()
+  })
+})()
+
 // connect if there are any LiveViews on the page
 liveSocket.connect()
 
