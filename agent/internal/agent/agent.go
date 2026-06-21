@@ -162,18 +162,34 @@ func (a *Agent) Start(ctx context.Context) error {
 
 // runWithConnection establishes WebSocket and runs until disconnection
 func (a *Agent) runWithConnection(ctx context.Context, tlsConfig *tls.Config) error {
+	tracer := otel.Tracer("gocd-agent")
+
+	// Span covers WebSocket dial + join (not heartbeats)
+	hsCtx, hsSpan := tracer.Start(ctx, "agent.handshake",
+		trace.WithAttributes(
+			attribute.String("agent.uuid", a.config.UUID),
+			attribute.String("server.url", a.config.ServerURL.String()),
+		),
+	)
+
 	// Connect WebSocket
 	logger.Info().Msg("Connecting to server via WebSocket...")
-	conn, err := websocket.Connect(ctx, a.config, tlsConfig)
+	conn, err := websocket.Connect(hsCtx, a.config, tlsConfig)
 	if err != nil {
+		hsSpan.RecordError(err)
+		hsSpan.SetStatus(codes.Error, "WebSocket dial failed")
+		hsSpan.End()
 		return fmt.Errorf("WebSocket connection failed: %w", err)
 	}
 	defer conn.Close()
 	a.conn = conn
 	logger.Info().Msg("WebSocket connected")
 
-	// Send join once so the server establishes the channel (do not send ping as join — that caused duplicate-join phx_close)
+	// Send join so the server establishes the channel
 	a.sendJoin()
+
+	hsSpan.SetStatus(codes.Ok, "connected")
+	hsSpan.End()
 
 	// Start ping ticker for heartbeats
 	pingTicker := time.NewTicker(a.config.HeartbeatInterval)
@@ -220,6 +236,14 @@ func (a *Agent) handleMessage(msg *protocol.Message) error {
 			preview = preview[:8] + "..."
 		}
 		logger.Info().Msgf("Server set agent cookie: %s", preview)
+
+		// Trace cookie exchange as a root span (no parent — handshake span already ended)
+		_, cookieSpan := otel.Tracer("gocd-agent").Start(context.Background(), "agent.cookie.exchange",
+			trace.WithAttributes(
+				attribute.String("agent.uuid", a.config.UUID),
+			),
+		)
+		cookieSpan.End()
 
 	case protocol.ReregisterAction:
 		logger.Info().Msg("Server requested re-registration")

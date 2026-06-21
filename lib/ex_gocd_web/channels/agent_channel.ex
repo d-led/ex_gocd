@@ -10,6 +10,7 @@ defmodule ExGoCDWeb.AgentChannel do
   alias ExGoCD.AgentRegistry
   alias ExGoCD.Agents
   alias ExGoCD.Scheduler
+  alias ExGoCD.VsmTracer
   alias ExGoCDWeb.AgentPresence
 
   @agent_topic_prefix "agent:"
@@ -34,29 +35,38 @@ defmodule ExGoCDWeb.AgentChannel do
   def join("agent", payload, socket) do
     uuid = get_uuid(payload)
     normalized = normalize_join_payload(payload)
+    hostname = get_in(normalized, ["hostName"]) || "unknown"
 
-    result =
-      case Agents.touch_agent_on_heartbeat(uuid, normalized) do
-        :ok ->
-          socket = assign_agent_socket(socket, uuid)
-          socket = maybe_assign_cookie_to_send(socket, uuid)
-          send(self(), :after_join)
-          {:ok, socket}
+    VsmTracer.trace("agent.join", %{
+      "agent_uuid" => uuid,
+      "agent.hostname" => hostname
+    }, fn ->
+      result =
+        case Agents.touch_agent_on_heartbeat(uuid, normalized) do
+          :ok ->
+            VsmTracer.set_attr("agent.auth_result", "ok")
+            socket = assign_agent_socket(socket, uuid)
+            socket = maybe_assign_cookie_to_send(socket, uuid)
+            send(self(), :after_join)
+            {:ok, socket}
 
-        {:error, :cookie_mismatch} ->
-          # Allow join so we can push setCookie; agent will send cookie on next ping
-          socket = assign_agent_socket(socket, uuid)
-          socket = maybe_assign_cookie_to_send(socket, uuid)
-          send(self(), :after_join)
-          {:ok, socket}
+          {:error, :cookie_mismatch} ->
+            VsmTracer.set_attr("agent.auth_result", "cookie_mismatch")
+            # Allow join so we can push setCookie; agent will send cookie on next ping
+            socket = assign_agent_socket(socket, uuid)
+            socket = maybe_assign_cookie_to_send(socket, uuid)
+            send(self(), :after_join)
+            {:ok, socket}
 
-        {:error, :not_found} ->
-          socket = assign_agent_socket(socket, uuid)
-          send(self(), :after_join)
-          {:ok, socket}
-      end
+          {:error, :not_found} ->
+            VsmTracer.set_attr("agent.auth_result", "not_found")
+            socket = assign_agent_socket(socket, uuid)
+            send(self(), :after_join)
+            {:ok, socket}
+        end
 
-    result
+      result
+    end)
   end
 
   @impl true
