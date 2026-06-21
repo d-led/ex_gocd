@@ -81,6 +81,7 @@ defmodule ExGoCDWeb.ArtifactsController do
       case extract_zip_securely(upload.path, target_path) do
         :ok ->
           maybe_save_checksum(job_dir, checksum_upload)
+          compute_and_save_checksums(target_path, job_dir)
           ExGoCD.ArtifactCleanup.cleanup_if_needed()
           conn |> put_status(201) |> text("File was created successfully")
 
@@ -98,6 +99,7 @@ defmodule ExGoCDWeb.ArtifactsController do
       case File.copy(upload.path, target_path) do
         {:ok, _} ->
           maybe_save_checksum(job_dir, checksum_upload)
+          compute_and_save_checksum(target_path, job_dir)
           ExGoCD.ArtifactCleanup.cleanup_if_needed()
           conn |> put_status(201) |> text("File was created successfully")
 
@@ -378,6 +380,44 @@ defmodule ExGoCDWeb.ArtifactsController do
     content = File.read!(checksum_upload.path)
     content = if String.ends_with?(content, "\n"), do: content, else: content <> "\n"
     File.write!(checksum_file_path, content, [:append])
+  end
+
+  # Computes MD5 checksum for a single file and appends to manifest
+  defp compute_and_save_checksum(file_path, job_dir) do
+    checksum = file_md5(file_path)
+    rel_path = Path.relative_to(file_path, job_dir)
+    line = "#{checksum}  #{rel_path}\n"
+
+    manifest_path = Path.join([job_dir, "cruise-output", "md5.checksum"])
+    File.mkdir_p!(Path.dirname(manifest_path))
+
+    # Only append if this file isn't already in the manifest
+    existing = File.exists?(manifest_path) && File.read!(manifest_path)
+    unless existing && String.contains?(existing, "  #{rel_path}") do
+      File.write!(manifest_path, line, [:append])
+    end
+  end
+
+  # Computes MD5 checksums for all files in a directory (after zip extraction)
+  defp compute_and_save_checksums(dir_path, job_dir) do
+    if File.dir?(dir_path) do
+      dir_path
+      |> list_files_recursive()
+      |> Enum.each(&compute_and_save_checksum(&1, job_dir))
+    else
+      compute_and_save_checksum(dir_path, job_dir)
+    end
+  end
+
+  # Computes MD5 hash of a file
+  defp file_md5(file_path) do
+    case File.read(file_path) do
+      {:ok, content} ->
+        :crypto.hash(:md5, content) |> Base.encode16(case: :lower)
+
+      {:error, _} ->
+        "00000000000000000000000000000000"
+    end
   end
 
   # Recursive lister for zipping folders
