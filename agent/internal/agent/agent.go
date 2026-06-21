@@ -11,6 +11,7 @@ import (
 	"crypto/md5"
 	"crypto/tls"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -36,6 +37,10 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 )
+
+// ErrServerUnavailable indicates the GoCD server is unreachable (planned outage,
+// network blip, etc.). Callers should not count this against crash restart limits.
+var ErrServerUnavailable = errors.New("gocd server unavailable")
 
 var logger zerolog.Logger
 
@@ -109,19 +114,24 @@ func (a *Agent) Start(ctx context.Context) error {
 	// Register with server
 	logger.Info().Msg("Registering with server...")
 	if err := a.registrar.Register(); err != nil {
-		return fmt.Errorf("registration failed: %w", err)
+		return fmt.Errorf("%w: registration failed: %w", ErrServerUnavailable, err)
 	}
 	logger.Info().Msg("Registration successful")
 
 	// Create TLS config for WebSocket
 	tlsConfig, err := a.registrar.CreateTLSConfig()
 	if err != nil {
-		return fmt.Errorf("failed to create TLS config: %w", err)
+		return fmt.Errorf("%w: failed to create TLS config: %w", ErrServerUnavailable, err)
 	}
 
-	// Main reconnection loop
-	retryDelay := 2 * time.Second
-	maxRetryDelay := 60 * time.Second
+	// Main reconnection loop with exponential backoff.
+	// Backoff resets after a stable connection (>= minStableConnection) so that
+	// transient blips don't accumulate delay permanently.
+	const baseRetryDelay = 2 * time.Second
+	const maxRetryDelay = 60 * time.Second
+	const minStableConnection = 30 * time.Second
+
+	retryDelay := baseRetryDelay
 
 	for {
 		select {
@@ -132,6 +142,7 @@ func (a *Agent) Start(ctx context.Context) error {
 		}
 
 		// Try to connect and run
+		connStart := time.Now()
 		err := a.runWithConnection(ctx, tlsConfig)
 		if err == nil {
 			return nil // Clean shutdown
@@ -141,6 +152,14 @@ func (a *Agent) Start(ctx context.Context) error {
 		if ctx.Err() != nil {
 			logger.Info().Msg("Agent shutting down...")
 			return nil
+		}
+
+		// Reset backoff if the connection was stable for a while before dropping.
+		// A long-lived connection that eventually drops is likely a transient blip,
+		// not a persistent infrastructure problem.
+		if time.Since(connStart) >= minStableConnection {
+			logger.Info().Msgf("Connection was stable for %v, resetting reconnect backoff", time.Since(connStart).Round(time.Second))
+			retryDelay = baseRetryDelay
 		}
 
 		// Log error and retry with backoff

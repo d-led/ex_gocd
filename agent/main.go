@@ -4,6 +4,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	"github.com/d-led/ex_gocd/agent/cmd"
+	"github.com/d-led/ex_gocd/agent/internal/agent"
 	"github.com/google/uuid"
 )
 
@@ -90,6 +92,17 @@ func main() {
 		if err == nil {
 			slog.Info("gocd-agent stopped cleanly")
 			return
+		}
+
+		// Server unavailability (planned outage, network blip) is not a crash.
+		// Don't count it toward the restart limit — just retry.
+		if errors.Is(err, agent.ErrServerUnavailable) {
+			slog.Warn("server unavailable, will retry (not counting toward crash limit)",
+				"error", err,
+				"restart_delay", restartDelay,
+			)
+			time.Sleep(restartDelay)
+			continue
 		}
 
 		// If agent ran successfully for a while before this failure,
