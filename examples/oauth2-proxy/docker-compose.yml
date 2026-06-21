@@ -1,0 +1,47 @@
+# Self-contained OAuth2-Proxy + ExGoCD demo
+# Uses real quay.io/oauth2-proxy/oauth2-proxy image with htpasswd auth.
+# No external OAuth provider needed — just docker compose up.
+#
+# Test users (from htpasswd.txt):
+#   admin@exgocd.local / admin123  → gets admin role
+#   dev@exgocd.local   / dev123    → gets developer role (viewer after login)
+
+version: "3.8"
+services:
+  oauth2-proxy:
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.8.1
+    container_name: exgocd-oauth2-proxy
+    ports:
+      - "4180:4180"
+    environment:
+      OAUTH2_PROXY_HTTP_ADDRESS: "0.0.0.0:4180"
+      OAUTH2_PROXY_UPSTREAMS: "http://host.docker.internal:4000"
+      OAUTH2_PROXY_COOKIE_SECRET: "Z29vZC1zZWNyZXQtY29va2llLWZvci1vYXV0aDItcHJveHk="
+      OAUTH2_PROXY_COOKIE_SECURE: "false"
+      OAUTH2_PROXY_COOKIE_DOMAINS: "localhost"
+      OAUTH2_PROXY_EMAIL_DOMAINS: "*"
+      # htpasswd auth — no external provider needed
+      OAUTH2_PROXY_HTPASSWD_FILE: "/etc/oauth2-proxy/htpasswd.txt"
+      OAUTH2_PROXY_HTPASSWD_USER_GROUP: "admin@exgocd.local=admin;dev@exgocd.local=developer"
+      # Show login page with email/password form
+      OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: "true"
+      OAUTH2_PROXY_SKIP_AUTH_PREFLIGHT: "true"
+      # Pass user identity headers to backend
+      OAUTH2_PROXY_SET_XAUTHREQUEST: "true"
+      OAUTH2_PROXY_PASS_USER_HEADERS: "true"
+      OAUTH2_PROXY_PASS_ACCESS_TOKEN: "true"
+      OAUTH2_PROXY_SET_AUTHORIZATION_HEADER: "true"
+      # Reverse proxy mode
+      OAUTH2_PROXY_REVERSE_PROXY: "true"
+      # Show debug logs
+      OAUTH2_PROXY_LOGGING_MAX_AGE: "24h"
+      # Whitelist health/API paths
+      OAUTH2_PROXY_SKIP_AUTH_ROUTES: "GET=^/api/version|GET=^/api/agents|POST=^/api/agents/register|GET=^/health"
+    volumes:
+      - ./htpasswd.txt:/etc/oauth2-proxy/htpasswd.txt:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # ExGoCD server — runs on host, not in container
+  # Start with: mix phx.server
+  # Then access via oauth2-proxy at http://localhost:4180

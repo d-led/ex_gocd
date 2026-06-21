@@ -43,6 +43,9 @@ type Config struct {
 	// Polling intervals
 	HeartbeatInterval time.Duration
 	WorkPollInterval  time.Duration
+
+	// Elastic agent: idle timeout before self-termination (0 = disabled = regular agent)
+	IdleTimeout time.Duration
 }
 
 // getEnvWithLegacyFallback fetches configuration with fallback to legacy GOCD_ env var
@@ -93,6 +96,7 @@ func Load() (*Config, error) {
 		Environments:       getEnvWithLegacyFallback("auto.register.environments", "GOCD_AUTO_REGISTER_ENVIRONMENTS"),
 		ElasticAgentID:     viper.GetString("auto.register.elastic.agent.id"),
 		ElasticPluginID:    viper.GetString("auto.register.elastic.plugin.id"),
+		IdleTimeout:        viper.GetDuration("idle.timeout"),
 	}
 
 	// Derive ConfigDir from WorkDir
@@ -145,6 +149,7 @@ func setupViper() {
 	viper.SetDefault("auto.register.environments", "")
 	viper.SetDefault("auto.register.elastic.agent.id", "")
 	viper.SetDefault("auto.register.elastic.plugin.id", "")
+	viper.SetDefault("idle.timeout", 0)
 }
 
 // RegistrationURL returns the full URL for agent registration (form-based)

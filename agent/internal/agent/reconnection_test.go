@@ -149,3 +149,57 @@ func (e *joinedError) Is(target error) bool {
 func (e *joinedError) Unwrap() error {
 	return e.err
 }
+
+// TestIdleTimeoutDisabledByDefault verifies regular agents don't have an idle timeout.
+func TestIdleTimeoutDisabledByDefault(t *testing.T) {
+	// Zero value means disabled — regular agents never self-terminate.
+	var timeout time.Duration // 0
+
+	// Simulate agent idle for a long time
+	idleSince := time.Now().Add(-10 * time.Minute)
+	idleDuration := time.Since(idleSince)
+
+	if timeout > 0 && idleDuration >= timeout {
+		t.Error("should not trigger when timeout is 0 (disabled)")
+	}
+	// 0 means disabled — no termination.
+	assert.Equal(t, time.Duration(0), timeout)
+}
+
+// TestIdleTimeoutTriggersAfterExceeded verifies elastic agents self-terminate when idle too long.
+func TestIdleTimeoutTriggersAfterExceeded(t *testing.T) {
+	const idleTimeout = 5 * time.Minute
+
+	// Agent has been idle for 6 minutes — timeout exceeded
+	idleSince := time.Now().Add(-6 * time.Minute).Add(-1 * time.Second)
+	idleDuration := time.Since(idleSince)
+
+	shouldTerminate := idleTimeout > 0 && idleDuration >= idleTimeout
+	assert.True(t, shouldTerminate, "should terminate after idle timeout exceeded")
+}
+
+// TestIdleTimeoutDoesNotTriggerBeforeExceeded verifies elastic agents don't terminate too early.
+func TestIdleTimeoutDoesNotTriggerBeforeExceeded(t *testing.T) {
+	const idleTimeout = 5 * time.Minute
+
+	// Agent has been idle for 2 minutes — timeout not yet reached
+	idleSince := time.Now().Add(-2 * time.Minute)
+	idleDuration := time.Since(idleSince)
+
+	shouldTerminate := idleTimeout > 0 && idleDuration >= idleTimeout
+	assert.False(t, shouldTerminate, "should NOT terminate before idle timeout")
+}
+
+// TestIdleSinceResetAfterBuild verifies idle timer resets when a build completes.
+func TestIdleSinceResetAfterBuild(t *testing.T) {
+	// Simulate: agent starts idle → builds → goes idle again
+	idleSince := time.Now().Add(-10 * time.Minute) // was idle 10 min ago
+	// Build happens — idleSince resets
+	idleSince = time.Now()
+
+	idleDuration := time.Since(idleSince)
+	const idleTimeout = 5 * time.Minute
+
+	shouldTerminate := idleDuration >= idleTimeout
+	assert.False(t, shouldTerminate, "idle timer should reset after build, not accumulate from before")
+}

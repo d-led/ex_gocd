@@ -11,6 +11,12 @@
 #
 # Env vars: AGENT_SERVER_URL, AGENT_WORK_DIR, AGENT_AUTO_REGISTER_RESOURCES,
 #           AGENT_HOSTNAME, AGENT_UUID, AGENT_NEW_UUID, EX_GOCD_DEMO_COOKIE
+# Elastic mode (provision on demand, self-terminate when idle):
+#   AGENT_AUTO_REGISTER_ELASTIC_AGENT_ID=... \
+#   AGENT_AUTO_REGISTER_ELASTIC_PLUGIN_ID=cd.go.contrib.elastic-agent.docker \
+#   AGENT_AUTO_REGISTER_RESOURCES= \
+#   AGENT_IDLE_TIMEOUT=300s \
+#   ./scripts/start-docker-agent.sh
 set -euo pipefail
 shopt -s nullglob 2>/dev/null || true
 
@@ -36,6 +42,16 @@ if [[ -n "${AGENT_UUID:-}" ]]; then
   export AGENT_UUID="$AGENT_UUID"
 fi
 export EX_GOCD_DEMO_COOKIE="${EX_GOCD_DEMO_COOKIE:-ex-gocd-demo-cookie}"
+
+# ── Elastic agent mode ────────────────────────────────────────────────
+# When elastic IDs are set, clear resources (server rejects elastic agents with resources).
+# Also default AGENT_IDLE_TIMEOUT to 5 min if not set.
+if [[ -n "${AGENT_AUTO_REGISTER_ELASTIC_AGENT_ID:-}" ]] && [[ -n "${AGENT_AUTO_REGISTER_ELASTIC_PLUGIN_ID:-}" ]]; then
+  AGENT_AUTO_REGISTER_RESOURCES=""
+  : "${AGENT_IDLE_TIMEOUT:=300s}"
+  export AGENT_AUTO_REGISTER_ELASTIC_AGENT_ID AGENT_AUTO_REGISTER_ELASTIC_PLUGIN_ID AGENT_IDLE_TIMEOUT
+  echo "→ Elastic agent mode: plugin=${AGENT_AUTO_REGISTER_ELASTIC_PLUGIN_ID} id=${AGENT_AUTO_REGISTER_ELASTIC_AGENT_ID} idle_timeout=${AGENT_IDLE_TIMEOUT}"
+fi
 
 # ── Resources ─────────────────────────────────────────────────────────
 : "${AGENT_AUTO_REGISTER_RESOURCES:=docker}"

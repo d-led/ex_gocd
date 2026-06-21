@@ -61,17 +61,22 @@ processes:
     working_dir: "agent"
     environment:
       - "AGENT_SERVER_URL=http://localhost:4000"
-      - "AGENT_WORK_DIR=//tmp/ex_gocd_agent_docker_work"
+      - "AGENT_WORK_DIR=work_docker"
+      # ── Regular agent (default): registers with docker resource ────
       - "AGENT_AUTO_REGISTER_RESOURCES=docker"
+      # ── Elastic agent (opt-in): comment line above, uncomment below ─
+      #   Elastic agents self-terminate when idle (AGENT_IDLE_TIMEOUT).
+      #   They must NOT have resources (validated server-side).
+      # - "AGENT_AUTO_REGISTER_ELASTIC_AGENT_ID=docker-agent-001"
+      # - "AGENT_AUTO_REGISTER_ELASTIC_PLUGIN_ID=cd.go.contrib.elastic-agent.docker"
+      # - "AGENT_AUTO_REGISTER_RESOURCES="
+      # - "AGENT_IDLE_TIMEOUT=300s"
       - "AGENT_HOSTNAME=docker-agent"
       - "AGENT_UUID=docker-agent-00000000-0000-4000-a000-000000000001"
       - "EX_GOCD_DEMO_COOKIE=ex-gocd-demo-cookie"
       - "OTEL_TRACES_EXPORTER=otlp"
       - "OTEL_EXPORTER_OTLP_ENDPOINT=localhost:4318"
       - "OTEL_SERVICE_NAME=gocd-docker-agent"
-      # Docker socket auto-detected by agent at startup
-      # Override: uncomment and set path below
-      # - "AGENT_DOCKER_SOCKET=unix:///var/run/docker.sock"
     depends_on:
       server:
         condition: process_healthy

@@ -52,6 +52,10 @@ type Agent struct {
 	cookie    string
 	state     string
 
+	// Elastic agent idle timeout: when set (>0), agent self-terminates after idle this long.
+	// idleSince is set when entering Idle state, cleared when building.
+	idleSince time.Time
+
 	// Current build cancellation: guarded by buildMu
 	buildMu       sync.Mutex
 	currentBuild  string             // buildId of running build, or ""
@@ -70,6 +74,7 @@ func New(cfg *config.Config) (*Agent, error) {
 		config:    cfg,
 		registrar: registration.New(cfg),
 		state:     "Idle",
+		idleSince: time.Now(),
 	}, nil
 }
 
@@ -210,11 +215,32 @@ func (a *Agent) runWithConnection(ctx context.Context, tlsConfig *tls.Config) er
 	pingTicker := time.NewTicker(a.config.HeartbeatInterval)
 	defer pingTicker.Stop()
 
+	// Start idle timeout ticker (elastic agents only — IdleTimeout > 0).
+	// When the agent is idle longer than IdleTimeout, it exits cleanly so
+	// the supervisor (docker/process-compose) can terminate the container.
+	var idleTicker *time.Ticker
+	var idleTickerChan <-chan time.Time
+	if a.config.IdleTimeout > 0 {
+		// Check every second whether idle too long
+		idleTicker = time.NewTicker(1 * time.Second)
+		defer idleTicker.Stop()
+		idleTickerChan = idleTicker.C
+		agentlog.Logger.Info().Dur("idle_timeout", a.config.IdleTimeout).Msg("Elastic agent: idle timeout enabled")
+	}
+
 	// Main event loop
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
+
+		case <-idleTickerChan:
+			if a.state == "Idle" && !a.idleSince.IsZero() {
+				if time.Since(a.idleSince) >= a.config.IdleTimeout {
+					agentlog.Logger.Info().Dur("idle_duration", time.Since(a.idleSince).Round(time.Second)).Dur("idle_timeout", a.config.IdleTimeout).Msg("Elastic agent idle timeout reached, shutting down cleanly")
+					return nil
+				}
+			}
 
 		case <-pingTicker.C:
 			a.sendPing()
@@ -345,7 +371,11 @@ func (a *Agent) getRuntimeInfo() *protocol.AgentRuntimeInfo {
 // handleBuild executes a build
 func (a *Agent) handleBuild(build *protocol.Build) {
 	a.state = "Building"
-	defer func() { a.state = "Idle" }()
+	defer func() {
+		a.state = "Idle"
+		// Reset idle timer when build completes — elastic agents start counting idle time from here.
+		a.idleSince = time.Now()
+	}()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	a.buildMu.Lock()
