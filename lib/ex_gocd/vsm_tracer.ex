@@ -96,7 +96,7 @@ defmodule ExGoCD.VsmTracer do
     case :otel_tracer.current_span_ctx(ctx) do
       :undefined ->
         map
-      {:span_ctx, _version, trace_id, _span_id, _parent_id, _flags, _tracestate,
+      {:span_ctx, _version, _trace_id, _span_id, _parent_id, _flags, _tracestate,
        _is_recording, false = _is_valid, _timestamp, _instrumentation_scope} ->
         # span is invalid (e.g. SDK disabled with noop tracer)
         map
