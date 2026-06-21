@@ -2,9 +2,16 @@ name: E2E Scale & Performance Test
 
 on:
   workflow_dispatch:
+    inputs:
+      agent_count:
+        description: 'Number of simulated agents to spawn'
+        required: true
+        default: '100'
+        type: string
 
 permissions:
   contents: read
+  checks: write
 
 jobs:
   e2e-perf-test:
@@ -20,3 +27,13 @@ jobs:
 
       - name: Run E2E and Performance Verification
         run: ./scripts/run_perf_test.sh
+        env:
+          AGENT_COUNT: ${{ github.event.inputs.agent_count || '100' }}
+
+      - name: Publish E2E Test Results
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: E2E Performance Tests
+          path: e2e-report.xml
+          reporter: java-junit

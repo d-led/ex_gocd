@@ -6,7 +6,10 @@
 #   ./scripts/run_perf_test.sh --build  # builds images locally first
 set -e
 
+export COMPOSE_PROJECT_NAME=ex_gocd_test
+
 cd "$(dirname "$0")/.."
+
 
 echo "Stopping and cleaning up any existing test containers..."
 docker compose -f docker-compose.test.yml down -v --remove-orphans

@@ -15,6 +15,7 @@ on:
 permissions:
   contents: read
   packages: write
+  checks: write
 
 jobs:
   build:
@@ -52,10 +53,32 @@ jobs:
         restore-keys: ${{ runner.os }}-mix-
     - name: Install dependencies
       run: mix deps.get
-    - name: Run tests
+    - name: Run Elixir tests
       run: mix test
       env:
         DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ex_gocd_test
+        CI: "true"
+
+    - name: Run Go Agent tests
+      run: |
+        cd agent
+        go test -json ./... > testresults.json
+
+    - name: Publish Elixir Test Results
+      uses: dorny/test-reporter@v1
+      if: always()
+      with:
+        name: Elixir Unit Tests
+        path: _build/test-results/*.xml
+        reporter: java-junit
+
+    - name: Publish Go Agent Test Results
+      uses: dorny/test-reporter@v1
+      if: always()
+      with:
+        name: Go Agent Tests
+        path: agent/testresults.json
+        reporter: golang-json
 
   publish-server:
     name: Build and publish Server Docker image
@@ -146,3 +169,46 @@ jobs:
           labels: ${{ steps.meta-agent.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  cypress:
+    name: Run Cypress E2E Tests
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      contents: read
+      checks: write
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v7
+
+      - name: Set up Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: '1.20.1'
+          otp-version: '29.0'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Elixir and Node dependencies
+        run: |
+          mix deps.get
+          npm ci
+
+      - name: Run Cypress tests
+        run: |
+          bash scripts/run_cypress_tests.sh
+        env:
+          CYPRESS_OPTS: "--reporter junit --reporter-options mochaFile=cypress/results/results-[hash].xml"
+
+      - name: Publish Cypress Test Results
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: Cypress E2E Tests
+          path: cypress/results/results-*.xml
+          reporter: java-junit
+

@@ -1,7 +1,7 @@
 if System.get_env("CI") do
   ExUnit.configure(
     formatters: [ExUnit.CLIFormatter, JUnitFormatter],
-    junit_formatter: [report_dir: "/Users/dmitryledentsov/src/gocd-rewrite/ex_gocd/_build/test-results"]
+    junit_formatter: [report_dir: "_build/test-results"]
   )
 end
 

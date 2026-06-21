@@ -51,4 +51,6 @@ services:
     environment:
       - SERVER_URL=http://web:4000
       - DATABASE_URL=postgresql://postgres:postgres@postgres/postgres
-    command: sh -c "apk add --no-cache curl bash postgresql-client && bash /app/scripts/e2e_runner.sh"
+      - AGENT_COUNT=${AGENT_COUNT:-100}
+    command: sh -c "apk add --no-cache curl bash postgresql-client jq && bash /app/scripts/e2e_runner.sh"
+

@@ -7,6 +7,37 @@ echo "===================================================="
 echo "Starting E2E Performance verification runner..."
 echo "===================================================="
 
+# Configurable agent count
+AGENT_COUNT="${AGENT_COUNT:-100}"
+EXPECTED_AGENTS=$((AGENT_COUNT + 1))
+
+# JUnit XML Generator Trap
+generate_report() {
+  local exit_code=$?
+  local failures=0
+  local error_tag=""
+  if [ $exit_code -ne 0 ]; then
+    failures=1
+    error_tag="<failure message=\"E2E Scalability or Performance Verification failed\" type=\"AssertionError\">Exit code: $exit_code</failure>"
+  fi
+
+  cat <<EOF > /app/e2e-report.xml
+<testsuites>
+  <testsuite name="E2E Scalability and Performance" tests="5" failures="$failures" errors="0">
+    <testcase name="Server ready check" classname="E2E.Scalability" />
+    <testcase name="Go Agent registration" classname="E2E.Scalability" />
+    <testcase name="E2E Job execution" classname="E2E.Scalability" />
+    <testcase name="Simulated OTP Agents registration ($AGENT_COUNT agents)" classname="E2E.Scalability">
+      $error_tag
+    </testcase>
+    <testcase name="Erlang VM memory check" classname="E2E.Scalability" />
+  </testsuite>
+</testsuites>
+EOF
+  echo "Test results written to /app/e2e-report.xml"
+}
+trap generate_report EXIT
+
 # 1. Wait for Phoenix server to be ready
 echo "Waiting for Phoenix server at $SERVER_URL..."
 for i in {1..30}; do
@@ -82,9 +113,9 @@ echo "===================================================="
 psql "$DATABASE_URL" -c "SELECT console_log FROM agent_job_runs WHERE pipeline_name='e2e-pipeline' ORDER BY inserted_at DESC LIMIT 1;"
 echo "===================================================="
 
-# 5. Start 100 simulated OTP agents in the Erlang VM
-echo "Triggering spawn of 100 Elixir OTP simulated agents..."
-SPAWN_RES=$(curl -s -X POST "$SERVER_URL/api/test/start_agents?count=100")
+# 5. Start simulated OTP agents in the Erlang VM
+echo "Triggering spawn of $AGENT_COUNT Elixir OTP simulated agents..."
+SPAWN_RES=$(curl -s -X POST "$SERVER_URL/api/test/start_agents?count=$AGENT_COUNT")
 echo "Spawn response: $SPAWN_RES"
 
 # 6. Verify stats and assert on scale/performance
@@ -99,15 +130,25 @@ TOTAL_AGENTS=$(echo "$STATS" | grep -o '"total":[0-9]*' | head -1 | cut -d: -f2)
 ACTIVE_CONNS=$(echo "$STATS" | grep -o '"active_connections":[0-9]*' | head -1 | cut -d: -f2)
 MEM_BYTES=$(echo "$STATS" | grep -o '"memory_total_bytes":[0-9]*' | head -1 | cut -d: -f2)
 
+# Verify registry via /api/agents API
+echo "Checking agent list via /api/agents API..."
+API_AGENTS_COUNT=$(curl -s "$SERVER_URL/api/agents" | jq '._embedded.agents | length')
+echo "API reports $API_AGENTS_COUNT total registered agents."
+
 # Assertions
 echo "Verifying E2E scale assertions..."
-if [ "$TOTAL_AGENTS" -lt 101 ]; then
-  echo "Assertion Failed: Expected at least 101 agents registered (1 Go + 100 OTP), got: $TOTAL_AGENTS"
+if [ "$TOTAL_AGENTS" -lt "$EXPECTED_AGENTS" ]; then
+  echo "Assertion Failed: Expected at least $EXPECTED_AGENTS agents registered in stats, got: $TOTAL_AGENTS"
   exit 1
 fi
 
-if [ "$ACTIVE_CONNS" -lt 100 ]; then
-  echo "Assertion Failed: Expected at least 100 active OTP connections, got: $ACTIVE_CONNS"
+if [ "$API_AGENTS_COUNT" -lt "$EXPECTED_AGENTS" ]; then
+  echo "Assertion Failed: Expected at least $EXPECTED_AGENTS agents registered in agents API, got: $API_AGENTS_COUNT"
+  exit 1
+fi
+
+if [ "$ACTIVE_CONNS" -lt "$AGENT_COUNT" ]; then
+  echo "Assertion Failed: Expected at least $AGENT_COUNT active OTP connections, got: $ACTIVE_CONNS"
   exit 1
 fi
 
