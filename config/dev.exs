@@ -1,5 +1,8 @@
 import Config
 
+# Disable spec caching in dev so changes are picked up immediately
+config :open_api_spex, :cache_adapter, OpenApiSpex.Plug.NoneCache
+
 # Configure your database
 config :ex_gocd, ExGoCD.Repo,
   username: "postgres",

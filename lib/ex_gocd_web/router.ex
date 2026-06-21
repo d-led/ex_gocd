@@ -53,12 +53,6 @@ defmodule ExGoCDWeb.Router do
 
     # CCTray XML feed for CI monitoring tools
     get "/go/cctray.xml", CCTrayController, :index
-  end
-
-  # Swagger UI — served outside any scope to avoid module prefixing
-  scope "/swaggerui" do
-    get "/", OpenApiSpex.Plug.SwaggerUI, path: "/api/openapi", as: :swaggerui
-  end
 
     live_session :gocd, on_mount: [{ExGoCDWeb.LiveSession, :assign_current_user}] do
       live "/", DashboardLive, :index
@@ -111,6 +105,12 @@ defmodule ExGoCDWeb.Router do
       live "/admin/config_repos/new", ExternalCIRepoWizardLive, :index
       live "/go/admin/config_repos/new", ExternalCIRepoWizardLive, :index
     end
+  end
+
+  # Swagger UI — no module prefix to avoid namespace issues with third-party plug
+  scope "/" do
+    pipe_through :browser
+    get "/swaggerui", OpenApiSpex.Plug.SwaggerUI, path: "/api/openapi"
   end
 
   # Original GoCD agent registration endpoints (backward compatibility)

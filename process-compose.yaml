@@ -13,6 +13,9 @@ log_location: /tmp/ex_gocd_processes.log
 log_level: info
 is_strict: true
 
+# Disable process-compose's built-in web UI (conflicts with other services)
+port: 0
+
 processes:
   # ── Phoenix Server ──────────────────────────────────────────────────
   server:
