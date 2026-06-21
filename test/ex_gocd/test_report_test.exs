@@ -49,15 +49,15 @@ defmodule ExGoCD.TestReportTest do
     end
 
     test "returns error when no JUnit XML files", %{tmp_dir: tmp_dir} do
-      # Remove the XML file
       File.rm_rf!(Path.join(tmp_dir, "testoutput"))
 
       assert {:error, :no_test_files} = TestReport.generate(tmp_dir)
     end
 
     test "handles empty testoutput directory", %{tmp_dir: tmp_dir} do
-      File.rm_rf!(Path.join(tmp_dir, "testoutput", "results.xml"))
-      File.write!(Path.join(tmp_dir, "testoutput", "empty.xml"), "")
+      results_path = Path.join([tmp_dir, "testoutput", "results.xml"])
+      File.rm_rf!(results_path)
+      File.write!(Path.join(tmp_dir, "testoutput") |> Path.join("empty.xml"), "")
 
       # xmerl will probably crash on empty XML, but should not crash the whole thing
       {:ok, _} = TestReport.generate(tmp_dir)

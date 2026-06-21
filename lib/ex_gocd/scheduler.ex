@@ -637,6 +637,7 @@ defmodule ExGoCD.Scheduler do
       "consoleURI" => console_uri,
       "artifactUploadBaseUrl" => artifact_upload_base_url
     }
+    |> VsmTracer.inject_context()
 
     opts = [
       job_instance_id: job_spec[:job_instance_id],

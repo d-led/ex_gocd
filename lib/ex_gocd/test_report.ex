@@ -107,7 +107,7 @@ defmodule ExGoCD.TestReport do
     end
   end
 
-  defp extract_suite({:xmlElement, :testsuite, :testsuite, _xmlbase, _ns, attrs, _parents, _pos, children}, default_name) do
+  defp extract_suite({:xmlElement, :testsuite, :testsuite, _, _, _, _, attrs, children, _, _}, default_name) do
     cases = extract_testcases(children, [])
     %{
       name: get_xml_attr(attrs, ~c"name", String.to_charlist(default_name)) |> List.to_string(),
@@ -122,7 +122,7 @@ defmodule ExGoCD.TestReport do
 
   defp extract_testcases([], acc), do: acc
 
-  defp extract_testcases([{:xmlElement, :testcase, :testcase, _xmlbase, _ns, attrs, _parents, _pos, children} | rest], acc) do
+  defp extract_testcases([{:xmlElement, :testcase, :testcase, _, _, _, _, attrs, children, _, _} | rest], acc) do
     tc = %{
       name: get_xml_attr(attrs, ~c"name", ~c"unknown") |> List.to_string(),
       classname: get_xml_attr(attrs, ~c"classname", ~c"") |> List.to_string(),
@@ -139,7 +139,7 @@ defmodule ExGoCD.TestReport do
   defp case_result(children) do
     has_tag = fn tag ->
       Enum.any?(children, fn
-        {:xmlElement, ^tag, ^tag, _, _, _, _, _, _} -> true
+        {:xmlElement, ^tag, ^tag, _, _, _, _, _, _, _, _} -> true
         _ -> false
       end)
     end
@@ -158,12 +158,12 @@ defmodule ExGoCD.TestReport do
 
   defp extract_failure_type(children) do
     child = Enum.find(children, fn
-      {:xmlElement, tag, _, _, _, _, _, _, _} when tag in [:failure, :error] -> true
+      {:xmlElement, tag, _, _, _, _, _, _, _, _, _} when tag in [:failure, :error] -> true
       _ -> false
     end)
 
     case child do
-      {:xmlElement, _, _, _, _, attrs, _, _, _} ->
+      {:xmlElement, _, _, _, _, _, _, attrs, _, _, _} ->
         get_xml_attr(attrs, ~c"type", nil) |> to_string_or_nil()
       _ -> nil
     end
@@ -186,7 +186,7 @@ defmodule ExGoCD.TestReport do
     end)
 
     case child do
-      {:xmlElement, _, _, _, _, _, _, _, sub_children} ->
+      {:xmlElement, _, _, _, _, _, _, sub_children, _, _} ->
         text = extract_text(sub_children)
         if text == "", do: nil, else: text
       _ -> nil
@@ -195,8 +195,8 @@ defmodule ExGoCD.TestReport do
 
   defp extract_text(children) do
     children
-    |> Enum.filter(&match?({:xmlText, _, _, _, _, _}, &1))
-    |> Enum.map_join(fn {:xmlText, _, _, _, text, _} -> List.to_string(text) end)
+    |> Enum.filter(&match?({:xmlText, _, _, _, _, _, _}, &1))
+    |> Enum.map_join(fn {:xmlText, _, _, _, _, text, _} -> List.to_string(text) end)
     |> String.trim()
   end
 
@@ -224,7 +224,7 @@ defmodule ExGoCD.TestReport do
       total_failures: Enum.sum(Enum.map(suites, & &1.failures)),
       total_errors: Enum.sum(Enum.map(suites, & &1.errors)),
       total_skipped: Enum.sum(Enum.map(suites, & &1.skipped)),
-      total_time: Enum.sum(Enum.map(suites, & &1.time)),
+      total_time: Enum.sum(Enum.map(suites, & &1.time)) * 1.0,
       passed: Enum.count(all_cases, &(&1.result == "passed")),
       failed: Enum.count(all_cases, &(&1.result == "failed")),
       errored: Enum.count(all_cases, &(&1.result == "error")),
@@ -232,9 +232,33 @@ defmodule ExGoCD.TestReport do
     }
   end
 
-  # Render the merged results as HTML using EEx
+  # Render the merged results as HTML
   defp render_report(report) do
-    ~S"""
+    pct = fn n, d ->
+      if d > 0, do: Float.round(n * 1.0 / d * 100.0, 1), else: 0.0
+    end
+
+    suite_rows = Enum.map(report.suites, fn suite ->
+      header = """
+      <tr class="suite-header"><td colspan="4">#{escape_html(suite.name)} &mdash; #{suite.tests} tests</td></tr>
+      """
+
+      cases = Enum.map(suite.cases, fn tc ->
+        result_class = "result-#{tc.result}"
+        """
+        <tr>
+          <td>#{escape_html(tc.name)}</td>
+          <td>#{escape_html(tc.classname)}</td>
+          <td class="#{result_class}">#{String.upcase(tc.result)}</td>
+          <td>#{Float.round(tc.time, 3)}s</td>
+        </tr>
+        """
+      end)
+
+      header <> Enum.join(cases)
+    end)
+
+    """
     <!DOCTYPE html>
     <html lang="en">
     <head>
@@ -265,7 +289,6 @@ defmodule ExGoCD.TestReport do
       .result-skipped { color: #999; }
       .suite-header td { background: #f0f4f8; font-weight: 700; font-size: 12px; color: #555; text-transform: uppercase; letter-spacing: 0.3px; padding-top: 14px; border-top: 2px solid #e0e0e0; }
       .progress-bar { height: 6px; background: #e9ecef; border-radius: 3px; overflow: hidden; margin-top: 16px; margin-bottom: 24px; }
-      .progress-bar .fill { height: 100%; border-radius: 3px; }
       .progress-bar .passed-fill { background: #5cb85c; }
       .progress-bar .failed-fill { background: #d9534f; }
       .progress-bar .errored-fill { background: #f0ad4e; }
@@ -279,37 +302,37 @@ defmodule ExGoCD.TestReport do
 
     <div class="summary">
       <div class="summary-card total">
-        <div class="count"><%%= @total_tests %></div>
+        <div class="count">#{report.total_tests}</div>
         <div class="label">Total</div>
       </div>
       <div class="summary-card passed">
-        <div class="count"><%%= @passed %></div>
+        <div class="count">#{report.passed}</div>
         <div class="label">Passed</div>
       </div>
       <div class="summary-card failed">
-        <div class="count"><%%= @failed %></div>
+        <div class="count">#{report.failed}</div>
         <div class="label">Failed</div>
       </div>
       <div class="summary-card errored">
-        <div class="count"><%%= @errored %></div>
+        <div class="count">#{report.errored}</div>
         <div class="label">Errors</div>
       </div>
       <div class="summary-card skipped">
-        <div class="count"><%%= @skipped %></div>
+        <div class="count">#{report.skipped}</div>
         <div class="label">Skipped</div>
       </div>
       <div class="summary-card time">
-        <div class="count"><%%= Float.round(@total_time, 2) %>s</div>
+        <div class="count">#{Float.round(report.total_time, 2)}s</div>
         <div class="label">Duration</div>
       </div>
     </div>
 
     <div class="progress-bar">
       <div class="progress-segments">
-        <div class="passed-fill" style="width: <%%= pct(@passed, @total_tests) %>%;"></div>
-        <div class="failed-fill" style="width: <%%= pct(@failed, @total_tests) %>%;"></div>
-        <div class="errored-fill" style="width: <%%= pct(@errored, @total_tests) %>%;"></div>
-        <div class="skipped-fill" style="width: <%%= pct(@skipped, @total_tests) %>%;"></div>
+        <div class="passed-fill" style="width: #{pct.(report.passed, report.total_tests)}%;"></div>
+        <div class="failed-fill" style="width: #{pct.(report.failed, report.total_tests)}%;"></div>
+        <div class="errored-fill" style="width: #{pct.(report.errored, report.total_tests)}%;"></div>
+        <div class="skipped-fill" style="width: #{pct.(report.skipped, report.total_tests)}%;"></div>
       </div>
     </div>
 
@@ -323,33 +346,19 @@ defmodule ExGoCD.TestReport do
         </tr>
       </thead>
       <tbody>
-    <%%= for suite <- @suites do %>
-      <tr class="suite-header"><td colspan="4"><%%= suite.name %> — <%%= suite.tests %> tests</td></tr>
-      <%%= for test_case <- suite.cases do %>
-        <tr>
-          <td><%%= test_case.name %></td>
-          <td><%%= test_case.classname %></td>
-          <td class="result-<%%= test_case.result %>"><%%= String.upcase(test_case.result) %></td>
-          <td><%%= Float.round(test_case.time, 3) %>s</td>
-        </tr>
-      <%% end %>
-    <%% end %>
+    #{Enum.join(suite_rows)}
       </tbody>
     </table>
     </body>
     </html>
     """
-    |> EEx.eval_string(
-      suites: report.suites,
-      total_tests: report.total_tests,
-      passed: report.passed,
-      failed: report.failed,
-      errored: report.errored,
-      skipped: report.skipped,
-      total_time: report.total_time,
-      pct: fn numerator, denominator ->
-        if denominator > 0, do: Float.round(numerator / denominator * 100, 1), else: 0
-      end
-    )
+  end
+
+  defp escape_html(text) when is_binary(text) do
+    text
+    |> String.replace("&", "&amp;")
+    |> String.replace("<", "&lt;")
+    |> String.replace(">", "&gt;")
+    |> String.replace("\"", "&quot;")
   end
 end

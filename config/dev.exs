@@ -110,7 +110,8 @@ config :ex_gocd, :otel,
   service_name: "ex_gocd"
 
 config :opentelemetry,
-  traces_exporter: {:opentelemetry_exporter, %{}}
+  traces_exporter: {:opentelemetry_exporter, %{}},
+  resource: %{service: %{name: "ex_gocd"}}
 
 config :opentelemetry_exporter,
   otlp_endpoint: "http://localhost:4318"

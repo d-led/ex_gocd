@@ -81,4 +81,33 @@ defmodule ExGoCD.VsmTracer do
   def set_attr(key, value) do
     Tracer.set_attribute(key, value)
   end
+
+  @doc """
+  Injects the current W3C trace context (`traceparent`, `tracestate`) into
+  `map` in-place.  Returns the mutated map.  Safe no-op if no span is active
+  or the SDK is disabled.
+
+  Use this when sending work to agents — the agent can extract the headers
+  and create child spans under the server's trace.
+  """
+  @spec inject_context(map()) :: map()
+  def inject_context(map) when is_map(map) do
+    ctx = :otel_ctx.get_current()
+    case :otel_tracer.current_span_ctx(ctx) do
+      :undefined ->
+        map
+      {:span_ctx, _version, trace_id, _span_id, _parent_id, _flags, _tracestate,
+       _is_recording, false = _is_valid, _timestamp, _instrumentation_scope} ->
+        # span is invalid (e.g. SDK disabled with noop tracer)
+        map
+      {:span_ctx, _version, <<0::128>>, _span_id, _parent_id, _flags, _tracestate,
+       _is_recording, _is_valid, _timestamp, _instrumentation_scope} ->
+        # all-zero trace ID (noop tracer) — skip
+        map
+      _span_ctx ->
+        headers = %{}
+        :otel_propagator_text_map.inject(headers, ctx)
+        Map.merge(map, headers)
+    end
+  end
 end

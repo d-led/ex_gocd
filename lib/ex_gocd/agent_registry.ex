@@ -9,6 +9,7 @@ defmodule ExGoCD.AgentRegistry do
   alias ExGoCD.AgentJobRuns
   alias ExGoCD.Agents
   alias ExGoCD.PubSub
+  alias ExGoCD.VsmTracer
   alias ExGoCDWeb.AgentPresence
 
   @agent_topic_prefix "agent:"
@@ -81,6 +82,7 @@ defmodule ExGoCD.AgentRegistry do
       "buildCommand" => build_command,
       "consoleURI" => console_uri
     }
+    |> VsmTracer.inject_context()
 
     {payload, build_id, pipeline, stage, job}
   end
