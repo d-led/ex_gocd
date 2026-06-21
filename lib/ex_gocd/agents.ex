@@ -229,10 +229,21 @@ defmodule ExGoCD.Agents do
   @spec update_agent(Agent.t(), map()) :: {:ok, Agent.t()} | {:error, Ecto.Changeset.t()}
   def update_agent(%Agent{} = agent, attrs) do
     attrs = maybe_add_approval_cookie(agent, attrs)
-    agent
-    |> Agent.changeset(attrs)
-    |> Repo.update()
-    |> broadcast(:agent_updated)
+    old_state = agent.state
+    new_state = attrs["state"] || attrs[:state]
+
+    result =
+      agent
+      |> Agent.changeset(attrs)
+      |> Repo.update()
+      |> broadcast(:agent_updated)
+
+    # Record state transition for analytics
+    if new_state && new_state != old_state do
+      ExGoCD.Analytics.record_agent_transition(agent.uuid, old_state, new_state)
+    end
+
+    result
   end
 
   defp maybe_add_approval_cookie(agent, attrs) when is_map(attrs) do
