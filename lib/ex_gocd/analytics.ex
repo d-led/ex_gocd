@@ -7,6 +7,7 @@ defmodule ExGoCD.Analytics do
   import Ecto.Query
   alias ExGoCD.Repo
   alias ExGoCD.AgentJobRuns.AgentJobRun
+  alias ExGoCD.Analytics.AgentTransition
   alias ExGoCD.Pipelines.{Pipeline, PipelineInstance}
 
   def pipeline_analytics(pipeline_name, days \\ 30) do
