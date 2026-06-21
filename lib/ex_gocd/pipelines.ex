@@ -389,6 +389,43 @@ defmodule ExGoCD.Pipelines do
   end
 
   @doc """
+  Cancels a stage by marking all its building/scheduled job instances as Cancelled.
+  """
+  def cancel_stage(pipeline_name, pipeline_counter, stage_name)
+      when is_binary(pipeline_name) and is_integer(pipeline_counter) and is_binary(stage_name) do
+    import Ecto.Query
+
+    query =
+      from si in StageInstance,
+        join: pi in assoc(si, :pipeline_instance),
+        join: p in assoc(pi, :pipeline),
+        where: p.name == ^pipeline_name and pi.counter == ^pipeline_counter and si.name == ^stage_name,
+        preload: :job_instances,
+        limit: 1
+
+    case Repo.one(query) do
+      nil ->
+        {:error, :not_found}
+
+      si ->
+        Repo.transaction(fn ->
+          # Mark stage as Cancelled
+          Repo.update!(StageInstance.changeset(si, %{state: "Cancelled", result: "Cancelled"}))
+
+          # Cancel all building/scheduled job instances
+          Enum.each(si.job_instances, fn ji ->
+            if ji.state in ["Scheduled", "Assigned", "Preparing", "Building"] do
+              Repo.update!(JobInstance.changeset(ji, %{state: "Cancelled", result: "Cancelled"}))
+            end
+          end)
+        end)
+
+        Phoenix.PubSub.broadcast(ExGoCD.PubSub, "pipelines:updates", :pipelines_updated)
+        {:ok, si}
+    end
+  end
+
+  @doc """
   Checks if a pipeline is currently building.
   """
   def pipeline_building?(pipeline_id) do

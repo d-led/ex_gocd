@@ -153,6 +153,11 @@ defmodule ExGoCDWeb.Router do
     # Pipeline instance history & details
     get "/pipelines/:pipeline_name/history", PipelineInstanceController, :history
     get "/pipelines/:pipeline_name/:counter", PipelineInstanceController, :show
+
+    # Stage instance & operations
+    get "/stages/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter", StageController, :show
+    get "/stages/:pipeline_name/:stage_name/history", StageController, :history
+    post "/stages/:pipeline_name/:pipeline_counter/:stage_name/cancel", StageController, :cancel
   end
 
   scope "/api/admin", ExGoCDWeb.API.Admin do
@@ -220,6 +225,11 @@ defmodule ExGoCDWeb.Router do
     # Pipeline instance history & details
     get "/pipelines/:pipeline_name/history", PipelineInstanceController, :history
     get "/pipelines/:pipeline_name/:counter", PipelineInstanceController, :show
+
+    # Stage instance & operations
+    get "/stages/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter", StageController, :show
+    get "/stages/:pipeline_name/:stage_name/history", StageController, :history
+    post "/stages/:pipeline_name/:pipeline_counter/:stage_name/cancel", StageController, :cancel
   end
 
   # GoCD internal agent remoting API (HTTP-based, used by official Go agent)
