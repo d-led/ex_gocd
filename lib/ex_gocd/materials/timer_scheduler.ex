@@ -175,6 +175,8 @@ defmodule ExGoCD.Materials.TimerScheduler do
       fun.()
     rescue
       _ -> nil
+    catch
+      _, _ -> nil
     end
   end
 end
