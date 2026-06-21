@@ -20,6 +20,7 @@ defmodule ExGoCD.Pipelines.Pipeline do
           lock_behavior: String.t() | nil,
           environment_variables: map() | nil,
           timer: String.t() | nil,
+          timer_only_on_changes: boolean() | nil,
           params: map() | nil,
           tracking_tool: map() | nil,
           template_name: String.t() | nil,
@@ -43,6 +44,7 @@ defmodule ExGoCD.Pipelines.Pipeline do
     field :lock_behavior, :string, default: "none"
     field :environment_variables, :map, default: %{}
     field :timer, :string
+    field :timer_only_on_changes, :boolean, default: false
     field :params, :map, default: %{}
     field :tracking_tool, :map
     field :template_name, :string
@@ -73,6 +75,7 @@ defmodule ExGoCD.Pipelines.Pipeline do
       :lock_behavior,
       :environment_variables,
       :timer,
+      :timer_only_on_changes,
       :params,
       :tracking_tool,
       :template_name,

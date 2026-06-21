@@ -20,6 +20,7 @@ defmodule ExGoCD.Application do
       ExGoCD.TestAgentSupervisor,
       ExGoCDWeb.Endpoint,
       ExGoCD.Materials.Poller,
+      ExGoCD.Materials.TimerScheduler,
       ExGoCD.Pipelines.ConsoleActivityMonitor
     ]
 
