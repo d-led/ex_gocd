@@ -42,6 +42,8 @@ defmodule ExGoCDWeb.Router do
     post "/auth/login", SessionController, :create
     delete "/auth/logout", SessionController, :delete
 
+    post "/go/pipelines/:pipeline_name/:counter/:stage_name/run", API.PipelineOperationsController, :approve_stage
+
     get "/api_json/pipelines/value_stream_map/:pipeline_name/:pipeline_counter", ValueStreamMapController, :show
     get "/api_json/materials/value_stream_map/:material_fingerprint/:revision", ValueStreamMapController, :show_material
     get "/api_json/go/pipelines/value_stream_map/:pipeline_name/:pipeline_counter", ValueStreamMapController, :show
@@ -126,9 +128,10 @@ defmodule ExGoCDWeb.Router do
     # Schedule a job (enqueue for next idle agent; GoCD-style pipeline/stage/job)
     post "/jobs/schedule", JobController, :schedule
 
-    # Pipeline operations (pause/unpause)
+    # Pipeline operations (pause/unpause/approve)
     post "/pipelines/:pipeline_name/pause", PipelineOperationsController, :pause
     post "/pipelines/:pipeline_name/unpause", PipelineOperationsController, :unpause
+    post "/pipelines/:pipeline_name/:counter/:stage_name/run", PipelineOperationsController, :approve_stage
   end
 
   scope "/api/admin", ExGoCDWeb.API.Admin do
@@ -158,9 +161,10 @@ defmodule ExGoCDWeb.Router do
     post "/builds/:build_id/console", BuildConsoleController, :append
     post "/jobs/schedule", JobController, :schedule
 
-    # Pipeline operations (pause/unpause)
+    # Pipeline operations (pause/unpause/approve)
     post "/pipelines/:pipeline_name/pause", PipelineOperationsController, :pause
     post "/pipelines/:pipeline_name/unpause", PipelineOperationsController, :unpause
+    post "/pipelines/:pipeline_name/:counter/:stage_name/run", PipelineOperationsController, :approve_stage
   end
 
   # GoCD internal agent remoting API (HTTP-based, used by official Go agent)

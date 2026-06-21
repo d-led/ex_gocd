@@ -68,4 +68,38 @@ defmodule ExGoCDWeb.API.PipelineOperationsController do
         |> json(%{error: "Forbidden"})
     end
   end
+
+  def approve_stage(conn, %{"pipeline_name" => pipeline_name, "counter" => counter_str, "stage_name" => stage_name}) do
+    user = get_current_user(conn)
+    case ExGoCD.Policies.permit?(ExGoCD.Policies.EnvironmentPolicy, :trigger_pipeline, user) do
+      true ->
+        counter = String.to_integer(counter_str)
+        case Pipelines.approve_stage(pipeline_name, counter, stage_name) do
+          {:ok, _stage_instance} ->
+            conn
+            |> put_status(:ok)
+            |> render(:message, message: "Stage '#{stage_name}' approved successfully.")
+
+          {:error, :stage_not_awaiting_approval} ->
+            conn
+            |> put_status(:bad_request)
+            |> json(%{error: "Stage '#{stage_name}' is not awaiting approval."})
+
+          {:error, :stage_config_not_found} ->
+            conn
+            |> put_status(:not_found)
+            |> json(%{error: "Stage config not found."})
+
+          {:error, _} ->
+            conn
+            |> put_status(:unprocessable_entity)
+            |> json(%{error: "Failed to approve stage."})
+        end
+
+      false ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{error: "Forbidden"})
+    end
+  end
 end

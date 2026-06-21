@@ -150,6 +150,18 @@
         <!-- Action Bar -->
         <div class="stage-summary-actions">
           <div class="action-buttons flex gap-2">
+            <%= if @active_stage_summary.state == "Awaiting" do %>
+              <button
+                type="button"
+                class="action-btn bg-[#2d6ca2] hover:bg-[#24527d] text-white border border-[#2d6ca2] px-3 py-1 text-xs font-bold rounded flex items-center gap-1"
+                phx-click="approve_stage"
+                phx-value-pipeline={@active_stage_summary.pipeline_name}
+                phx-value-counter={@active_stage_summary.pipeline_counter}
+                phx-value-stage={@active_stage_summary.stage_name}
+              >
+                <i class="fa-solid fa-play text-[10px]"></i> Approve
+              </button>
+            <% end %>
             <button
               type="button"
               class="action-btn bg-gray-100 hover:bg-gray-200 border border-gray-300 px-3 py-1 text-xs rounded"

@@ -112,6 +112,7 @@ defmodule ExGoCDWeb.PipelineActivityLive do
 
   defp stage_status(si) do
     case {si.state, si.result} do
+      {"Awaiting", _} -> "Awaiting"
       {"Building", _} -> "Building"
       {"Completed", "Passed"} -> "Passed"
       {"Completed", "Failed"} -> "Failed"
@@ -219,6 +220,7 @@ defmodule ExGoCDWeb.PipelineActivityLive do
       "Failed" -> "bg-[#d9534f] hover:bg-[#d43f3a]"
       "Building" -> "bg-[#5bc0de] hover:bg-[#46b8da]"
       "Cancelled" -> "bg-[#f0ad4e] hover:bg-[#eea236]"
+      "Awaiting" -> "bg-[#e7eef0] border border-[#b6cdd2] text-gray-700 hover:bg-gray-100"
       _ -> "bg-gray-300 hover:bg-gray-400"
     end
   end

@@ -68,6 +68,7 @@ defmodule ExGoCDWeb.ValueStreamMapLive do
       "Failed" -> "bg-[#d9534f]"
       "Building" -> "bg-[#5bc0de]"
       "Cancelled" -> "bg-[#f0ad4e]"
+      "Awaiting" -> "bg-[#e7eef0] border border-[#b6cdd2]"
       _ -> "bg-gray-300"
     end
   end

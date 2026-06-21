@@ -601,6 +601,22 @@ body {
   /* GoCD uses building.gif - animated GIF background image, not CSS animation */
 }
 
+.pipeline_stage.awaiting {
+  background: #e7eef0;
+  color: var(--icon-color);
+  border: 1px solid #b6cdd2;
+}
+
+.pipeline_stage.awaiting::before {
+  content: "\f04c";
+  font-family: "Font Awesome 6 Free";
+  font-weight: 900;
+  font-size: var(--icon-size);
+  margin-right: 1.5px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
 .pipeline_stage.unknown {
   border: 1px solid var(--border-color);
   background: #e6e3e3;

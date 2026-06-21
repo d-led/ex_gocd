@@ -164,13 +164,85 @@ defmodule ExGoCD.Pipelines do
   end
 
   @doc """
+  Approves an awaiting manual stage instance, transitioning it to Building and scheduling its jobs.
+  """
+  def approve_stage(pipeline_name, pipeline_counter, stage_name) when is_binary(pipeline_name) and is_integer(pipeline_counter) and is_binary(stage_name) do
+    query =
+      from si in StageInstance,
+        join: pi in assoc(si, :pipeline_instance),
+        join: p in assoc(pi, :pipeline),
+        where: p.name == ^pipeline_name and pi.counter == ^pipeline_counter and si.name == ^stage_name and si.state == "Awaiting",
+        preload: [pipeline_instance: :pipeline]
+
+    case Repo.one(query) do
+      nil ->
+        {:error, :stage_not_awaiting_approval}
+
+      stage_instance ->
+        pipeline = stage_instance.pipeline_instance.pipeline
+        pipeline_config = Repo.preload(pipeline, stages: [jobs: :tasks])
+        stage_config = Enum.find(pipeline_config.stages, &(&1.name == stage_instance.name))
+
+        if is_nil(stage_config) do
+          {:error, :stage_config_not_found}
+        else
+          now = DateTime.utc_now()
+          scheduled_at = DateTime.to_naive(now)
+
+          result =
+            Repo.transaction(fn ->
+              # Update StageInstance state to "Building"
+              {:ok, updated_si} =
+                stage_instance
+                |> StageInstance.changeset(%{
+                  state: "Building",
+                  last_transitioned_time: now
+                })
+                |> Repo.update()
+
+              # Create job instances
+              job_instances =
+                insert_next_job_instances(
+                  updated_si.id,
+                  stage_config.jobs,
+                  pipeline.name,
+                  pipeline_counter,
+                  stage_config.name,
+                  scheduled_at
+                )
+
+              {updated_si, job_instances}
+            end)
+
+          case result do
+            {:ok, {updated_si, job_instances}} ->
+              # Schedule jobs
+              schedule_next_jobs(
+                pipeline,
+                pipeline_counter,
+                updated_si,
+                stage_config.jobs,
+                job_instances
+              )
+
+              Phoenix.PubSub.broadcast(ExGoCD.PubSub, "pipelines:updates", :pipelines_updated)
+              {:ok, updated_si}
+
+            {:error, reason} ->
+              {:error, reason}
+          end
+        end
+    end
+  end
+
+  @doc """
   Checks if a pipeline is currently building.
   """
   def pipeline_building?(pipeline_id) do
     query =
       from pi in PipelineInstance,
         join: si in assoc(pi, :stage_instances),
-        where: pi.pipeline_id == ^pipeline_id and si.state == "Building",
+        where: pi.pipeline_id == ^pipeline_id and si.state in ["Building", "Awaiting"],
         select: count(pi.id)
 
     Repo.one(query) > 0
@@ -771,6 +843,7 @@ defmodule ExGoCD.Pipelines do
     }
   end
 
+  defp stage_status(%StageInstance{state: "Awaiting"}), do: "Awaiting"
   defp stage_status(%StageInstance{state: "Building"}), do: "Building"
   defp stage_status(%StageInstance{state: "Completed", result: "Passed"}), do: "Passed"
   defp stage_status(%StageInstance{state: "Completed", result: "Failed"}), do: "Failed"
@@ -796,7 +869,7 @@ defmodule ExGoCD.Pipelines do
   def pipeline_instance_status(instance) do
     stages = instance.stage_instances || []
     cond do
-      Enum.any?(stages, fn s -> s.state == "Building" end) -> "Building"
+      Enum.any?(stages, fn s -> s.state in ["Building", "Awaiting"] end) -> "Building"
       Enum.any?(stages, fn s -> s.result == "Failed" or s.result == "Cancelled" end) -> "Failed"
       Enum.all?(stages, fn s -> s.state == "Completed" and s.result == "Passed" end) -> "Passed"
       true -> "Unknown"
@@ -917,30 +990,44 @@ defmodule ExGoCD.Pipelines do
   defp do_trigger_next_stage(pipeline, pipeline_instance, next_stage, current_idx) do
     now = DateTime.utc_now()
 
-    Repo.transaction(fn ->
-      new_stage_instance = insert_next_stage_instance(pipeline_instance.id, next_stage, current_idx, now)
-      scheduled_at = DateTime.to_naive(now)
-      next_stage_config = Repo.preload(next_stage, jobs: :tasks)
-      job_instances = insert_next_job_instances(new_stage_instance.id, next_stage_config.jobs, pipeline.name, pipeline_instance.counter, next_stage.name, scheduled_at)
-      {new_stage_instance, next_stage_config, job_instances}
-    end)
-    |> case do
-      {:ok, {new_si, next_stage_config, job_instances}} ->
-        schedule_next_jobs(pipeline, pipeline_instance.counter, new_si, next_stage_config.jobs, job_instances)
-        :ok
-      error ->
-        error
+    if next_stage.approval_type == "manual" do
+      case Repo.transaction(fn ->
+             insert_next_stage_instance(pipeline_instance.id, next_stage, current_idx, now)
+           end) do
+        {:ok, _new_si} ->
+          Phoenix.PubSub.broadcast(ExGoCD.PubSub, "pipelines:updates", :pipelines_updated)
+          :ok
+        error ->
+          error
+      end
+    else
+      Repo.transaction(fn ->
+        new_stage_instance = insert_next_stage_instance(pipeline_instance.id, next_stage, current_idx, now)
+        scheduled_at = DateTime.to_naive(now)
+        next_stage_config = Repo.preload(next_stage, jobs: :tasks)
+        job_instances = insert_next_job_instances(new_stage_instance.id, next_stage_config.jobs, pipeline.name, pipeline_instance.counter, next_stage.name, scheduled_at)
+        {new_stage_instance, next_stage_config, job_instances}
+      end)
+      |> case do
+        {:ok, {new_si, next_stage_config, job_instances}} ->
+          schedule_next_jobs(pipeline, pipeline_instance.counter, new_si, next_stage_config.jobs, job_instances)
+          :ok
+        error ->
+          error
+      end
     end
   end
 
   defp insert_next_stage_instance(pipeline_instance_id, next_stage, current_idx, now) do
+    state = if next_stage.approval_type == "manual", do: "Awaiting", else: "Building"
+
     %StageInstance{}
     |> StageInstance.changeset(%{
       pipeline_instance_id: pipeline_instance_id,
       name: next_stage.name,
       counter: 1,
       order_id: current_idx + 2,
-      state: "Building",
+      state: state,
       result: "Unknown",
       approval_type: next_stage.approval_type,
       created_time: now,

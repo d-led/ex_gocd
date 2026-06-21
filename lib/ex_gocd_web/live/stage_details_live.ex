@@ -32,6 +32,33 @@ defmodule ExGoCDWeb.StageDetailsLive do
   end
 
   @impl true
+  def handle_event("approve_stage", _params, socket) do
+    user = socket.assigns[:current_user]
+
+    case ExGoCD.Policies.permit?(ExGoCD.Policies.EnvironmentPolicy, :trigger_pipeline, user) do
+      true ->
+        pipeline_name = socket.assigns.pipeline_name
+        counter = socket.assigns.pipeline_counter
+        stage_name = socket.assigns.stage_name
+
+        case ExGoCD.Pipelines.approve_stage(pipeline_name, counter, stage_name) do
+          {:ok, _stage_instance} ->
+            stage = get_stage_details(pipeline_name, counter, stage_name, socket.assigns.stage_counter)
+            {:noreply,
+             socket
+             |> put_flash(:info, "Stage approved successfully.")
+             |> assign(:stage, stage)}
+
+          {:error, reason} ->
+            {:noreply, put_flash(socket, :error, "Failed to approve stage: #{inspect(reason)}")}
+        end
+
+      false ->
+        {:noreply, put_flash(socket, :error, "You do not have operate permissions for this pipeline.")}
+    end
+  end
+
+  @impl true
   def handle_event("select_tab", %{"tab" => tab}, socket) do
     {:noreply, assign(socket, :active_tab, tab)}
   end
@@ -172,13 +199,14 @@ defmodule ExGoCDWeb.StageDetailsLive do
   end
   defp format_duration(_), do: "—"
 
-  defp status_bg_color(result) do
-    case result do
-      "Passed" -> "bg-[#5cb85c]"
-      "Failed" -> "bg-[#d9534f]"
-      "Building" -> "bg-[#5bc0de]"
-      "Cancelled" -> "bg-[#f0ad4e]"
-      _ -> "bg-gray-300"
+  defp status_bg_color(state, result) do
+    cond do
+      state == "Awaiting" -> "bg-[#e7eef0] border border-[#b6cdd2]"
+      state == "Building" -> "bg-[#5bc0de]"
+      result == "Passed" -> "bg-[#5cb85c]"
+      result == "Failed" -> "bg-[#d9534f]"
+      result == "Cancelled" -> "bg-[#f0ad4e]"
+      true -> "bg-gray-300"
     end
   end
 
@@ -197,12 +225,23 @@ defmodule ExGoCDWeb.StageDetailsLive do
           <span>{@stage_counter}</span>
         </div>
 
-        <div class="flex items-center gap-4 mt-2">
-          <span class={"w-3.5 h-3.5 rounded-full " <> status_bg_color(@stage.result)}></span>
-          <h1 class="text-2xl font-extrabold text-gray-950 font-mono flex items-baseline gap-2">
-            {@stage_name}
-            <span class="text-sm font-semibold text-gray-500">Run Details</span>
-          </h1>
+        <div class="flex items-center justify-between mt-2">
+          <div class="flex items-center gap-4">
+            <span class={"w-3.5 h-3.5 rounded-full " <> status_bg_color(@stage.state, @stage.result)}></span>
+            <h1 class="text-2xl font-extrabold text-gray-950 font-mono flex items-baseline gap-2">
+              {@stage_name}
+              <span class="text-sm font-semibold text-gray-500">Run Details</span>
+            </h1>
+          </div>
+          <%= if @stage.state == "Awaiting" do %>
+            <button
+              type="button"
+              class="bg-[#2d6ca2] hover:bg-[#24527d] text-white px-4 py-2 text-sm font-bold font-mono rounded flex items-center gap-1.5 shadow"
+              phx-click="approve_stage"
+            >
+              <i class="fa-solid fa-play text-xs"></i> Approve Stage
+            </button>
+          <% end %>
         </div>
       </div>
 
@@ -271,7 +310,7 @@ defmodule ExGoCDWeb.StageDetailsLive do
                           </td>
                           <td class="px-6 py-4">{job.state}</td>
                           <td class="px-6 py-4">
-                            <span class={"text-[9px] font-extrabold px-1.5 py-0.5 rounded uppercase font-mono text-white " <> status_bg_color(job.result)}>
+                            <span class={"text-[9px] font-extrabold px-1.5 py-0.5 rounded uppercase font-mono text-white " <> status_bg_color(job.state, job.result)}>
                               {job.result}
                             </span>
                           </td>

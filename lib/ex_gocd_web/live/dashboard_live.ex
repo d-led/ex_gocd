@@ -254,6 +254,31 @@ defmodule ExGoCDWeb.DashboardLive do
   end
 
   @impl true
+  def handle_event("approve_stage", %{"pipeline" => pipeline_name, "counter" => counter_str, "stage" => stage_name}, socket) do
+    user = socket.assigns[:current_user]
+
+    case ExGoCD.Policies.permit?(ExGoCD.Policies.EnvironmentPolicy, :trigger_pipeline, user) do
+      true ->
+        counter = String.to_integer(counter_str)
+        case Pipelines.approve_stage(pipeline_name, counter, stage_name) do
+          {:ok, _stage_instance} ->
+            new_summary = fetch_stage_summary_details(pipeline_name, counter, stage_name)
+            {:noreply,
+             socket
+             |> put_flash(:info, "Stage #{stage_name} approved successfully.")
+             |> assign(:active_stage_summary, new_summary)
+             |> load_pipelines()}
+
+          {:error, reason} ->
+            {:noreply, put_flash(socket, :error, "Failed to approve stage: #{inspect(reason)}")}
+        end
+
+      false ->
+        {:noreply, put_flash(socket, :error, "You do not have operate permissions for this pipeline.")}
+    end
+  end
+
+  @impl true
   def handle_info(:pipelines_updated, socket) do
     socket = load_pipelines(socket)
     socket =
@@ -321,6 +346,7 @@ defmodule ExGoCDWeb.DashboardLive do
       pipeline_counter: pipeline_counter,
       stage_name: stage_name,
       stage_counter: si.counter,
+      state: si.state,
       triggered_by: triggered_by,
       created_time: created_time,
       duration: stage_duration(si),
@@ -624,6 +650,7 @@ defmodule ExGoCDWeb.DashboardLive do
       "Failed" -> "#{base} failed"
       "Building" -> "#{base} building"
       "Cancelled" -> "#{base} cancelled"
+      "Awaiting" -> "#{base} awaiting"
       "NotRun" -> "#{base} unknown"
       _ -> "#{base} unknown"
     end
