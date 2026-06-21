@@ -47,12 +47,8 @@ services:
     container_name: jaeger
     environment:
       - COLLECTOR_OTLP_ENABLED=true
-      - SPAN_STORAGE_TYPE=badger
-      - BADGER_EPHEMERAL=false
-      - BADGER_DIRECTORY_VALUE=/badger/data
-      - BADGER_DIRECTORY_KEY=/badger/key
-    volumes:
-      - data-jaeger:/badger
+      - SPAN_STORAGE_TYPE=memory
+      - MEMORY_MAX_TRACES=50000
     ports:
       - "16686:16686"  # UI
 
@@ -70,6 +66,7 @@ services:
     environment:
       GF_RENDERING_SERVER_URL: http://renderer:8081/render
       GF_RENDERING_CALLBACK_URL: http://grafana:3000/
+      GF_RENDERING_RENDERER_TOKEN: ex-gocd-renderer-token
       GF_LOG_FILTERS: rendering:debug
     depends_on:
       - jaeger
@@ -84,7 +81,7 @@ services:
       - "3081:8081"
     environment:
       ENABLE_METRICS: "true"
+      RENDERER_TOKEN: ex-gocd-renderer-token
 
 volumes:
   data-postgres:
-  data-jaeger:

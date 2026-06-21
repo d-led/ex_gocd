@@ -58,6 +58,52 @@ Or run the agent from the agent directory: `cd agent && go run .` (set `AGENT_SE
 
 Optional: set `AGENT_AUTO_REGISTER_KEY` (and optionally resources/environments) to match server config if you use auto-approval. See [agent/README.md](agent/README.md).
 
+### Local CI Runner (auto-registering agent)
+
+Runs the `ex_gocd` pipeline against this repo — agent auto-registers with `elixir,postgres` resources and executes `mix test` / `mix quality` from the project root.
+
+```bash
+# Full setup: seed DB → start server → start agent
+./scripts/run-ci-locally.sh
+
+# Or just the agent (server already running)
+./scripts/run-ci-agent.sh
+
+# Trigger the pipeline via API
+./scripts/run-ci-locally.sh trigger
+```
+
+Requires postgres running (`docker compose up -d postgres` or local).
+
+### Docker Compose Stack
+
+```bash
+docker compose up -d          # postgres + observability stack
+docker compose up -d postgres # postgres only (for CI runner)
+```
+
+| Service | URL | Config |
+|---|---|---|
+| **ex_gocd app** | [localhost:4000](http://localhost:4000) | `config/dev.exs` |
+| **Adminer** (DB browser) | [localhost:8092](http://localhost:8092/?pgsql=postgres&username=postgres&db=postgres&ns=public) | — |
+| **Grafana** (dashboards) | [localhost:3000](http://localhost:3000) | `grafana/grafana.ini`, `grafana/provisioning/` |
+| **Jaeger** (traces) | [localhost:16686](http://localhost:16686/search) | all-in-one, ephemeral |
+| **OTel Collector** | `localhost:4318` (HTTP), `localhost:4317` (gRPC) | `otel/collector-config.yml` |
+| **Grafana Renderer** | `localhost:3081` (internal) | — |
+| **Built-in Analytics** | [localhost:4000/analytics](http://localhost:4000/analytics) | `lib/ex_gocd/analytics.ex`, `lib/ex_gocd_web/live/analytics_live.ex` |
+| **Postgres** | `localhost:5432` (`postgres:postgres`) | `docker-compose.yml` env vars |
+
+Pre-configured dashboard: `grafana/provisioning/dashboards/ci-observability/pipeline-observability.json`
+
+### Observability
+
+Built-in observability with **zero external tools required**:
+
+- **[Built-in Analytics](http://localhost:4000/analytics)** — pipeline MTTR, pass rate, build/wait times, agent utilization, VSM trends (parity with [GoCD Analytics Plugin](https://github.com/gocd/gocd-analytics-plugin))
+- **[Grafana](http://localhost:3000)** — pre-configured CI pipeline dashboard with Jaeger trace explorer
+- **[Jaeger](http://localhost:16686)** — distributed tracing of pipeline VSM (each trigger → correlated spans for stages/jobs)
+- **OpenTelemetry** — OTLP export from server to collector → Jaeger. Config in `config/config.exs` (`:ex_gocd, :otel`), setup in `lib/ex_gocd/otel.ex`
+
 ## Documentation
 
 - [Rewrite Plan & Requirements](docs/rewrite.md) - **READ THIS FIRST**
