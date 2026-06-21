@@ -1184,6 +1184,49 @@ defmodule ExGoCDWeb.AdminLive do
     end
   end
 
+  # --- Audit Log handlers ---
+
+  @impl true
+  def handle_event("search_audit_log", %{"actor" => actor, "action" => action, "resource_type" => resource_type, "resource_name" => resource_name, "date_from" => date_from, "date_to" => date_to}, socket) do
+    filters = build_audit_filters(actor, action, resource_type, resource_name, date_from, date_to)
+    {:noreply, load_audit_log(socket, filters)}
+  end
+
+  @impl true
+  def handle_event("reset_audit_log_filters", _params, socket) do
+    {:noreply, load_audit_log(socket, %{})}
+  end
+
+  defp load_audit_log(socket, filters) do
+    entries = AuditLog.search(filters)
+    socket
+    |> assign(:audit_log_entries, entries)
+    |> assign(:audit_log_filters, filters)
+  end
+
+  defp build_audit_filters(actor, action, resource_type, resource_name, date_from_str, date_to_str) do
+    %{}
+    |> put_if_present(:actor, actor)
+    |> put_if_present(:action, action)
+    |> put_if_present(:resource_type, resource_type)
+    |> put_if_present(:resource_name, resource_name)
+    |> put_if_present(:date_from, parse_date(date_from_str))
+    |> put_if_present(:date_to, parse_date(date_to_str))
+  end
+
+  defp put_if_present(map, _key, nil), do: map
+  defp put_if_present(map, _key, ""), do: map
+  defp put_if_present(map, key, value), do: Map.put(map, key, value)
+
+  defp parse_date(nil), do: nil
+  defp parse_date(""), do: nil
+  defp parse_date(str) when is_binary(str) do
+    case Date.from_iso8601(str) do
+      {:ok, date} -> date
+      _ -> nil
+    end
+  end
+
   # --- Moved handlers & helpers ---
 
   @impl true
@@ -1476,51 +1519,6 @@ defmodule ExGoCDWeb.AdminLive do
       </div>
     </div>
     """
-  end
-
-  # ---------------------------------------------------------------------------
-  # Audit Log Tab
-  # ---------------------------------------------------------------------------
-
-  @impl true
-  def handle_event("search_audit_log", %{"actor" => actor, "action" => action, "resource_type" => resource_type, "resource_name" => resource_name, "date_from" => date_from, "date_to" => date_to}, socket) do
-    filters = build_audit_filters(actor, action, resource_type, resource_name, date_from, date_to)
-    {:noreply, load_audit_log(socket, filters)}
-  end
-
-  @impl true
-  def handle_event("reset_audit_log_filters", _params, socket) do
-    {:noreply, load_audit_log(socket, %{})}
-  end
-
-  defp load_audit_log(socket, filters) do
-    entries = AuditLog.search(filters)
-    socket
-    |> assign(:audit_log_entries, entries)
-    |> assign(:audit_log_filters, filters)
-  end
-
-  defp build_audit_filters(actor, action, resource_type, resource_name, date_from_str, date_to_str) do
-    %{}
-    |> put_if_present(:actor, actor)
-    |> put_if_present(:action, action)
-    |> put_if_present(:resource_type, resource_type)
-    |> put_if_present(:resource_name, resource_name)
-    |> put_if_present(:date_from, parse_date(date_from_str))
-    |> put_if_present(:date_to, parse_date(date_to_str))
-  end
-
-  defp put_if_present(map, _key, nil), do: map
-  defp put_if_present(map, _key, ""), do: map
-  defp put_if_present(map, key, value), do: Map.put(map, key, value)
-
-  defp parse_date(nil), do: nil
-  defp parse_date(""), do: nil
-  defp parse_date(str) when is_binary(str) do
-    case Date.from_iso8601(str) do
-      {:ok, date} -> date
-      _ -> nil
-    end
   end
 
   defp audit_log_tab(assigns) do

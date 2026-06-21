@@ -36,6 +36,15 @@ defmodule ExGoCDWeb.AgentsLive do
   end
 
   @impl true
+  def handle_params(params, _uri, socket) do
+    agent_type = case params["type"] do
+      "elastic" -> :elastic
+      _ -> :static
+    end
+    {:noreply, assign(socket, agent_type: agent_type, selected_agents: MapSet.new())}
+  end
+
+  @impl true
   def handle_info({event, _agent}, socket)
       when event in [:agent_registered, :agent_updated, :agent_enabled, :agent_disabled, :agent_deleted] do
     {:noreply, update_agents_list(socket)}
@@ -83,12 +92,20 @@ defmodule ExGoCDWeb.AgentsLive do
     end
   end
 
-  def handle_event("switch_tab", %{"type" => "static"}, socket) do
-    {:noreply, assign(socket, agent_type: :static, selected_agents: MapSet.new())}
+  def handle_event("clean_disabled", _params, socket) do
+    if socket.assigns[:is_user_admin] do
+      count = Agents.clean_disabled_agents()
+      {:noreply,
+       socket
+       |> put_flash(:info, "Deleted #{count} disabled agent(s).")
+       |> assign(selected_agents: MapSet.new())}
+    else
+      return_forbidden(socket)
+    end
   end
 
-  def handle_event("switch_tab", %{"type" => "elastic"}, socket) do
-    {:noreply, assign(socket, agent_type: :elastic, selected_agents: MapSet.new())}
+  def handle_event("switch_tab", %{"type" => type}, socket) do
+    {:noreply, push_patch(socket, to: ~p"/agents?type=#{type}")}
   end
 
   def handle_event("filter", %{"value" => value}, socket) do
@@ -284,6 +301,14 @@ defmodule ExGoCDWeb.AgentsLive do
             </button>
             <button
               type="button"
+              class="btn-small btn-warning"
+              phx-click="clean_disabled"
+              data-confirm="Delete ALL disabled agents?"
+            >
+              CLEAN DISABLED
+            </button>
+            <button
+              type="button"
               class="btn-small btn-primary"
               phx-click="schedule_test_job"
               title="Add a test job to the queue; next idle agent will run it (GoCD-style scheduling)"
@@ -389,17 +414,13 @@ defmodule ExGoCDWeb.AgentsLive do
                   </td>
                 <% end %>
                 <td>
-                  <%= if @is_user_admin do %>
-                    <a
-                      href={"/agents/#{agent.uuid}/job_run_history"}
-                      title={agent.uuid}
-                      class="agent-name"
-                    >
-                      {agent.hostname}
-                    </a>
-                  <% else %>
-                    <span class="agent-name">{agent.hostname}</span>
-                  <% end %>
+                  <a
+                    href={"/agents/#{agent.uuid}/job_run_history"}
+                    title={agent.uuid}
+                    class="agent-name"
+                  >
+                    {agent.hostname}
+                  </a>
                 </td>
                 <td>{agent.working_dir || ""}</td>
                 <td>{agent.operating_system || ""}</td>
