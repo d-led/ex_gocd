@@ -1,0 +1,11 @@
+<testsuites>
+  <testsuite name="E2E Scalability and Performance" tests="5" failures="0" errors="0">
+    <testcase name="Server ready check" classname="E2E.Scalability" />
+    <testcase name="Go Agent registration" classname="E2E.Scalability" />
+    <testcase name="E2E Job execution" classname="E2E.Scalability" />
+    <testcase name="Simulated OTP Agents registration (100 agents)" classname="E2E.Scalability">
+      
+    </testcase>
+    <testcase name="Erlang VM memory check" classname="E2E.Scalability" />
+  </testsuite>
+</testsuites>
