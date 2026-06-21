@@ -81,7 +81,7 @@
     <div class="p-6">
       <%= case @active_tab do %>
         <% "console" -> %>
-          <div class="bg-gray-950 rounded-lg p-6 font-mono text-gray-300 text-xs overflow-y-auto max-h-[600px] leading-relaxed shadow-inner border border-gray-900">
+          <div class="bg-gray-950 rounded-lg p-6 font-mono text-gray-300 text-xs overflow-y-auto max-h-[600px] leading-relaxed shadow-inner border border-gray-900" id="console-container" phx-hook="ConsoleScroller">
             <%= cond do %>
               <% @run && is_map_key(@run, :console_log) && @run.console_log && @run.console_log != "" -> %>
                 <pre class="whitespace-pre-wrap select-text selection:bg-purple-900 selection:text-white"><%= @run.console_log %></pre>
@@ -141,50 +141,13 @@
                 </div>
               <% else %>
                 <div class="border border-gray-200 rounded overflow-hidden">
-                  <table class="min-w-full divide-y divide-gray-200 text-xs text-left">
-                    <thead>
-                      <tr class="bg-gray-50 text-[10px] uppercase font-bold text-gray-400 tracking-wider font-mono">
-                        <th class="px-6 py-3">Artifact File Path</th>
-                        <th class="px-6 py-3">Type</th>
-                        <th class="px-6 py-3">Size</th>
-                        <th class="px-6 py-3 text-right">Download</th>
-                      </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-100 font-mono text-gray-700">
-                      <%= for item <- @artifacts do %>
-                        <tr class="hover:bg-gray-50/50">
-                          <td class="px-6 py-3.5 flex items-center gap-2">
-                            <%= if item.type == :directory do %>
-                              <i class="fa-solid fa-folder text-yellow-500"></i>
-                              <span class="font-bold text-gray-800">{item.name}</span>
-                            <% else %>
-                              <i class="fa-solid fa-file-lines text-blue-400"></i>
-                              <span>{item.name}</span>
-                            <% end %>
-                          </td>
-                          <td class="px-6 py-3.5 text-gray-500">
-                            {if item.type == :directory, do: "Directory", else: "File"}
-                          </td>
-                          <td class="px-6 py-3.5 text-gray-500">
-                            {if item.type == :directory, do: "—", else: format_size(item.size)}
-                          </td>
-                          <td class="px-6 py-3.5 text-right font-bold">
-                            <%= if item.type == :file do %>
-                              <a
-                                href={"/files/#{@pipeline_name}/#{@pipeline_counter}/#{@stage_name}/#{@stage_counter}/#{@job_name}/#{item.rel_path}"}
-                                target="_blank"
-                                class="text-[#2d6ca2] hover:underline"
-                              >
-                                <i class="fa fa-download mr-1"></i> Download
-                              </a>
-                            <% else %>
-                              —
-                            <% end %>
-                          </td>
-                        </tr>
-                      <% end %>
-                    </tbody>
-                  </table>
+                  <%= for item <- @artifacts do %>
+                    <%= render_artifact_node(Map.put(item, :pipeline_name, @pipeline_name)
+                      |> Map.put(:pipeline_counter, @pipeline_counter)
+                      |> Map.put(:stage_name, @stage_name)
+                      |> Map.put(:stage_counter, @stage_counter)
+                      |> Map.put(:job_name, @job_name)) %>
+                  <% end %>
                 </div>
               <% end %>
             <% end %>

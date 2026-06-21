@@ -92,7 +92,7 @@ defmodule ExGoCDWeb.AgentJobRunDetailLive do
           <% end %>
         </div>
       </div>
-      <pre class="console-log"><%= @run.console_log || "" %></pre>
+      <pre class="console-log max-h-[600px] overflow-y-auto" id="console-container" phx-hook="ConsoleScroller"><%= @run.console_log || "" %></pre>
     </div>
     """
   end

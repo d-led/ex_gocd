@@ -2,11 +2,13 @@
 #
 # Our Phoenix server with the official gocd/gocd-agent-alpine container.
 # The Java agent auto-registers with our server.
-# Access ex_gocd dashboard at http://localhost:4000
+# Access ex_gocd dashboard at http://localhost:4003
 
 services:
   postgres:
     image: postgres:16-alpine
+    ports:
+      - '5434:5432'
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -24,7 +26,7 @@ services:
       context: ../..
       dockerfile: Dockerfile
     ports:
-      - '4000:4000'
+      - '4003:4000'
     depends_on:
       postgres:
         condition: service_healthy
@@ -36,7 +38,7 @@ services:
     volumes:
       - exgocd_artifacts:/app/artifacts
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:4000/api/v1/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:4000/api/version"]
       interval: 10s
       timeout: 5s
       retries: 5

@@ -93,7 +93,23 @@ defmodule ExGoCDWeb.JobDetailsLive do
   def handle_event("select_tab", %{"tab" => tab}, socket) do
     {:noreply, assign(socket, :active_tab, tab)}
   end
+  @impl true
+  def handle_event("toggle_artifact_dir", %{"path" => dir_path}, socket) do
+    artifacts = toggle_dir(socket.assigns.artifacts, dir_path)
+    {:noreply, assign(socket, artifacts: artifacts)}
+  end
 
+  defp toggle_dir(items, target_path) do
+    Enum.map(items, fn
+      %{type: :directory, rel_path: ^target_path} = dir ->
+        %{dir | expanded: !dir.expanded}
+
+      %{type: :directory, children: children} = dir ->
+        %{dir | children: toggle_dir(children, target_path)}
+
+      other -> other
+    end)
+  end
   @impl true
   def handle_info({:console_append, chunk}, socket) do
     run = socket.assigns.run
@@ -171,7 +187,10 @@ defmodule ExGoCDWeb.JobDetailsLive do
   defp list_files_recursive(dir, base_dir) do
     case File.ls(dir) do
       {:ok, names} ->
-        Enum.flat_map(names, &process_file_item(&1, dir, base_dir))
+        names
+        |> Enum.map(&process_file_item(&1, dir, base_dir))
+        |> Enum.reject(&is_nil/1)
+
       _ ->
         []
     end
@@ -182,17 +201,62 @@ defmodule ExGoCDWeb.JobDetailsLive do
     rel_path = Path.relative_to(path, base_dir)
 
     if File.dir?(path) do
-      [%{name: name, type: :directory, rel_path: rel_path} | list_files_recursive(path, base_dir)]
+      children = list_files_recursive(path, base_dir)
+      %{name: name, type: :directory, rel_path: rel_path, children: children, expanded: false}
     else
-      file_stat_item(name, path, rel_path)
+      file_stat_item(name, rel_path, path)
     end
   end
 
-  defp file_stat_item(name, path, rel_path) do
+  defp file_stat_item(name, rel_path, path) do
     case File.stat(path) do
-      {:ok, stat} -> [%{name: name, type: :file, rel_path: rel_path, size: stat.size}]
-      _ -> []
+      {:ok, stat} -> %{name: name, type: :file, rel_path: rel_path, size: stat.size}
+      _ -> nil
     end
+  end
+
+  @doc """
+  Renders an artifact tree node recursively.
+  """
+  def render_artifact_node(%{type: :directory} = assigns) do
+    ~H"""
+    <div class="artifact-dir">
+      <button
+        phx-click="toggle_artifact_dir"
+        phx-value-path={@rel_path}
+        class="flex items-center gap-2 w-full text-left hover:bg-gray-50 px-4 py-2 border-b border-gray-100"
+      >
+        <i class={["fa text-yellow-500 w-4 text-center transition-transform",
+          if(@expanded, do: "fa-caret-down", else: "fa-caret-right")]}></i>
+        <i class="fa-solid fa-folder text-yellow-500"></i>
+        <span class="font-bold text-gray-800 font-mono text-xs">{@name}</span>
+      </button>
+      <div class={["ml-6 border-l border-gray-200", !@expanded && "hidden"]}>
+        <%= for child <- @children do %>
+          <%= if child do %>
+            <.render_artifact_node {child} />
+          <% end %>
+        <% end %>
+      </div>
+    </div>
+    """
+  end
+
+  def render_artifact_node(%{type: :file} = assigns) do
+    ~H"""
+    <div class="flex items-center gap-2 px-4 py-2 border-b border-gray-100 hover:bg-gray-50 font-mono text-xs">
+      <i class="fa-solid fa-file-lines text-blue-400 w-4 text-center"></i>
+      <span class="flex-1 text-gray-700">{@name}</span>
+      <span class="text-gray-400">{format_size(@size)}</span>
+      <a
+        href={"/files/#{@pipeline_name}/#{@pipeline_counter}/#{@stage_name}/#{@stage_counter}/#{@job_name}/#{@rel_path}"}
+        target="_blank"
+        class="text-[#2d6ca2] hover:underline font-bold"
+      >
+        <i class="fa fa-download mr-1"></i> Download
+      </a>
+    </div>
+    """
   end
 
   def format_size(bytes) when bytes < 1024, do: "#{bytes} B"

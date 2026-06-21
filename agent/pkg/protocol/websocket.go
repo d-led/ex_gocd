@@ -67,6 +67,9 @@ type Build struct {
 	ArtifactUploadBaseUrl  string        `json:"artifactUploadBaseUrl"`
 	PropertyBaseUrl        string        `json:"propertyBaseUrl,omitempty"`
 	BuildCommand           *BuildCommand `json:"buildCommand"`
+	// W3C Trace Context — injected by server for cross-process tracing
+	TraceParent string `json:"traceparent,omitempty"`
+	TraceState  string `json:"tracestate,omitempty"`
 }
 
 // BuildCommand contains the tasks to execute

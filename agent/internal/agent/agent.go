@@ -27,10 +27,15 @@ import (
 
 	"github.com/d-led/ex_gocd/agent/internal/config"
 	"github.com/d-led/ex_gocd/agent/internal/registration"
+	"github.com/d-led/ex_gocd/agent/internal/telemetry"
 	"github.com/d-led/ex_gocd/agent/internal/websocket"
 	"github.com/d-led/ex_gocd/agent/pkg/protocol"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
 
 var logger zerolog.Logger
@@ -92,6 +97,10 @@ func New(cfg *config.Config) (*Agent, error) {
 // 3. Send ping heartbeats
 // 4. Process incoming messages
 func (a *Agent) Start(ctx context.Context) error {
+	// Initialize OpenTelemetry (no-op when OTEL_TRACES_EXPORTER != "otlp")
+	otelShutdown := telemetry.Setup()
+	defer func() { _ = otelShutdown(context.Background()) }()
+
 	logger.Info().Msgf("Starting agent %s", a.config.UUID)
 	logger.Info().Msgf("Server: %s", a.config.ServerURL.String())
 	logger.Info().Msgf("Working directory: %s", a.config.WorkingDir)
@@ -306,6 +315,19 @@ func (a *Agent) handleBuild(build *protocol.Build) {
 		a.buildMu.Unlock()
 	}()
 
+	// Extract W3C traceparent from server build payload → link agent spans
+	// under the server's pipeline.trigger trace.
+	parentCtx := telemetry.ParentContextFromTraceParent(ctx, build.TraceParent, build.TraceState)
+
+	tracer := otel.Tracer("gocd-agent")
+	buildCtx, buildSpan := tracer.Start(parentCtx, "agent.build",
+		trace.WithAttributes(
+			attribute.String("build.id", build.BuildId),
+			attribute.String("build.locator", build.BuildLocator),
+		),
+	)
+	defer buildSpan.End()
+
 	logger.Info().Msgf("Executing build: %s", build.BuildId)
 	if build.BuildCommand != nil {
 		logger.Info().Msgf("Build command: name=%q, command=%q, subcommands=%d", build.BuildCommand.Name, build.BuildCommand.Command, len(build.BuildCommand.SubCommands))
@@ -314,24 +336,29 @@ func (a *Agent) handleBuild(build *protocol.Build) {
 
 	result := "Passed"
 	if build.BuildCommand != nil && (build.BuildCommand.Command != "" || len(build.BuildCommand.SubCommands) > 0) {
-		if err := a.runBuildCommand(ctx, build); err != nil {
+		if err := a.runBuildCommand(buildCtx, build); err != nil {
 			if err == context.Canceled {
 				result = "Cancelled"
+				buildSpan.SetStatus(codes.Error, "build cancelled")
 				logger.Info().Msgf("Build %s was cancelled", build.BuildId)
 			} else {
 				logger.Info().Msgf("Build command failed: %v", err)
 				result = "Failed"
+				buildSpan.SetStatus(codes.Error, err.Error())
+				buildSpan.RecordError(err)
 			}
 		}
 	} else {
-		// No command: minimal success (e.g. server sent build without buildCommand)
+		// No command: minimal success
 		select {
 		case <-time.After(500 * time.Millisecond):
 		case <-ctx.Done():
 			result = "Cancelled"
+			buildSpan.SetStatus(codes.Error, "build cancelled")
 		}
 	}
 
+	buildSpan.SetAttributes(attribute.String("build.result", result))
 	a.reportStatus(build.BuildId, "Completing", result)
 	a.reportStatus(build.BuildId, "Completed", result)
 }
@@ -363,11 +390,22 @@ func (a *Agent) executeCommandTree(ctx context.Context, build *protocol.Build, c
 // runOneCommand runs a single BuildCommand (command + args), streaming output to build.ConsoleUrl when set.
 // ctx can be cancelled to kill the process (returns context.Canceled).
 func (a *Agent) runOneCommand(ctx context.Context, build *protocol.Build, cmd *protocol.BuildCommand, env map[string]string) error {
+	tracer := otel.Tracer("gocd-agent")
+	spanName := "agent.cmd." + cmd.Name
+	cmdCtx, cmdSpan := tracer.Start(ctx, spanName,
+		trace.WithAttributes(
+			attribute.String("build.id", build.BuildId),
+			attribute.String("cmd.name", cmd.Name),
+			attribute.String("cmd.command", cmd.Command),
+		),
+	)
+	defer cmdSpan.End()
+
 	switch cmd.Name {
 	case "uploadArtifact":
-		return a.runUploadArtifact(ctx, build, cmd)
+		return a.runUploadArtifact(cmdCtx, build, cmd)
 	case "fetchArtifact":
-		return a.runFetchArtifact(ctx, build, cmd)
+		return a.runFetchArtifact(cmdCtx, build, cmd)
 	case "export":
 		var name, value string
 		if cmd.Attributes != nil {
@@ -391,6 +429,7 @@ func (a *Agent) runOneCommand(ctx context.Context, build *protocol.Build, cmd *p
 		if name != "" {
 			env[name] = value
 			logger.Info().Msgf("Exported env var %s", name)
+			cmdSpan.SetAttributes(attribute.String("export.name", name))
 		}
 		return nil
 	}
@@ -405,6 +444,8 @@ func (a *Agent) runOneCommand(ctx context.Context, build *protocol.Build, cmd *p
 	}
 	absDir, err := filepath.Abs(dir)
 	if err != nil {
+		cmdSpan.RecordError(err)
+		cmdSpan.SetStatus(codes.Error, err.Error())
 		return fmt.Errorf("working dir: %w", err)
 	}
 
@@ -414,7 +455,12 @@ func (a *Agent) runOneCommand(ctx context.Context, build *protocol.Build, cmd *p
 		resolvedPath = cleanedPath
 	}
 
-	c := exec.CommandContext(ctx, resolvedPath, cmd.Args...)
+	cmdSpan.SetAttributes(
+		attribute.String("cmd.path", resolvedPath),
+		attribute.String("cmd.working_dir", absDir),
+	)
+
+	c := exec.CommandContext(cmdCtx, resolvedPath, cmd.Args...)
 	c.Dir = absDir
 
 	// Merge environment variables
@@ -428,6 +474,8 @@ func (a *Agent) runOneCommand(ctx context.Context, build *protocol.Build, cmd *p
 		stderrPipe, _ := c.StderrPipe()
 		c.Stdin = nil
 		if err := c.Start(); err != nil {
+			cmdSpan.RecordError(err)
+			cmdSpan.SetStatus(codes.Error, err.Error())
 			return err
 		}
 		var wg sync.WaitGroup
@@ -440,8 +488,13 @@ func (a *Agent) runOneCommand(ctx context.Context, build *protocol.Build, cmd *p
 		go streamToConsole("stderr: ", stderrPipe)
 		wg.Wait()
 		err := c.Wait()
-		if err != nil && ctx.Err() == context.Canceled {
-			return context.Canceled
+		if err != nil {
+			if cmdCtx.Err() == context.Canceled {
+				cmdSpan.SetAttributes(attribute.String("cmd.result", "cancelled"))
+				return context.Canceled
+			}
+			cmdSpan.RecordError(err)
+			cmdSpan.SetStatus(codes.Error, err.Error())
 		}
 		return err
 	}
@@ -449,8 +502,13 @@ func (a *Agent) runOneCommand(ctx context.Context, build *protocol.Build, cmd *p
 	c.Stdout = os.Stdout
 	c.Stderr = os.Stderr
 	err = c.Run()
-	if err != nil && ctx.Err() == context.Canceled {
-		return context.Canceled
+	if err != nil {
+		if cmdCtx.Err() == context.Canceled {
+			cmdSpan.SetAttributes(attribute.String("cmd.result", "cancelled"))
+			return context.Canceled
+		}
+		cmdSpan.RecordError(err)
+		cmdSpan.SetStatus(codes.Error, err.Error())
 	}
 	return err
 }

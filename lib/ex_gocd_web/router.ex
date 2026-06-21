@@ -132,6 +132,8 @@ defmodule ExGoCDWeb.Router do
 
     # Schedule a job (enqueue for next idle agent; GoCD-style pipeline/stage/job)
     post "/jobs/schedule", JobController, :schedule
+    get "/jobs/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/:job_name", JobController, :show
+    get "/jobs/:pipeline_name/:stage_name/:job_name/history", JobController, :history
 
     get "/version", VersionController, :show
 
@@ -147,6 +149,10 @@ defmodule ExGoCDWeb.Router do
     post "/admin/materials/git/notify", WebhookController, :git_notify
     post "/webhooks/github/notify", WebhookController, :github_notify
     post "/webhooks/gitlab/notify", WebhookController, :gitlab_notify
+
+    # Pipeline instance history & details
+    get "/pipelines/:pipeline_name/history", PipelineInstanceController, :history
+    get "/pipelines/:pipeline_name/:counter", PipelineInstanceController, :show
   end
 
   scope "/api/admin", ExGoCDWeb.API.Admin do
@@ -193,6 +199,8 @@ defmodule ExGoCDWeb.Router do
     put "/agents/:uuid/disable", AgentController, :disable
     post "/builds/:build_id/console", BuildConsoleController, :append
     post "/jobs/schedule", JobController, :schedule
+    get "/jobs/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/:job_name", JobController, :show
+    get "/jobs/:pipeline_name/:stage_name/:job_name/history", JobController, :history
 
     get "/version", VersionController, :show
 
@@ -208,6 +216,10 @@ defmodule ExGoCDWeb.Router do
     post "/admin/materials/git/notify", WebhookController, :git_notify
     post "/webhooks/github/notify", WebhookController, :github_notify
     post "/webhooks/gitlab/notify", WebhookController, :gitlab_notify
+
+    # Pipeline instance history & details
+    get "/pipelines/:pipeline_name/history", PipelineInstanceController, :history
+    get "/pipelines/:pipeline_name/:counter", PipelineInstanceController, :show
   end
 
   # GoCD internal agent remoting API (HTTP-based, used by official Go agent)

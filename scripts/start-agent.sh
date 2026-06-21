@@ -50,6 +50,11 @@ export AGENT_SERVER_URL="${AGENT_SERVER_URL:-http://localhost:4000}"
 export AGENT_WORK_DIR="$AGENT_WORK_DIR"
 export EX_GOCD_DEMO_COOKIE="${EX_GOCD_DEMO_COOKIE:-ex-gocd-demo-cookie}"
 
+# ── OpenTelemetry → Collector → Jaeger ────────────────────────────────
+export OTEL_TRACES_EXPORTER="${OTEL_TRACES_EXPORTER:-otlp}"
+export OTEL_EXPORTER_OTLP_ENDPOINT="${OTEL_EXPORTER_OTLP_ENDPOINT:-localhost:4318}"
+export OTEL_SERVICE_NAME="${OTEL_SERVICE_NAME:-gocd-agent}"
+
 # ── Start agent ────────────────────────────────────────────────────────
 cd "$AGENT_DIR"
 echo $$ > "$PIDFILE"

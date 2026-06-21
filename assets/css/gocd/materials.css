@@ -804,40 +804,83 @@
   padding: 20px;
 }
 
-/* Footer Styles */
+/* Footer Styles — matches original GoCD site_footer.scss */
 .gocd-footer {
-  margin-top: 40px;
-  border-top: 1px solid #d6e0e2;
-  padding-top: 15px;
+  background: #f4f8f9;
+  padding: 10px;
   display: flex;
+  flex-direction: column;
   justify-content: space-between;
-  font-size: 11px;
-  color: #718096;
-  line-height: 1.5;
+  line-height: 19px;
 }
 
 .gocd-footer a {
-  color: #2d6ca2;
+  color: #0a8fcb;
   text-decoration: none;
 }
 
 .gocd-footer a:hover {
+  color: #0b5b7e;
   text-decoration: underline;
 }
 
+.footer-left {
+  padding: 10px 20px;
+  text-align: center;
+  font-size: 12px;
+  word-break: break-all;
+  margin: 0;
+  line-height: 19px;
+}
+
+.gocd-version {
+  display: block;
+}
+
 .footer-right {
+  padding: 10px 20px;
   display: flex;
-  gap: 12px;
+  justify-content: center;
+  gap: 8px;
 }
 
 .footer-right a {
-  font-size: 14px;
-  color: #718096;
+  display: inline-block;
+  text-decoration: none;
+  color: #647984;
+  font-size: 16px;
+  line-height: 1.5rem;
   transition: color 0.15s ease;
 }
 
 .footer-right a:hover {
-  color: #2d6ca2;
+  color: #1c435c;
+}
+
+@media (min-width: 768px) {
+  .gocd-footer {
+    flex-direction: row;
+  }
+
+  .footer-left {
+    width: 60%;
+    text-align: left;
+  }
+
+  .footer-right {
+    width: 40%;
+    justify-content: flex-end;
+  }
+}
+
+@media (min-width: 1024px) {
+  .footer-left {
+    width: 70%;
+  }
+
+  .footer-right {
+    width: 30%;
+  }
 }
 
 /* Responsive Wrap rules */

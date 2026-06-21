@@ -509,22 +509,6 @@ defmodule ExGoCDWeb.MaterialsLive do
           </div>
         </div>
       <% end %>
-
-      <footer class="gocd-footer">
-        <div class="footer-left">
-          Copyright &copy; Thoughtworks, Inc. Licensed under <a href="https://www.apache.org/licenses/LICENSE-2.0" target="_blank" rel="noopener noreferrer">Apache License, Version 2.0</a>. GoCD includes <a href="#">third-party software</a>.
-          <br/>
-          GoCD Version: 25.4.0 (21793-c8358258163d7b9833ab3b1b18a2f459999936b03a).
-        </div>
-        <div class="footer-right">
-          <a href="https://github.com/d-led/ex_gocd" target="_blank" rel="noopener noreferrer" title="GitHub"><i class="fa-brands fa-github"></i></a>
-          <a href="#" title="Chat"><i class="fa-solid fa-comments"></i></a>
-          <a href="#" title="Documentation"><i class="fa-solid fa-book"></i></a>
-          <a href="#" title="Plugins"><i class="fa-solid fa-plug"></i></a>
-          <a href="#" title="API"><i class="fa-solid fa-code"></i></a>
-          <a href="#" title="Feed"><i class="fa-solid fa-rss"></i></a>
-        </div>
-      </footer>
     </div>
     """
   end

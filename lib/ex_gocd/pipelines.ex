@@ -754,6 +754,34 @@ defmodule ExGoCD.Pipelines do
   end
 
   @doc """
+  Lists pipeline instances for a given pipeline, newest first.
+  """
+  def list_pipeline_instances(pipeline_id, opts \\ []) do
+    offset = Keyword.get(opts, :offset, 0)
+    limit = Keyword.get(opts, :limit, 10)
+
+    from(pi in PipelineInstance,
+      where: pi.pipeline_id == ^pipeline_id,
+      order_by: [desc: :counter],
+      offset: ^offset,
+      limit: ^limit,
+      preload: [:pipeline, stage_instances: [job_instances: :job]]
+    )
+    |> Repo.all()
+  end
+
+  @doc """
+  Counts total pipeline instances for a given pipeline.
+  """
+  def count_pipeline_instances(pipeline_id) do
+    from(pi in PipelineInstance,
+      where: pi.pipeline_id == ^pipeline_id,
+      select: count(pi.id)
+    )
+    |> Repo.one()
+  end
+
+  @doc """
   Gets the latest modification for a given material.
   """
   def get_latest_modification(material_id) do

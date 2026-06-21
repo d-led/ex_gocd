@@ -14,10 +14,10 @@ services:
       - godata:/godata
       - gohome:/home/go
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8153/go/api/v1/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8153/go/api/version"]
       interval: 30s
       timeout: 10s
-      retries: 5
+      retries: 10
 
   ex-gocd-agent:
     build:
@@ -29,7 +29,6 @@ services:
     environment:
       AGENT_SERVER_URL: "https://go-server:8154/go"
       EX_GOCD_DEMO_COOKIE: "ex-gocd-demo-cookie"
-      # Auto-register with the GoCD server
       AGENT_AUTO_REGISTER_KEY: "123456789abcdef"
       AGENT_AUTO_REGISTER_RESOURCES: "go,linux"
       AGENT_AUTO_REGISTER_ENVIRONMENTS: "staging"
