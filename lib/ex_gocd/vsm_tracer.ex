@@ -121,8 +121,7 @@ defmodule ExGoCD.VsmTracer do
         # all-zero trace ID (noop tracer) — skip
         map
       _span_ctx ->
-        headers = %{}
-        :otel_propagator_text_map.inject(headers, ctx)
+        headers = :otel_propagator_text_map.inject(%{})
         Map.merge(map, headers)
     end
   end

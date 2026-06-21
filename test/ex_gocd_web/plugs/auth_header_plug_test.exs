@@ -13,7 +13,7 @@ defmodule ExGoCDWeb.Plugs.AuthHeaderPlugTest do
     refute get_session(conn, "user_id")
   end
 
-  test "resolves user, creates DB record, and sets session on x-forwarded-user header", %{conn: conn} do
+  test "resolves user from DB but does NOT auto-create unknown users", %{conn: conn} do
     assert Accounts.get_user_by_username("oauth_user") == nil
 
     conn =
@@ -23,15 +23,15 @@ defmodule ExGoCDWeb.Plugs.AuthHeaderPlugTest do
       |> init_test_session(%{})
       |> AuthHeaderPlug.call(%{})
 
-    assert get_session(conn, "username") == "oauth_user"
-    assert get_session(conn, "user_id") != nil
-
-    user = Accounts.get_user_by_username("oauth_user")
-    assert user != nil
-    assert user.display_name == "OAuth User"
+    # AuthHeaderPlug no longer auto-creates users.
+    # Unknown users fall through to default_user() which provides
+    # guest admin access when no admin users exist.
+    refute get_session(conn, "username")
+    refute get_session(conn, "user_id")
+    assert Accounts.get_user_by_username("oauth_user") == nil
   end
 
-  test "uses existing user in DB if already registered", %{conn: conn} do
+  test "sets session for existing user in DB", %{conn: conn} do
     {:ok, db_user} = Accounts.create_user(%{
       username: "oauth_user",
       display_name: "Original Name",

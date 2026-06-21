@@ -39,6 +39,16 @@ defmodule ExGoCD.ConfigRepos do
   end
 
   @doc """
+  Updates a config repo.
+  """
+  @spec update_config_repo(ConfigRepo.t(), map()) :: {:ok, ConfigRepo.t()} | {:error, Ecto.Changeset.t()}
+  def update_config_repo(config_repo, attrs) do
+    config_repo
+    |> ConfigRepo.changeset(attrs)
+    |> Repo.update()
+  end
+
+  @doc """
   Deletes a config repo.
   """
   @spec delete_config_repo(ConfigRepo.t()) :: {:ok, ConfigRepo.t()} | {:error, Ecto.Changeset.t()}

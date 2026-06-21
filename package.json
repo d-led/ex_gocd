@@ -5,7 +5,8 @@
   "private": true,
   "scripts": {
     "cypress:open": "cypress open",
-    "cypress:run": "cypress run --browser chrome"
+    "cypress:run": "cypress run --browser chrome --spec 'cypress/e2e/!(screenshot).cy.js'",
+    "screenshots": "cypress run --browser chrome --spec cypress/e2e/screenshot.cy.js"
   },
   "devDependencies": {
     "cypress": "^15.17.0"

@@ -1,12 +1,10 @@
 defmodule ExGoCDWeb.API.Admin.BackupController do
   use ExGoCDWeb, :controller
 
-  alias ExGoCD.Repo
+  require Logger
 
   @doc "POST /api/admin/backups — triggers a database backup"
   def create(conn, _params) do
-    backup_id = "backup-#{System.system_time(:second)}"
-
     # Async backup via Task
     Task.start(fn ->
       timestamp = Calendar.strftime(DateTime.utc_now(), "%Y%m%d_%H%M%S")
@@ -29,7 +27,7 @@ defmodule ExGoCDWeb.API.Admin.BackupController do
       end
     end)
 
-    json(conn, %{message: "Backup initiated.", backup_id: backup_id})
+    json(conn, %{message: "Backup initiated."})
   end
 
   defp db_host, do: Application.get_env(:ex_gocd, ExGoCD.Repo)[:hostname] || "localhost"

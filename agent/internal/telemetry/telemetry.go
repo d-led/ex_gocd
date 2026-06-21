@@ -18,8 +18,9 @@ package telemetry
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"os"
+
+	agentlog "github.com/d-led/ex_gocd/agent/internal/log"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
@@ -36,7 +37,7 @@ func Setup() (shutdown func(context.Context) error) {
 	noop := func(_ context.Context) error { return nil }
 
 	if os.Getenv("OTEL_TRACES_EXPORTER") != "otlp" {
-		slog.Debug("OTEL_TRACES_EXPORTER is not 'otlp' — tracing disabled")
+		agentlog.Logger.Debug().Msg("OTEL_TRACES_EXPORTER is not 'otlp' — tracing disabled")
 		return noop
 	}
 
@@ -57,7 +58,7 @@ func Setup() (shutdown func(context.Context) error) {
 		otlptracehttp.WithInsecure(),
 	)
 	if err != nil {
-		slog.Warn("OTel exporter setup failed — tracing disabled", "error", err)
+		agentlog.Logger.Warn().Err(err).Msg("OTel exporter setup failed — tracing disabled")
 		return noop
 	}
 
@@ -68,7 +69,7 @@ func Setup() (shutdown func(context.Context) error) {
 		),
 	)
 	if err != nil {
-		slog.Warn("OTel resource creation failed", "error", err)
+		agentlog.Logger.Warn().Err(err).Msg("OTel resource creation failed")
 		res = resource.Default()
 	}
 
@@ -81,11 +82,11 @@ func Setup() (shutdown func(context.Context) error) {
 	otel.SetTextMapPropagator(propagation.TraceContext{})
 	otel.SetTracerProvider(tp)
 
-	slog.Info("OTel tracing enabled",
-		"endpoint", endpoint,
-		"service", svcName,
-		"hostname", hostname,
-	)
+	agentlog.Logger.Info().
+		Str("endpoint", endpoint).
+		Str("service", svcName).
+		Str("hostname", hostname).
+		Msg("OTel tracing enabled")
 
 	return func(ctx context.Context) error {
 		if err := tp.Shutdown(ctx); err != nil {

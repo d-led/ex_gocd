@@ -8,11 +8,11 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"time"
 
 	"github.com/d-led/ex_gocd/agent/internal/config"
+	agentlog "github.com/d-led/ex_gocd/agent/internal/log"
 	"github.com/d-led/ex_gocd/agent/pkg/protocol"
 	"github.com/gorilla/websocket"
 )
@@ -43,19 +43,19 @@ func Connect(ctx context.Context, cfg *config.Config, tlsConfig *tls.Config) (*C
 	header.Set("Origin", cfg.ServerURL.String())
 	header.Set("User-Agent", "GoCD Agent")
 
-	log.Printf("Connecting to WebSocket: %s", wsURL)
+	agentlog.Logger.Info().Str("url", wsURL).Msg("Connecting to WebSocket")
 	conn, resp, err := dialer.DialContext(ctx, wsURL, header)
 	if err != nil {
 		if resp != nil {
-			log.Printf("WebSocket handshake failed: status=%d", resp.StatusCode)
+			agentlog.Logger.Info().Int("status", resp.StatusCode).Msg("WebSocket handshake failed")
 			bodyBytes := make([]byte, 1024)
 			n, _ := resp.Body.Read(bodyBytes)
-			log.Printf("Response body: %s", string(bodyBytes[:n]))
+			agentlog.Logger.Info().Str("body", string(bodyBytes[:n])).Msg("WebSocket handshake response")
 		}
 		return nil, fmt.Errorf("failed to connect to %s: %w", wsURL, err)
 	}
 
-	log.Println("WebSocket handshake successful")
+	agentlog.Logger.Info().Msg("WebSocket handshake successful")
 	c := &Connection{
 		conn:    conn,
 		config:  cfg,
@@ -99,7 +99,7 @@ func (c *Connection) SetCookie(cookie string) {
 func (c *Connection) readPump() {
 	defer func() {
 		if r := recover(); r != nil {
-			log.Printf("Recovered panic in readPump: %v", r)
+			agentlog.Logger.Info().Interface("panic", r).Msg("Recovered panic in readPump")
 		}
 	}()
 	defer close(c.receive)
@@ -121,7 +121,7 @@ func (c *Connection) readPump() {
 		err := c.conn.ReadJSON(&msg)
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				log.Printf("WebSocket read error: %v", err)
+				agentlog.Logger.Info().Err(err).Msg("WebSocket read error")
 			}
 			return
 		}
@@ -143,7 +143,7 @@ func (c *Connection) readPump() {
 func (c *Connection) writePump() {
 	defer func() {
 		if r := recover(); r != nil {
-			log.Printf("Recovered panic in writePump: %v", r)
+			agentlog.Logger.Info().Interface("panic", r).Msg("Recovered panic in writePump")
 		}
 	}()
 	ticker := time.NewTicker(54 * time.Second) // Ping server periodically
@@ -159,7 +159,7 @@ func (c *Connection) writePump() {
 
 			c.conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
 			if err := c.conn.WriteJSON(msg); err != nil {
-				log.Printf("WebSocket write error: %v", err)
+				agentlog.Logger.Info().Err(err).Msg("WebSocket write error")
 				return
 			}
 

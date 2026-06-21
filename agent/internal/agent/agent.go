@@ -27,11 +27,11 @@ import (
 	"time"
 
 	"github.com/d-led/ex_gocd/agent/internal/config"
+	agentlog "github.com/d-led/ex_gocd/agent/internal/log"
 	"github.com/d-led/ex_gocd/agent/internal/registration"
 	"github.com/d-led/ex_gocd/agent/internal/telemetry"
 	"github.com/d-led/ex_gocd/agent/internal/websocket"
 	"github.com/d-led/ex_gocd/agent/pkg/protocol"
-	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -42,30 +42,7 @@ import (
 // network blip, etc.). Callers should not count this against crash restart limits.
 var ErrServerUnavailable = errors.New("gocd server unavailable")
 
-var logger zerolog.Logger
 
-func init() {
-	// Dual output: console (human-readable) + JSON file for Fluent Bit → Loki
-	logFile := "/tmp/ex_gocd_agent.log"
-	f, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-	if err != nil {
-		f = nil // fallback: console only
-	}
-
-	consoleWriter := zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339}
-	var writers []io.Writer
-	writers = append(writers, consoleWriter)
-	if f != nil {
-		writers = append(writers, f)
-	}
-	multi := zerolog.MultiLevelWriter(writers...)
-	logger = zerolog.New(multi).With().Timestamp().Str("agent", hostname()).Logger()
-}
-
-func hostname() string {
-	h, _ := os.Hostname()
-	return h
-}
 
 // Agent represents the GoCD agent
 type Agent struct {
@@ -102,21 +79,37 @@ func New(cfg *config.Config) (*Agent, error) {
 // 3. Send ping heartbeats
 // 4. Process incoming messages
 func (a *Agent) Start(ctx context.Context) error {
+	// Startup span covers OTel init + registration.
+	// No-op tracer is safe before telemetry.Setup() — returns a non-recording span.
+	tracer := otel.Tracer("gocd-agent")
+	startCtx, startupSpan := tracer.Start(ctx, "agent.start",
+		trace.WithAttributes(
+			attribute.String("agent.uuid", a.config.UUID),
+			attribute.String("server.url", a.config.ServerURL.String()),
+			attribute.String("agent.workdir", a.config.WorkingDir),
+			attribute.String("agent.go_version", runtime.Version()),
+		),
+	)
+	defer startupSpan.End()
+
 	// Initialize OpenTelemetry (no-op when OTEL_TRACES_EXPORTER != "otlp")
 	otelShutdown := telemetry.Setup()
 	defer func() { _ = otelShutdown(context.Background()) }()
 
-	logger.Info().Msgf("Starting agent %s", a.config.UUID)
-	logger.Info().Msgf("Server: %s", a.config.ServerURL.String())
-	logger.Info().Msgf("Working directory: %s", a.config.WorkingDir)
-	logger.Info().Msgf("UUID: %s", a.config.UUID)
+	// Start periodic runtime metrics (goroutines, memory, GC)
+	stopMetrics := agentlog.StartRuntimeMetrics(startCtx, &agentlog.Logger, 30*time.Second)
+	defer stopMetrics()
+
+	agentlog.Logger.Info().Str("uuid", a.config.UUID).Str("server", a.config.ServerURL.String()).Str("workdir", a.config.WorkingDir).Str("go_version", runtime.Version()).Msg("agent starting")
 
 	// Register with server
-	logger.Info().Msg("Registering with server...")
+	agentlog.Logger.Info().Msg("Registering with server...")
 	if err := a.registrar.Register(); err != nil {
+		startupSpan.RecordError(err)
+		startupSpan.SetStatus(codes.Error, "registration failed")
 		return fmt.Errorf("%w: registration failed: %w", ErrServerUnavailable, err)
 	}
-	logger.Info().Msg("Registration successful")
+	agentlog.Logger.Info().Msg("Registration successful")
 
 	// Create TLS config for WebSocket
 	tlsConfig, err := a.registrar.CreateTLSConfig()
@@ -136,7 +129,7 @@ func (a *Agent) Start(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
-			logger.Info().Msg("Agent shutting down...")
+			agentlog.Logger.Info().Msg("Agent shutting down...")
 			return nil
 		default:
 		}
@@ -150,7 +143,7 @@ func (a *Agent) Start(ctx context.Context) error {
 
 		// Check if context was cancelled
 		if ctx.Err() != nil {
-			logger.Info().Msg("Agent shutting down...")
+			agentlog.Logger.Info().Msg("Agent shutting down...")
 			return nil
 		}
 
@@ -158,13 +151,13 @@ func (a *Agent) Start(ctx context.Context) error {
 		// A long-lived connection that eventually drops is likely a transient blip,
 		// not a persistent infrastructure problem.
 		if time.Since(connStart) >= minStableConnection {
-			logger.Info().Msgf("Connection was stable for %v, resetting reconnect backoff", time.Since(connStart).Round(time.Second))
+			agentlog.Logger.Info().Dur("uptime", time.Since(connStart).Round(time.Second)).Msg("Connection was stable, resetting reconnect backoff")
 			retryDelay = baseRetryDelay
 		}
 
 		// Log error and retry with backoff
-		logger.Info().Msgf("Connection lost: %v", err)
-		logger.Info().Msgf("Reconnecting in %v...", retryDelay)
+		agentlog.Logger.Info().Err(err).Msg("Connection lost")
+		agentlog.Logger.Info().Dur("retry_delay", retryDelay).Msg("Reconnecting...")
 
 		select {
 		case <-time.After(retryDelay):
@@ -174,7 +167,7 @@ func (a *Agent) Start(ctx context.Context) error {
 				retryDelay = maxRetryDelay
 			}
 		case <-ctx.Done():
-			logger.Info().Msg("Agent shutting down...")
+			agentlog.Logger.Info().Msg("Agent shutting down...")
 			return nil
 		}
 	}
@@ -193,7 +186,7 @@ func (a *Agent) runWithConnection(ctx context.Context, tlsConfig *tls.Config) er
 	)
 
 	// Connect WebSocket
-	logger.Info().Msg("Connecting to server via WebSocket...")
+	agentlog.Logger.Info().Msg("Connecting to server via WebSocket...")
 	conn, err := websocket.Connect(hsCtx, a.config, tlsConfig)
 	if err != nil {
 		hsSpan.RecordError(err)
@@ -203,7 +196,7 @@ func (a *Agent) runWithConnection(ctx context.Context, tlsConfig *tls.Config) er
 	}
 	defer conn.Close()
 	a.conn = conn
-	logger.Info().Msg("WebSocket connected")
+	agentlog.Logger.Info().Msg("WebSocket connected")
 
 	// Send join so the server establishes the channel
 	a.sendJoin()
@@ -226,11 +219,11 @@ func (a *Agent) runWithConnection(ctx context.Context, tlsConfig *tls.Config) er
 
 		case msg, ok := <-conn.Receive():
 			if !ok {
-				logger.Info().Msgf("WebSocket disconnected (receive channel closed); will reconnect")
+				agentlog.Logger.Info().Msg("WebSocket disconnected (receive channel closed); will reconnect")
 				return fmt.Errorf("WebSocket connection closed")
 			}
 			if err := a.handleMessage(msg); err != nil {
-				logger.Info().Msgf("Error handling message: %v", err)
+				agentlog.Logger.Info().Err(err).Msg("Error handling message")
 			}
 		}
 	}
@@ -241,7 +234,7 @@ func (a *Agent) handleMessage(msg *protocol.Message) error {
 	switch msg.Action {
 	case "phx_reply":
 		// Phoenix channel reply to our ping (heartbeat ack). Connection is active.
-		logger.Info().Msgf("Heartbeat acknowledged")
+		agentlog.Logger.Info().Msg("Heartbeat acknowledged")
 
 	case "presence_diff":
 		// Phoenix Presence broadcast (server tracks who is on the channel). No action needed.
@@ -255,18 +248,10 @@ func (a *Agent) handleMessage(msg *protocol.Message) error {
 		if len(preview) > 8 {
 			preview = preview[:8] + "..."
 		}
-		logger.Info().Msgf("Server set agent cookie: %s", preview)
-
-		// Trace cookie exchange as a root span (no parent — handshake span already ended)
-		_, cookieSpan := otel.Tracer("gocd-agent").Start(context.Background(), "agent.cookie.exchange",
-			trace.WithAttributes(
-				attribute.String("agent.uuid", a.config.UUID),
-			),
-		)
-		cookieSpan.End()
+		agentlog.Logger.Info().Str("cookie_preview", preview).Msg("Server set agent cookie")
 
 	case protocol.ReregisterAction:
-		logger.Info().Msg("Server requested re-registration")
+		agentlog.Logger.Info().Msg("Server requested re-registration")
 		// Clean up and exit - supervisor will restart
 		return fmt.Errorf("re-registration requested")
 
@@ -277,29 +262,29 @@ func (a *Agent) handleMessage(msg *protocol.Message) error {
 		matches := a.currentBuild == buildID
 		a.buildMu.Unlock()
 		if matches && cancelFn != nil {
-			logger.Info().Msgf("Cancelling build: %s", buildID)
+			agentlog.Logger.Info().Str("build_id", buildID).Msg("Cancelling build")
 			cancelFn()
 		} else if buildID != "" {
-			logger.Info().Msgf("Cancel requested for build %s (current build: %q)", buildID, a.currentBuild)
+			agentlog.Logger.Info().Str("build_id", buildID).Str("current_build", a.currentBuild).Msg("Cancel requested for non-current build")
 		}
 
 	case protocol.BuildAction:
 		build := msg.DataBuild()
 		if build != nil {
-			logger.Info().Msgf("Build assigned: %s (%s)", build.BuildId, build.BuildLocatorForDisplay)
+			agentlog.Logger.Info().Str("build_id", build.BuildId).Str("locator", build.BuildLocatorForDisplay).Msg("Build assigned")
 			a.handleBuild(build)
 		} else {
-			logger.Info().Msgf("Build assigned but failed to parse payload")
+			agentlog.Logger.Info().Msg("Build assigned but failed to parse payload")
 		}
 
 	case "phx_close":
 		// Server closed the channel (e.g. duplicate join or intentional close); treat as normal close so we reconnect once
-		logger.Info().Msg("Server closed channel (phx_close); will reconnect")
+		agentlog.Logger.Info().Msg("Server closed channel (phx_close); will reconnect")
 		return fmt.Errorf("channel closed by server")
 
 	default:
 		// Unhandled action: likely a bug (new server message we don't support, or typo).
-		logger.Info().Msgf("Unknown message action: %s", msg.Action)
+		agentlog.Logger.Info().Str("action", msg.Action).Msg("Unknown message action")
 	}
 
 	return nil
@@ -361,7 +346,7 @@ func (a *Agent) handleBuild(build *protocol.Build) {
 
 	// Extract W3C traceparent from server build payload → link agent spans
 	// under the server's pipeline.trigger trace.
-	logger.Info().Msgf("Build traceparent: %q (len=%d)", build.TraceParent, len(build.TraceParent))
+	agentlog.Logger.Info().Str("traceparent", build.TraceParent).Int("traceparent_len", len(build.TraceParent)).Msg("Build traceparent")
 	parentCtx := telemetry.ParentContextFromTraceParent(ctx, build.TraceParent, build.TraceState)
 
 	tracer := otel.Tracer("gocd-agent")
@@ -373,9 +358,9 @@ func (a *Agent) handleBuild(build *protocol.Build) {
 	)
 	defer buildSpan.End()
 
-	logger.Info().Msgf("Executing build: %s", build.BuildId)
+	agentlog.Logger.Info().Str("build_id", build.BuildId).Msg("Executing build")
 	if build.BuildCommand != nil {
-		logger.Info().Msgf("Build command: name=%q, command=%q, subcommands=%d", build.BuildCommand.Name, build.BuildCommand.Command, len(build.BuildCommand.SubCommands))
+		agentlog.Logger.Info().Str("cmd_name", build.BuildCommand.Name).Str("cmd", build.BuildCommand.Command).Int("subcommands", len(build.BuildCommand.SubCommands)).Msg("Build command")
 	}
 	a.reportStatus(build.BuildId, "Building", "")
 
@@ -385,9 +370,9 @@ func (a *Agent) handleBuild(build *protocol.Build) {
 			if err == context.Canceled {
 				result = "Cancelled"
 				buildSpan.SetStatus(codes.Error, "build cancelled")
-				logger.Info().Msgf("Build %s was cancelled", build.BuildId)
+				agentlog.Logger.Info().Str("build_id", build.BuildId).Msg("Build was cancelled")
 			} else {
-				logger.Info().Msgf("Build command failed: %v", err)
+				agentlog.Logger.Info().Err(err).Msg("Build command failed")
 				result = "Failed"
 				buildSpan.SetStatus(codes.Error, err.Error())
 				buildSpan.RecordError(err)
@@ -473,7 +458,7 @@ func (a *Agent) runOneCommand(ctx context.Context, build *protocol.Build, cmd *p
 		}
 		if name != "" {
 			env[name] = value
-			logger.Info().Msgf("Exported env var %s", name)
+			agentlog.Logger.Info().Str("name", name).Msg("Exported env var")
 			cmdSpan.SetAttributes(attribute.String("export.name", name))
 		}
 		return nil
@@ -578,7 +563,7 @@ func (a *Agent) httpClient() (*http.Client, error) {
 }
 
 func (a *Agent) runUploadArtifact(ctx context.Context, build *protocol.Build, cmd *protocol.BuildCommand) error {
-	logger.Info().Msgf("Executing uploadArtifact: Src=%q, Dest=%q", cmd.Src, cmd.Dest)
+	agentlog.Logger.Info().Str("src", cmd.Src).Str("dest", cmd.Dest).Msg("Executing uploadArtifact")
 	dir := a.config.WorkingDir
 	if cmd.WorkingDir != "" {
 		dir = cmd.WorkingDir
@@ -689,7 +674,7 @@ func (a *Agent) uploadArtifact(ctx context.Context, build *protocol.Build, cmd *
 }
 
 func (a *Agent) runFetchArtifact(ctx context.Context, build *protocol.Build, cmd *protocol.BuildCommand) error {
-	logger.Info().Msgf("Executing fetchArtifact: Src=%q, Dest=%q", cmd.Src, cmd.Dest)
+	agentlog.Logger.Info().Str("src", cmd.Src).Str("dest", cmd.Dest).Msg("Executing fetchArtifact")
 	dir := a.config.WorkingDir
 	if cmd.WorkingDir != "" {
 		dir = cmd.WorkingDir
@@ -962,7 +947,7 @@ func unzipSecurely(zipPath string, destDir string) error {
 func (a *Agent) streamReaderToConsole(consoleURL, linePrefix string, r io.Reader) {
 	defer func() {
 		if r := recover(); r != nil {
-			logger.Info().Msgf("Recovered panic in streamReaderToConsole: %v", r)
+			agentlog.Logger.Info().Interface("panic", r).Msg("Recovered panic in streamReaderToConsole")
 		}
 	}()
 
@@ -979,7 +964,7 @@ func (a *Agent) streamReaderToConsole(consoleURL, linePrefix string, r io.Reader
 				payload += "\n"
 			}
 			if err := a.postConsole(consoleURL, payload); err != nil {
-				logger.Info().Msgf("Console POST failed: %v", err)
+				agentlog.Logger.Info().Err(err).Msg("Console POST failed")
 			}
 		}
 		if err != nil {

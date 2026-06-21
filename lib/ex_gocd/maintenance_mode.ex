@@ -56,11 +56,11 @@ defmodule ExGoCD.MaintenanceMode do
 
   @impl true
   def handle_call(:disable, _from, state) do
-    if not state.enabled do
-      {:reply, {:error, :already_disabled}, state}
-    else
+    if state.enabled do
       new_state = %{state | enabled: false, enabled_at: nil, enabled_by: nil}
       {:reply, {:ok, :disabled}, new_state}
+    else
+      {:reply, {:error, :already_disabled}, state}
     end
   end
 

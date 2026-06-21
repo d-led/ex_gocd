@@ -9,6 +9,7 @@ defmodule ExGoCDWeb.AdminLive do
   alias ExGoCD.Accounts
   alias ExGoCD.Pipelines
   alias ExGoCD.AuditLog
+  alias ExGoCD.ConfigRepos
 
   @impl true
   def mount(_params, _session, socket) do
@@ -22,14 +23,7 @@ defmodule ExGoCDWeb.AdminLive do
       pipeline_groups = fetch_pipeline_groups(empty_groups)
       environments = fetch_environments_ui()
 
-      config_repos = [
-        %{
-          id: "gocd-config-repo",
-          url: "https://github.com/d-led/gocd_docker_compose_example.git",
-          plugin: "yaml-config-plugin",
-          status: "Good"
-        }
-      ]
+      config_repos = ConfigRepos.list_config_repos()
 
       # Load existing database users
       users = Accounts.list_users()
@@ -529,35 +523,60 @@ defmodule ExGoCDWeb.AdminLive do
   defp config_repos_tab(assigns) do
     ~H"""
     <div class="bg-white rounded border border-[#d6e0e2] overflow-hidden shadow-sm">
+      <div class="p-4 flex justify-between items-center border-b border-[#d6e0e2]">
+        <span class="text-sm font-bold text-slate-700">
+          <i class="fa fa-code-fork mr-2 text-[#943a9e]"></i>Config Repositories
+        </span>
+        <a href="/admin/config_repos/new" class="px-3 py-1.5 rounded bg-[#943a9e] hover:bg-purple-700 text-xs font-bold text-white shadow-sm transition-all">
+          <i class="fa fa-plus mr-1"></i> Add Config Repo
+        </a>
+      </div>
       <div class="overflow-x-auto">
         <table class="w-full text-left text-xs text-slate-600">
           <thead class="bg-[#e7eef0] text-[10px] font-bold text-slate-500 uppercase border-b border-[#d6e0e2]">
             <tr>
-              <th class="px-5 py-3.5">Repo Identifier</th>
-              <th class="px-5 py-3.5">Remote Repository Git URL</th>
-              <th class="px-5 py-3.5">Parsing Plugin</th>
+              <th class="px-5 py-3.5">Repo URL</th>
+              <th class="px-5 py-3.5">Source Type</th>
+              <th class="px-5 py-3.5">Branch</th>
               <th class="px-5 py-3.5">Status</th>
+              <th class="px-5 py-3.5">Last Sync</th>
               <th class="px-5 py-3.5 text-right">Actions</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-[#e9edef] bg-white">
+            <%= if Enum.empty?(@config_repos) do %>
+              <tr>
+                <td colspan="6" class="px-5 py-12 text-center text-slate-400 italic text-xs">
+                  No config repositories configured. Add one to get started.
+                </td>
+              </tr>
+            <% end %>
             <%= for repo <- @config_repos do %>
               <tr class="hover:bg-slate-50/50">
-                <td class="px-5 py-4 font-bold text-slate-700">{repo.id}</td>
-                <td class="px-5 py-4 font-mono text-[11px] text-slate-500">{repo.url}</td>
-                <td class="px-5 py-4 text-slate-600">{repo.plugin}</td>
+                <td class="px-5 py-4 font-mono text-[11px] text-slate-500 max-w-xs truncate" title={repo.url}>
+                  {repo.url}
+                </td>
                 <td class="px-5 py-4">
-                  <span class="inline-flex items-center gap-1 bg-emerald-50 text-emerald-600 border border-emerald-200 px-2 py-0.5 rounded text-[10px] font-bold">
-                    <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>
-                    {repo.status}
+                  <span class={["inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold", source_type_badge_class(repo.source_type)]}>
+                    {source_type_label(repo.source_type)}
                   </span>
                 </td>
+                <td class="px-5 py-4 text-slate-600">{repo.branch}</td>
+                <td class="px-5 py-4">
+                  <span class={["inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold", status_class(repo)]}>
+                    <span class={["w-1.5 h-1.5 rounded-full", status_dot_class(repo)]}></span>
+                    {status_label(repo)}
+                  </span>
+                </td>
+                <td class="px-5 py-4 text-slate-500">
+                  {if repo.last_parsed_at, do: Calendar.strftime(repo.last_parsed_at, "%Y-%m-%d %H:%M"), else: "—"}
+                </td>
                 <td class="px-5 py-4 text-right">
-                  <button class="text-xs text-[#943a9e] hover:text-purple-800 font-bold mr-3">
-                    <i class="fa fa-sync mr-1"></i> Sync Config
+                  <button phx-click="sync_config_repo" phx-value-id={repo.id} class="text-xs text-[#943a9e] hover:text-purple-800 font-bold mr-3">
+                    <i class="fa fa-sync mr-1"></i> Sync
                   </button>
-                  <button class="text-xs text-slate-500 hover:text-slate-800">
-                    Edit
+                  <button phx-click="delete_config_repo" phx-value-id={repo.id} class="text-xs text-slate-500 hover:text-red-600" data-confirm="Delete this config repo? Pipelines will not be deleted.">
+                    Delete
                   </button>
                 </td>
               </tr>
@@ -568,6 +587,26 @@ defmodule ExGoCDWeb.AdminLive do
     </div>
     """
   end
+
+  defp source_type_label("github_actions"), do: "GitHub Actions"
+  defp source_type_label("gitlab_ci"), do: "GitLab CI"
+  defp source_type_label(_), do: "GoCD Pipeline"
+
+  defp source_type_badge_class("github_actions"), do: "bg-purple-50 text-purple-700 border border-purple-200"
+  defp source_type_badge_class("gitlab_ci"), do: "bg-orange-50 text-orange-700 border border-orange-200"
+  defp source_type_badge_class(_), do: "bg-emerald-50 text-emerald-700 border border-emerald-200"
+
+  defp status_label(%{error_message: err}) when is_binary(err) and err != "", do: "Error"
+  defp status_label(%{last_parsed_at: nil}), do: "Never Synced"
+  defp status_label(_), do: "Good"
+
+  defp status_class(%{error_message: err}) when is_binary(err) and err != "", do: "bg-red-50 text-red-600 border border-red-200"
+  defp status_class(%{last_parsed_at: nil}), do: "bg-yellow-50 text-yellow-600 border border-yellow-200"
+  defp status_class(_), do: "bg-emerald-50 text-emerald-600 border border-emerald-200"
+
+  defp status_dot_class(%{error_message: err}) when is_binary(err) and err != "", do: "bg-red-500"
+  defp status_dot_class(%{last_parsed_at: nil}), do: "bg-yellow-500"
+  defp status_dot_class(_), do: "bg-emerald-500"
 
   defp server_tab(assigns) do
     ~H"""
@@ -773,6 +812,39 @@ defmodule ExGoCDWeb.AdminLive do
   end
 
   # --- Event Handlers ---
+
+  @impl true
+  def handle_event("sync_config_repo", %{"id" => id}, socket) do
+    id = String.to_integer(id)
+    case ConfigRepos.get_config_repo(id) do
+      nil ->
+        {:noreply, put_flash(socket, :error, "Config repo not found.")}
+      repo ->
+        # Trigger a re-sync (in future: open wizard)
+        {:ok, updated} = ConfigRepos.update_config_repo(repo, %{last_parsed_at: DateTime.utc_now()})
+        repos = ConfigRepos.list_config_repos()
+        {:noreply,
+         socket
+         |> assign(:config_repos, repos)
+         |> put_flash(:info, "Config repo '#{updated.url}' synced.")}
+    end
+  end
+
+  @impl true
+  def handle_event("delete_config_repo", %{"id" => id}, socket) do
+    id = String.to_integer(id)
+    case ConfigRepos.get_config_repo(id) do
+      nil ->
+        {:noreply, put_flash(socket, :error, "Config repo not found.")}
+      repo ->
+        {:ok, _} = ConfigRepos.delete_config_repo(repo)
+        repos = ConfigRepos.list_config_repos()
+        {:noreply,
+         socket
+         |> assign(:config_repos, repos)
+         |> put_flash(:info, "Config repo deleted.")}
+    end
+  end
 
   @impl true
   def handle_event("clear_flash", _params, socket) do

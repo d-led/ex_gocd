@@ -18,6 +18,8 @@ defmodule ExGoCD.Application do
     # Initialize OpenTelemetry unless disabled
     unless System.get_env("EX_GOCD_NO_OTEL") == "1" do
       ExGoCD.Otel.setup()
+      # Attach crash telemetry: Phoenix exceptions → OTel span events
+      ExGoCD.CrashTelemetry.attach()
     end
 
     # ETS table for cross-process trace context propagation (assign → agent report)

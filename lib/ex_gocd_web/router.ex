@@ -99,6 +99,10 @@ defmodule ExGoCDWeb.Router do
       live "/go/admin/pipelines/new", PipelineWizardLive, :new
       live "/admin/pipelines/:pipeline_name/edit/*sub_path", PipelineConfigLive, :edit
       live "/go/admin/pipelines/:pipeline_name/edit/*sub_path", PipelineConfigLive, :edit
+
+      # External CI repo wizard
+      live "/admin/config_repos/new", ExternalCIRepoWizardLive, :index
+      live "/go/admin/config_repos/new", ExternalCIRepoWizardLive, :index
     end
   end
 
@@ -185,6 +189,8 @@ defmodule ExGoCDWeb.Router do
     get "/maintenance_mode/info", MaintenanceModeController, :show
     post "/maintenance_mode/enable", MaintenanceModeController, :enable
     post "/maintenance_mode/disable", MaintenanceModeController, :disable
+
+    post "/backups", BackupController, :create
   end
 
   scope "/api/current_user", ExGoCDWeb.API do

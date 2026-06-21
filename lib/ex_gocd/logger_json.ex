@@ -107,7 +107,9 @@ defmodule ExGoCD.LoggerJSON do
           entry
       end
     rescue
-      _ -> entry
+      e ->
+        IO.puts(:stderr, "[LoggerJSON] trace context injection failed: #{inspect(e)}")
+        entry
     end
   end
 end

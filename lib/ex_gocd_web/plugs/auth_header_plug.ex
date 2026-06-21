@@ -25,30 +25,28 @@ defmodule ExGoCDWeb.Plugs.AuthHeaderPlug do
 
       user = ensure_user(username, display_name)
 
-      conn
-      |> put_session("username", user.username)
-      |> put_session("user_id", user.id)
+      if user do
+        conn
+        |> put_session("username", user.username)
+        |> put_session("user_id", user.id)
+      else
+        conn
+      end
     else
       conn
     end
   end
 
-  defp ensure_user(username, display_name) do
+  defp ensure_user(username, _display_name) do
     case Accounts.get_user_by_username(username) do
-      nil -> bootstrap_user(username, display_name)
-      existing -> existing
-    end
-  end
+      nil ->
+        # Only set session if user already exists in DB. New users must be
+        # created explicitly via API/UI. Guests fall through to default_user().
+        nil
 
-  defp bootstrap_user(username, display_name) do
-    roles = if Accounts.list_users() == [], do: ["admin"], else: []
-    {:ok, created} = Accounts.create_user(%{
-      "username" => username,
-      "display_name" => display_name,
-      "roles" => roles,
-      "status" => "Active"
-    })
-    created
+      existing ->
+        existing
+    end
   end
 
   defp get_header(conn, name) do

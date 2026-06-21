@@ -4,9 +4,9 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -16,7 +16,12 @@ import (
 
 	"github.com/d-led/ex_gocd/agent/cmd"
 	"github.com/d-led/ex_gocd/agent/internal/agent"
+	agentlog "github.com/d-led/ex_gocd/agent/internal/log"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -29,10 +34,10 @@ func main() {
 	maxRestarts := envInt("AGENT_MAX_RESTARTS", defaultMaxRestarts)
 	restartDelay := envDuration("AGENT_RESTART_DELAY", defaultRestartDelay)
 
-	slog.Info("gocd-agent starting",
-		"max_restarts", maxRestarts,
-		"restart_delay", restartDelay,
-	)
+	agentlog.Logger.Info().
+		Int("max_restarts", maxRestarts).
+		Dur("restart_delay", restartDelay).
+		Msg("gocd-agent starting")
 
 	// ── OTEL service name ───────────────────────────────────────────
 	if sn := os.Getenv("AGENT_OTEL_SERVICE_NAME"); sn != "" {
@@ -47,7 +52,7 @@ func main() {
 
 	// Ensure base work dir exists
 	if err := os.MkdirAll(baseWorkDir, 0755); err != nil {
-		slog.Error("cannot create base work directory", "dir", baseWorkDir, "error", err)
+		agentlog.Logger.Error().Str("dir", baseWorkDir).Err(err).Msg("cannot create base work directory")
 		fmt.Fprintf(os.Stderr, "gocd-agent: cannot create %s: %v\n", baseWorkDir, err)
 		os.Exit(1)
 	}
@@ -59,7 +64,7 @@ func main() {
 	agentWorkDir := filepath.Join(baseWorkDir, "agent")
 	uuidFile := filepath.Join(agentWorkDir, "agent.uuid")
 	if err := os.MkdirAll(agentWorkDir, 0755); err != nil {
-		slog.Error("cannot create agent work directory", "dir", agentWorkDir, "error", err)
+		agentlog.Logger.Error().Str("dir", agentWorkDir).Err(err).Msg("cannot create agent work directory")
 		fmt.Fprintf(os.Stderr, "gocd-agent: cannot create %s: %v\n", agentWorkDir, err)
 		os.Exit(1)
 	}
@@ -69,16 +74,17 @@ func main() {
 	// ── PID file: {uuid}.pid contains OS PID ────────────────────────
 	pidPath := filepath.Join(agentWorkDir, agentUUID+".pid")
 	if err := writePidFile(pidPath, os.Getpid()); err != nil {
-		slog.Error("cannot write pidfile — agent may already be running",
-			"path", pidPath, "uuid", agentUUID, "error", err,
-		)
+		agentlog.Logger.Error().Str("path", pidPath).Str("uuid", agentUUID).Err(err).Msg("cannot write pidfile — agent may already be running")
 		fmt.Fprintf(os.Stderr, "gocd-agent: agent %s may already be running: %v\n", agentUUID, err)
 		os.Exit(1)
 	}
 	defer os.Remove(pidPath)
 
-	slog.Info("agent identity", "uuid", agentUUID,
-		"pidfile", pidPath, "work_dir", agentWorkDir)
+	agentlog.Logger.Info().
+		Str("uuid", agentUUID).
+		Str("pidfile", pidPath).
+		Str("work_dir", agentWorkDir).
+		Msg("agent identity")
 
 	os.Setenv("AGENT_WORK_DIR", agentWorkDir)
 	os.Setenv("AGENT_UUID", agentUUID)
@@ -90,17 +96,14 @@ func main() {
 		elapsed := time.Since(start)
 
 		if err == nil {
-			slog.Info("gocd-agent stopped cleanly")
+			agentlog.Logger.Info().Msg("gocd-agent stopped cleanly")
 			return
 		}
 
 		// Server unavailability (planned outage, network blip) is not a crash.
 		// Don't count it toward the restart limit — just retry.
 		if errors.Is(err, agent.ErrServerUnavailable) {
-			slog.Warn("server unavailable, will retry (not counting toward crash limit)",
-				"error", err,
-				"restart_delay", restartDelay,
-			)
+			agentlog.Logger.Warn().Err(err).Dur("restart_delay", restartDelay).Msg("server unavailable, will retry (not counting toward crash limit)")
 			time.Sleep(restartDelay)
 			continue
 		}
@@ -109,30 +112,19 @@ func main() {
 		// reset the counter — transient crashes after a long healthy run
 		// should not count against the restart budget.
 		if elapsed >= minSuccessfulRun {
-			slog.Info("agent ran successfully before error, resetting restart counter",
-				"uptime", elapsed,
-				"previous_failures", consecutiveFailures,
-			)
+			agentlog.Logger.Info().Dur("uptime", elapsed).Int("previous_failures", consecutiveFailures).Msg("agent ran successfully before error, resetting restart counter")
 			consecutiveFailures = 0
 		}
 
 		consecutiveFailures++
 
 		if consecutiveFailures > maxRestarts {
-			slog.Error("max restart attempts reached, giving up",
-				"attempts", consecutiveFailures,
-				"max", maxRestarts,
-			)
+			agentlog.Logger.Error().Int("attempts", consecutiveFailures).Int("max", maxRestarts).Msg("max restart attempts reached, giving up")
 			fmt.Fprintf(os.Stderr, "gocd-agent: max restart attempts (%d) reached, exiting\n", maxRestarts)
 			os.Exit(1)
 		}
 
-		slog.Warn("agent exited with error, will restart",
-			"attempt", consecutiveFailures,
-			"max", maxRestarts,
-			"delay", restartDelay,
-			"error", err,
-		)
+		agentlog.Logger.Warn().Int("attempt", consecutiveFailures).Int("max", maxRestarts).Dur("delay", restartDelay).Err(err).Msg("agent exited with error, will restart")
 
 		time.Sleep(restartDelay)
 	}
@@ -141,17 +133,25 @@ func main() {
 // runOnce executes one agent run cycle with panic recovery.
 // Returns nil on clean shutdown, error on failure or panic.
 func runOnce(attempt int) (err error) {
+	// Crash span: emitted on panic so crashes are visible in Jaeger.
+	// Uses no-op tracer if OTel is not yet initialized (safe).
+	tracer := otel.Tracer("gocd-agent")
+	_, crashSpan := tracer.Start(context.Background(), "agent.crash",
+		trace.WithAttributes(attribute.Int("attempt", attempt)),
+	)
 	defer func() {
 		if r := recover(); r != nil {
-			slog.Error("gocd-agent panicked, recovering",
-				"attempt", attempt,
-				"panic", fmt.Sprintf("%v", r),
-			)
+			crashSpan.SetAttributes(attribute.String("panic", fmt.Sprintf("%v", r)))
+			crashSpan.SetStatus(codes.Error, "agent panic")
+			crashSpan.End()
+			agentlog.Logger.Error().Int("attempt", attempt).Interface("panic", r).Msg("gocd-agent panicked, recovering")
 			err = fmt.Errorf("panic recovered: %v", r)
+		} else {
+			crashSpan.End()
 		}
 	}()
 
-	slog.Info("starting agent run", "attempt", attempt)
+	agentlog.Logger.Info().Int("attempt", attempt).Msg("starting agent run")
 	return cmd.RunAgent()
 }
 
@@ -165,19 +165,17 @@ func resolveAgentUUID(uuidFile string) string {
 	if os.Getenv("AGENT_NEW_UUID") == "1" {
 		id := uuid.New().String()
 		os.WriteFile(uuidFile, []byte(id), 0644)
-		slog.Info("fresh agent UUID generated", "uuid", id)
+		agentlog.Logger.Info().Str("uuid", id).Msg("fresh agent UUID generated")
 		return id
 	}
 
 	// Explicit UUID from env
 	if id := os.Getenv("AGENT_UUID"); id != "" {
 		if !isValidUUID(id) {
-			slog.Warn("AGENT_UUID env is not a valid UUID, generating fresh one",
-				"invalid_uuid", id,
-			)
+			agentlog.Logger.Warn().Str("invalid_uuid", id).Msg("AGENT_UUID env is not a valid UUID, generating fresh one")
 		} else {
 			os.WriteFile(uuidFile, []byte(id), 0644)
-			slog.Info("using supplied agent UUID", "uuid", id)
+			agentlog.Logger.Info().Str("uuid", id).Msg("using supplied agent UUID")
 			return id
 		}
 	}
@@ -187,12 +185,9 @@ func resolveAgentUUID(uuidFile string) string {
 		id := strings.TrimSpace(string(data))
 		if id != "" {
 			if !isValidUUID(id) {
-				slog.Warn("persisted agent UUID is invalid, generating fresh one",
-					"invalid_uuid", id,
-					"file", uuidFile,
-				)
+				agentlog.Logger.Warn().Str("invalid_uuid", id).Str("file", uuidFile).Msg("persisted agent UUID is invalid, generating fresh one")
 			} else {
-				slog.Info("loaded existing agent UUID", "uuid", id)
+				agentlog.Logger.Info().Str("uuid", id).Msg("loaded existing agent UUID")
 				return id
 			}
 		}
@@ -201,7 +196,7 @@ func resolveAgentUUID(uuidFile string) string {
 	// Generate new
 	id := uuid.New().String()
 	os.WriteFile(uuidFile, []byte(id), 0644)
-	slog.Info("generated new agent UUID", "uuid", id)
+	agentlog.Logger.Info().Str("uuid", id).Msg("generated new agent UUID")
 	return id
 }
 
@@ -221,7 +216,7 @@ func writePidFile(path string, pid int) error {
 			return fmt.Errorf("agent already running with PID %d (pidfile %s)", existingPID, path)
 		}
 		// Stale pidfile — remove it
-		slog.Warn("removing stale pidfile", "path", path, "stale_pid", string(existing))
+		agentlog.Logger.Warn().Str("path", path).Str("stale_pid", strings.TrimSpace(string(existing))).Msg("removing stale pidfile")
 		os.Remove(path)
 	}
 
@@ -254,7 +249,7 @@ func envInt(key string, defaultVal int) int {
 		if v, err := strconv.Atoi(s); err == nil && v >= 0 {
 			return v
 		}
-		slog.Warn("invalid env value, using default", "key", key, "value", s, "default", defaultVal)
+		agentlog.Logger.Warn().Str("key", key).Str("value", s).Int("default", defaultVal).Msg("invalid env value, using default")
 	}
 	return defaultVal
 }
@@ -266,7 +261,7 @@ func envDuration(key string, defaultVal time.Duration) time.Duration {
 		if v, err := time.ParseDuration(s); err == nil && v >= 0 {
 			return v
 		}
-		slog.Warn("invalid env value, using default", "key", key, "value", s, "default", defaultVal)
+		agentlog.Logger.Warn().Str("key", key).Str("value", s).Dur("default", defaultVal).Msg("invalid env value, using default")
 	}
 	return defaultVal
 }

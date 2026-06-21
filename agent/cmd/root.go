@@ -6,13 +6,13 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"github.com/d-led/ex_gocd/agent/internal/agent"
 	"github.com/d-led/ex_gocd/agent/internal/config"
+	agentlog "github.com/d-led/ex_gocd/agent/internal/log"
 	"github.com/spf13/cobra"
 )
 
@@ -71,9 +71,7 @@ func RunAgent() error {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				slog.Error("agent goroutine panicked",
-					"panic", fmt.Sprintf("%v", r),
-				)
+				agentlog.Logger.Error().Interface("panic", r).Msg("agent goroutine panicked")
 				errChan <- fmt.Errorf("agent goroutine panicked: %v", r)
 			}
 		}()
@@ -82,7 +80,7 @@ func RunAgent() error {
 
 	select {
 	case sig := <-sigChan:
-		slog.Info("received shutdown signal, stopping agent", "signal", sig.String())
+		agentlog.Logger.Info().Str("signal", sig.String()).Msg("received shutdown signal, stopping agent")
 		cancel()
 		return <-errChan
 

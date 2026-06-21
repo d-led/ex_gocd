@@ -64,18 +64,23 @@ for pid_dir in "$AGENT_WORK_DIR"/[0-9]*/; do
   rm -rf "$pid_dir"
 done
 
-# ── OpenTelemetry → Collector → Jaeger ────────────────────────────────
-# AGENT_OTEL_SERVICE_NAME overrides OTEL_SERVICE_NAME
-export OTEL_SERVICE_NAME="${AGENT_OTEL_SERVICE_NAME:-${OTEL_SERVICE_NAME:-gocd-agent}}"
-export OTEL_TRACES_EXPORTER="${OTEL_TRACES_EXPORTER:-otlp}"
-export OTEL_EXPORTER_OTLP_ENDPOINT="${OTEL_EXPORTER_OTLP_ENDPOINT:-localhost:4318}"
+# ── OpenTelemetry → Collector → Jaeger (optional) ────────────────────
+# All OTEL_ vars are only set if the user explicitly provides them.
+# A fresh checkout runs without any telemetry infrastructure.
+if [[ -n "${OTEL_TRACES_EXPORTER:-}" ]]; then
+  export OTEL_SERVICE_NAME="${AGENT_OTEL_SERVICE_NAME:-${OTEL_SERVICE_NAME:-gocd-agent}}"
+  export OTEL_TRACES_EXPORTER="$OTEL_TRACES_EXPORTER"
+  export OTEL_EXPORTER_OTLP_ENDPOINT="${OTEL_EXPORTER_OTLP_ENDPOINT:-localhost:4318}"
+fi
 
 # ── Show what we're about to start ────────────────────────────────────
 echo "──────────────────────────────────────────────────────────────────"
 echo "GoCD Agent → ${AGENT_SERVER_URL}"
 echo "  UUID:      ${AGENT_UUID:-<will generate fresh>}"
 echo "  Work dir:  $AGENT_WORK_DIR"
-echo "  Tracing:   $OTEL_EXPORTER_OTLP_ENDPOINT (service: $OTEL_SERVICE_NAME)"
+if [[ -n "${OTEL_TRACES_EXPORTER:-}" ]]; then
+  echo "  Tracing:   ${OTEL_EXPORTER_OTLP_ENDPOINT:-localhost:4318} (service: ${OTEL_SERVICE_NAME:-gocd-agent})"
+fi
 echo "──────────────────────────────────────────────────────────────────"
 
 # ── Start agent ────────────────────────────────────────────────────────

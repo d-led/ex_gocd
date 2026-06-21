@@ -59,7 +59,7 @@ defmodule ExGoCDWeb.API.AnalyticsController do
 
   defp execute_analytics("agent_state_transition", params) do
     agent_uuid = params["agent_uuid"]
-    start_dt = parse_datetime(params["start"]) || DateTime.add(DateTime.utc_now(), -7 * 86400, :second)
+    start_dt = parse_datetime(params["start"]) || DateTime.add(DateTime.utc_now(), -7 * 86_400, :second)
     end_dt = parse_datetime(params["end"]) || DateTime.utc_now()
 
     transitions = Analytics.agent_transitions(agent_uuid, start_dt, end_dt)

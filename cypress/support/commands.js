@@ -203,3 +203,14 @@ Cypress.Commands.add('searchModificationsInModal', (query) => {
 Cypress.Commands.add('closeModificationsModal', () => {
   cy.get(SELECTORS.modificationsModalOk).click();
 });
+
+// --- Screenshot helpers ---
+
+Cypress.Commands.add('appScreenshot', (name) => {
+  const src = `cypress/screenshots/screenshot.cy.js/${name}.png`;
+  const dest = `docs/screenshots/${name}.png`;
+  cy.screenshot(name, { capture: 'viewport' });
+  cy.task('copyScreenshot', { src, dest }, { log: false }).then((res) => {
+    if (res && res.error) throw new Error(res.error);
+  });
+});
