@@ -32,9 +32,9 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Set up Elixir
-        uses: erlef/setup-beam@v1.24.0
+        uses: erlef/setup-beam@v1
         with:
           elixir-version: '1.19.5'
           otp-version: '28.0'
