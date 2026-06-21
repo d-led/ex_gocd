@@ -1,6 +1,9 @@
 # GoCD Parity Blind Spots & Testing Gaps
 
-This document compiles an inventory of functional and testing blind spots in the **ex_gocd** Phoenix rewrite compared to the legacy GoCD Java test suite specifications. It details what features are present and tested in the legacy Java codebase but currently missing, faked, or simplified in the rewrite.
+**Status update (2026-06-21):** All previously identified blind spots have been addressed. See `parity_roadmap_plan.md` for the full implementation status. Remaining minor gaps are listed there.
+
+This document is kept as a historical reference of the original gap analysis.
+
 
 ---
 
