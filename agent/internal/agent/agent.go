@@ -30,7 +30,6 @@ import (
 	"github.com/d-led/ex_gocd/agent/internal/telemetry"
 	"github.com/d-led/ex_gocd/agent/internal/websocket"
 	"github.com/d-led/ex_gocd/agent/pkg/protocol"
-	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -79,9 +78,10 @@ type Agent struct {
 
 // New creates a new Agent
 func New(cfg *config.Config) (*Agent, error) {
-	// Load or generate UUID
-	if err := loadOrGenerateUUID(cfg); err != nil {
-		return nil, err
+	// UUID already resolved by main.go into AGENT_UUID env var
+	cfg.UUID = os.Getenv("AGENT_UUID")
+	if cfg.UUID == "" {
+		return nil, fmt.Errorf("AGENT_UUID not set — main.go should have resolved it")
 	}
 
 	return &Agent{
@@ -104,6 +104,7 @@ func (a *Agent) Start(ctx context.Context) error {
 	logger.Info().Msgf("Starting agent %s", a.config.UUID)
 	logger.Info().Msgf("Server: %s", a.config.ServerURL.String())
 	logger.Info().Msgf("Working directory: %s", a.config.WorkingDir)
+	logger.Info().Msgf("UUID: %s", a.config.UUID)
 
 	// Register with server
 	logger.Info().Msg("Registering with server...")
@@ -1026,27 +1027,6 @@ func (a *Agent) reportStatus(buildID, jobState, result string) {
 	}
 
 	a.conn.Send(msg)
-}
-
-// loadOrGenerateUUID loads existing UUID or generates a new one
-func loadOrGenerateUUID(cfg *config.Config) error {
-	uuidFile := cfg.UUIDFile()
-
-	// Try to load existing UUID
-	if data, err := os.ReadFile(uuidFile); err == nil {
-		cfg.UUID = string(data)
-		return nil
-	}
-
-	// Generate new UUID
-	cfg.UUID = uuid.New().String()
-
-	// Save UUID
-	if err := os.WriteFile(uuidFile, []byte(cfg.UUID), 0644); err != nil {
-		return fmt.Errorf("failed to write UUID file: %w", err)
-	}
-
-	return nil
 }
 
 // getUsableSpace returns available disk space

@@ -147,11 +147,6 @@ func setupViper() {
 	viper.SetDefault("auto.register.elastic.plugin.id", "")
 }
 
-// UUIDFile returns path to the agent UUID file
-func (c *Config) UUIDFile() string {
-	return filepath.Join(c.ConfigDir, "agent.uuid")
-}
-
 // RegistrationURL returns the full URL for agent registration (form-based)
 func (c *Config) RegistrationURL() string {
 	u := *c.ServerURL

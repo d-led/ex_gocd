@@ -8,31 +8,26 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
 	"github.com/d-led/ex_gocd/agent/cmd"
+	"github.com/google/uuid"
 )
 
 const (
 	maxRestarts  = 5
 	restartDelay = 5 * time.Second
-	pidFileName  = "agent.pid"
 )
 
 func main() {
-	pid := os.Getpid()
-	pidStr := strconv.Itoa(pid)
-
 	slog.Info("gocd-agent starting",
-		"pid", pid,
 		"max_restarts", maxRestarts,
 		"restart_delay", restartDelay,
 	)
 
-	// Resolve base work dir from env (same logic as config.Load)
+	// Resolve base work dir from env
 	baseWorkDir := os.Getenv("AGENT_WORK_DIR")
 	if baseWorkDir == "" {
 		baseWorkDir = "work"
@@ -40,44 +35,41 @@ func main() {
 
 	// Ensure base work dir exists
 	if err := os.MkdirAll(baseWorkDir, 0755); err != nil {
-		slog.Error("cannot create base work directory",
-			"dir", baseWorkDir,
-			"error", err,
-		)
+		slog.Error("cannot create base work directory", "dir", baseWorkDir, "error", err)
 		fmt.Fprintf(os.Stderr, "gocd-agent: cannot create %s: %v\n", baseWorkDir, err)
 		os.Exit(1)
 	}
 
-	// Write pidfile (atomic: write temp + rename)
-	pidPath := filepath.Join(baseWorkDir, pidFileName)
-	if err := writePidFile(pidPath, pid); err != nil {
-		slog.Error("cannot write pidfile, agent may already be running",
-			"path", pidPath,
-			"error", err,
+	// ── Agent identity ──────────────────────────────────────────────
+	// UUID from AGENT_UUID env, or generate a new one.
+	// Persisted to {workDir}/agent/agent.uuid for stable identity across
+	// restarts. Use AGENT_NEW_UUID=1 to force a fresh UUID.
+	agentWorkDir := filepath.Join(baseWorkDir, "agent")
+	uuidFile := filepath.Join(agentWorkDir, "agent.uuid")
+	if err := os.MkdirAll(agentWorkDir, 0755); err != nil {
+		slog.Error("cannot create agent work directory", "dir", agentWorkDir, "error", err)
+		fmt.Fprintf(os.Stderr, "gocd-agent: cannot create %s: %v\n", agentWorkDir, err)
+		os.Exit(1)
+	}
+
+	agentUUID := resolveAgentUUID(uuidFile)
+
+	// ── PID file: {uuid}.pid contains OS PID ────────────────────────
+	pidPath := filepath.Join(agentWorkDir, agentUUID+".pid")
+	if err := writePidFile(pidPath, os.Getpid()); err != nil {
+		slog.Error("cannot write pidfile — agent may already be running",
+			"path", pidPath, "uuid", agentUUID, "error", err,
 		)
-		fmt.Fprintf(os.Stderr, "gocd-agent: cannot write pidfile %s: %v\n", pidPath, err)
+		fmt.Fprintf(os.Stderr, "gocd-agent: agent %s may already be running: %v\n", agentUUID, err)
 		os.Exit(1)
 	}
 	defer os.Remove(pidPath)
 
-	slog.Info("pidfile written", "path", pidPath, "pid", pid)
+	slog.Info("agent identity", "uuid", agentUUID,
+		"pidfile", pidPath, "work_dir", agentWorkDir)
 
-	// Per-PID work subfolder: work/<pid>/
-	pidWorkDir := filepath.Join(baseWorkDir, pidStr)
-	if err := os.MkdirAll(pidWorkDir, 0755); err != nil {
-		slog.Error("cannot create per-PID work directory",
-			"dir", pidWorkDir,
-			"error", err,
-		)
-		fmt.Fprintf(os.Stderr, "gocd-agent: cannot create %s: %v\n", pidWorkDir, err)
-		os.Exit(1)
-	}
-	defer cleanupPidWorkDir(pidWorkDir)
-
-	slog.Info("per-PID work directory", "dir", pidWorkDir)
-
-	// Set AGENT_WORK_DIR so config.Load picks it up
-	os.Setenv("AGENT_WORK_DIR", pidWorkDir)
+	os.Setenv("AGENT_WORK_DIR", agentWorkDir)
+	os.Setenv("AGENT_UUID", agentUUID)
 
 	for attempt := 0; attempt <= maxRestarts; attempt++ {
 		err := runOnce(attempt)
@@ -124,20 +116,54 @@ func runOnce(attempt int) (err error) {
 	return cmd.RunAgent()
 }
 
-// writePidFile atomically writes the PID file.
+// resolveAgentUUID determines the agent UUID:
+//   1. AGENT_NEW_UUID=1 → generate fresh, overwrite file
+//   2. AGENT_UUID env → use it, persist to file
+//   3. Existing agent.uuid file → load it
+//   4. None of the above → generate new
+func resolveAgentUUID(uuidFile string) string {
+	// Force fresh UUID
+	if os.Getenv("AGENT_NEW_UUID") == "1" {
+		id := uuid.New().String()
+		os.WriteFile(uuidFile, []byte(id), 0644)
+		slog.Info("fresh agent UUID generated", "uuid", id)
+		return id
+	}
+
+	// Explicit UUID from env
+	if id := os.Getenv("AGENT_UUID"); id != "" {
+		os.WriteFile(uuidFile, []byte(id), 0644)
+		slog.Info("using supplied agent UUID", "uuid", id)
+		return id
+	}
+
+	// Load existing UUID from file
+	if data, err := os.ReadFile(uuidFile); err == nil {
+		id := strings.TrimSpace(string(data))
+		if id != "" {
+			slog.Info("loaded existing agent UUID", "uuid", id)
+			return id
+		}
+	}
+
+	// Generate new
+	id := uuid.New().String()
+	os.WriteFile(uuidFile, []byte(id), 0644)
+	slog.Info("generated new agent UUID", "uuid", id)
+	return id
+}
+
+// writePidFile atomically writes the PID file (named {uuid}.pid, contains OS PID).
 // Returns error if a live agent already holds the pidfile.
 func writePidFile(path string, pid int) error {
 	// Check for existing pidfile
 	if existing, err := os.ReadFile(path); err == nil {
-		existingPID, parseErr := strconv.Atoi(strings.TrimSpace(string(existing)))
-		if parseErr == nil && isProcessAlive(existingPID) {
+		var existingPID int
+		if _, scanErr := fmt.Sscanf(strings.TrimSpace(string(existing)), "%d", &existingPID); scanErr == nil && isProcessAlive(existingPID) {
 			return fmt.Errorf("agent already running with PID %d (pidfile %s)", existingPID, path)
 		}
 		// Stale pidfile — remove it
-		slog.Warn("removing stale pidfile",
-			"path", path,
-			"stale_pid", existingPID,
-		)
+		slog.Warn("removing stale pidfile", "path", path, "stale_pid", string(existing))
 		os.Remove(path)
 	}
 
@@ -160,19 +186,6 @@ func isProcessAlive(pid int) bool {
 	if err != nil {
 		return false
 	}
-	// Send signal 0 to check existence (Unix)
 	err = process.Signal(syscall.Signal(0))
 	return err == nil
-}
-
-// cleanupPidWorkDir removes the per-PID work directory and logs any error.
-func cleanupPidWorkDir(dir string) {
-	if err := os.RemoveAll(dir); err != nil {
-		slog.Warn("failed to remove per-PID work directory",
-			"dir", dir,
-			"error", err,
-		)
-	} else {
-		slog.Info("removed per-PID work directory", "dir", dir)
-	}
 }
