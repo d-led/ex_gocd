@@ -8,6 +8,7 @@ defmodule ExGoCDWeb.AdminLive do
 
   alias ExGoCD.Accounts
   alias ExGoCD.Pipelines
+  alias ExGoCD.AuditLog
   alias ExGoCD.AuditLog.Events
   alias ExGoCD.ConfigRepos
 
