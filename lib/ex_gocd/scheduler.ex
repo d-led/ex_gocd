@@ -193,14 +193,6 @@ defmodule ExGoCD.Scheduler do
     end
   end
 
-  defp reject_if_in_memory(queue, id) do
-    if String.starts_with?(to_string(id), "sched-") do
-      Enum.reject(queue, &(&1.id == id))
-    else
-      queue
-    end
-  end
-
   defp normalize_job_spec(spec) do
     base = %{
       pipeline: get_val(spec, "pipeline", :pipeline, "default-pipeline"),
@@ -595,13 +587,6 @@ defmodule ExGoCD.Scheduler do
         ""
     end
   end
-
-  defp get_db_scheduled_count do
-    safe_db(fn ->
-      Repo.one(from(ji in JobInstance, where: ji.state == "Scheduled", select: count(ji.id)))
-    end, 0)
-  end
-
 
   # Triggers try_assign_work for all currently connected idle agents
   defp trigger_assignment_for_idle_agents do

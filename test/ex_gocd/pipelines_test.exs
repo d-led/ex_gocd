@@ -10,7 +10,6 @@ defmodule ExGoCD.PipelinesTest do
   alias ExGoCD.Pipelines
   alias ExGoCD.Pipelines.{Job, JobInstance, Pipeline, Stage, StageInstance, Task}
   alias ExGoCD.Repo
-  alias ExGoCD.Scheduler
 
   setup do
     :ok
@@ -23,28 +22,26 @@ defmodule ExGoCD.PipelinesTest do
 
     test "trigger with single-job stage creates one instance and enqueues one job" do
       {pipeline, _stage, _job} = insert_pipeline_with_jobs("single", 1)
-      n0 = Scheduler.pending_count()
 
       assert {:ok, instance} = Pipelines.trigger_pipeline(pipeline.name)
       assert instance.counter == 1
 
       [stage_instance] = from(s in ExGoCD.Pipelines.StageInstance, where: s.pipeline_instance_id == ^instance.id) |> Repo.all()
-      job_count = from(j in JobInstance, where: j.stage_instance_id == ^stage_instance.id) |> Repo.aggregate(:count, :id)
-      assert job_count == 1
-      assert Scheduler.pending_count() == n0 + 1
+      job_instances = from(j in JobInstance, where: j.stage_instance_id == ^stage_instance.id) |> Repo.all()
+      assert length(job_instances) == 1
+      assert Enum.all?(job_instances, &(&1.state == "Scheduled"))
     end
 
     test "trigger with two-job stage creates two job instances and enqueues two jobs (for two agents)" do
       {pipeline, _stage, _jobs} = insert_pipeline_with_jobs("multi", 2)
-      n0 = Scheduler.pending_count()
 
       assert {:ok, instance} = Pipelines.trigger_pipeline(pipeline.name)
       assert instance.counter == 1
 
       [stage_instance] = from(s in ExGoCD.Pipelines.StageInstance, where: s.pipeline_instance_id == ^instance.id) |> Repo.all()
-      job_count = from(j in JobInstance, where: j.stage_instance_id == ^stage_instance.id) |> Repo.aggregate(:count, :id)
-      assert job_count == 2, "expected 2 job instances for 2 jobs in stage"
-      assert Scheduler.pending_count() == n0 + 2, "expected 2 jobs enqueued for 2 agents"
+      job_instances = from(j in JobInstance, where: j.stage_instance_id == ^stage_instance.id) |> Repo.all()
+      assert length(job_instances) == 2, "expected 2 job instances for 2 jobs in stage"
+      assert Enum.all?(job_instances, &(&1.state == "Scheduled")), "expected all jobs enqueued (Scheduled state)"
     end
 
     test "completing all jobs in first stage automatically schedules second stage" do
@@ -80,7 +77,6 @@ defmodule ExGoCD.PipelinesTest do
 
     test "paused pipeline returns error on trigger and is not enqueued" do
       {pipeline, _stage, _job} = insert_pipeline_with_jobs("paused-pipe", 1)
-      n0 = Scheduler.pending_count()
 
       # Pause the pipeline
       assert {:ok, paused_pipe} = Pipelines.pause_pipeline(pipeline.name, "admin", "fixing build")
@@ -89,9 +85,9 @@ defmodule ExGoCD.PipelinesTest do
       assert paused_pipe.pause_cause == "fixing build"
       assert paused_pipe.paused_at != nil
 
-      # Attempt trigger
+      # Attempt trigger — no instances created
       assert Pipelines.trigger_pipeline(pipeline.name) == {:error, :pipeline_paused}
-      assert Scheduler.pending_count() == n0
+      assert from(pi in ExGoCD.Pipelines.PipelineInstance, where: pi.pipeline_id == ^pipeline.id) |> Repo.aggregate(:count, :id) == 0
 
       # Unpause the pipeline
       assert {:ok, unpaused_pipe} = Pipelines.unpause_pipeline(pipeline.name)
@@ -100,10 +96,12 @@ defmodule ExGoCD.PipelinesTest do
       assert unpaused_pipe.pause_cause == nil
       assert unpaused_pipe.paused_at == nil
 
-      # Attempt trigger again
+      # Attempt trigger again — one instance with one scheduled job
       assert {:ok, instance} = Pipelines.trigger_pipeline(pipeline.name)
       assert instance.counter == 1
-      assert Scheduler.pending_count() == n0 + 1
+      [si] = from(s in ExGoCD.Pipelines.StageInstance, where: s.pipeline_instance_id == ^instance.id) |> Repo.all()
+      [ji] = from(j in JobInstance, where: j.stage_instance_id == ^si.id) |> Repo.all()
+      assert ji.state == "Scheduled"
     end
 
     test "concurrency locks prevent trigger for locked pipeline" do
@@ -169,8 +167,6 @@ defmodule ExGoCD.PipelinesTest do
       assert :ok = Pipelines.complete_job_instance(job1.id, "Passed")
       assert :ok = Pipelines.complete_job_instance(job2.id, "Failed")
 
-      # Clear the scheduler queue before testing rerun
-      Scheduler.clear_queue()
 
       # Rerun failed jobs
       assert {:ok, new_stage} = Pipelines.rerun_stage(pipeline.name, instance.counter, stage.name, :failed)
@@ -186,7 +182,6 @@ defmodule ExGoCD.PipelinesTest do
       [new_job] = from(ji in JobInstance, where: ji.stage_instance_id == ^new_stage.id) |> Repo.all()
       assert new_job.name == "job-2"
       assert new_job.state == "Scheduled"
-      assert Scheduler.pending_count() == 1
     end
   end
 
