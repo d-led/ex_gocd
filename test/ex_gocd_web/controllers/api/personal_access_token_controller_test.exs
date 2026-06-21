@@ -54,7 +54,7 @@ defmodule ExGoCDWeb.API.PersonalAccessTokenControllerTest do
       assert token_resp["username"] == "user_test"
       assert token_resp["revoked"] == false
       assert token_resp["token"] != nil # Plain text token returned
-      raw_token = token_resp["token"]
+      _raw_token = token_resp["token"]
       token_id = token_resp["id"]
 
       # 3. GET index (list)
@@ -118,19 +118,19 @@ defmodule ExGoCDWeb.API.PersonalAccessTokenControllerTest do
       conn_no_auth = get(conn, ~p"/api/version")
       assert json_response(conn_no_auth, 200) # Public endpoint, works without auth
 
-      # Access protected endpoint /api/agents (requires admin/developer permissions)
+      # Access protected endpoint /api/admin/environments (requires admin/developer/viewer permissions)
       # Let's activate security by configuring another admin user in the system
       {:ok, _} = Accounts.create_user(%{username: "system_admin", display_name: "Admin", roles: ["admin"], status: "Active"})
 
       # No auth -> 403 Forbidden because they are guest viewer now
-      conn_guest = get(conn, ~p"/api/agents")
+      conn_guest = get(conn, ~p"/api/admin/environments")
       assert json_response(conn_guest, 403) == %{"error" => "Forbidden"}
 
       # Valid Bearer token authentication -> 200 OK
       conn_auth =
         conn
         |> put_req_header("authorization", "Bearer #{token.token}")
-        |> get(~p"/api/agents")
+        |> get(~p"/api/admin/environments")
 
       assert json_response(conn_auth, 200)
 
@@ -151,7 +151,7 @@ defmodule ExGoCDWeb.API.PersonalAccessTokenControllerTest do
       conn_invalid =
         conn
         |> put_req_header("authorization", "Bearer non_existent_token")
-        |> get(~p"/api/agents")
+        |> get(~p"/api/admin/environments")
 
       assert json_response(conn_invalid, 401) == %{"error" => "Invalid token"}
 
@@ -159,7 +159,7 @@ defmodule ExGoCDWeb.API.PersonalAccessTokenControllerTest do
       conn_revoked =
         conn
         |> put_req_header("authorization", "Bearer #{token.token}")
-        |> get(~p"/api/agents")
+        |> get(~p"/api/admin/environments")
 
       assert json_response(conn_revoked, 401) == %{"error" => "Invalid token"}
     end
