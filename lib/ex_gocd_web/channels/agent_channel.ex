@@ -37,8 +37,8 @@ defmodule ExGoCDWeb.AgentChannel do
     normalized = normalize_join_payload(payload)
     hostname = get_in(normalized, ["hostName"]) || "unknown"
 
-    VsmTracer.trace("agent.join", %{
-      "agent_uuid" => uuid,
+    VsmTracer.trace("agent.connect", %{
+      "agent.uuid" => uuid,
       "agent.hostname" => hostname
     }, fn ->
       result =

@@ -92,7 +92,9 @@ defmodule ExGoCD.Scheduler do
     VsmTracer.attach_ctx(parent_ctx)
     VsmTracer.trace("scheduler.enqueue", %{
       "pipeline.name" => spec[:pipeline] || spec["pipeline"],
+      "pipeline.counter" => spec[:pipeline_counter] || spec["pipeline_counter"],
       "stage.name" => spec[:stage] || spec["stage"],
+      "stage.counter" => spec[:stage_counter] || spec["stage_counter"],
       "job.name" => spec[:job] || spec["job"]
     }, fn ->
       if spec[:job_instance_id] do
@@ -112,7 +114,7 @@ defmodule ExGoCD.Scheduler do
 
   def handle_call({:try_assign_work, agent_uuid, parent_ctx}, _from, state) do
     VsmTracer.attach_ctx(parent_ctx)
-    VsmTracer.trace("scheduler.assign_work", %{"agent_uuid" => agent_uuid}, fn ->
+    VsmTracer.trace("scheduler.assign_work", %{"agent.uuid" => agent_uuid}, fn ->
       if Map.has_key?(AgentPresence.list(@presence_topic), agent_uuid) do
         case Agents.get_agent_by_uuid(agent_uuid) do
           nil ->
@@ -620,6 +622,15 @@ defmodule ExGoCD.Scheduler do
     stage = job_spec.stage
     stage_counter = job_spec.stage_counter
     job = job_spec.job
+
+    # Enrich the parent scheduler.assign_work span with what was assigned
+    VsmTracer.set_attr("pipeline.name", pipeline)
+    VsmTracer.set_attr("pipeline.counter", pipeline_counter)
+    VsmTracer.set_attr("stage.name", stage)
+    VsmTracer.set_attr("stage.counter", stage_counter)
+    VsmTracer.set_attr("job.name", job)
+    VsmTracer.set_attr("build.id", build_id)
+
     build_locator = "#{pipeline}/#{pipeline_counter}/#{stage}/#{stage_counter}/#{job}/1"
 
     build_command =

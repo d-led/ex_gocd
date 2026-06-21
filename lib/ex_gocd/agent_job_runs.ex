@@ -94,16 +94,25 @@ defmodule ExGoCD.AgentJobRuns do
       |> Repo.one()
 
     if run do
-      span_name = "job.#{String.downcase(job_state)}"
-      VsmTracer.trace(span_name, %{
+      VsmTracer.trace("job.status_update", %{
         "build.id" => build_id,
         "job.name" => run.job_name,
         "pipeline.name" => run.pipeline_name,
+        "pipeline.counter" => run.pipeline_counter,
         "stage.name" => run.stage_name,
-        "agent_uuid" => agent_uuid,
-        "state" => job_state,
-        "result" => result
+        "stage.counter" => run.stage_counter,
+        "agent.uuid" => agent_uuid,
+        "job.state" => job_state,
+        "job.result" => result
       }, fn ->
+        # Set span status for terminal states
+        if job_state == "Completed" do
+          case result do
+            "Passed" -> VsmTracer.set_status(:ok)
+            _ -> VsmTracer.set_status({:error, "#{job_state}: #{result}"})
+          end
+        end
+
         attrs = %{state: job_state}
         attrs = if result, do: Map.put(attrs, :result, result), else: attrs
 

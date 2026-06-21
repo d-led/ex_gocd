@@ -92,7 +92,16 @@ defmodule ExGoCD.Pipelines do
              pipeline = resolve_template_stages(pipeline),
              {:ok, proposed} <- resolve_proposed_revisions(pipeline, options),
              :ok <- FanInResolver.verify_consistency(proposed) do
-          do_trigger_pipeline_with_proposed(pipeline, proposed, options)
+          trigger_result = do_trigger_pipeline_with_proposed(pipeline, proposed, options)
+          # Set pipeline.counter on the span after trigger succeeds
+          case trigger_result do
+            {:ok, instance} ->
+              VsmTracer.set_attr("pipeline.counter", instance.counter)
+              VsmTracer.set_status(:ok)
+            {:error, _reason} ->
+              VsmTracer.set_status({:error, "Pipeline trigger failed"})
+          end
+          trigger_result
         else
           nil -> {:error, :pipeline_not_found}
           {:paused, true} -> {:error, :pipeline_paused}
@@ -1176,10 +1185,25 @@ defmodule ExGoCD.Pipelines do
   def assign_job_instance(job_instance_id, agent_uuid) when is_integer(job_instance_id) do
     ji = Repo.get(JobInstance, job_instance_id)
     if ji do
+      # Preload to get pipeline/ stage context for span attributes
+      si =
+        from(si in ExGoCD.Pipelines.StageInstance,
+          where: si.id == ^ji.stage_instance_id,
+          preload: :pipeline_instance
+        )
+        |> Repo.one()
+
+      pipeline_name = si && si.pipeline_instance && si.pipeline_instance.pipeline_id &&
+        (from(p in ExGoCD.Pipelines.Pipeline, where: p.id == ^si.pipeline_instance.pipeline_id, select: p.name) |> Repo.one())
+      pipeline_counter = si && si.pipeline_instance && si.pipeline_instance.counter
+
       VsmTracer.trace("job.assign", %{
         "job.name" => ji.name,
-        "agent_uuid" => agent_uuid,
-        "job_instance_id" => job_instance_id
+        "agent.uuid" => agent_uuid,
+        "job.instance_id" => job_instance_id,
+        "pipeline.name" => pipeline_name,
+        "pipeline.counter" => pipeline_counter,
+        "stage.name" => (si && si.name)
       }, fn ->
         now = NaiveDateTime.utc_now()
         res =
@@ -1199,13 +1223,25 @@ defmodule ExGoCD.Pipelines do
   If all jobs in the stage are completed, marks the stage instance completed.
   """
   def complete_job_instance(job_instance_id, result) when is_integer(job_instance_id) do
-    ji = Repo.get(JobInstance, job_instance_id) |> Repo.preload(:stage_instance)
+    ji = Repo.get(JobInstance, job_instance_id) |> Repo.preload(stage_instance: :pipeline_instance)
     if ji do
+      pipeline_name = ji.stage_instance && ji.stage_instance.pipeline_instance &&
+        (from(p in ExGoCD.Pipelines.Pipeline, where: p.id == ^ji.stage_instance.pipeline_instance.pipeline_id, select: p.name) |> Repo.one())
+
       VsmTracer.trace("job.complete", %{
         "job.name" => ji.name,
-        "result" => result,
-        "job_instance_id" => job_instance_id
+        "job.result" => result,
+        "job.instance_id" => job_instance_id,
+        "pipeline.name" => pipeline_name,
+        "pipeline.counter" => (ji.stage_instance && ji.stage_instance.pipeline_instance && ji.stage_instance.pipeline_instance.counter),
+        "stage.name" => (ji.stage_instance && ji.stage_instance.name)
       }, fn ->
+        # Set span status: Ok if Passed, Error otherwise
+        case result do
+          "Passed" -> VsmTracer.set_status(:ok)
+          _ -> VsmTracer.set_status({:error, result})
+        end
+
         do_complete_job_instance(ji, result)
         :ok
       end)

@@ -21,7 +21,8 @@
 - [x] **Job instance API** — `GET /api/jobs/.../.../.../.../...`, `GET /api/jobs/.../.../.../history`
 - [x] **Stage instance API** — `GET /api/stages/.../.../.../...`, `GET /api/stages/.../.../history`, `POST /api/stages/.../.../.../cancel`
 - [x] **Users CRUD API** — `GET/POST/PATCH/DELETE /api/users/...`
-- [x] **Stage cancel** — `Pipelines.cancel_stage/3` marks jobs Cancelled, broadcasts update
+- [x] **Stage cancel** — `Pipelines.cancel_stage/3` marks jobs Cancelled, broadcasts update. Fixed JobInstance validation to accept "Cancelled" state.
+- [x] **Unreachable clause** — removed `_ -> :ok` dead code from trigger_pipeline case
 
 ### Fixes
 - [x] charlist `~c""` deprecation (Elixir 1.20)

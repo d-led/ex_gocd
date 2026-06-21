@@ -87,7 +87,8 @@ defmodule ExGoCD.Pipelines.JobInstance do
       "Building",
       "Completing",
       "Completed",
-      "Rescheduled"
+      "Rescheduled",
+      "Cancelled"
     ])
     |> validate_inclusion(:result, ["Passed", "Failed", "Cancelled", "Unknown"])
     |> foreign_key_constraint(:job_id)

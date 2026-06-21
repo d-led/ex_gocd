@@ -1,11 +1,15 @@
 defmodule ExGoCD.VsmTracer do
   @moduledoc """
   Value Stream Map tracing helpers. Creates OpenTelemetry spans for the
-  pipeline lifecycle: trigger → schedule → assign → execute → complete.
+  pipeline lifecycle: trigger → enqueue → assign → execute → complete.
 
-  All spans carry `pipeline.name`, `pipeline.counter`, `stage.name`,
-  `stage.counter`, `job.name`, `build.id` attributes so Jaeger can
-  correlate them into a single VSM trace.
+  Span naming: `resource.action` (e.g. `pipeline.trigger`, `job.assign`).
+  All pipeline spans carry `pipeline.name`, `pipeline.counter`;
+  stage spans carry `stage.name`, `stage.counter`;
+  job spans carry `job.name`, `job.instance_id`;
+  agent spans carry `agent.uuid`, `agent.hostname`.
+
+  Attribute convention: OpenTelemetry `dot.case` throughout.
 
   Uses `OpenTelemetry.Tracer.with_span/3` — spans auto-end when the block
   completes.  When called outside an HTTP request context (e.g. GenServer),
@@ -33,6 +37,9 @@ defmodule ExGoCD.VsmTracer do
     optional(:agent_uuid) => String.t(),
     optional(:result) => String.t()
   }
+
+  @typedoc "Span attribute keys (as passed to Jaeger/OTLP)"
+  @type attr_key :: String.t()
 
   # ── public helpers ────────────────────────────────────────────────────
 
@@ -80,6 +87,15 @@ defmodule ExGoCD.VsmTracer do
   @spec set_attr(atom(), term()) :: boolean()
   def set_attr(key, value) do
     Tracer.set_attribute(key, value)
+  end
+
+  @doc """
+  Sets the status of the currently active span. Status should be
+  `:ok` or `{:error, description}`. Safe no-op if no span is active.
+  """
+  @spec set_status(:ok | {:error, String.t()}) :: boolean()
+  def set_status(status) do
+    Tracer.set_status(status)
   end
 
   @doc """
