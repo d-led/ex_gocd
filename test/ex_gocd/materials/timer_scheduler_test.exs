@@ -15,12 +15,6 @@ defmodule ExGoCD.Materials.TimerSchedulerTest do
   alias ExGoCD.Repo
 
   setup do
-    pid = Process.whereis(TimerScheduler)
-    if pid, do: Sandbox.allow(ExGoCD.Repo, self(), pid)
-
-    pid = Process.whereis(ExGoCD.Scheduler)
-    if pid, do: Sandbox.allow(ExGoCD.Repo, self(), pid)
-
     :ok
   end
 
@@ -136,7 +130,7 @@ defmodule ExGoCD.Materials.TimerSchedulerTest do
 
       # Now remove the timer
       {:ok, _} = pipeline |> Pipeline.changeset(%{timer: nil}) |> Repo.update()
-      Phoenix.PubSub.broadcast(ExGoCD.PubSub, "pipelines:updates", :pipelines_updated)
+      send(Process.whereis(TimerScheduler), :pipelines_updated)
       Process.sleep(100)
 
       refute pipeline.name in TimerScheduler.scheduled_pipelines()

@@ -42,8 +42,10 @@ defmodule ExGoCD.Materials.TimerScheduler do
 
   @impl true
   def init(_opts) do
-    Phoenix.PubSub.subscribe(ExGoCD.PubSub, "pipelines:updates")
-    send(self(), :reload_timers)
+    if Application.get_env(:ex_gocd, :enable_timer_scheduler, true) do
+      Phoenix.PubSub.subscribe(ExGoCD.PubSub, "pipelines:updates")
+      send(self(), :reload_timers)
+    end
     {:ok, %{timers: %{}}}
   end
 

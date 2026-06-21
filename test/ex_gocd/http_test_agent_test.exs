@@ -12,12 +12,7 @@ defmodule ExGoCD.HTTPTestAgentTest do
   alias ExGoCD.TestAgentSupervisor
 
   setup do
-    pid = Process.whereis(ExGoCD.Scheduler)
-    if pid do
-      Sandbox.allow(ExGoCD.Repo, self(), pid)
-    end
     wait_for_scheduler()
-    Scheduler.clear_queue()
     TestAgentSupervisor.stop_all_agents()
 
     # 1. Enable server dynamically on port 4002

@@ -13,15 +13,7 @@ defmodule ExGoCD.TestAgentTest do
   alias ExGoCDWeb.AgentPresence
 
   setup do
-    pid = Process.whereis(ExGoCD.Scheduler)
-    if pid do
-      Sandbox.allow(ExGoCD.Repo, self(), pid)
-    end
-    # Wait for Scheduler GenServer to be alive if it restarted
     wait_for_scheduler()
-    # Clear scheduler queue
-    Scheduler.clear_queue()
-    # Remove any mock agents from presence
     TestAgentSupervisor.stop_all_agents()
 
     # Create a unique uuid for test

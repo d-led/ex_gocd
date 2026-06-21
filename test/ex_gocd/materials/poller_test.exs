@@ -11,11 +11,6 @@ defmodule ExGoCD.Materials.PollerTest do
   alias ExGoCD.Scheduler
 
   setup do
-    pid = Process.whereis(ExGoCD.Scheduler)
-    if pid do
-      Sandbox.allow(ExGoCD.Repo, self(), pid)
-    end
-    Scheduler.clear_queue()
 
     # Clean up before each test
     Repo.delete_all(Modification)

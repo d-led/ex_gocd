@@ -173,18 +173,10 @@ defmodule ExGoCDWeb.PipelineConfigLiveTest do
 
       assert render(view) =~ "Job configuration updated successfully"
 
-      jobs_in_db = Repo.all(Job) |> Repo.preload(:tasks)
-      IO.puts("JOBS IN DB:")
-      for j <- jobs_in_db do
-        IO.puts("- name=#{j.name}, id=#{j.id}, stage_id=#{j.stage_id}, tasks_count=#{length(j.tasks)}")
-      end
-
       # Go to job tasks
       {:ok, view, _html} = live(conn, ~p"/admin/pipelines/#{pipeline.name}/edit/stages/#{stage.name}/jobs/renamed-job/tasks")
 
       # Verify tasks present
-      IO.puts("RENDER OUTPUT:")
-      IO.puts(render(view))
       assert render(view) =~ "task1"
       assert render(view) =~ "task2"
 

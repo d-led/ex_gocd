@@ -12,9 +12,6 @@ defmodule ExGoCD.Pipelines.ManualGateTest do
   alias ExGoCD.Repo
 
   setup do
-    pid = Process.whereis(ExGoCD.Scheduler)
-    if pid, do: Sandbox.allow(ExGoCD.Repo, self(), pid)
-
     :ok
   end
 

@@ -14,11 +14,6 @@ defmodule ExGoCD.PipelinesTest do
   alias ExGoCD.Scheduler
 
   setup do
-    pid = Process.whereis(ExGoCD.Scheduler)
-    if pid do
-      Sandbox.allow(ExGoCD.Repo, self(), pid)
-    end
-    Scheduler.clear_queue()
     :ok
   end
 

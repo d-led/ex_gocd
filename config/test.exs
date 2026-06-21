@@ -3,6 +3,8 @@ import Config
 config :ex_gocd,
   scheduler_reload_interval: :none,
   poller_interval: :none,
+  enable_timer_scheduler: false,
+  console_monitor_interval_ms: :none,
   git_client: ExGoCD.Materials.GitClient.MockImpl
 
 # Configure your database

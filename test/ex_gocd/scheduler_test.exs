@@ -11,11 +11,6 @@ defmodule ExGoCD.SchedulerTest do
   @uuid_b "660e8400-e29b-41d4-a716-446655440001"
 
   setup do
-    pid = Process.whereis(ExGoCD.Scheduler)
-    if pid do
-      Sandbox.allow(ExGoCD.Repo, self(), pid)
-    end
-    Scheduler.clear_queue()
     wait_for_scheduler()
     :ok
   end
