@@ -92,7 +92,8 @@ export AGENT_HOSTNAME="${AGENT_HOSTNAME:-docker-agent}"
 export EX_GOCD_DEMO_COOKIE="${EX_GOCD_DEMO_COOKIE:-ex-gocd-demo-cookie}"
 
 # ── Kill stale agent ──────────────────────────────────────────────────
-for pidfile in "$AGENT_WORK_DIR/agent"/*.pid 2>/dev/null; do
+shopt -s nullglob
+for pidfile in "$AGENT_WORK_DIR/agent"/*.pid; do
   [[ -f "$pidfile" ]] || continue
   OLD_PID=$(cat "$pidfile" 2>/dev/null || true)
   if [[ -n "$OLD_PID" ]] && kill -0 "$OLD_PID" 2>/dev/null; then
@@ -103,6 +104,7 @@ for pidfile in "$AGENT_WORK_DIR/agent"/*.pid 2>/dev/null; do
   fi
   rm -f "$pidfile"
 done
+shopt -u nullglob
 
 # ── OpenTelemetry ─────────────────────────────────────────────────────
 export OTEL_TRACES_EXPORTER="${OTEL_TRACES_EXPORTER:-otlp}"

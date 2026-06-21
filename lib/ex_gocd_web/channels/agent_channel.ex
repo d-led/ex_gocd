@@ -65,19 +65,30 @@ defmodule ExGoCDWeb.AgentChannel do
             {:ok, socket}
         end
 
-      # Capture span ctx before it ends — after_join uses it for traceparent
-      Process.put(:agent_connect_ctx, VsmTracer.current_ctx())
+      # Capture span ctx while the span is still active inside the trace block.
+      # The span ends when this block returns — we pre-compute the traceparent
+      # so the async after_join can use it.
+      ctx = VsmTracer.current_ctx()
+      Process.put(:agent_connect_ctx, ctx)
+
+      # All case branches return {:ok, socket}; extract the updated socket.
+      {:ok, socket} = result
+
+      if cookie = socket.assigns[:cookie_to_send] do
+        Process.put(:agent_cookie_payload, VsmTracer.inject_context(%{"cookie" => cookie}))
+      end
+
       result
     end)
   end
 
   @impl true
   def handle_info(:after_join, socket) do
-    if cookie = socket.assigns[:cookie_to_send] do
-      # Attach captured join span context, inject traceparent into cookie payload
-      ctx = Process.delete(:agent_connect_ctx)
-      VsmTracer.attach_ctx(ctx)
-      payload = VsmTracer.inject_context(%{"cookie" => cookie})
+    payload = Process.delete(:agent_cookie_payload)
+    _ctx = Process.delete(:agent_connect_ctx)
+
+    if payload do
+      IO.puts("[agent_channel] after_join has_traceparent=#{Map.has_key?(payload, "traceparent")} tp=#{String.slice(Map.get(payload, "traceparent", ""), 0, 30)}")
       push(socket, "setCookie", payload)
     end
 

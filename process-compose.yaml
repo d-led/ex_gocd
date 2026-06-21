@@ -1,15 +1,80 @@
 version: "0.5"
 
+# ── ex_gocd process-compose configuration ───────────────────────────────
+# Starts Phoenix server + 2 GoCD agents (CI + Docker) in one command.
+#
+# Prerequisites: docker compose up -d postgres jaeger otel-collector
+# Usage:         process-compose up
+# Stop:          process-compose down
+#
 # https://f1bonacc1.github.io/process-compose/
-# process-compose
 
-log_location: processes.log
-log_level: debug
+log_location: /tmp/ex_gocd_processes.log
+log_level: info
+is_strict: true
 
 processes:
-  gocd_server:
-    command: "elixir --name gocd@127.0.0.1 -S mix phx.server"
-    working_dir: "./"
+  # ── Phoenix Server ──────────────────────────────────────────────────
+  server:
+    command: "mix phx.server"
+    working_dir: "."
     environment:
-      - "PORT=4000"
-      - "GOCD_AUTO_REGISTER_KEY=123456789abcdef"
+      - "EX_GOCD_DEMO_COOKIE=ex-gocd-demo-cookie"
+    readiness_probe:
+      http_get:
+        host: localhost
+        port: 4000
+        path: /pipelines
+      initial_delay_seconds: 5
+      period_seconds: 3
+      timeout_seconds: 10
+    depends_on: {}
+    availability:
+      restart: on_failure
+      max_restarts: 5
+
+  # ── CI Agent (elixir, postgres resources) ───────────────────────────
+  ci-agent:
+    command: "go run ."
+    working_dir: "agent"
+    environment:
+      - "AGENT_SERVER_URL=http://localhost:4000"
+      - "AGENT_WORK_DIR=work"
+      - "AGENT_CI_MODE=1"
+      - "AGENT_AUTO_REGISTER_RESOURCES=elixir,postgres"
+      - "AGENT_HOSTNAME=ci-agent"
+      - "AGENT_UUID=ci-agent-00000000-0000-4000-a000-000000000001"
+      - "EX_GOCD_DEMO_COOKIE=ex-gocd-demo-cookie"
+      - "OTEL_TRACES_EXPORTER=otlp"
+      - "OTEL_EXPORTER_OTLP_ENDPOINT=localhost:4318"
+      - "OTEL_SERVICE_NAME=gocd-agent"
+    depends_on:
+      server:
+        condition: process_healthy
+    availability:
+      restart: on_failure
+      max_restarts: 5
+
+  # ── Docker Agent (docker resource, socket mounted) ──────────────────
+  docker-agent:
+    command: "go run ."
+    working_dir: "agent"
+    environment:
+      - "AGENT_SERVER_URL=http://localhost:4000"
+      - "AGENT_WORK_DIR=work_docker"
+      - "AGENT_AUTO_REGISTER_RESOURCES=docker"
+      - "AGENT_HOSTNAME=docker-agent"
+      - "AGENT_UUID=docker-agent-00000000-0000-4000-a000-000000000001"
+      - "EX_GOCD_DEMO_COOKIE=ex-gocd-demo-cookie"
+      - "OTEL_TRACES_EXPORTER=otlp"
+      - "OTEL_EXPORTER_OTLP_ENDPOINT=localhost:4318"
+      - "OTEL_SERVICE_NAME=gocd-docker-agent"
+      # Docker socket auto-detected by agent at startup
+      # Override: uncomment and set path below
+      # - "AGENT_DOCKER_SOCKET=unix:///var/run/docker.sock"
+    depends_on:
+      server:
+        condition: process_healthy
+    availability:
+      restart: on_failure
+      max_restarts: 5

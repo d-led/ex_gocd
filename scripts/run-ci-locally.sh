@@ -75,7 +75,7 @@ do_server() {
 
 # ── Agent ────────────────────────────────────────────────────────────────
 do_agent() {
-  cyan "Starting agent via start-agent.sh (resources: $AGENT_RESOURCES, work dir: $AGENT_WORK_DIR)..."
+  cyan "Starting CI agent (resources: $AGENT_RESOURCES, work dir: $AGENT_WORK_DIR)..."
 
   export AGENT_SERVER_URL="$SERVER_URL"
   export AGENT_WORK_DIR="$AGENT_WORK_DIR"
@@ -84,7 +84,26 @@ do_agent() {
   export AGENT_HOSTNAME="$AGENT_NAME"
   export AGENT_CI_MODE=1
 
-  exec "$ROOT/scripts/start-agent.sh"
+  "$ROOT/scripts/start-agent.sh" &
+  AGENT_PID=$!
+  echo "$AGENT_PID" > /tmp/ex_gocd_ci_agent.pid
+  green "CI agent started (PID $AGENT_PID)"
+}
+
+# ── Docker Agent ─────────────────────────────────────────────────────────
+do_docker_agent() {
+  cyan "Starting Docker agent..."
+
+  export AGENT_SERVER_URL="$SERVER_URL"
+  export AGENT_WORK_DIR="${AGENT_WORK_DIR}_docker"
+  export AGENT_HOSTNAME="docker-agent"
+  export AGENT_UUID="docker-agent-00000000-0000-4000-a000-000000000001"
+  export OTEL_SERVICE_NAME="gocd-docker-agent"
+
+  "$ROOT/scripts/start-docker-agent.sh" &
+  DOCKER_AGENT_PID=$!
+  echo "$DOCKER_AGENT_PID" > /tmp/ex_gocd_docker_agent.pid
+  green "Docker agent started (PID $DOCKER_AGENT_PID)"
 }
 
 # ── Trigger ──────────────────────────────────────────────────────────────
@@ -99,11 +118,13 @@ do_trigger() {
 
 # ── Stop ─────────────────────────────────────────────────────────────────
 do_stop() {
-  if [ -f /tmp/ex_gocd_server.pid ]; then
-    PID=$(cat /tmp/ex_gocd_server.pid)
-    kill "$PID" 2>/dev/null && green "Server stopped (PID $PID)" || true
-    rm -f /tmp/ex_gocd_server.pid
-  fi
+  for pidfile in /tmp/ex_gocd_server.pid /tmp/ex_gocd_ci_agent.pid /tmp/ex_gocd_docker_agent.pid; do
+    if [ -f "$pidfile" ]; then
+      PID=$(cat "$pidfile")
+      kill "$PID" 2>/dev/null && echo "Stopped $(basename "$pidfile" .pid) (PID $PID)" || true
+      rm -f "$pidfile"
+    fi
+  done
 }
 
 # ── Main ─────────────────────────────────────────────────────────────────
@@ -118,9 +139,17 @@ case "$MODE" in
     do_seed
     do_server
     do_agent
+    do_docker_agent
+    cyan "Both agents running. Press Ctrl+C to stop."
+    trap 'kill $AGENT_PID $DOCKER_AGENT_PID 2>/dev/null; do_stop; exit 0' INT TERM
+    wait
     ;;
   agent-only)
     do_agent
+    do_docker_agent
+    cyan "Both agents running. Press Ctrl+C to stop."
+    trap 'kill $AGENT_PID $DOCKER_AGENT_PID 2>/dev/null; exit 0' INT TERM
+    wait
     ;;
   seed-only)
     do_seed

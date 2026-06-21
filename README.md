@@ -38,45 +38,43 @@ The server reloads automatically on code/config changes unless there are unrecov
 
 Visit [`localhost:4000`](http://localhost:4000)
 
-### With Go agent (auto-registration)
+### With Go agent(s) — process-compose (recommended)
 
-The Go-based agent can register itself automatically with this server. Use it when you're ready to run work on agents.
+Start the full stack in one command: Phoenix server + CI agent + Docker agent.
 
 ```bash
-# Terminal 1: Phoenix server (in dev uses shared demo cookie automatically)
-mix phx.server
+# 1. Start infrastructure
+docker compose up -d postgres jaeger otel-collector
 
-# Terminal 2: Go agent (script sets shared cookie so server and agent always match)
-./scripts/start-agent.sh
+# 2. Start all app processes
+process-compose up
+# (install: brew install f1bonacc1/tap/process-compose)
 ```
 
-Or run the agent from the agent directory: `cd agent && go run .` (set `AGENT_SERVER_URL` if needed).
+This starts `mix phx.server` on port 4000, plus two Go agents:
+- **CI agent** — resources `elixir,postgres`, picks up build/test jobs
+- **Docker agent** — resource `docker`, auto-detects Docker socket (Docker Desktop, Colima, etc.)
+
+See `process-compose.yaml` for all configuration.
+
+**Manual start** (if you prefer separate terminals):
+
+```bash
+# Terminal 1: Phoenix server
+mix phx.server
+
+# Terminal 2: CI agent (elixir,postgres resources)
+./scripts/start-agent.sh
+
+# Terminal 3: Docker agent (docker resource)
+./scripts/start-docker-agent.sh
+```
 
 **Demo / development:**
 - **Shared cookie**: In dev, the server returns a fixed token (`ex-gocd-demo-cookie`) so agent and server always match. The start script sets `EX_GOCD_DEMO_COOKIE` for the agent. For docker-compose, set the same `EX_GOCD_DEMO_COOKIE` on both server and agent services.
 - **Auto-enable**: Newly registered agents are enabled by default in dev. Set `EX_GOCD_AUTO_ENABLE_AGENTS=0` to disable. In production, set `EX_GOCD_AUTO_ENABLE_AGENTS=true` to auto-enable.
 
 Optional: set `AGENT_AUTO_REGISTER_KEY` (and optionally resources/environments) to match server config if you use auto-approval. See [agent/README.md](agent/README.md).
-
-### Local CI Runner (auto-registering agent)
-
-Runs the `ex_gocd` pipeline against this repo — agent auto-registers with `elixir,postgres` resources and executes `mix test` / `mix quality` from the project root.
-
-```bash
-# Full setup: seed DB → start server → start agent
-./scripts/run-ci-locally.sh
-
-# Or just the agent (server already running):
-#   CI mode with elixir+postgres resources, work dir in /tmp
-./scripts/start-agent.sh AGENT_CI_MODE=1
-#   or via symlink (auto-detects CI mode):
-./scripts/run-ci-agent.sh
-
-# Trigger the pipeline via API
-./scripts/run-ci-locally.sh trigger
-```
-
-Requires postgres running (`docker compose up -d postgres` or local).
 
 ### Docker Compose Stack
 
