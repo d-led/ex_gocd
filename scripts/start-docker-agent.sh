@@ -32,7 +32,7 @@ if [[ "${AGENT_NEW_UUID:-}" == "1" ]]; then
 fi
 
 # ── Work dir ──────────────────────────────────────────────────────────
-AGENT_WORK_DIR="${AGENT_WORK_DIR:-$AGENT_DIR/work_docker}"
+AGENT_WORK_DIR="${AGENT_WORK_DIR:-/tmp/ex_gocd_agent_docker_work}"
 mkdir -p "$AGENT_WORK_DIR"
 
 export AGENT_SERVER_URL="${AGENT_SERVER_URL:-http://localhost:4000}"
