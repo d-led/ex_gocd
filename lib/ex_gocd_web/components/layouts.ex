@@ -32,7 +32,7 @@ defmodule ExGoCDWeb.Layouts do
       </a>
       <button
         class="navbtn"
-        aria-label="Toggle navigation menu"
+        aria-label="Open navigation menu"
         aria-expanded="false"
         aria-controls="main-navigation"
         type="button"

@@ -37,7 +37,10 @@ mkdir -p "$AGENT_WORK_DIR"
 
 export AGENT_SERVER_URL="${AGENT_SERVER_URL:-http://localhost:4000}"
 export AGENT_WORK_DIR="$AGENT_WORK_DIR"
-export AGENT_UUID="${AGENT_UUID:-}"
+# Only export AGENT_UUID if explicitly provided (avoid empty-string override)
+if [[ -n "${AGENT_UUID:-}" ]]; then
+  export AGENT_UUID="$AGENT_UUID"
+fi
 export EX_GOCD_DEMO_COOKIE="${EX_GOCD_DEMO_COOKIE:-ex-gocd-demo-cookie}"
 
 # ── Kill stale agent (PID file named {uuid}.pid) ─────────────────────
@@ -62,9 +65,10 @@ for pid_dir in "$AGENT_WORK_DIR"/[0-9]*/; do
 done
 
 # ── OpenTelemetry → Collector → Jaeger ────────────────────────────────
+# AGENT_OTEL_SERVICE_NAME overrides OTEL_SERVICE_NAME
+export OTEL_SERVICE_NAME="${AGENT_OTEL_SERVICE_NAME:-${OTEL_SERVICE_NAME:-gocd-agent}}"
 export OTEL_TRACES_EXPORTER="${OTEL_TRACES_EXPORTER:-otlp}"
 export OTEL_EXPORTER_OTLP_ENDPOINT="${OTEL_EXPORTER_OTLP_ENDPOINT:-localhost:4318}"
-export OTEL_SERVICE_NAME="${OTEL_SERVICE_NAME:-gocd-agent}"
 
 # ── Show what we're about to start ────────────────────────────────────
 echo "──────────────────────────────────────────────────────────────────"

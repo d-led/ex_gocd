@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -17,15 +18,24 @@ import (
 )
 
 const (
-	maxRestarts  = 5
-	restartDelay = 5 * time.Second
+	defaultMaxRestarts  = 5
+	defaultRestartDelay = 5 * time.Second
+	minSuccessfulRun    = 30 * time.Second
 )
 
 func main() {
+	maxRestarts := envInt("AGENT_MAX_RESTARTS", defaultMaxRestarts)
+	restartDelay := envDuration("AGENT_RESTART_DELAY", defaultRestartDelay)
+
 	slog.Info("gocd-agent starting",
 		"max_restarts", maxRestarts,
 		"restart_delay", restartDelay,
 	)
+
+	// ── OTEL service name ───────────────────────────────────────────
+	if sn := os.Getenv("AGENT_OTEL_SERVICE_NAME"); sn != "" {
+		os.Setenv("OTEL_SERVICE_NAME", sn)
+	}
 
 	// Resolve base work dir from env
 	baseWorkDir := os.Getenv("AGENT_WORK_DIR")
@@ -71,16 +81,33 @@ func main() {
 	os.Setenv("AGENT_WORK_DIR", agentWorkDir)
 	os.Setenv("AGENT_UUID", agentUUID)
 
-	for attempt := 0; attempt <= maxRestarts; attempt++ {
-		err := runOnce(attempt)
+	consecutiveFailures := 0
+	for {
+		start := time.Now()
+		err := runOnce(consecutiveFailures)
+		elapsed := time.Since(start)
+
 		if err == nil {
 			slog.Info("gocd-agent stopped cleanly")
 			return
 		}
 
-		if attempt >= maxRestarts {
+		// If agent ran successfully for a while before this failure,
+		// reset the counter — transient crashes after a long healthy run
+		// should not count against the restart budget.
+		if elapsed >= minSuccessfulRun {
+			slog.Info("agent ran successfully before error, resetting restart counter",
+				"uptime", elapsed,
+				"previous_failures", consecutiveFailures,
+			)
+			consecutiveFailures = 0
+		}
+
+		consecutiveFailures++
+
+		if consecutiveFailures > maxRestarts {
 			slog.Error("max restart attempts reached, giving up",
-				"attempts", attempt,
+				"attempts", consecutiveFailures,
 				"max", maxRestarts,
 			)
 			fmt.Fprintf(os.Stderr, "gocd-agent: max restart attempts (%d) reached, exiting\n", maxRestarts)
@@ -88,8 +115,7 @@ func main() {
 		}
 
 		slog.Warn("agent exited with error, will restart",
-			"attempt", attempt,
-			"next_attempt", attempt+1,
+			"attempt", consecutiveFailures,
 			"max", maxRestarts,
 			"delay", restartDelay,
 			"error", err,
@@ -118,9 +144,9 @@ func runOnce(attempt int) (err error) {
 
 // resolveAgentUUID determines the agent UUID:
 //   1. AGENT_NEW_UUID=1 → generate fresh, overwrite file
-//   2. AGENT_UUID env → use it, persist to file
-//   3. Existing agent.uuid file → load it
-//   4. None of the above → generate new
+//   2. AGENT_UUID env → use it if valid, persist to file
+//   3. Existing agent.uuid file → load it if valid
+//   4. None of the above (or invalid UUID found) → generate new
 func resolveAgentUUID(uuidFile string) string {
 	// Force fresh UUID
 	if os.Getenv("AGENT_NEW_UUID") == "1" {
@@ -132,17 +158,30 @@ func resolveAgentUUID(uuidFile string) string {
 
 	// Explicit UUID from env
 	if id := os.Getenv("AGENT_UUID"); id != "" {
-		os.WriteFile(uuidFile, []byte(id), 0644)
-		slog.Info("using supplied agent UUID", "uuid", id)
-		return id
+		if !isValidUUID(id) {
+			slog.Warn("AGENT_UUID env is not a valid UUID, generating fresh one",
+				"invalid_uuid", id,
+			)
+		} else {
+			os.WriteFile(uuidFile, []byte(id), 0644)
+			slog.Info("using supplied agent UUID", "uuid", id)
+			return id
+		}
 	}
 
 	// Load existing UUID from file
 	if data, err := os.ReadFile(uuidFile); err == nil {
 		id := strings.TrimSpace(string(data))
 		if id != "" {
-			slog.Info("loaded existing agent UUID", "uuid", id)
-			return id
+			if !isValidUUID(id) {
+				slog.Warn("persisted agent UUID is invalid, generating fresh one",
+					"invalid_uuid", id,
+					"file", uuidFile,
+				)
+			} else {
+				slog.Info("loaded existing agent UUID", "uuid", id)
+				return id
+			}
 		}
 	}
 
@@ -151,6 +190,12 @@ func resolveAgentUUID(uuidFile string) string {
 	os.WriteFile(uuidFile, []byte(id), 0644)
 	slog.Info("generated new agent UUID", "uuid", id)
 	return id
+}
+
+// isValidUUID returns true if s is a valid UUID string.
+func isValidUUID(s string) bool {
+	_, err := uuid.Parse(s)
+	return err == nil
 }
 
 // writePidFile atomically writes the PID file (named {uuid}.pid, contains OS PID).
@@ -188,4 +233,27 @@ func isProcessAlive(pid int) bool {
 	}
 	err = process.Signal(syscall.Signal(0))
 	return err == nil
+}
+
+// envInt reads an integer env var with a default fallback.
+func envInt(key string, defaultVal int) int {
+	if s := os.Getenv(key); s != "" {
+		if v, err := strconv.Atoi(s); err == nil && v >= 0 {
+			return v
+		}
+		slog.Warn("invalid env value, using default", "key", key, "value", s, "default", defaultVal)
+	}
+	return defaultVal
+}
+
+// envDuration reads a duration env var with a default fallback.
+// Accepts values like "5s", "10s", "1m".
+func envDuration(key string, defaultVal time.Duration) time.Duration {
+	if s := os.Getenv(key); s != "" {
+		if v, err := time.ParseDuration(s); err == nil && v >= 0 {
+			return v
+		}
+		slog.Warn("invalid env value, using default", "key", key, "value", s, "default", defaultVal)
+	}
+	return defaultVal
 }

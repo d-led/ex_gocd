@@ -22,7 +22,7 @@ defmodule ExGoCDWeb.LayoutsTest do
 
       assert html =~ ~s(<button)
       assert html =~ ~s(class="navbtn")
-      assert html =~ ~s(aria-label="Toggle navigation menu")
+      assert html =~ ~s(aria-label="Open navigation menu")
       assert html =~ ~s(aria-expanded="false")
       assert html =~ ~s(aria-controls="main-navigation")
     end

@@ -53,7 +53,7 @@ RUN --mount=type=cache,target=/root/.hex \
     --mount=type=cache,target=/root/.mix \
     --mount=type=cache,target=/app/deps,sharing=shared \
     --mount=type=cache,target=/app/_build,sharing=shared \
-    mix release && cp -r _build/prod/rel/ex_gocd /app/release
+    mix release --overwrite && cp -r _build/prod/rel/ex_gocd /app/release
 
 # Stage 2: Runner (distroless-like slim debian runner)
 FROM debian:bookworm-slim AS runner
