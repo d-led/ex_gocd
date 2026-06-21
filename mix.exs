@@ -88,7 +88,9 @@ defmodule ExGoCD.MixProject do
       {:excoveralls, "~> 0.18", only: [:test]},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev], runtime: false},
-      {:logger_backends, "~> 1.0"}
+      {:logger_backends, "~> 1.0"},
+      {:yaml_elixir, "~> 2.11"},
+      {:ex_json_schema, "~> 0.10"}
     ]
   end
 

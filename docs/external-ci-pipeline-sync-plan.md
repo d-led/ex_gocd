@@ -805,3 +805,25 @@ Tests must not depend on execution order. Each test creates its own records.
 4. **LiveView** (Phase 3): `ExternalCIRepoWizardLive` — 4-step form
 5. **Admin LiveView** update: replace hardcoded config_repos with DB data
 6. **Router**: add `/admin/config_repos/new/external` route
+
+---
+
+### Sources / Schema References
+
+The parsers rely on published, authoritative schemas rather than reverse-engineering
+the YAML formats from examples.
+
+**GitHub Actions workflow syntax:**
+- Official schema: [`json.schemastore.org/github-workflow.json`](https://json.schemastore.org/github-workflow.json) (JSON Schema Draft-07)
+- Official docs: [`docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions`](https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions)
+- Covers: `name`, `run-name`, `on` (push, pull_request, schedule, workflow_dispatch, workflow_call, workflow_run with filters), `permissions`, `env`, `defaults`, `concurrency`, `jobs.<id>` (runs-on, needs, if, environment, concurrency, outputs, env, defaults, steps, timeout-minutes, strategy.matrix, continue-on-error, container, services, uses, with, secrets)
+
+**GitLab CI YAML syntax:**
+- Official schema: [`gitlab.com/gitlab-org/gitlab/-/raw/master/app/assets/javascripts/editor/schema/ci.json`](https://gitlab.com/gitlab-org/gitlab/-/raw/master/app/assets/javascripts/editor/schema/ci.json) (JSON Schema Draft-07)
+- Official docs: [`docs.gitlab.com/ee/ci/yaml/`](https://docs.gitlab.com/ee/ci/yaml/)
+- Covers: Global keywords (`default`, `include`, `stages`, `workflow`), Header keywords (`spec`), Job keywords (`after_script`, `allow_failure`, `artifacts`, `before_script`, `cache`, `coverage`, `dast_configuration`, `dependencies`, `environment`, `extends`, `hooks`, `identity`, `id_tokens`, `image`, `inputs`, `inherit`, `interruptible`, `needs`, `pages`, `parallel`, `release`, `resource_group`, `retry`, `rules`, `run`, `script`, `secrets`, `services`, `stage`, `tags`, `timeout`, `trigger`, `when`, `start_in`, `variables`)
+
+**Implementation approach**: Use these schemas to define the Elixir struct shapes and
+parser field mappings. The JSON Schema definitions give us exact field names, types,
+enums, and nested structures — no guessing. Parsers faithfully extract the subset
+of fields relevant to our IR (see Phase 1.1), skipping fields that are out of v1 scope.

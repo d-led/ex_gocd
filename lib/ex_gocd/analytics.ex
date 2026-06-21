@@ -142,11 +142,13 @@ defmodule ExGoCD.Analytics do
           first = (pi.stage_instances || []) |> List.first(),
           first,
           jobs = first.job_instances || [],
-          scheduled = jobs |> Enum.map(&to_dt(&1.scheduled_at)) |> Enum.reject(&is_nil/1),
-          scheduled != [],
-          sched = Enum.min(scheduled, DateTime),
+          assigned = jobs |> Enum.map(&to_dt(&1.assigned_at)) |> Enum.reject(&is_nil/1),
+          assigned != [],
+          first_assigned = Enum.min(assigned, DateTime),
           pi.inserted_at,
-          do: DateTime.diff(sched, pi.inserted_at)
+          wait = DateTime.diff(first_assigned, pi.inserted_at),
+          wait > 0,
+          do: wait
 
     if waits == [], do: nil, else: Float.round(Enum.sum(waits) / length(waits), 1)
   end
