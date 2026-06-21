@@ -8,8 +8,8 @@ defmodule ExGoCDWeb.ValueStreamMapLiveTest do
       # Given a valid pipeline VSM route
       {:ok, _view, html} = live(conn, ~p"/pipelines/value_stream_map/build-linux/1")
 
-      # Then it renders page header and VSM flow titles
-      assert html =~ "Value Stream Map"
+      # Then it renders breadcrumbs and VSM flow titles
+      assert html =~ "Pipelines"
       assert html =~ "build-linux"
       assert html =~ "Instance"
       assert html =~ "1"
@@ -37,8 +37,8 @@ defmodule ExGoCDWeb.ValueStreamMapLiveTest do
       # Given a valid material VSM route
       {:ok, _view, html} = live(conn, ~p"/materials/value_stream_map/8d78bc9f6c661806/abcd1234ef")
 
-      # Then it renders page header and VSM flow titles
-      assert html =~ "Value Stream Map"
+      # Then it renders breadcrumbs and VSM flow titles
+      assert html =~ "Materials"
       assert html =~ "gocd.git"
       assert html =~ "Revision"
       assert html =~ "abcd1234ef"

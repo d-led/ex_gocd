@@ -14,9 +14,17 @@ import (
 )
 
 // Logger is the global agent logger. All packages should use this.
+// Default level is Info; set AGENT_LOG_LEVEL=debug for runtime metrics etc.
 var Logger zerolog.Logger
 
 func init() {
+	// Default to Info to avoid noise (runtime metrics are Debug).
+	// Override with AGENT_LOG_LEVEL=debug.
+	zerolog.SetGlobalLevel(zerolog.InfoLevel)
+	if os.Getenv("AGENT_LOG_LEVEL") == "debug" {
+		zerolog.SetGlobalLevel(zerolog.DebugLevel)
+	}
+
 	logFile := "/tmp/ex_gocd_agent.log"
 	f, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {

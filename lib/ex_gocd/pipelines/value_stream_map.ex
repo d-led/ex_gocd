@@ -109,6 +109,9 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
         }
       end)
 
+    # Fan-in: count unique upstream paths to this pipeline
+    fan_in = count_fan_in(pipeline_name)
+
     pipeline_node = %{
       "id" => pipeline_name,
       "name" => pipeline_name,
@@ -116,12 +119,25 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
       "depth" => 1,
       "parents" => Enum.map(material_nodes, & &1["id"]),
       "dependents" => downstream_names,
+      "fan_in" => fan_in,
+      "fan_out" => length(downstream_names),
       "instances" => [
         %{
           "label" => instance.label,
           "counter" => instance.counter,
           "locator" => "/pipelines/value_stream_map/#{pipeline_name}/#{instance.counter}",
-          "stages" => stages
+          "stages" => stages,
+          "trigger_info" => %{
+            "triggered_by" => instance.trigger_message || "Manual",
+            "triggered_at" => instance.inserted_at && Calendar.strftime(instance.inserted_at, "%d %b %Y, %H:%M:%S"),
+            "materials" => Enum.map(materials, fn m ->
+              %{
+                "type" => m.type || "git",
+                "url" => m.url,
+                "branch" => m.branch
+              }
+            end)
+          }
         }
       ]
     }
@@ -306,6 +322,31 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
       end
 
     (db_downstream ++ mock_downstream) |> Enum.uniq()
+  end
+
+  # Counts how many distinct upstream pipelines feed into the given pipeline.
+  # Fan-in > 1 means multiple pipelines converge here.
+  def count_fan_in(pipeline_name) do
+    db_upstream =
+      if use_mock?(pipeline_name) do
+        []
+      else
+        Repo.all(
+          from p in Pipeline,
+            join: m in assoc(p, :materials),
+            where: m.type == "dependency" and m.url == ^pipeline_name,
+            select: p.name
+        )
+      end
+
+    mock_upstream =
+      case pipeline_name do
+        "deploy-staging" -> ["build-linux"]
+        "deploy-production" -> ["deploy-staging"]
+        _ -> []
+      end
+
+    (db_upstream ++ mock_upstream) |> Enum.uniq() |> length()
   end
 
   defp build_all_downstream_nodes(names, parents, depth, visited \\ MapSet.new())

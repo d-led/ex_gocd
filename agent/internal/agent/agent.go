@@ -241,14 +241,27 @@ func (a *Agent) handleMessage(msg *protocol.Message) error {
 		// Ignore silently to avoid log noise.
 
 	case protocol.SetCookieAction:
-		cookie := msg.DataString()
-		a.cookie = cookie
-		a.conn.SetCookie(cookie)
-		preview := cookie
+		// Server now sends %{"cookie" => ..., "traceparent" => ...}
+		// Extract cookie for auth, traceparent for cross-service tracing.
+		cookiePayload := msg.DataCookiePayload()
+		a.cookie = cookiePayload.Cookie
+		a.conn.SetCookie(cookiePayload.Cookie)
+		preview := cookiePayload.Cookie
 		if len(preview) > 8 {
 			preview = preview[:8] + "..."
 		}
-		agentlog.Logger.Info().Str("cookie_preview", preview).Msg("Server set agent cookie")
+		agentlog.Logger.Info().
+			Str("cookie_preview", preview).
+			Str("traceparent", cookiePayload.TraceParent).
+			Int("traceparent_len", len(cookiePayload.TraceParent)).
+			Msg("Server set agent cookie")
+
+		// Trace cookie exchange linked to server's agent.connect span
+		cookieCtx := telemetry.ParentContextFromTraceParent(
+			context.Background(), cookiePayload.TraceParent, cookiePayload.TraceState)
+		_, cookieSpan := otel.Tracer("gocd-agent").Start(cookieCtx, "agent.cookie.exchange",
+			trace.WithAttributes(attribute.String("agent.uuid", a.config.UUID)))
+		cookieSpan.End()
 
 	case protocol.ReregisterAction:
 		agentlog.Logger.Info().Msg("Server requested re-registration")

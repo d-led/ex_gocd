@@ -80,7 +80,7 @@ defmodule ExGoCDWeb.ValueStreamMapLive do
       data-id={@node["id"]}
       data-parents={Jason.encode!(@node["parents"] || [])}
       data-dependents={Jason.encode!(@node["dependents"] || [])}
-      class={"vsm-node p-4 border rounded shadow-sm w-72 flex flex-col justify-between transition-all duration-200 bg-white relative z-10 " <>
+      class={"vsm-node p-3 md:p-4 border rounded shadow-sm w-64 md:w-72 flex flex-col justify-between transition-all duration-200 bg-white relative z-10 " <>
         if(@is_current, do: "border-[#943a9e] border-2 ring-4 ring-purple-100", else: "border-[#2fa8b6] hover:border-[#1d747e] hover:shadow-md")}
     >
 
@@ -124,9 +124,21 @@ defmodule ExGoCDWeb.ValueStreamMapLive do
           <% end %>
         </div>
 
-        <%= if @is_current do %>
-          <span class="text-[9px] bg-purple-100 text-[#943a9e] font-extrabold px-1.5 py-0.5 rounded uppercase font-mono">Current</span>
-        <% end %>
+        <div class="flex items-center gap-1">
+          <%= if @is_current do %>
+            <span class="text-[9px] bg-purple-100 text-[#943a9e] font-extrabold px-1.5 py-0.5 rounded uppercase font-mono">Current</span>
+          <% end %>
+          <%= if @node["fan_in"] && @node["fan_in"] > 1 do %>
+            <span class="text-[9px] bg-amber-100 text-amber-700 font-bold px-1.5 py-0.5 rounded uppercase font-mono" title="Multiple upstreams converge here">
+              FI:{@node["fan_in"]}
+            </span>
+          <% end %>
+          <%= if @node["fan_out"] && @node["fan_out"] > 1 do %>
+            <span class="text-[9px] bg-blue-100 text-blue-700 font-bold px-1.5 py-0.5 rounded uppercase font-mono" title="Multiple downstreams diverge here">
+              FO:{@node["fan_out"]}
+            </span>
+          <% end %>
+        </div>
       </div>
 
       <div class="mt-3 border-t border-gray-100 pt-2.5">
@@ -164,6 +176,30 @@ defmodule ExGoCDWeb.ValueStreamMapLive do
                   </li>
                 <% end %>
               </ul>
+
+              <%= if ti = inst["trigger_info"] do %>
+                <div class="mt-1.5 pt-1.5 border-t border-dashed border-gray-200">
+                  <span class="text-[9px] text-gray-400 uppercase tracking-wider font-bold">Trigger</span>
+                  <div class="text-[10px] text-gray-600 mt-0.5 flex flex-col gap-0.5">
+                    <span>
+                      <i class="fa-solid fa-user text-gray-400 mr-1 w-3"></i>
+                      {ti["triggered_by"]}
+                    </span>
+                    <%= if ti["triggered_at"] do %>
+                      <span>
+                        <i class="fa-solid fa-clock text-gray-400 mr-1 w-3"></i>
+                        {ti["triggered_at"]}
+                      </span>
+                    <% end %>
+                    <%= for mat <- ti["materials"] || [] do %>
+                      <span class="truncate" title={"#{mat["type"]}: #{mat["url"]}"}>
+                        <i class="fa-solid fa-code-branch text-gray-400 mr-1 w-3"></i>
+                        {String.slice(mat["url"] || "", 0, 30)}
+                      </span>
+                    <% end %>
+                  </div>
+                </div>
+              <% end %>
             </div>
           <% end %>
         <% end %>
@@ -175,24 +211,36 @@ defmodule ExGoCDWeb.ValueStreamMapLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="vsm-page px-8 py-8 bg-[#f4f8f9] min-h-screen">
-      <div class="page-header flex justify-between items-center border-b border-gray-200 pb-4 mb-6">
-        <div class="flex flex-col">
-          <span class="text-[10px] uppercase tracking-wider text-gray-500 font-bold font-mono">Value Stream Map</span>
-          <div class="flex items-baseline gap-4 mt-1">
-            <div class="flex items-center gap-1.5 text-lg font-bold text-gray-700">
-              <span class="text-[10px] text-gray-500 font-medium font-mono">{@entity_label}</span>
-              <a href={@entity_locator} class="text-[#2d6ca2] hover:underline font-bold">{@entity_name}</a>
-            </div>
-            <div class="flex items-center gap-1.5 text-lg font-bold text-gray-700">
-              <span class="text-[10px] text-gray-500 font-medium font-mono">{@entity_counter_label}</span>
-              <h1 class="text-gray-900 font-extrabold font-mono">{@entity_counter}</h1>
-            </div>
-          </div>
+    <div class="vsm-page px-4 md:px-8 py-4 md:py-8 bg-[#f4f8f9] min-h-screen">
+      <div class="page-header flex flex-col gap-2 border-b border-gray-200 pb-4 mb-6">
+        <%!-- Breadcrumbs --%>
+        <div class="flex items-center gap-2 text-xs text-gray-500 font-mono font-bold uppercase tracking-wider flex-wrap">
+          <.link navigate={~p"/pipelines"} class="text-[#2d6ca2] hover:underline">Pipelines</.link>
+          <span>/</span>
+          <%= if @type == :pipeline do %>
+            <.link navigate={~p"/pipeline/activity/#{@entity_name}"} class="text-[#2d6ca2] hover:underline">{@entity_name}</.link>
+            <span>/</span>
+            <span class="text-gray-900">{@entity_counter}</span>
+            <span>/</span>
+            <span class="text-gray-900">VSM</span>
+          <% else %>
+            <.link navigate={~p"/materials"} class="text-[#2d6ca2] hover:underline">Materials</.link>
+            <span>/</span>
+            <span class="text-gray-900 truncate max-w-[200px]">{@entity_name}</span>
+            <span>/</span>
+            <span class="text-gray-900">VSM</span>
+          <% end %>
+        </div>
+
+        <div class="flex items-baseline gap-4">
+          <span class="text-[10px] uppercase tracking-wider text-gray-500 font-bold font-mono">{@entity_label}</span>
+          <h1 class="text-lg md:text-xl font-extrabold text-gray-900 font-mono">{@entity_name}</h1>
+          <span class="text-[10px] uppercase tracking-wider text-gray-500 font-bold font-mono">{@entity_counter_label}</span>
+          <h2 class="text-lg md:text-xl font-extrabold text-gray-700 font-mono">{@entity_counter}</h2>
         </div>
       </div>
 
-      <div id="vsm-container" phx-hook="VSMGraph" class="vsm-container-wrapper relative border border-gray-200 rounded-lg p-10 bg-white shadow-sm overflow-x-auto min-h-[500px]">
+      <div id="vsm-container" phx-hook="VSMGraph" class="vsm-container-wrapper relative border border-gray-200 rounded-lg p-4 md:p-10 bg-white shadow-sm overflow-x-auto min-h-[400px] md:min-h-[500px]">
         <svg id="vsm-svg" class="absolute top-0 left-0 pointer-events-none w-full h-full" style="z-index: 1;">
           <defs>
             <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
@@ -204,7 +252,7 @@ defmodule ExGoCDWeb.ValueStreamMapLive do
           </defs>
         </svg>
 
-        <div class="flex justify-center items-stretch gap-16 min-w-[800px] relative z-10">
+        <div class="flex flex-col md:flex-row justify-center items-center md:items-stretch gap-8 md:gap-16 min-w-0 md:min-w-[800px] relative z-10">
           <%= for level <- @vsm["levels"] do %>
             <div class="vsm-level flex flex-col justify-center gap-10 relative">
               <%= for node <- level["nodes"] do %>

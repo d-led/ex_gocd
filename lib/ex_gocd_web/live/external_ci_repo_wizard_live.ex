@@ -29,6 +29,7 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
      |> assign(:configuration, %{})
      |> assign(:errors, %{})
      |> assign(:discovered_files, [])
+     |> assign(:selected_paths, [])
      |> assign(:file_configs, %{})
      |> assign(:config_repo, nil)
      |> assign(:saved, false)
@@ -70,6 +71,7 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
            |> assign(:errors, %{})
            |> assign(:config_repo, config_repo)
            |> assign(:discovered_files, discovered)
+           |> assign(:selected_paths, Enum.map(discovered, & &1.path))
            |> assign(:step, 2)}
 
         {:error, changeset} ->
@@ -85,37 +87,26 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
     end
   end
 
-  def handle_event("step2_next", %{"selected_files" => selected}, socket) do
-    selected_paths = selected_paths_from_params(selected)
-    advance_to_step3(socket, selected_paths)
+  def handle_event("step2_all", _params, socket) do
+    all_paths = Enum.map(socket.assigns.discovered_files, & &1.path)
+    advance_to_step3(socket, all_paths)
   end
 
-  # Fallback: no checkboxes submitted (all unchecked)
-  def handle_event("step2_next", _params, socket) do
+  def handle_event("step2_none", _params, socket) do
     advance_to_step3(socket, [])
   end
 
-  defp selected_paths_from_params(selected) when is_list(selected), do: selected
-  defp selected_paths_from_params(selected) when is_binary(selected), do: [selected]
-  defp selected_paths_from_params(_), do: []
-
-  defp advance_to_step3(socket, selected_paths) do
-    file_configs =
-      Map.new(selected_paths, fn path ->
-        file = Enum.find(socket.assigns.discovered_files, &(&1.path == path))
-        {path,
-         %{
-           mode: "translate",
-           selected_jobs: (file && file.job_names) || [],
-           selected_triggers: [],
-           overrides: %{}
-         }}
-      end)
-
-    {:noreply,
-     socket
-     |> assign(:file_configs, file_configs)
-     |> assign(:step, 3)}
+  def handle_event("step2_toggle", %{"path" => path}, socket) do
+    discovered = socket.assigns.discovered_files
+    # Toggle selection in a temporary assign
+    current_selected = socket.assigns[:selected_paths] || Enum.map(discovered, & &1.path)
+    updated =
+      if path in current_selected do
+        current_selected -- [path]
+      else
+        current_selected ++ [path]
+      end
+    {:noreply, assign(socket, :selected_paths, updated)}
   end
 
   def handle_event("set_file_mode", %{"path" => path, "mode" => mode}, socket)
@@ -188,6 +179,44 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
     {:noreply, assign(socket, :step, step)}
   end
 
+  def handle_event("jump_to", %{"step" => step_str}, socket) do
+    step = String.to_integer(step_str)
+    # Only allow jumping to completed or current steps
+    max_step = socket.assigns.step
+    target = min(step, max_step)
+    {:noreply, assign(socket, :step, target)}
+  end
+
+  def handle_event("cancel", _params, socket) do
+    {:noreply, redirect(socket, to: "/admin/config_repos")}
+  end
+
+  def handle_event("step2_continue", _params, socket) do
+    selected = socket.assigns[:selected_paths] || Enum.map(socket.assigns.discovered_files, & &1.path)
+    advance_to_step3(socket, selected)
+  end
+
+  # ── Helpers ────────────────────────────────────────────────────────────────
+
+  defp advance_to_step3(socket, selected_paths) do
+    file_configs =
+      Map.new(selected_paths, fn path ->
+        file = Enum.find(socket.assigns.discovered_files, &(&1.path == path))
+        {path,
+         %{
+           mode: "translate",
+           selected_jobs: (file && file.job_names) || [],
+           selected_triggers: [],
+           overrides: %{}
+         }}
+      end)
+
+    {:noreply,
+     socket
+     |> assign(:file_configs, file_configs)
+     |> assign(:step, 3)}
+  end
+
   # ── Validation ─────────────────────────────────────────────────────────────
 
   defp validate_step1("", _branch), do: %{repo_url: "Repository URL is required"}
@@ -231,33 +260,59 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
 
   # ── Render ─────────────────────────────────────────────────────────────────
 
+  @step_labels ["Repository", "Files", "Configure", "Review"]
+
   @impl true
   def render(assigns) do
+    assigns = assign(assigns, :step_labels, @step_labels)
+
     ~H"""
     <div class="min-h-screen bg-[#f2f2f2]">
       <%= if @saved do %>
-        <div class="max-w-2xl mx-auto pt-12 px-4">
+        <div class="max-w-lg mx-auto pt-16 px-4">
           <div class="bg-white rounded border border-[#d6e0e2] p-8 text-center shadow-sm">
             <div class="text-5xl mb-4">✅</div>
-            <h2 class="text-lg font-bold text-slate-700 mb-2">Config Repository Added</h2>
-            <p class="text-sm text-slate-500 mb-6">
-              {@config_repo.url} has been added with {map_size(@file_configs)} workflow files configured.
+            <h2 class="text-lg font-bold text-slate-700 mb-2">Repository added</h2>
+            <p class="text-sm text-slate-500 mb-2">
+              {@config_repo.url}
+            </p>
+            <p class="text-xs text-slate-400 mb-6">
+              {map_size(@file_configs)} workflow file(s) configured. They will appear in the config repos list.
             </p>
             <a href="/admin/config_repos" class="inline-block px-4 py-2 rounded bg-[#943a9e] hover:bg-purple-700 text-xs font-bold text-white shadow-sm transition-all">
-              Back to Config Repos
+              ← Back to Config Repos
             </a>
           </div>
         </div>
       <% else %>
-        <div class="max-w-3xl mx-auto pt-8 px-4">
-          <%!-- Progress indicator --%>
-          <div class="flex items-center gap-2 mb-8">
-            <%= for i <- 1..4 do %>
-              <div class={[
-                "flex-1 h-2 rounded-full transition-all",
-                if(i <= @step, do: "bg-[#943a9e]", else: "bg-slate-200")
-              ]}>
-              </div>
+        <div class="max-w-3xl mx-auto pt-6 px-4">
+          <%!-- Header with cancel --%>
+          <div class="flex items-center justify-between mb-4">
+            <h1 class="text-sm font-bold text-slate-700">Add Config Repository</h1>
+            <button phx-click="cancel" class="text-xs text-slate-400 hover:text-red-500 transition-colors">
+              Cancel
+            </button>
+          </div>
+
+          <%!-- Labeled progress indicator — clickable for completed steps --%>
+          <div class="flex items-center gap-1 mb-8">
+            <%= for {label, i} <- Enum.with_index(@step_labels, 1) do %>
+              <button
+                phx-click="jump_to"
+                phx-value-step={i}
+                disabled={i > @step}
+                class={[
+                  "flex-1 text-center py-1.5 rounded text-[10px] font-bold transition-all",
+                  if(i < @step, do: "bg-emerald-100 text-emerald-700 cursor-pointer hover:bg-emerald-200"),
+                  if(i == @step, do: "bg-[#943a9e] text-white"),
+                  if(i > @step, do: "bg-slate-100 text-slate-400 cursor-not-allowed")
+                ]}
+              >
+                {i}. {label}
+              </button>
+              <%= if i < 4 do %>
+                <div class={["w-4 h-0.5", if(i < @step, do: "bg-emerald-300", else: "bg-slate-200")]}></div>
+              <% end %>
             <% end %>
           </div>
 
@@ -268,13 +323,13 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
                 source_type={@source_type}
                 repo_url={@repo_url}
                 branch={@branch}
-                plugin_id={@plugin_id}
                 errors={@errors}
               />
             <% 2 -> %>
               <.step2_files
                 source_type={@source_type}
                 discovered_files={@discovered_files}
+                selected_paths={@selected_paths}
                 repo_url={@repo_url}
               />
             <% 3 -> %>
@@ -301,88 +356,88 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
   defp step1_form(assigns) do
     ~H"""
     <div class="bg-white rounded border border-[#d6e0e2] p-6 shadow-sm">
-      <h2 class="text-base font-bold text-slate-700 mb-6 flex items-center gap-2">
-        <span class="w-7 h-7 rounded-full bg-[#943a9e] text-white text-xs flex items-center justify-center font-bold">1</span>
-        Repository Details
-      </h2>
+      <h2 class="text-base font-bold text-slate-700 mb-1">Where is your pipeline?</h2>
+      <p class="text-xs text-slate-400 mb-6">Paste the URL of a GitHub or GitLab repository that contains workflow files.</p>
 
-      <div class="space-y-5">
-        <%!-- Source type selector --%>
+      <form phx-submit="step1_next" class="space-y-5">
+        <%!-- Source type — integrated into the form --%>
         <div>
-          <label class="block text-[11px] font-bold uppercase text-slate-500 mb-2">Source Type</label>
+          <label class="block text-[11px] font-bold uppercase text-slate-500 mb-2">Source</label>
           <div class="flex gap-2">
-            <button
-              phx-click="set_source_type"
-              phx-value-source_type="github_actions"
-              class={[
-                "px-4 py-2 rounded text-xs font-bold border transition-all",
-                if(@source_type == "github_actions",
-                  do: "bg-purple-50 text-purple-700 border-purple-300",
-                  else: "bg-white text-slate-500 border-[#d6e0e2] hover:border-purple-300"
-                )
-              ]}
-            >
-              <i class="fab fa-github mr-1"></i> GitHub Actions
-            </button>
-            <button
-              phx-click="set_source_type"
-              phx-value-source_type="gitlab_ci"
-              class={[
-                "px-4 py-2 rounded text-xs font-bold border transition-all",
-                if(@source_type == "gitlab_ci",
-                  do: "bg-orange-50 text-orange-700 border-orange-300",
-                  else: "bg-white text-slate-500 border-[#d6e0e2] hover:border-orange-300"
-                )
-              ]}
-            >
-              <i class="fab fa-gitlab mr-1"></i> GitLab CI
-            </button>
+            <label class={[
+              "flex items-center gap-2 px-4 py-2.5 rounded border cursor-pointer text-xs font-bold transition-all",
+              if(@source_type == "github_actions",
+                do: "bg-purple-50 text-purple-700 border-purple-400 ring-1 ring-purple-300",
+                else: "bg-white text-slate-500 border-[#d6e0e2] hover:border-purple-300"
+              )
+            ]}>
+              <input type="radio" name="source_type" value="github_actions" checked={@source_type == "github_actions"} phx-click="set_source_type" phx-value-source_type="github_actions" class="sr-only" />
+              <span class="text-base"></span> GitHub Actions
+            </label>
+            <label class={[
+              "flex items-center gap-2 px-4 py-2.5 rounded border cursor-pointer text-xs font-bold transition-all",
+              if(@source_type == "gitlab_ci",
+                do: "bg-orange-50 text-orange-700 border-orange-400 ring-1 ring-orange-300",
+                else: "bg-white text-slate-500 border-[#d6e0e2] hover:border-orange-300"
+              )
+            ]}>
+              <input type="radio" name="source_type" value="gitlab_ci" checked={@source_type == "gitlab_ci"} phx-click="set_source_type" phx-value-source_type="gitlab_ci" class="sr-only" />
+              <span class="text-base"></span> GitLab CI
+            </label>
           </div>
         </div>
 
-        <%!-- Repo URL --%>
+        <%!-- Repo URL with examples --%>
         <div>
-          <label class="block text-[11px] font-bold uppercase text-slate-500 mb-2">Repository URL</label>
-          <form phx-submit="step1_next">
-            <input
-              type="text"
-              name="repo_url"
-              value={@repo_url}
-              placeholder="https://github.com/org/repo.git"
-              class={[
-                "w-full border rounded px-3 py-2 text-sm outline-none transition-all",
-                if(@errors[:repo_url], do: "border-red-300 focus:border-red-400", else: "border-[#d6e0e2] focus:border-[#943a9e]")
-              ]}
-            />
-            <%= if @errors[:repo_url] do %>
-              <p class="text-red-500 text-xs mt-1">{@errors[:repo_url]}</p>
-            <% end %>
-
-            <%!-- Branch --%>
-            <label class="block text-[11px] font-bold uppercase text-slate-500 mb-2 mt-4">Branch</label>
-            <input
-              type="text"
-              name="branch"
-              value={@branch}
-              placeholder="main"
-              class={[
-                "w-full border rounded px-3 py-2 text-sm outline-none transition-all",
-                if(@errors[:branch], do: "border-red-300 focus:border-red-400", else: "border-[#d6e0e2] focus:border-[#943a9e]")
-              ]}
-            />
-            <%= if @errors[:branch] do %>
-              <p class="text-red-500 text-xs mt-1">{@errors[:branch]}</p>
-            <% end %>
-
-            <button
-              type="submit"
-              class="mt-6 w-full py-2.5 rounded bg-[#943a9e] hover:bg-purple-700 text-xs font-bold text-white shadow-sm transition-all flex items-center justify-center gap-2"
-            >
-              Next: Discover Files <i class="fa fa-arrow-right"></i>
-            </button>
-          </form>
+          <label class="block text-[11px] font-bold uppercase text-slate-500 mb-1.5" for="repo_url">Repository URL</label>
+          <input
+            type="text"
+            id="repo_url"
+            name="repo_url"
+            value={@repo_url}
+            placeholder="https://github.com/org/repo.git"
+            autocomplete="url"
+            class={[
+              "w-full border rounded px-3 py-2.5 text-sm outline-none transition-all",
+              if(@errors[:repo_url], do: "border-red-300 focus:border-red-400", else: "border-[#d6e0e2] focus:border-[#943a9e]")
+            ]}
+          />
+          <p class="text-[10px] text-slate-400 mt-1">Example: https://github.com/myteam/backend.git</p>
+          <%= if @errors[:repo_url] do %>
+            <p class="text-red-500 text-xs mt-1 flex items-center gap-1">
+              <span>⚠</span> {@errors[:repo_url]}
+            </p>
+          <% end %>
         </div>
-      </div>
+
+        <%!-- Branch --%>
+        <div>
+          <label class="block text-[11px] font-bold uppercase text-slate-500 mb-1.5" for="branch">Branch</label>
+          <input
+            type="text"
+            id="branch"
+            name="branch"
+            value={@branch}
+            placeholder="main"
+            class={[
+              "w-full border rounded px-3 py-2.5 text-sm outline-none transition-all",
+              if(@errors[:branch], do: "border-red-300 focus:border-red-400", else: "border-[#d6e0e2] focus:border-[#943a9e]")
+            ]}
+          />
+          <%= if @errors[:branch] do %>
+            <p class="text-red-500 text-xs mt-1 flex items-center gap-1">
+              <span>⚠</span> {@errors[:branch]}
+            </p>
+          <% end %>
+        </div>
+
+        <button
+          type="submit"
+          class="mt-4 w-full py-2.5 rounded bg-[#943a9e] hover:bg-purple-700 text-xs font-bold text-white shadow-sm transition-all flex items-center justify-center gap-2"
+        >
+          Find workflow files →
+        </button>
+      </form>
     </div>
     """
   end
@@ -392,60 +447,75 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
   defp step2_files(assigns) do
     ~H"""
     <div class="bg-white rounded border border-[#d6e0e2] p-6 shadow-sm">
-      <h2 class="text-base font-bold text-slate-700 mb-2 flex items-center gap-2">
-        <span class="w-7 h-7 rounded-full bg-[#943a9e] text-white text-xs flex items-center justify-center font-bold">2</span>
-        Discovered Workflow Files
-      </h2>
-      <p class="text-xs text-slate-400 mb-6">
-        Found {length(@discovered_files)} workflow files in {@repo_url}.
-        Select the files you want to import.
+      <h2 class="text-base font-bold text-slate-700 mb-1">Files found in this repository</h2>
+      <p class="text-xs text-slate-400 mb-4">
+        We found {length(@discovered_files)} workflow {ngettext("file", "files", length(@discovered_files))}.
+        Uncheck any you don't want to import.
       </p>
 
       <%= if Enum.empty?(@discovered_files) do %>
-        <div class="text-center py-8 text-slate-400 italic text-xs">
-          No workflow files discovered. Try a different repository or source type.
+        <div class="text-center py-12 text-slate-400">
+          <p class="text-sm mb-2">No workflow files found</p>
+          <button phx-click="prev_step" class="text-xs text-[#943a9e] hover:underline">← Try a different repository</button>
         </div>
       <% else %>
-        <form phx-submit="step2_next">
-          <div class="space-y-2 mb-6">
-            <%= for file <- @discovered_files do %>
-              <label class={[
+        <%!-- Select / deselect all --%>
+        <div class="flex items-center gap-2 mb-3">
+          <button phx-click="step2_all" class="text-[10px] text-[#943a9e] hover:underline font-medium">Select all</button>
+          <span class="text-slate-300">·</span>
+          <button phx-click="step2_none" class="text-[10px] text-[#943a9e] hover:underline font-medium">Deselect all</button>
+        </div>
+
+        <div class="space-y-1 mb-6">
+          <%= for file <- @discovered_files do %>
+            <% checked = file.path in @selected_paths %>
+            <label
+              phx-click="step2_toggle"
+              phx-value-path={file.path}
+              class={[
                 "flex items-center gap-3 p-3 rounded border cursor-pointer transition-all",
-                "hover:bg-slate-50 border-[#d6e0e2]"
-              ]}>
-                <input type="checkbox" name="selected_files[]" value={file.path} class="rounded" checked />
-                <div class="flex-1">
-                  <span class="text-sm font-mono text-slate-700">{file.path}</span>
-                  <span class="ml-2 text-[10px] text-slate-400">
-                    {length(file.job_names)} jobs
-                  </span>
-                </div>
+                if(checked, do: "border-[#943a9e] bg-purple-50/30", else: "border-[#d6e0e2] hover:bg-slate-50")
+              ]}
+            >
+              <input type="checkbox" checked={checked} class="rounded pointer-events-none" />
+              <div class="flex-1 min-w-0">
+                <span class="text-sm font-mono text-slate-700 truncate block">{file.path}</span>
+              </div>
+              <div class="flex items-center gap-2 flex-shrink-0">
+                <span class="text-[10px] text-slate-400 tabular-nums">
+                  {length(file.job_names)} {ngettext("job", "jobs", length(file.job_names))}
+                </span>
                 <span class={[
-                  "px-2 py-0.5 rounded text-[10px] font-bold",
-                  if(@source_type == "github_actions", do: "bg-purple-50 text-purple-700", else: "bg-orange-50 text-orange-700")
+                  "px-1.5 py-0.5 rounded text-[9px] font-bold",
+                  if(@source_type == "github_actions", do: "bg-purple-100 text-purple-700", else: "bg-orange-100 text-orange-700")
                 ]}>
                   {source_type_label(@source_type)}
                 </span>
-              </label>
-            <% end %>
-          </div>
+              </div>
+            </label>
+          <% end %>
+        </div>
 
-          <div class="flex gap-3">
-            <button
-              type="button"
-              phx-click="prev_step"
-              class="px-4 py-2 rounded border border-[#d6e0e2] text-xs font-bold text-slate-500 hover:bg-slate-50 transition-all"
-            >
-              <i class="fa fa-arrow-left mr-1"></i> Back
-            </button>
-            <button
-              type="submit"
-              class="flex-1 py-2.5 rounded bg-[#943a9e] hover:bg-purple-700 text-xs font-bold text-white shadow-sm transition-all"
-            >
-              Next: Configure Files <i class="fa fa-arrow-right ml-1"></i>
-            </button>
-          </div>
-        </form>
+        <div class="flex gap-3">
+          <button
+            type="button"
+            phx-click="prev_step"
+            class="px-4 py-2 rounded border border-[#d6e0e2] text-xs font-bold text-slate-500 hover:bg-slate-50 transition-all"
+          >
+            ← Back
+          </button>
+          <button
+            type="button"
+            phx-click="step2_continue"
+            disabled={Enum.empty?(@selected_paths)}
+            class={[
+              "flex-1 py-2.5 rounded text-xs font-bold text-white shadow-sm transition-all flex items-center justify-center gap-2",
+              if(Enum.empty?(@selected_paths), do: "bg-slate-300 cursor-not-allowed", else: "bg-[#943a9e] hover:bg-purple-700")
+            ]}
+          >
+            Configure {length(@selected_paths)} {ngettext("file", "files", length(@selected_paths))} →
+          </button>
+        </div>
       <% end %>
     </div>
     """
@@ -454,6 +524,8 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
   # ── Step 3: Per-file configuration ─────────────────────────────────────────
 
   defp step3_config(assigns) do
+    assigns = assign(assigns, :valid_modes, ["translate", "execute_act", "execute_gitlab", "skip"])
+
     ~H"""
     <div class="bg-white rounded border border-[#d6e0e2] p-6 shadow-sm">
       <h2 class="text-base font-bold text-slate-700 mb-6 flex items-center gap-2">

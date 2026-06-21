@@ -123,7 +123,7 @@ defmodule ExGoCD.Scheduler do
   def handle_call({:try_assign_work, agent_uuid, parent_ctx}, _from, state) do
     VsmTracer.attach_ctx(parent_ctx)
     VsmTracer.trace("scheduler.assign_work", %{"agent.uuid" => agent_uuid}, fn ->
-      if Map.has_key?(AgentPresence.list(@presence_topic), agent_uuid) do
+      if connected?(agent_uuid) do
         case Agents.get_agent_by_uuid(agent_uuid) do
           nil ->
             {:reply, :agent_not_found, state}
@@ -192,7 +192,16 @@ defmodule ExGoCD.Scheduler do
   # Helpers & Matching Logic
 
   defp connected?(agent_uuid) do
-    Map.has_key?(AgentPresence.list(@presence_topic), agent_uuid)
+    # Check Phoenix Presence (WebSocket/LiveView agents) first
+    if Map.has_key?(AgentPresence.list(@presence_topic), agent_uuid) do
+      true
+    else
+      # Fallback: check DB/mock agent state for HTTP remoting agents
+      case Agents.get_agent_by_uuid(agent_uuid) do
+        nil -> false
+        agent -> agent.state in ["Idle", "Building"]
+      end
+    end
   end
 
   defp assign_work_if_exists(agent_uuid, state) do

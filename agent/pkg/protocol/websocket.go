@@ -129,6 +129,23 @@ func (m *Message) DataString() string {
 	return s
 }
 
+// CookiePayload is the server's setCookie message (after join handshake).
+type CookiePayload struct {
+	Cookie      string `json:"cookie"`
+	TraceParent string `json:"traceparent,omitempty"`
+	TraceState  string `json:"tracestate,omitempty"`
+}
+
+func (m *Message) DataCookiePayload() CookiePayload {
+	var p CookiePayload
+	// Try new JSON format first, fall back to plain string (pre-OTel format)
+	if err := json.Unmarshal(m.Data, &p); err != nil || p.Cookie == "" {
+		// Legacy: plain string cookie
+		return CookiePayload{Cookie: m.DataString()}
+	}
+	return p
+}
+
 // BuildIdFromData parses payload that contains {"buildId": "..."} (e.g. cancelBuild).
 func (m *Message) BuildIdFromData() string {
 	var o struct {

@@ -12,15 +12,16 @@ describe("External CI Repo Wizard E2E Tests", () => {
   });
 
   it("renders step 1 with source type selector", () => {
-    // Progress indicator visible
-    cy.get(".h-2.rounded-full").should("have.length", 4);
+    // Step label buttons (progress indicator)
+    cy.contains("button", "1. Repository").should("exist");
+    cy.contains("button", "2. Files").should("exist");
 
     // Step 1 heading
-    cy.contains("h2", "Repository Details").should("exist");
+    cy.contains("h2", "Where is your pipeline?").should("exist");
 
-    // Source type buttons
-    cy.contains("button", "GitHub Actions").should("exist");
-    cy.contains("button", "GitLab CI").should("exist");
+    // Source type labels
+    cy.contains("label", "GitHub Actions").should("exist");
+    cy.contains("label", "GitLab CI").should("exist");
 
     // Repository URL input
     cy.get('input[name="repo_url"]').should("exist");
@@ -29,26 +30,26 @@ describe("External CI Repo Wizard E2E Tests", () => {
     cy.get('input[name="branch"]').should("have.value", "main");
 
     // Next button
-    cy.contains("button", "Next: Discover Files").should("exist");
+    cy.contains("button", "Find workflow files").should("exist");
   });
 
   it("toggles source type between GitHub Actions and GitLab CI", () => {
-    // Click GitLab CI
-    cy.contains("button", "GitLab CI").click();
+    // Click GitLab CI label
+    cy.contains("label", "GitLab CI").click();
 
-    // Verify GitLab CI is now selected (has orange border)
-    cy.contains("button", "GitLab CI")
-      .should("have.class", "border-orange-300");
+    // Verify GitLab CI is now selected (has orange ring)
+    cy.contains("label", "GitLab CI")
+      .should("have.class", "ring-1");
 
     // Click back to GitHub Actions
-    cy.contains("button", "GitHub Actions").click();
-    cy.contains("button", "GitHub Actions")
-      .should("have.class", "border-purple-300");
+    cy.contains("label", "GitHub Actions").click();
+    cy.contains("label", "GitHub Actions")
+      .should("have.class", "ring-1");
   });
 
   it("validates empty repo URL on submit", () => {
     cy.get('input[name="repo_url"]').clear();
-    cy.contains("button", "Next: Discover Files").click();
+    cy.contains("button", "Find workflow files").click();
 
     // Should show error
     cy.contains("Repository URL is required").should("exist");
@@ -56,7 +57,7 @@ describe("External CI Repo Wizard E2E Tests", () => {
 
   it("validates invalid repo URL format", () => {
     cy.get('input[name="repo_url"]').clear().type("not-a-valid-url");
-    cy.contains("button", "Next: Discover Files").click();
+    cy.contains("button", "Find workflow files").click();
 
     cy.contains("Must be a valid git URL").should("exist");
   });
@@ -64,49 +65,38 @@ describe("External CI Repo Wizard E2E Tests", () => {
   it("proceeds to step 2 with discovered files", () => {
     const repoUrl = "https://github.com/eci-test/step2-test-" + Date.now() + ".git";
     cy.get('input[name="repo_url"]').clear().type(repoUrl);
-    cy.contains("button", "Next: Discover Files").click();
+    cy.contains("button", "Find workflow files").click();
 
-    // Should show step 2 heading
-    cy.contains("h2", "Discovered Workflow Files").should("exist");
-
-    // Should show discovered files
+    // Should show step 2
+    cy.contains("h2", "Files found in this repository").should("exist");
     cy.contains(".github/workflows/ci.yml").should("exist");
     cy.contains(".github/workflows/deploy.yml").should("exist");
-    cy.contains(".github/workflows/nightly.yml").should("exist");
-
-    // Back button
-    cy.contains("button", "Back").should("exist");
-    // Next button
-    cy.contains("button", "Next: Configure Files").should("exist");
+    cy.contains("button", "Select all").should("exist");
+    cy.contains("button", "Deselect all").should("exist");
   });
 
-  it("proceeds through full wizard flow", () => {
-    const repoUrl = "https://github.com/eci-test/wizard-test-" + Date.now() + ".git";
-
-    // Step 1
+  it("proceeds from step 2 to step 3", () => {
+    const repoUrl = "https://github.com/eci-test/st3-test-" + Date.now() + ".git";
     cy.get('input[name="repo_url"]').clear().type(repoUrl);
-    cy.contains("button", "Next: Discover Files").click();
+    cy.contains("button", "Find workflow files").click();
+    cy.contains("h2", "Files found in this repository", { timeout: 10000 }).should("exist");
 
-    // Wait for step 2 to fully render
-    cy.contains("h2", "Discovered Workflow Files", { timeout: 10000 }).should("exist");
-    cy.get("input[type='checkbox']").should("have.length.greaterThan", 0);
+    // Click continue (all files pre-selected)
+    cy.contains("button", "Configure 3 files").click();
+    cy.contains("h2", "Configure Files", { timeout: 10000 }).should("exist");
+  });
 
-    // Click all checkboxes to ensure they're checked (Cypress might not honor the checked attribute)
-    cy.get("input[type='checkbox']").each(($el) => {
-      cy.wrap($el).check({ force: true });
-    });
+  it("proceeds from step 3 to step 4", () => {
+    const repoUrl = "https://github.com/eci-test/st4-test-" + Date.now() + ".git";
+    cy.get('input[name="repo_url"]').clear().type(repoUrl);
+    cy.contains("button", "Find workflow files").click();
+    cy.contains("h2", "Files found in this repository", { timeout: 10000 }).should("exist");
+    cy.contains("button", "Configure 3 files").click();
 
-    // Click next to go to step 3
-    cy.contains("button", "Next: Configure Files").click();
-
-    // Should show step 3
     cy.contains("h2", "Configure Files", { timeout: 10000 }).should("exist");
     cy.contains("button", "Translate to GoCD").should("exist");
-
-    // Proceed to review
     cy.contains("button", "Next: Review").click();
 
-    // Step 4
     cy.contains("h2", "Review & Save", { timeout: 10000 }).should("exist");
     cy.contains("button", "Save & Finish").should("exist");
   });
