@@ -1,5 +1,5 @@
 defmodule ExGoCD.AccountsTest do
-  use ExGoCD.DataCase
+  use ExGoCD.DataCase, async: true
 
   alias ExGoCD.Accounts
   alias ExGoCD.Accounts.User

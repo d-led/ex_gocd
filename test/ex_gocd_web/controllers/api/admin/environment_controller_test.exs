@@ -1,5 +1,5 @@
 defmodule ExGoCDWeb.API.Admin.EnvironmentControllerTest do
-  use ExGoCDWeb.ConnCase, async: false
+  use ExGoCDWeb.ConnCase, async: true
 
   alias ExGoCD.Accounts
   alias ExGoCD.Environments

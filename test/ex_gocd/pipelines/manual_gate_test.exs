@@ -2,7 +2,7 @@ defmodule ExGoCD.Pipelines.ManualGateTest do
   @moduledoc """
   Tests for the Manual Stage Gate workflow.
   """
-  use ExGoCD.DataCase, async: false
+  use ExGoCD.DataCase, async: true
 
   import Ecto.Query
 

@@ -79,32 +79,21 @@ defmodule ExGoCD.Scheduler do
     if interval && interval != :none do
       send(self(), :reload_jobs)
     end
-    {:ok, %{in_memory_queue: [], timer: nil}}
+    {:ok, %{in_memory_queue: [], db_pending_count: 0, timer: nil}}
   end
 
   @impl true
-  def handle_call({:schedule_job, spec}, _from, %{in_memory_queue: in_memory_queue} = state) do
+  def handle_call({:schedule_job, spec}, _from, %{in_memory_queue: queue, db_pending_count: db_count} = state) do
     if spec[:job_instance_id] do
-      # Trigger assignment for idle agents immediately
+      new_db_count = db_count + 1
+      broadcast_pending_count(length(queue) + new_db_count)
       trigger_assignment_for_idle_agents()
-
-      # Broadcast new combined pending count
-      db_count = get_db_scheduled_count()
-      broadcast_pending_count(length(in_memory_queue) + db_count)
-
-      {:reply, {:ok, "db-#{spec.job_instance_id}"}, state}
+      {:reply, {:ok, "db-#{spec.job_instance_id}"}, %{state | db_pending_count: new_db_count}}
     else
       id = "sched-#{System.unique_integer([:positive])}"
-      entry = Map.put(spec, :id, id)
-      new_queue = in_memory_queue ++ [entry]
-
-      # Broadcast new combined pending count
-      db_count = get_db_scheduled_count()
+      new_queue = queue ++ [Map.put(spec, :id, id)]
       broadcast_pending_count(length(new_queue) + db_count)
-
-      # Trigger assignment for idle agents immediately
       trigger_assignment_for_idle_agents()
-
       {:reply, {:ok, id}, %{state | in_memory_queue: new_queue}}
     end
   end
@@ -123,32 +112,22 @@ defmodule ExGoCD.Scheduler do
     end
   end
 
-  def handle_call(:pending_count, _from, %{in_memory_queue: in_memory_queue} = state) do
-    count = length(in_memory_queue) + get_db_scheduled_count()
-    {:reply, count, state}
+  def handle_call(:pending_count, _from, %{in_memory_queue: queue, db_pending_count: db_count} = state) do
+    {:reply, length(queue) + db_count, state}
   end
 
   def handle_call(:clear_queue, _from, state) do
-    # Only reset the in-memory queue. DB isolation is handled by the test sandbox,
-    # which rolls back all changes per test. Running a Repo query here would borrow
-    # the calling test's sandbox connection and block this GenServer when that owner exits.
+    # Only reset in-memory state. DB isolation is handled by the test sandbox,
+    # which rolls back all changes per test.
     broadcast_pending_count(0)
-    {:reply, :ok, %{state | in_memory_queue: []}}
+    {:reply, :ok, %{state | in_memory_queue: [], db_pending_count: 0}}
   end
 
   @impl true
   def handle_info(:reload_jobs, state) do
-    # Cancel old timer if any
     if state.timer, do: Process.cancel_timer(state.timer)
-
-    # Try assigning work to connected idle agents when reloading
     trigger_assignment_for_idle_agents()
-
-    # Broadcast updated pending count
-    db_count = get_db_scheduled_count()
-    broadcast_pending_count(length(state.in_memory_queue) + db_count)
-
-    # Schedule next reload if configured
+    broadcast_pending_count(length(state.in_memory_queue) + state.db_pending_count)
     interval = Application.get_env(:ex_gocd, :scheduler_reload_interval, 5000)
     timer =
       if interval && interval != :none do
@@ -156,7 +135,6 @@ defmodule ExGoCD.Scheduler do
       else
         nil
       end
-
     {:noreply, %{state | timer: timer}}
   end
 
@@ -197,18 +175,21 @@ defmodule ExGoCD.Scheduler do
     {:reply, :agent_busy, state}
   end
 
-  defp do_assign_matching_job(agent_uuid, agent, active_plans, %{in_memory_queue: in_memory_queue} = state) do
+  defp do_assign_matching_job(agent_uuid, agent, active_plans, %{in_memory_queue: queue, db_pending_count: db_count} = state) do
     case find_matching_job(agent, active_plans) do
       nil ->
         {:reply, :no_work, state}
 
       {job_spec, _rest} ->
         assign_and_send(agent_uuid, agent, job_spec)
-        new_in_memory = reject_if_in_memory(in_memory_queue, job_spec.id)
-        db_count = get_db_scheduled_count()
-        broadcast_pending_count(length(new_in_memory) + db_count)
-
-        {:reply, :assigned, %{state | in_memory_queue: new_in_memory}}
+        {new_queue, new_db_count} =
+          if String.starts_with?(to_string(job_spec.id), "sched-") do
+            {Enum.reject(queue, &(&1.id == job_spec.id)), db_count}
+          else
+            {queue, max(db_count - 1, 0)}
+          end
+        broadcast_pending_count(length(new_queue) + new_db_count)
+        {:reply, :assigned, %{state | in_memory_queue: new_queue, db_pending_count: new_db_count}}
     end
   end
 

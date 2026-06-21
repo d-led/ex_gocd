@@ -1,5 +1,5 @@
 defmodule ExGoCDWeb.DashboardLiveTest do
-  use ExGoCDWeb.ConnCase
+  use ExGoCDWeb.ConnCase, async: false
 
   import Phoenix.LiveViewTest
 

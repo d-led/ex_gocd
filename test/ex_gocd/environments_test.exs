@@ -2,7 +2,7 @@ defmodule ExGoCD.EnvironmentsTest do
   @moduledoc """
   Behavior-driven tests for the Environments context.
   """
-  use ExGoCD.DataCase, async: false
+  use ExGoCD.DataCase, async: true
 
   alias ExGoCD.Environments
   alias ExGoCD.Environments.Environment

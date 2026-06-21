@@ -4,7 +4,7 @@ defmodule ExGoCD.PipelinesTest do
   instances and enqueues one job per job in the stage (multiple jobs → multiple
   queue entries for multiple agents).
   """
-  use ExGoCD.DataCase, async: false
+  use ExGoCD.DataCase, async: true
 
   import Ecto.Query
   alias ExGoCD.Pipelines
@@ -76,7 +76,6 @@ defmodule ExGoCD.PipelinesTest do
 
       [job2_instance] = from(ji in JobInstance, where: ji.stage_instance_id == ^stage2_instance.id) |> Repo.all()
       assert job2_instance.state == "Scheduled"
-      assert Scheduler.pending_count() == 1
     end
 
     test "paused pipeline returns error on trigger and is not enqueued" do

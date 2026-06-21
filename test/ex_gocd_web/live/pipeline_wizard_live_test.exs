@@ -1,5 +1,5 @@
 defmodule ExGoCDWeb.PipelineWizardLiveTest do
-  use ExGoCDWeb.ConnCase
+  use ExGoCDWeb.ConnCase, async: false
 
   import Phoenix.LiveViewTest
   alias ExGoCD.Pipelines

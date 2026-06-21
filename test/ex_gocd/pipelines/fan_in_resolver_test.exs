@@ -1,5 +1,5 @@
 defmodule ExGoCD.Pipelines.FanInResolverTest do
-  use ExGoCD.DataCase, async: false
+  use ExGoCD.DataCase, async: true
 
   alias ExGoCD.Pipelines.FanInResolver
   alias ExGoCD.Pipelines.Material

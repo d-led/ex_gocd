@@ -2,7 +2,7 @@
 # Tests for GoCD Version API.
 
 defmodule ExGoCDWeb.API.VersionControllerTest do
-  use ExGoCDWeb.ConnCase, async: false
+  use ExGoCDWeb.ConnCase, async: true
 
   describe "GET /api/version" do
     test "returns version information", %{conn: conn} do

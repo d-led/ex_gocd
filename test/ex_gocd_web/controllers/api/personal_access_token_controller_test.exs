@@ -1,5 +1,5 @@
 defmodule ExGoCDWeb.API.PersonalAccessTokenControllerTest do
-  use ExGoCDWeb.ConnCase, async: false
+  use ExGoCDWeb.ConnCase, async: true
 
   alias ExGoCD.Repo
   alias ExGoCD.Accounts

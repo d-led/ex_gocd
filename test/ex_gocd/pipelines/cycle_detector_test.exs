@@ -1,5 +1,5 @@
 defmodule ExGoCD.Pipelines.CycleDetectorTest do
-  use ExGoCD.DataCase, async: false
+  use ExGoCD.DataCase, async: true
 
   alias ExGoCD.Pipelines.CycleDetector
   alias ExGoCD.Pipelines.Material

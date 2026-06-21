@@ -1,5 +1,5 @@
 defmodule ExGoCDWeb.ValueStreamMapControllerTest do
-  use ExGoCDWeb.ConnCase
+  use ExGoCDWeb.ConnCase, async: true
 
   test "GET /pipelines/value_stream_map/:pipeline_name/:pipeline_counter.json", %{conn: conn} do
     # When requesting JSON VSM for valid pipeline

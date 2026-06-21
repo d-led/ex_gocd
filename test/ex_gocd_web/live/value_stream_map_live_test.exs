@@ -1,5 +1,5 @@
 defmodule ExGoCDWeb.ValueStreamMapLiveTest do
-  use ExGoCDWeb.ConnCase
+  use ExGoCDWeb.ConnCase, async: false
 
   import Phoenix.LiveViewTest
 

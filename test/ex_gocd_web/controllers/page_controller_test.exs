@@ -1,5 +1,5 @@
 defmodule ExGoCDWeb.PageControllerTest do
-  use ExGoCDWeb.ConnCase
+  use ExGoCDWeb.ConnCase, async: true
 
   test "GET /", %{conn: conn} do
     conn = get(conn, ~p"/")

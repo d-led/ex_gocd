@@ -1,21 +1,16 @@
 defmodule ExGoCDWeb.ArtifactsControllerTest do
   use ExGoCDWeb.ConnCase, async: false
 
+  # ExUnit creates a unique OS-temp sub-directory per test and removes it automatically.
+  @moduletag :tmp_dir
+
   alias ExGoCD.AgentJobRuns.AgentJobRun
   alias ExGoCD.Repo
 
-  setup do
-    # Temporarily set ARTIFACTS_DIR to a test directory
-    test_dir = Path.join([System.tmp_dir!(), "ex_gocd_test_artifacts_#{System.unique_integer([:positive])}"])
-    System.put_env("ARTIFACTS_DIR", test_dir)
-    File.mkdir_p!(test_dir)
-
-    on_exit(fn ->
-      File.rm_rf!(test_dir)
-      System.delete_env("ARTIFACTS_DIR")
-    end)
-
-    {:ok, artifacts_dir: test_dir}
+  setup %{tmp_dir: tmp_dir} do
+    System.put_env("ARTIFACTS_DIR", tmp_dir)
+    on_exit(fn -> System.delete_env("ARTIFACTS_DIR") end)
+    {:ok, artifacts_dir: tmp_dir}
   end
 
   describe "POST /files/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/:job_name/*file_path" do
