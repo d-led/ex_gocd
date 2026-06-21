@@ -92,30 +92,54 @@ defmodule ExGoCD.Scheduler do
   @impl true
   def handle_call({:schedule_job, spec, parent_ctx}, _from, %{in_memory_queue: queue, db_pending_count: db_count} = state) do
     VsmTracer.attach_ctx(parent_ctx)
+    job_name = spec[:job] || spec["job"] || "default-job"
     VsmTracer.trace("scheduler.enqueue", %{
       "pipeline.name" => spec[:pipeline] || spec["pipeline"],
       "pipeline.counter" => spec[:pipeline_counter] || spec["pipeline_counter"],
       "stage.name" => spec[:stage] || spec["stage"],
       "stage.counter" => spec[:stage_counter] || spec["stage_counter"],
-      "job.name" => spec[:job] || spec["job"]
+      "job.name" => job_name
     }, fn ->
-      # Capture current context for cross-process trace propagation.
-      # Stored in the job spec so assign_and_send can inject traceparent
-      # even when assignment happens via async agent ping (try_assign_work).
       enqueue_ctx = VsmTracer.current_ctx()
 
-      if spec[:job_instance_id] do
-        new_db_count = db_count + 1
-        broadcast_pending_count(length(queue) + new_db_count)
-        trigger_assignment_for_idle_agents()
-        {:reply, {:ok, "db-#{spec.job_instance_id}"}, %{state | db_pending_count: new_db_count}}
-      else
-        id = "sched-#{System.unique_integer([:positive])}"
-        spec_with_ctx = Map.put(spec, :enqueue_ctx, enqueue_ctx)
-        new_queue = queue ++ [Map.put(spec_with_ctx, :id, id)]
-        broadcast_pending_count(length(new_queue) + db_count)
-        trigger_assignment_for_idle_agents()
-        {:reply, {:ok, id}, %{state | in_memory_queue: new_queue}}
+      cond do
+        # Run on all enabled agents matching resources/environments
+        Map.get(spec, :run_on_all_agents) || Map.get(spec, "run_on_all_agents") ->
+          matching = Agents.list_active_agents()
+            |> Enum.filter(fn agent ->
+              resources_match?(spec[:resources] || [], MapSet.new(agent.resources |> Enum.map(&String.downcase/1))) and
+                envs_match?(spec[:environments] || [], MapSet.new(agent.environments |> Enum.map(&String.downcase/1)))
+            end)
+
+          count = length(matching)
+          ids = Enum.map(matching, fn agent ->
+            id = "sched-#{System.unique_integer([:positive])}"
+            Map.merge(spec, %{
+              id: id, enqueue_ctx: enqueue_ctx, agent_uuid: agent.uuid,
+              job: "#{job_name}-runonall-#{String.slice(agent.uuid, 0, 8)}"
+            })
+          end)
+
+          new_queue = queue ++ ids
+          broadcast_pending_count(length(new_queue) + db_count)
+          trigger_assignment_for_idle_agents()
+          {:reply, {:ok, count}, %{state | in_memory_queue: new_queue}}
+
+        # DB job instance
+        spec[:job_instance_id] ->
+          new_db_count = db_count + 1
+          broadcast_pending_count(length(queue) + new_db_count)
+          trigger_assignment_for_idle_agents()
+          {:reply, {:ok, "db-#{spec.job_instance_id}"}, %{state | db_pending_count: new_db_count}}
+
+        # Regular in-memory schedule
+        true ->
+          id = "sched-#{System.unique_integer([:positive])}"
+          spec_with_ctx = Map.put(spec, :enqueue_ctx, enqueue_ctx)
+          new_queue = queue ++ [Map.put(spec_with_ctx, :id, id)]
+          broadcast_pending_count(length(new_queue) + db_count)
+          trigger_assignment_for_idle_agents()
+          {:reply, {:ok, id}, %{state | in_memory_queue: new_queue}}
       end
       VsmTracer.set_status(:ok)
     end)

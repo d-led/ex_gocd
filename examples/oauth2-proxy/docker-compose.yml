@@ -2,6 +2,9 @@
 # Uses real quay.io/oauth2-proxy/oauth2-proxy image with htpasswd auth.
 # No external OAuth provider needed — just docker compose up.
 #
+# https://quay.io/repository/oauth2-proxy/oauth2-proxy?tab=tags
+# Latest documented tag: v7.15.3 (2026-06-09)
+#
 # Test users (from htpasswd.txt):
 #   admin@exgocd.local / admin123  → gets admin role
 #   dev@exgocd.local   / dev123    → gets developer role (viewer after login)
@@ -9,7 +12,7 @@
 version: "3.8"
 services:
   oauth2-proxy:
-    image: quay.io/oauth2-proxy/oauth2-proxy:v7.8.1
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.3-amd64
     container_name: exgocd-oauth2-proxy
     ports:
       - "4180:4180"

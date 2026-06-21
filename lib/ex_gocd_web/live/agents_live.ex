@@ -178,13 +178,15 @@ defmodule ExGoCDWeb.AgentsLive do
 
   def handle_event("schedule_test_job", _params, socket) do
     if socket.assigns[:is_user_admin] do
-      enabled_agents = Agents.list_active_agents()
-      count = length(enabled_agents)
-
-      Enum.each(enabled_agents, fn agent ->
-        Scheduler.schedule_job(%{"agent_uuid" => agent.uuid})
-      end)
-
+      result = Scheduler.schedule_job(%{
+        "pipeline" => "agent-test",
+        "stage" => "test",
+        "job" => "test-job",
+        "run_on_all_agents" => true,
+        "resources" => [],
+        "environments" => []
+      })
+      count = elem(result, 1)
       {:noreply,
        socket
        |> put_flash(:info, "Test job scheduled on #{count} enabled agent(s).")

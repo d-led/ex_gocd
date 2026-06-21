@@ -11,10 +11,13 @@
 |---------|--------|-------|
 | Guest admin (open mode) | ✅ Fixed | DB had stale admin users; cleaned. `admin_configured?` → false → guest gets admin |
 | Guest viewer (security mode) | ✅ | When admin exists, guest gets viewer role |
-| AuthHeaderPlug (x-forwarded-user) | ✅ | Reverse proxy auth; no auto-create |
+| AuthHeaderPlug (x-forwarded-user) | ✅ | Reverse proxy auth; auto-create when EX_GOCD_AUTO_CREATE_USERS=true |
 | TokenAuthPlug (Bearer tokens) | ✅ | PAT-based auth for API |
 | Personal Access Tokens | ✅ | CRUD API at /api/current_user/access_tokens |
 | User CRUD | ✅ | API-only, no UI |
+| Auto user creation | ✅ | `EX_GOCD_AUTO_CREATE_USERS=true` → AuthHeaderPlug creates users |
+| Pre-seeded admin | ✅ | `EX_GOCD_ADMIN_USERS=admin@example.com` → gets admin role |
+| OAuth2 proxy example | ✅ | `examples/oauth2-proxy/` — real oauth2-proxy image v7.15.3, htpasswd, docker-compose |
 
 ### Environments
 | Feature | Status | Notes |
@@ -37,9 +40,9 @@
 ### Job Types / Agent Scheduling
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Run on all agents | ❌ | GoCD has RunOnAllAgents JobType; we don't |
+| Run on all agents | ✅ | Scheduler creates one queue entry per matching agent; `schedule_test_job` uses it |
 | Run multiple instance | ❌ | GoCD's RunMultipleInstance |
-| schedule_test_job | ⚠️ Buggy | Should run on all enabled agents |
+| schedule_test_job | ✅ | Runs on all enabled agents via `run_on_all_agents: true` |
 | Resource matching | ✅ | `resources_match?` in scheduler |
 | Environment matching | ⚠️ Partial | `envs_match?` exists but envs not populated on agents |
 
