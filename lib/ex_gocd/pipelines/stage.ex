@@ -11,7 +11,7 @@ defmodule ExGoCD.Pipelines.Stage do
   use Ecto.Schema
   import Ecto.Changeset
 
-  alias ExGoCD.Pipelines.{Job, Pipeline}
+  alias ExGoCD.Pipelines.{Job, Pipeline, Template}
 
   @type t :: %__MODULE__{
           id: integer() | nil,
@@ -23,7 +23,9 @@ defmodule ExGoCD.Pipelines.Stage do
           environment_variables: map() | nil,
           approval_authorization: map() | nil,
           pipeline_id: integer() | nil,
+          template_id: integer() | nil,
           pipeline: Pipeline.t() | nil | Ecto.Association.NotLoaded.t(),
+          template: Template.t() | nil | Ecto.Association.NotLoaded.t(),
           jobs: [Job.t()] | Ecto.Association.NotLoaded.t(),
           inserted_at: DateTime.t() | nil,
           updated_at: DateTime.t() | nil
@@ -39,6 +41,7 @@ defmodule ExGoCD.Pipelines.Stage do
     field :approval_authorization, :map, default: %{}
 
     belongs_to :pipeline, Pipeline
+    belongs_to :template, Template
     has_many :jobs, Job, on_delete: :delete_all
 
     timestamps(type: :utc_datetime)
@@ -58,15 +61,34 @@ defmodule ExGoCD.Pipelines.Stage do
       :approval_type,
       :environment_variables,
       :approval_authorization,
-      :pipeline_id
+      :pipeline_id,
+      :template_id
     ])
-    |> validate_required([:name, :pipeline_id])
+    |> validate_required([:name])
+    |> validate_one_of_associations()
     |> validate_format(:name, ~r/^[a-zA-Z0-9_\-\.]+$/,
       message: "must contain only alphanumeric characters, hyphens, underscores, and periods"
     )
     |> validate_length(:name, min: 1, max: 255)
     |> validate_inclusion(:approval_type, ["success", "manual"])
     |> foreign_key_constraint(:pipeline_id)
+    |> foreign_key_constraint(:template_id)
     |> unique_constraint([:name, :pipeline_id], name: :stages_pipeline_id_name_index)
+  end
+
+  defp validate_one_of_associations(changeset) do
+    pipeline_id = get_field(changeset, :pipeline_id)
+    template_id = get_field(changeset, :template_id)
+
+    cond do
+      is_nil(pipeline_id) and is_nil(template_id) ->
+        add_error(changeset, :pipeline_id, "either pipeline_id or template_id must be present")
+
+      not is_nil(pipeline_id) and not is_nil(template_id) ->
+        add_error(changeset, :pipeline_id, "cannot define both pipeline_id and template_id")
+
+      true ->
+        changeset
+    end
   end
 end
