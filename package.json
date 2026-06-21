@@ -9,5 +9,8 @@
   },
   "devDependencies": {
     "cypress": "^15.17.0"
+  },
+  "allowScripts": {
+    "cypress@15.17.0": true
   }
 }
