@@ -23,6 +23,12 @@ defmodule ExGoCDWeb.AdminLiveTest do
     {:ok, _} = ExGoCD.Accounts.create_user(%{username: "developer", display_name: "Lead Developer", roles: ["developer"], status: "Active"})
     {:ok, _} = ExGoCD.Accounts.create_user(%{username: "viewer", display_name: "Guest Viewer", roles: [], status: "Active"})
 
+    # Seed audit log entries for the audit log tab
+    ExGoCD.AuditLog.Events.admin_cleanup_stuck_jobs("admin", 3)
+    ExGoCD.AuditLog.Events.pipeline_triggered("admin", "build-linux", 42)
+    ExGoCD.AuditLog.Events.pipeline_paused("developer", "deploy-staging", "developer")
+    ExGoCD.AuditLog.Events.admin_reset_pipeline("admin", "deploy-production")
+
     :ok
   end
 
@@ -264,6 +270,130 @@ defmodule ExGoCDWeb.AdminLiveTest do
 
       assert render(view) =~ "User deleted successfully"
       refute render(view) =~ "Johnathan Doe"
+    end
+
+    # ── Audit Log Tab ─────────────────────────────────────────────
+
+    test "renders audit log tab with all entries", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/admin/audit_log")
+
+      html = render(view)
+      assert html =~ "Audit Log"
+      assert html =~ "Filter Audit Events"
+      assert page_title(view) =~ "GoCD Administration - Audit Log"
+
+      # All seeded entries should be visible
+      assert html =~ "admin"
+      assert html =~ "developer"
+      assert html =~ "pipeline.triggered"
+      assert html =~ "pipeline.paused"
+      assert html =~ "build-linux"
+      assert html =~ "deploy-staging"
+    end
+
+    test "filters audit log by actor", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/admin/audit_log")
+
+      # Filter by actor "developer"
+      view
+      |> form("form[phx-change='search_audit_log']", %{
+        "actor" => "developer",
+        "action" => "",
+        "resource_type" => "",
+        "resource_name" => "",
+        "date_from" => "",
+        "date_to" => ""
+      })
+      |> render_change()
+
+      html = render(view)
+      assert html =~ "developer"
+      refute html =~ "admin.cleanup_stuck_jobs"
+      assert html =~ "pipeline.paused"
+    end
+
+    test "filters audit log by action", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/admin/audit_log")
+
+      view
+      |> form("form[phx-change='search_audit_log']", %{
+        "actor" => "",
+        "action" => "trigger",
+        "resource_type" => "",
+        "resource_name" => "",
+        "date_from" => "",
+        "date_to" => ""
+      })
+      |> render_change()
+
+      html = render(view)
+      assert html =~ "pipeline.triggered"
+      refute html =~ "pipeline.paused"
+    end
+
+    test "filters audit log by resource name", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/admin/audit_log")
+
+      view
+      |> form("form[phx-change='search_audit_log']", %{
+        "actor" => "",
+        "action" => "",
+        "resource_type" => "",
+        "resource_name" => "deploy-staging",
+        "date_from" => "",
+        "date_to" => ""
+      })
+      |> render_change()
+
+      html = render(view)
+      assert html =~ "deploy-staging"
+      # Only the deploy-staging entry should be in results table body
+      assert html =~ "pipeline.paused"
+    end
+
+    test "resets audit log filters to show all", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/admin/audit_log")
+
+      # First filter down
+      view
+      |> form("form[phx-change='search_audit_log']", %{
+        "actor" => "developer",
+        "action" => "",
+        "resource_type" => "",
+        "resource_name" => "",
+        "date_from" => "",
+        "date_to" => ""
+      })
+      |> render_change()
+
+      assert render(view) =~ "pipeline.paused"
+      refute render(view) =~ "admin.cleanup_stuck_jobs"
+
+      # Reset
+      view
+      |> element("button", "Reset Filters")
+      |> render_click()
+
+      html = render(view)
+      assert html =~ "admin.cleanup_stuck_jobs"
+      assert html =~ "pipeline.paused"
+    end
+
+    test "renders empty state when no audit entries match", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/admin/audit_log")
+
+      view
+      |> form("form[phx-change='search_audit_log']", %{
+        "actor" => "nonexistent_user",
+        "action" => "",
+        "resource_type" => "",
+        "resource_name" => "",
+        "date_from" => "",
+        "date_to" => ""
+      })
+      |> render_change()
+
+      assert render(view) =~ "No audit log entries found"
     end
   end
 end

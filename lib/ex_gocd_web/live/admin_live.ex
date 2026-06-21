@@ -8,7 +8,7 @@ defmodule ExGoCDWeb.AdminLive do
 
   alias ExGoCD.Accounts
   alias ExGoCD.Pipelines
-  alias ExGoCD.AuditLog
+  alias ExGoCD.AuditLog.Events
   alias ExGoCD.ConfigRepos
 
   @impl true
@@ -58,6 +58,10 @@ defmodule ExGoCDWeb.AdminLive do
        |> assign(:user_errors, %{})
        |> assign(:flash_info, nil)
        |> assign(:current_path, "/admin")
+       # Audit log assigns
+       |> assign(:audit_log_entries, [])
+       |> assign(:audit_log_filters, %{})
+       |> assign(:audit_log_loading, false)
        # Environment Modal assigns
        |> assign(:show_env_modal, false)
        |> assign(:env_modal_type, nil)
@@ -102,11 +106,20 @@ defmodule ExGoCDWeb.AdminLive do
     path = URI.parse(url).path || ""
     mapped_tab = tab_from_path(path)
 
-    {:noreply,
-     socket
-     |> assign(:tab, mapped_tab)
-     |> assign(:page_title, "GoCD Administration - #{tab_title(mapped_tab)}")
-     |> assign(:current_path, path)}
+    socket =
+      socket
+      |> assign(:tab, mapped_tab)
+      |> assign(:page_title, "GoCD Administration - #{tab_title(mapped_tab)}")
+      |> assign(:current_path, path)
+
+    socket =
+      if mapped_tab == "audit_log" do
+        load_audit_log(socket, %{})
+      else
+        socket
+      end
+
+    {:noreply, socket}
   end
 
   defp tab_from_path(path) do
@@ -128,11 +141,13 @@ defmodule ExGoCDWeb.AdminLive do
       t when t in ["server", "config_xml", "artifact_stores", "config", "maintenance_mode", "backup", "plugins"] ->
         "server"
       t when t in ["security", "users", "secret_configs", "admin_access_tokens"] -> "security"
+      t when t in ["audit_log", "audit"] -> "audit_log"
       _ -> "overview"
     end
   end
 
   defp tab_title("config_repos"), do: "Config Repositories"
+  defp tab_title("audit_log"), do: "Audit Log"
   defp tab_title(tab), do: String.capitalize(tab)
 
   @impl true
@@ -190,6 +205,7 @@ defmodule ExGoCDWeb.AdminLive do
         <.sub_tab_link active={@tab == "config_repos"} href="/admin/config_repos">Config Repositories</.sub_tab_link>
         <.sub_tab_link active={@tab == "server"} href="/admin/server">Server Configuration</.sub_tab_link>
         <.sub_tab_link active={@tab == "security"} href="/admin/security">Security &amp; Users</.sub_tab_link>
+        <.sub_tab_link active={@tab == "audit_log"} href="/admin/audit_log">Audit Log</.sub_tab_link>
       </div>
 
       <!-- Main Layout Body (Centered Content) -->
@@ -233,6 +249,12 @@ defmodule ExGoCDWeb.AdminLive do
             />
           <% "security" -> %>
             <.security_tab users={@users} />
+          <% "audit_log" -> %>
+            <.audit_log_tab
+              entries={@audit_log_entries}
+              filters={@audit_log_filters}
+              loading={@audit_log_loading}
+            />
           <% _ -> %>
             <div class="text-center py-12 bg-white border border-[#d6e0e2] rounded shadow-sm">
               <h3 class="text-lg font-bold">Section Not Found</h3>
@@ -1146,7 +1168,7 @@ defmodule ExGoCDWeb.AdminLive do
   @impl true
   def handle_event("cleanup_stuck_jobs", _, socket) do
     count = Pipelines.cleanup_stuck_jobs()
-    AuditLog.log(socket.assigns.current_user.username, "admin.cleanup_stuck_jobs", details: %{count: count})
+    Events.admin_cleanup_stuck_jobs(socket.assigns.current_user.username, count)
     {:noreply, socket |> put_flash(:info, "Cancelled #{count} stuck jobs.")}
   end
 
@@ -1154,7 +1176,7 @@ defmodule ExGoCDWeb.AdminLive do
   def handle_event("reset_pipeline", %{"name" => name}, socket) do
     case Pipelines.reset_pipeline(name) do
       {:ok, _} ->
-        AuditLog.log(socket.assigns.current_user.username, "admin.reset_pipeline", resource_type: "pipeline", resource_name: name)
+        Events.admin_reset_pipeline(socket.assigns.current_user.username, name)
         {:noreply, socket |> put_flash(:info, "Pipeline #{name} reset.")}
       {:error, _} ->
         {:noreply, socket |> put_flash(:error, "Pipeline #{name} not found.")}
@@ -1453,5 +1475,178 @@ defmodule ExGoCDWeb.AdminLive do
       </div>
     </div>
     """
+  end
+
+  # ---------------------------------------------------------------------------
+  # Audit Log Tab
+  # ---------------------------------------------------------------------------
+
+  @impl true
+  def handle_event("search_audit_log", %{"actor" => actor, "action" => action, "resource_type" => resource_type, "resource_name" => resource_name, "date_from" => date_from, "date_to" => date_to}, socket) do
+    filters = build_audit_filters(actor, action, resource_type, resource_name, date_from, date_to)
+    {:noreply, load_audit_log(socket, filters)}
+  end
+
+  @impl true
+  def handle_event("reset_audit_log_filters", _params, socket) do
+    {:noreply, load_audit_log(socket, %{})}
+  end
+
+  defp load_audit_log(socket, filters) do
+    entries = AuditLog.search(filters)
+    socket
+    |> assign(:audit_log_entries, entries)
+    |> assign(:audit_log_filters, filters)
+  end
+
+  defp build_audit_filters(actor, action, resource_type, resource_name, date_from_str, date_to_str) do
+    %{}
+    |> put_if_present(:actor, actor)
+    |> put_if_present(:action, action)
+    |> put_if_present(:resource_type, resource_type)
+    |> put_if_present(:resource_name, resource_name)
+    |> put_if_present(:date_from, parse_date(date_from_str))
+    |> put_if_present(:date_to, parse_date(date_to_str))
+  end
+
+  defp put_if_present(map, _key, nil), do: map
+  defp put_if_present(map, _key, ""), do: map
+  defp put_if_present(map, key, value), do: Map.put(map, key, value)
+
+  defp parse_date(nil), do: nil
+  defp parse_date(""), do: nil
+  defp parse_date(str) when is_binary(str) do
+    case Date.from_iso8601(str) do
+      {:ok, date} -> date
+      _ -> nil
+    end
+  end
+
+  defp audit_log_tab(assigns) do
+    ~H"""
+    <div class="space-y-6">
+      <!-- Search / Filter Panel -->
+      <div class="bg-white rounded border border-[#d6e0e2] p-5 shadow-sm">
+        <form phx-change="search_audit_log" class="space-y-4">
+          <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+            <i class="fa fa-filter mr-1.5 text-[#943a9e]"></i>Filter Audit Events
+          </h3>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div>
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Actor</label>
+              <input type="text" name="actor" value={@filters[:actor] || ""} placeholder="e.g. admin"
+                     class="w-full px-3 py-2 rounded border border-[#d6e0e2] text-xs text-slate-700 focus:outline-none focus:border-[#943a9e]" />
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Action</label>
+              <input type="text" name="action" value={@filters[:action] || ""} placeholder="e.g. pipeline.trigger"
+                     class="w-full px-3 py-2 rounded border border-[#d6e0e2] text-xs text-slate-700 focus:outline-none focus:border-[#943a9e]" />
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Resource Type</label>
+              <input type="text" name="resource_type" value={@filters[:resource_type] || ""} placeholder="e.g. pipeline"
+                     class="w-full px-3 py-2 rounded border border-[#d6e0e2] text-xs text-slate-700 focus:outline-none focus:border-[#943a9e]" />
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Resource Name</label>
+              <input type="text" name="resource_name" value={@filters[:resource_name] || ""} placeholder="e.g. build-linux"
+                     class="w-full px-3 py-2 rounded border border-[#d6e0e2] text-xs text-slate-700 focus:outline-none focus:border-[#943a9e]" />
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">From Date</label>
+              <input type="date" name="date_from" value={@filters[:date_from] || ""}
+                     class="w-full px-3 py-2 rounded border border-[#d6e0e2] text-xs text-slate-700 focus:outline-none focus:border-[#943a9e]" />
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">To Date</label>
+              <input type="date" name="date_to" value={@filters[:date_to] || ""}
+                     class="w-full px-3 py-2 rounded border border-[#d6e0e2] text-xs text-slate-700 focus:outline-none focus:border-[#943a9e]" />
+            </div>
+          </div>
+
+          <div class="flex justify-end">
+            <button type="button" phx-click="reset_audit_log_filters"
+                    class="px-4 py-2 rounded bg-white border border-[#d6e0e2] text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-all">
+              <i class="fa fa-undo mr-1"></i> Reset Filters
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Results Table -->
+      <div class="bg-white rounded border border-[#d6e0e2] overflow-hidden shadow-sm">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs text-slate-600 font-sans">
+            <thead class="bg-[#e7eef0] text-[10px] font-bold text-slate-500 uppercase border-b border-[#d6e0e2]">
+              <tr>
+                <th class="px-5 py-3.5 w-44">Timestamp</th>
+                <th class="px-5 py-3.5">Actor</th>
+                <th class="px-5 py-3.5">Action</th>
+                <th class="px-5 py-3.5">Resource</th>
+                <th class="px-5 py-3.5">Details</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-[#e9edef] bg-white">
+              <%= if Enum.empty?(@entries) do %>
+                <tr>
+                  <td colspan="5" class="px-5 py-12 text-center text-slate-400 italic text-xs">
+                    No audit log entries found.
+                  </td>
+                </tr>
+              <% else %>
+                <%= for entry <- @entries do %>
+                  <tr class="hover:bg-slate-50/50">
+                    <td class="px-5 py-3 font-mono text-[11px] text-slate-500 whitespace-nowrap">
+                      {format_audit_timestamp(entry.inserted_at)}
+                    </td>
+                    <td class="px-5 py-3">
+                      <span class="inline-flex items-center gap-1.5 font-semibold text-slate-700">
+                        <i class="fa fa-user text-[10px] text-slate-400"></i>
+                        {entry.actor}
+                      </span>
+                    </td>
+                    <td class="px-5 py-3">
+                      <span class="bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-[10px] font-mono font-semibold">
+                        {entry.action}
+                      </span>
+                    </td>
+                    <td class="px-5 py-3">
+                      <%= if entry.resource_type do %>
+                        <span class="text-slate-600">
+                          {entry.resource_type}<%= if entry.resource_name, do: " / #{entry.resource_name}" %>
+                        </span>
+                      <% else %>
+                        <span class="text-slate-400 italic">—</span>
+                      <% end %>
+                    </td>
+                    <td class="px-5 py-3 max-w-xs">
+                      <%= if entry.details && map_size(entry.details) > 0 do %>
+                        <code class="text-[11px] text-slate-500 bg-slate-50 px-2 py-0.5 rounded block truncate" title={Jason.encode_to_iodata!(entry.details) |> IO.iodata_to_binary()}>
+                          {Jason.encode_to_iodata!(entry.details) |> IO.iodata_to_binary()}
+                        </code>
+                      <% else %>
+                        <span class="text-slate-400 italic">—</span>
+                      <% end %>
+                    </td>
+                  </tr>
+                <% end %>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="bg-[#f8fafb] border-t border-[#e9edef] px-5 py-2.5 text-[10px] text-slate-400 flex justify-between items-center">
+          <span>Showing {length(@entries)} of up to 200 recent entries</span>
+          <span>All times UTC</span>
+        </div>
+      </div>
+    </div>
+    """
+  end
+
+  defp format_audit_timestamp(nil), do: "—"
+  defp format_audit_timestamp(dt) do
+    Calendar.strftime(dt, "%Y-%m-%d %H:%M:%S UTC")
   end
 end

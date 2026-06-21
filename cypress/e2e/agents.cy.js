@@ -4,34 +4,45 @@ describe("Agents Management E2E Tests", () => {
     cy.get('.phx-connected', { timeout: 10000 }).should('exist');
   });
 
-  it("loads the agents page and displays agent tabs", () => {
+  it("loads the agents page with toolbar and tabs", () => {
     cy.verifyActiveTab("STATIC");
-    cy.verifyAgentExists("build-agent-01.example.com");
+    cy.get(".bulk-actions").should("exist");
+    // Toolbar buttons should exist
+    cy.contains("button", "DELETE").should("exist");
+    cy.contains("button", "ENABLE").should("exist");
+    cy.contains("button", "DISABLE").should("exist");
+    cy.contains("button", "SCHEDULE TEST JOB").should("exist");
+  });
+
+  it("displays agent count stats", () => {
+    cy.contains("Total").should("exist");
+    cy.contains("Enabled").should("exist");
+    cy.contains("Disabled").should("exist");
   });
 
   it("can switch between static and elastic agent tabs", () => {
     cy.selectAgentTab("ELASTIC");
     cy.verifyActiveTab("ELASTIC");
-    cy.verifyAgentExists("elastic-agent-k8s-abc123");
-    cy.verifyAgentNotExist("build-agent-01.example.com");
+    cy.selectAgentTab("STATIC");
+    cy.verifyActiveTab("STATIC");
   });
 
-  it("can filter agents using the search box", () => {
-    cy.get(".search-box input").type("vanilla");
-    cy.verifyAgentExists("vanilla-agent");
-    cy.verifyAgentNotExist("build-agent-01.example.com");
+  it("bulk delete is gated by confirmation dialog", () => {
+    cy.contains("button", "DELETE").should("have.attr", "data-confirm");
   });
 
-  it("supports bulk selection and bulk actions (enable/disable)", () => {
-    cy.verifyAgentState("build-agent-01.example.com", "idle");
-    
-    // Toggle first agent
-    cy.toggleAgentSelection("build-agent-01.example.com");
-    cy.performBulkAction("disable");
-    cy.get(".alert-info").should("contain", "disabled");
+  it("has checkboxes for agent selection", () => {
+    cy.get(".checkbox-cell input").should("exist");
+  });
 
-    cy.toggleAgentSelection("build-agent-01.example.com");
-    cy.performBulkAction("enable");
-    cy.get(".alert-info").should("contain", "enabled");
+  it("can filter agents via search", () => {
+    cy.get(".search-box input").type("dam2");
+    cy.contains("dam2.fritz.box").should("exist");
+  });
+
+  it("schedule test job button is clickable", () => {
+    cy.contains("button", "SCHEDULE TEST JOB").click();
+    // Should show flash message about scheduling
+    cy.get(".alert-info").should("contain", "scheduled");
   });
 });

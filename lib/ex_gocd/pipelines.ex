@@ -30,7 +30,7 @@ defmodule ExGoCD.Pipelines do
   alias ExGoCD.Params
   alias ExGoCD.VsmTracer
   alias ExGoCD.Agents
-  alias ExGoCD.AuditLog
+  alias ExGoCD.AuditLog.Events
 
   @doc """
   Lists all pipeline configs with stages and jobs (and tasks) preloaded.
@@ -643,7 +643,7 @@ defmodule ExGoCD.Pipelines do
           schedule_job_if_config(pipeline, counter, stage_instance, job_config, ji, params)
         end
         Phoenix.PubSub.broadcast(ExGoCD.PubSub, "pipelines:updates", :pipelines_updated)
-        AuditLog.log("anonymous", "pipeline.trigger", resource_type: "pipeline", resource_name: pipeline.name, details: %{counter: counter})
+        Events.pipeline_triggered("anonymous", pipeline.name, counter)
         {:ok, instance}
 
       {:error, reason} ->
