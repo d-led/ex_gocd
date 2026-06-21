@@ -8,7 +8,7 @@ defmodule ExGoCD.PipelinesTest do
 
   import Ecto.Query
   alias ExGoCD.Pipelines
-  alias ExGoCD.Pipelines.{Job, JobInstance, Pipeline, Stage, StageInstance, Task}
+  alias ExGoCD.Pipelines.{Job, JobInstance, Pipeline, Stage, StageInstance, Task, Template}
   alias ExGoCD.Repo
 
   setup do
@@ -152,6 +152,109 @@ defmodule ExGoCD.PipelinesTest do
     end
   end
 
+  describe "templates and parameters" do
+    test "pipeline with template_id resolves template stages" do
+      {pipeline, %{jobs: [_job]}} = insert_pipeline_with_template("templated-pipe", "tpl-unit", 1)
+
+      assert {:ok, instance} = Pipelines.trigger_pipeline(pipeline.name)
+      assert instance.counter == 1
+
+      [si] = from(s in StageInstance, where: s.pipeline_instance_id == ^instance.id) |> Repo.all()
+      assert si.name == "template-stage"
+
+      [ji] = from(j in JobInstance, where: j.stage_instance_id == ^si.id) |> Repo.all()
+      assert ji.name == "tpl-job-1"
+      assert ji.state == "Scheduled"
+    end
+
+    test "template pipeline resolves template name in build command" do
+      pipeline = Repo.insert!(%Pipeline{} |> Pipeline.changeset(%{name: "param-pipe", group: "test",
+        label_template: "${COUNT}", parameters: %{"deploy_env" => "staging"}}))
+
+      template = Repo.insert!(%Template{} |> Template.changeset(%{name: "param-tpl"}))
+      stage = Repo.insert!(%Stage{} |> Stage.changeset(%{name: "deploy", template_id: template.id, approval_type: "success"}))
+      job = Repo.insert!(%Job{} |> Job.changeset(%{name: "deploy-job", stage_id: stage.id, resources: []}))
+      Repo.insert!(%Task{} |> Task.changeset(%{type: "exec", command: "deploy.sh", arguments: ["\#{deploy_env}"], job_id: job.id}))
+
+      {:ok, pipeline} = pipeline |> Pipeline.changeset(%{template_id: template.id}) |> Repo.update()
+
+      assert {:ok, _instance} = Pipelines.trigger_pipeline(pipeline.name)
+    end
+
+    test "parameters in label_template are interpolated" do
+      pipeline = Repo.insert!(%Pipeline{} |> Pipeline.changeset(%{name: "label-param-pipe", group: "test",
+        label_template: "release-\#{version}-${COUNT}", parameters: %{"version" => "2.0"}}))
+      stage = Repo.insert!(%Stage{} |> Stage.changeset(%{name: "build", pipeline_id: pipeline.id, approval_type: "success"}))
+      job = Repo.insert!(%Job{} |> Job.changeset(%{name: "compiler", stage_id: stage.id, resources: []}))
+      Repo.insert!(%Task{} |> Task.changeset(%{type: "exec", command: "make", arguments: [], job_id: job.id}))
+
+      Repo.preload(pipeline, [stages: [jobs: :tasks]])
+
+      assert {:ok, instance} = Pipelines.trigger_pipeline(pipeline.name)
+      assert instance.label == "release-2.0-1"
+    end
+
+    test "trigger options override pipeline parameters" do
+      pipeline = Repo.insert!(%Pipeline{} |> Pipeline.changeset(%{name: "override-param-pipe", group: "test",
+        label_template: "deploy-\#{env}-${COUNT}", parameters: %{"env" => "staging"}}))
+      stage = Repo.insert!(%Stage{} |> Stage.changeset(%{name: "build", pipeline_id: pipeline.id, approval_type: "success"}))
+      job = Repo.insert!(%Job{} |> Job.changeset(%{name: "test", stage_id: stage.id, resources: []}))
+      Repo.insert!(%Task{} |> Task.changeset(%{type: "exec", command: "true", arguments: [], job_id: job.id}))
+
+      Repo.preload(pipeline, [stages: [jobs: :tasks]])
+
+      assert {:ok, instance} = Pipelines.trigger_pipeline(pipeline.name, %{parameters: %{"env" => "production"}})
+      assert instance.label == "deploy-production-1"
+    end
+  end
+
+  describe "run_on_all_agents and run_multiple_instance" do
+    test "run_on_all_agents creates one JobInstance per idle agent" do
+      # Register an idle agent
+      {:ok, _agent} = ExGoCD.Agents.register_agent(%{uuid: "550e8400-e29b-41d4-a716-446655441001", hostname: "host1", ipaddress: "10.0.0.1", state: "Idle"})
+
+      pipeline = Repo.insert!(%Pipeline{} |> Pipeline.changeset(%{name: "run-all-pipe", group: "test"}))
+      stage = Repo.insert!(%Stage{} |> Stage.changeset(%{name: "build", pipeline_id: pipeline.id, approval_type: "success"}))
+      job = Repo.insert!(%Job{} |> Job.changeset(%{name: "daemon", stage_id: stage.id, resources: [], run_on_all_agents: true}))
+      Repo.insert!(%Task{} |> Task.changeset(%{type: "exec", command: "echo", arguments: ["daemon"], job_id: job.id}))
+
+      Repo.preload(pipeline, [stages: [jobs: :tasks]])
+
+      assert {:ok, instance} = Pipelines.trigger_pipeline(pipeline.name)
+      [si] = from(s in StageInstance, where: s.pipeline_instance_id == ^instance.id) |> Repo.all()
+      job_instances = from(ji in JobInstance, where: ji.stage_instance_id == ^si.id) |> Repo.all()
+      assert length(job_instances) == 1
+      assert hd(job_instances).run_on_all_agents == true
+    end
+
+    test "run_multiple_instance creates N job instances" do
+      pipeline = Repo.insert!(%Pipeline{} |> Pipeline.changeset(%{name: "multi-inst-pipe", group: "test"}))
+      stage = Repo.insert!(%Stage{} |> Stage.changeset(%{name: "build", pipeline_id: pipeline.id, approval_type: "success"}))
+      job = Repo.insert!(%Job{} |> Job.changeset(%{name: "parallel", stage_id: stage.id, resources: [], run_instance_count: "3"}))
+      Repo.insert!(%Task{} |> Task.changeset(%{type: "exec", command: "echo", arguments: ["parallel"], job_id: job.id}))
+
+      Repo.preload(pipeline, [stages: [jobs: :tasks]])
+
+      assert {:ok, instance} = Pipelines.trigger_pipeline(pipeline.name)
+      [si] = from(s in StageInstance, where: s.pipeline_instance_id == ^instance.id) |> Repo.all()
+      job_instances = from(ji in JobInstance, where: ji.stage_instance_id == ^si.id) |> Repo.all()
+      assert length(job_instances) == 3
+      assert Enum.all?(job_instances, &(&1.run_multiple_instance == true))
+      assert Enum.all?(job_instances, &(&1.name == "parallel"))
+    end
+
+    test "default job creates exactly one instance" do
+      {pipeline, _stage, _jobs} = insert_pipeline_with_jobs("single-normal", 1)
+
+      assert {:ok, instance} = Pipelines.trigger_pipeline(pipeline.name)
+      [si] = from(s in StageInstance, where: s.pipeline_instance_id == ^instance.id) |> Repo.all()
+      job_instances = from(ji in JobInstance, where: ji.stage_instance_id == ^si.id) |> Repo.all()
+      assert length(job_instances) == 1
+      assert hd(job_instances).run_on_all_agents == false
+      assert hd(job_instances).run_multiple_instance == false
+    end
+  end
+
   describe "rerun_stage/4" do
     test "rerun schedules jobs and increments stage counter" do
       {pipeline, stage, _jobs} = insert_pipeline_with_jobs("rerun-all", 2)
@@ -183,6 +286,25 @@ defmodule ExGoCD.PipelinesTest do
       assert new_job.name == "job-2"
       assert new_job.state == "Scheduled"
     end
+  end
+
+  defp insert_pipeline_with_template(pipeline_name, template_name, job_count) do
+    template = Repo.insert!(%Template{} |> Template.changeset(%{name: template_name}))
+    stage = Repo.insert!(%Stage{} |> Stage.changeset(%{name: "template-stage", template_id: template.id, approval_type: "success"}))
+
+    jobs =
+      for i <- 1..job_count do
+        job_name = "tpl-job-#{i}"
+        job = Repo.insert!(%Job{} |> Job.changeset(%{name: job_name, stage_id: stage.id, resources: []}))
+        Repo.insert!(%Task{} |> Task.changeset(%{type: "exec", command: "echo", arguments: [job_name], job_id: job.id}))
+        job
+      end
+
+    pipeline = Repo.insert!(%Pipeline{} |> Pipeline.changeset(%{name: pipeline_name, group: "test", template_id: template.id}))
+
+    pipeline = Repo.preload(pipeline, [:materials, :template, stages: [jobs: :tasks]])
+
+    {pipeline, %{template: template |> Repo.preload(stages: [jobs: :tasks]), stage: stage, jobs: jobs}}
   end
 
   defp insert_pipeline_with_jobs(name, job_count) when job_count >= 1 do

@@ -9,6 +9,7 @@ defmodule ExGoCD.Accounts do
   import Ecto.Query, warn: false
   alias ExGoCD.Accounts.User
   alias ExGoCD.Accounts.PersonalAccessToken
+  alias ExGoCD.Accounts.PipelineGroupPermission
   alias ExGoCD.Repo
 
   @doc """
@@ -222,4 +223,68 @@ defmodule ExGoCD.Accounts do
         {:ok, token.user}
     end
   end
+
+  # ── Pipeline Group Permissions ──────────────────────────────────────────
+
+  @doc """
+  Grants a role on a pipeline group to a user.
+  Valid roles: `"viewer"`, `"operator"`, `"admin"`.
+  """
+  @spec grant_pipeline_group_permission(integer(), String.t(), String.t()) :: {:ok, PipelineGroupPermission.t()} | {:error, Ecto.Changeset.t()}
+  def grant_pipeline_group_permission(user_id, pipeline_group, role) do
+    %PipelineGroupPermission{}
+    |> PipelineGroupPermission.changeset(%{user_id: user_id, pipeline_group: pipeline_group, role: role})
+    |> Repo.insert(on_conflict: :replace_all, conflict_target: [:user_id, :pipeline_group])
+  end
+
+  @doc """
+  Revokes a pipeline group permission.
+  """
+  def revoke_pipeline_group_permission(user_id, pipeline_group) do
+    case Repo.get_by(PipelineGroupPermission, user_id: user_id, pipeline_group: pipeline_group) do
+      nil -> {:error, :not_found}
+      perm -> Repo.delete(perm)
+    end
+  end
+
+  @doc """
+  Lists all pipeline group permissions for a user.
+  """
+  def list_pipeline_group_permissions(user_id) do
+    PipelineGroupPermission
+    |> where(user_id: ^user_id)
+    |> Repo.all()
+  end
+
+  @doc """
+  Checks if a user has a minimum role (or higher) on a pipeline group.
+  Role hierarchy: admin > operator > viewer.
+
+  Returns true if the user is a global admin or has sufficient group permission.
+  """
+  @spec can_access_pipeline_group?(User.t(), String.t(), String.t()) :: boolean()
+  def can_access_pipeline_group?(%User{} = user, pipeline_group, required_role \\ "viewer") do
+    # Global admins can access everything
+    if User.has_role?(user, :admin) do
+      true
+    else
+      # Guest users (nil id) have no permissions
+      if is_nil(user.id) do
+        false
+      else
+        perm = Repo.get_by(PipelineGroupPermission, user_id: user.id, pipeline_group: pipeline_group)
+
+        case perm do
+          nil -> false
+          %{role: role} -> role_sufficient?(role, required_role)
+        end
+      end
+    end
+  end
+
+  defp role_sufficient?("admin", _), do: true
+  defp role_sufficient?("operator", "admin"), do: false
+  defp role_sufficient?("operator", _), do: true
+  defp role_sufficient?("viewer", "viewer"), do: true
+  defp role_sufficient?(_, _), do: false
 end

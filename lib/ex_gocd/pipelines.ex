@@ -24,8 +24,11 @@ defmodule ExGoCD.Pipelines do
   alias ExGoCD.Pipelines.Stage
   alias ExGoCD.Pipelines.StageInstance
   alias ExGoCD.Pipelines.Task
+  alias ExGoCD.Pipelines.Template
   alias ExGoCD.Repo
   alias ExGoCD.Scheduler
+  alias ExGoCD.Params
+  alias ExGoCD.Agents
 
   @doc """
   Lists all pipeline configs with stages and jobs (and tasks) preloaded.
@@ -81,7 +84,8 @@ defmodule ExGoCD.Pipelines do
     with %Pipeline{} = pipeline <- get_pipeline_by_name(pipeline_name),
          {:paused, false} <- {:paused, pipeline.paused},
          {:locked, false} <- {:locked, pipeline_locked?(pipeline)},
-         pipeline = Repo.preload(pipeline, [:materials, stages: [jobs: :tasks]]),
+         pipeline = Repo.preload(pipeline, [:materials, :template, stages: [jobs: :tasks]]),
+         pipeline = resolve_template_stages(pipeline),
          {:ok, proposed} <- resolve_proposed_revisions(pipeline, options),
          :ok <- FanInResolver.verify_consistency(proposed) do
       do_trigger_pipeline_with_proposed(pipeline, proposed, options)
@@ -91,6 +95,18 @@ defmodule ExGoCD.Pipelines do
       {:locked, true} -> {:error, :pipeline_locked}
       {:error, reason} -> {:error, reason}
     end
+  end
+
+  @doc """
+  If pipeline has a template, loads template stages (with jobs and tasks)
+  and swaps them into pipeline.stages. Parameters are NOT interpolated here —
+  that happens lazily in the trigger flow.
+  """
+  def resolve_template_stages(%{template_id: nil} = pipeline), do: pipeline
+  def resolve_template_stages(%{template_id: template_id} = pipeline) do
+    template = Repo.get!(Template, template_id)
+    |> Repo.preload(stages: [jobs: :tasks])
+    %{pipeline | stages: template.stages}
   end
 
   @doc """
@@ -288,7 +304,8 @@ defmodule ExGoCD.Pipelines do
                 pipeline_counter,
                 updated_si,
                 stage_config.jobs,
-                job_instances
+                job_instances,
+                pipeline.parameters || %{}
               )
 
               Phoenix.PubSub.broadcast(ExGoCD.PubSub, "pipelines:updates", :pipelines_updated)
@@ -405,12 +422,16 @@ defmodule ExGoCD.Pipelines do
   defp do_trigger_pipeline_with_proposed(pipeline, proposed, options) do
     counter = next_counter(pipeline.id)
     now = DateTime.utc_now()
-    label = String.replace(pipeline.label_template, "${COUNT}", to_string(counter))
+    params = Params.merge_params(pipeline.parameters, options)
+    label = pipeline.label_template
+    |> Params.interpolate(params)
+    |> String.replace("${COUNT}", to_string(counter))
     natural_order = counter * 1.0
 
     material_revisions = build_material_revisions_map(pipeline, proposed)
 
     env_vars = Map.get(options, :environment_variables) || Map.get(options, "environment_variables")
+    env_vars = if is_list(env_vars), do: Params.interpolate(env_vars, params), else: env_vars
 
     build_cause = %{
       "approver" => "anonymous",
@@ -425,6 +446,9 @@ defmodule ExGoCD.Pipelines do
       else
         build_cause
       end
+
+    # Compute idle agent count OUTSIDE the transaction (DB query)
+    idle_count = Agents.count_idle()
 
     result =
       Repo.transaction(fn ->
@@ -463,20 +487,29 @@ defmodule ExGoCD.Pipelines do
 
         scheduled_at = DateTime.to_naive(now)
         job_instances =
-          Enum.map(first_stage.jobs, fn job ->
-            %JobInstance{}
-            |> JobInstance.changeset(%{
-              stage_instance_id: stage_instance.id,
-              job_id: job.id,
-              name: job.name,
-              state: "Scheduled",
-              result: "Unknown",
-              scheduled_at: scheduled_at,
-              run_on_all_agents: job.run_on_all_agents || false,
-              run_multiple_instance: false,
-              identifier: "#{pipeline.name}/#{counter}/#{first_stage.name}/1/#{job.name}/1"
-            })
-            |> Repo.insert!()
+          Enum.flat_map(first_stage.jobs, fn job ->
+            count = instance_count_for_job(job, idle_count)
+            run_on_all = job.run_on_all_agents || false
+            run_multiple = job.run_instance_count not in [nil, ""]
+
+            for i <- 1..count do
+              identifier_suffix = if run_multiple and count > 1, do: "/run-#{i}", else: ""
+              identifier = "#{pipeline.name}/#{counter}/#{first_stage.name}/1/#{job.name}/1#{identifier_suffix}"
+
+              %JobInstance{}
+              |> JobInstance.changeset(%{
+                stage_instance_id: stage_instance.id,
+                job_id: job.id,
+                name: job.name,
+                state: "Scheduled",
+                result: "Unknown",
+                scheduled_at: scheduled_at,
+                run_on_all_agents: run_on_all,
+                run_multiple_instance: run_multiple,
+                identifier: identifier
+              })
+              |> Repo.insert!()
+            end
           end)
 
         {instance, first_stage, stage_instance, job_instances}
@@ -486,13 +519,38 @@ defmodule ExGoCD.Pipelines do
       {:ok, {instance, first_stage, stage_instance, job_instances}} ->
         for ji <- job_instances do
           job_config = Enum.find(first_stage.jobs, &(&1.id == ji.job_id))
-          schedule_job_if_config(pipeline, counter, stage_instance, job_config, ji)
+          schedule_job_if_config(pipeline, counter, stage_instance, job_config, ji, params)
         end
         Phoenix.PubSub.broadcast(ExGoCD.PubSub, "pipelines:updates", :pipelines_updated)
         {:ok, instance}
 
       {:error, reason} ->
         {:error, reason}
+    end
+  end
+
+  # Determines how many JobInstances to create for a job config.
+  # - run_on_all_agents: one per idle agent
+  # - run_instance_count set (not nil): N parallel instances
+  # - default: 1
+  defp instance_count_for_job(job, idle_count) do
+    cond do
+      job.run_on_all_agents ->
+        max(idle_count, 1)
+
+      job.run_instance_count not in [nil, ""] ->
+        case job.run_instance_count do
+          "all" -> max(idle_count, 1)
+          str when is_binary(str) ->
+            case Integer.parse(str) do
+              {n, _} -> max(n, 1)
+              :error -> 1
+            end
+          n when is_integer(n) -> max(n, 1)
+          _ -> 1
+        end
+
+      true -> 1
     end
   end
 
@@ -554,10 +612,10 @@ defmodule ExGoCD.Pipelines do
     end)
   end
 
-  defp schedule_job_if_config(_pipeline, _counter, _stage, nil, _ji), do: :noop
+  defp schedule_job_if_config(_pipeline, _counter, _stage, nil, _ji, _params), do: :noop
 
-  defp schedule_job_if_config(pipeline, counter, stage, job_config, ji) do
-    build_command = build_command_from_job(job_config)
+  defp schedule_job_if_config(pipeline, counter, stage, job_config, ji, params) do
+    build_command = build_command_from_job(job_config, params)
 
     spec = %{
       "pipeline" => pipeline.name,
@@ -574,13 +632,13 @@ defmodule ExGoCD.Pipelines do
     Scheduler.schedule_job(spec)
   end
 
-  defp build_command_from_job(job) do
+  defp build_command_from_job(job, params \\ %{}) do
     first_task = List.first(job.tasks || [])
     if first_task && first_task.type == "exec" do
       %{
         "name" => first_task.type,
-        "command" => first_task.command || "echo",
-        "args" => first_task.arguments || []
+        "command" => Params.interpolate(first_task.command || "echo", params),
+        "args" => Params.interpolate(first_task.arguments || [], params)
       }
     else
       %{"name" => "default", "command" => "echo", "args" => ["no task configured"]}
@@ -1085,7 +1143,7 @@ defmodule ExGoCD.Pipelines do
       end)
       |> case do
         {:ok, {new_si, next_stage_config, job_instances}} ->
-          schedule_next_jobs(pipeline, pipeline_instance.counter, new_si, next_stage_config.jobs, job_instances)
+          schedule_next_jobs(pipeline, pipeline_instance.counter, new_si, next_stage_config.jobs, job_instances, pipeline.parameters || %{})
           :ok
         error ->
           error
@@ -1130,10 +1188,10 @@ defmodule ExGoCD.Pipelines do
     end)
   end
 
-  defp schedule_next_jobs(pipeline, counter, new_si, job_configs, job_instances) do
+  defp schedule_next_jobs(pipeline, counter, new_si, job_configs, job_instances, params) do
     for ji <- job_instances do
       job_config = Enum.find(job_configs, &(&1.id == ji.job_id))
-      schedule_job_if_config(pipeline, counter, new_si, job_config, ji)
+      schedule_job_if_config(pipeline, counter, new_si, job_config, ji, params)
     end
   end
 

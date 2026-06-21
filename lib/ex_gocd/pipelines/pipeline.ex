@@ -10,7 +10,7 @@ defmodule ExGoCD.Pipelines.Pipeline do
   use Ecto.Schema
   import Ecto.Changeset
 
-  alias ExGoCD.Pipelines.{Material, PipelineInstance, Stage}
+  alias ExGoCD.Pipelines.{Material, PipelineInstance, Stage, Template}
 
   @type t :: %__MODULE__{
           id: integer() | nil,
@@ -22,8 +22,11 @@ defmodule ExGoCD.Pipelines.Pipeline do
           timer: String.t() | nil,
           timer_only_on_changes: boolean() | nil,
           params: map() | nil,
+          parameters: map() | nil,
           tracking_tool: map() | nil,
           template_name: String.t() | nil,
+          template_id: integer() | nil,
+          template: Template.t() | nil | Ecto.Association.NotLoaded.t(),
           display_order_weight: integer() | nil,
           paused: boolean() | nil,
           paused_by: String.t() | nil,
@@ -46,8 +49,11 @@ defmodule ExGoCD.Pipelines.Pipeline do
     field :timer, :string
     field :timer_only_on_changes, :boolean, default: false
     field :params, :map, default: %{}
+    field :parameters, :map, default: %{}
     field :tracking_tool, :map
     field :template_name, :string
+
+    belongs_to :template, Template
     field :display_order_weight, :integer, default: -1
     field :paused, :boolean, default: false
     field :paused_by, :string
@@ -77,8 +83,10 @@ defmodule ExGoCD.Pipelines.Pipeline do
       :timer,
       :timer_only_on_changes,
       :params,
+      :parameters,
       :tracking_tool,
       :template_name,
+      :template_id,
       :display_order_weight,
       :paused,
       :paused_by,

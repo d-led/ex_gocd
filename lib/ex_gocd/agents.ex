@@ -113,6 +113,20 @@ defmodule ExGoCD.Agents do
   end
 
   @doc """
+  Counts idle agents (state == "Idle", not disabled).
+  Used by run_on_all_agents and run_multiple_instance ("all").
+  """
+  @spec count_idle() :: integer()
+  def count_idle do
+    if use_mock?() do
+      Mock.list_active_agents() |> Enum.count(&(&1.state == "Idle"))
+    else
+      from(a in Agent, where: a.state == "Idle" and a.disabled == false and a.deleted == false)
+      |> Repo.aggregate(:count, :id)
+    end
+  end
+
+  @doc """
   Lists agents by environment.
   """
   @spec list_agents_in_environment(String.t()) :: [Agent.t()]
