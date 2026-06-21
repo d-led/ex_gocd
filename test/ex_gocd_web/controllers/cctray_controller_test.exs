@@ -42,7 +42,7 @@ defmodule ExGoCDWeb.CCTrayControllerTest do
       assert conn.resp_body =~ ~s(lastBuildStatus="Failure")
       assert conn.resp_body =~ ~s(lastBuildLabel="5")
       assert conn.resp_body =~ ~s(activity="Sleeping")
-      assert conn.resp_body =~ ~s(webUrl="/go/pipelines/my-app/5/build/1")
+      assert conn.resp_body =~ ~s(webUrl="/go/pipelines/my-app/5/build/5")
     end
 
     test "maps stage statuses to CCTray statuses correctly", %{conn: conn} do
@@ -99,7 +99,7 @@ defmodule ExGoCDWeb.CCTrayControllerTest do
 
       conn = get(conn, "/go/cctray.xml")
 
-      assert conn.resp_body =~ ~s(webUrl="/go/pipelines/web-url-pipe/42/stage1/1")
+      assert conn.resp_body =~ ~s(webUrl="/go/pipelines/web-url-pipe/42/stage1/42")
     end
   end
 

@@ -158,6 +158,19 @@ defmodule ExGoCD.Scheduler do
   end
 
   @impl true
+  def handle_info({:assign_work_to_agent, agent_uuid, parent_ctx}, state) do
+    VsmTracer.attach_ctx(parent_ctx)
+    new_state =
+      if connected?(agent_uuid) do
+        assign_work_if_exists(agent_uuid, state)
+      else
+        state
+      end
+
+    {:noreply, new_state}
+  end
+
+  # Keep backward compat for messages sent without context (e.g. from tests)
   def handle_info({:assign_work_to_agent, agent_uuid}, state) do
     new_state =
       if connected?(agent_uuid) do
@@ -607,11 +620,14 @@ defmodule ExGoCD.Scheduler do
     end
   end
 
-  # Triggers try_assign_work for all currently connected idle agents
+  # Triggers try_assign_work for all currently connected idle agents.
+  # Captures the current OTel context so async handle_info processing
+  # can attach it and create linked spans under the pipeline trace.
   defp trigger_assignment_for_idle_agents do
+    parent_ctx = VsmTracer.current_ctx()
     connected_agents = AgentPresence.list(@presence_topic)
     for {agent_uuid, _meta} <- connected_agents do
-      send(self(), {:assign_work_to_agent, agent_uuid})
+      send(self(), {:assign_work_to_agent, agent_uuid, parent_ctx})
     end
     :ok
   end

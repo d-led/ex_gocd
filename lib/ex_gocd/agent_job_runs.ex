@@ -110,30 +110,33 @@ defmodule ExGoCD.AgentJobRuns do
         "job.state" => job_state,
         "job.result" => result
       }, fn ->
-        # Set span status for terminal states
-        if job_state == "Completed" do
-          case result do
-            "Passed" -> VsmTracer.set_status(:ok)
-            _ -> VsmTracer.set_status({:error, "#{job_state}: #{result}"})
-          end
-        end
-
-        attrs = %{state: job_state}
-        attrs = if result, do: Map.put(attrs, :result, result), else: attrs
-
-        case run |> AgentJobRun.changeset(attrs) |> Repo.update() do
-          {:ok, updated} ->
-            broadcast_job_runs(agent_uuid, :run_updated)
-            broadcast_run_updated_for_console(build_id, updated)
-            maybe_complete_job_instance(updated, job_state, result)
-            {:ok, updated}
-
-          error ->
-            error
-        end
+        update_run_in_span(run, build_id, agent_uuid, job_state, result)
       end)
     else
       {:error, :run_not_found}
+    end
+  end
+
+  defp update_run_in_span(run, build_id, agent_uuid, job_state, result) do
+    if job_state == "Completed" do
+      case result do
+        "Passed" -> VsmTracer.set_status(:ok)
+        _ -> VsmTracer.set_status({:error, "#{job_state}: #{result}"})
+      end
+    end
+
+    attrs = %{state: job_state}
+    attrs = if result, do: Map.put(attrs, :result, result), else: attrs
+
+    case run |> AgentJobRun.changeset(attrs) |> Repo.update() do
+      {:ok, updated} ->
+        broadcast_job_runs(agent_uuid, :run_updated)
+        broadcast_run_updated_for_console(build_id, updated)
+        maybe_complete_job_instance(updated, job_state, result)
+        {:ok, updated}
+
+      error ->
+        error
     end
   end
 

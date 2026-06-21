@@ -417,21 +417,22 @@ defmodule ExGoCD.Pipelines do
         {:error, :not_found}
 
       si ->
-        Repo.transaction(fn ->
-          # Mark stage as Cancelled
-          Repo.update!(StageInstance.changeset(si, %{state: "Cancelled", result: "Cancelled"}))
-
-          # Cancel all building/scheduled job instances
-          Enum.each(si.job_instances, fn ji ->
-            if ji.state in ["Scheduled", "Assigned", "Preparing", "Building"] do
-              Repo.update!(JobInstance.changeset(ji, %{state: "Cancelled", result: "Cancelled"}))
-            end
-          end)
-        end)
-
+        cancel_stage_transaction(si)
         Phoenix.PubSub.broadcast(ExGoCD.PubSub, "pipelines:updates", :pipelines_updated)
         {:ok, si}
     end
+  end
+
+  defp cancel_stage_transaction(si) do
+    Repo.transaction(fn ->
+      Repo.update!(StageInstance.changeset(si, %{state: "Cancelled", result: "Cancelled"}))
+
+      Enum.each(si.job_instances, fn ji ->
+        if ji.state in ["Scheduled", "Assigned", "Preparing", "Building"] do
+          Repo.update!(JobInstance.changeset(ji, %{state: "Cancelled", result: "Cancelled"}))
+        end
+      end)
+    end)
   end
 
   @doc """
