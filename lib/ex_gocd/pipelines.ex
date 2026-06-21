@@ -77,14 +77,14 @@ defmodule ExGoCD.Pipelines do
   and enqueues each job to the Scheduler. Jobs will be picked up by idle agents.
   Returns {:ok, pipeline_instance} or {:error, changeset}.
   """
-  def trigger_pipeline(pipeline_name) when is_binary(pipeline_name) do
+  def trigger_pipeline(pipeline_name, options \\ %{}) when is_binary(pipeline_name) and is_map(options) do
     with %Pipeline{} = pipeline <- get_pipeline_by_name(pipeline_name),
          {:paused, false} <- {:paused, pipeline.paused},
          {:locked, false} <- {:locked, pipeline_locked?(pipeline)},
          pipeline = Repo.preload(pipeline, [:materials, stages: [jobs: :tasks]]),
-         {:ok, proposed} <- get_proposed_revisions(pipeline),
+         {:ok, proposed} <- resolve_proposed_revisions(pipeline, options),
          :ok <- FanInResolver.verify_consistency(proposed) do
-      do_trigger_pipeline_with_proposed(pipeline, proposed)
+      do_trigger_pipeline_with_proposed(pipeline, proposed, options)
     else
       nil -> {:error, :pipeline_not_found}
       {:paused, true} -> {:error, :pipeline_paused}
@@ -92,6 +92,72 @@ defmodule ExGoCD.Pipelines do
       {:error, reason} -> {:error, reason}
     end
   end
+
+  @doc """
+  Calculates a 16-character SHA256 fingerprint for a material.
+  """
+  def material_fingerprint(mat) do
+    :crypto.hash(:sha256, "#{mat.type}-#{mat.url || ""}-#{mat.branch || ""}")
+    |> Base.encode16(case: :lower)
+    |> String.slice(0, 16)
+  end
+
+  defp resolve_proposed_revisions(pipeline, %{materials: overrides}) when is_list(overrides) do
+    case get_proposed_revisions(pipeline) do
+      {:ok, proposed} ->
+        updated_proposed =
+          Enum.reduce(overrides, proposed, fn override, acc ->
+            fp = override["fingerprint"] || override[:fingerprint]
+            revision = override["revision"] || override[:revision]
+
+            case Enum.find(pipeline.materials || [], &(material_fingerprint(&1) == fp)) do
+              nil ->
+                acc
+
+              material ->
+                mod = get_or_create_modification_for_revision(material, revision)
+                type_atom = material_type_to_atom(material.type)
+                Map.put(acc, material.id, {type_atom, mod})
+            end
+          end)
+
+        {:ok, updated_proposed}
+
+      error ->
+        error
+    end
+  end
+
+  defp resolve_proposed_revisions(pipeline, %{"materials" => overrides}) when is_list(overrides) do
+    resolve_proposed_revisions(pipeline, %{materials: overrides})
+  end
+
+  defp resolve_proposed_revisions(pipeline, _options) do
+    get_proposed_revisions(pipeline)
+  end
+
+  defp get_or_create_modification_for_revision(material, revision) do
+    case Repo.get_by(Modification, material_id: material.id, revision: revision) do
+      nil ->
+        attrs = %{
+          material_id: material.id,
+          revision: revision,
+          committer_name: "gocd",
+          committer_email: "gocd@localhost",
+          comment: "Triggered with specific revision",
+          modified_time: DateTime.utc_now() |> DateTime.truncate(:second)
+        }
+        {:ok, mod} = create_modification(attrs)
+        mod
+
+      mod ->
+        mod
+    end
+  end
+
+  defp material_type_to_atom("git"), do: :git
+  defp material_type_to_atom("dependency"), do: :pipeline
+  defp material_type_to_atom(other), do: String.to_atom(other)
 
   @doc """
   Pauses a pipeline, preventing scheduled or manual triggers.
@@ -336,7 +402,7 @@ defmodule ExGoCD.Pipelines do
     end)
   end
 
-  defp do_trigger_pipeline_with_proposed(pipeline, proposed) do
+  defp do_trigger_pipeline_with_proposed(pipeline, proposed, options) do
     counter = next_counter(pipeline.id)
     now = DateTime.utc_now()
     label = String.replace(pipeline.label_template, "${COUNT}", to_string(counter))
@@ -344,12 +410,21 @@ defmodule ExGoCD.Pipelines do
 
     material_revisions = build_material_revisions_map(pipeline, proposed)
 
+    env_vars = Map.get(options, :environment_variables) || Map.get(options, "environment_variables")
+
     build_cause = %{
       "approver" => "anonymous",
       "triggerMessage" => "Triggered from dashboard",
       "triggerForced" => false,
       "materialRevisions" => material_revisions
     }
+
+    build_cause =
+      if is_list(env_vars) do
+        Map.put(build_cause, "environmentVariables", env_vars)
+      else
+        build_cause
+      end
 
     result =
       Repo.transaction(fn ->

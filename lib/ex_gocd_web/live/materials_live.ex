@@ -517,7 +517,7 @@ defmodule ExGoCDWeb.MaterialsLive do
           GoCD Version: 25.4.0 (21793-c8358258163d7b9833ab3b1b18a2f459999936b03a).
         </div>
         <div class="footer-right">
-          <a href="#" title="GitHub"><i class="fa-brands fa-github"></i></a>
+          <a href="https://github.com/d-led/ex_gocd" target="_blank" rel="noopener noreferrer" title="GitHub"><i class="fa-brands fa-github"></i></a>
           <a href="#" title="Chat"><i class="fa-solid fa-comments"></i></a>
           <a href="#" title="Documentation"><i class="fa-solid fa-book"></i></a>
           <a href="#" title="Plugins"><i class="fa-solid fa-plug"></i></a>

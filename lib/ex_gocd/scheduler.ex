@@ -327,7 +327,7 @@ defmodule ExGoCD.Scheduler do
     pipeline = pipeline_instance.pipeline
     job_config = ji.job
 
-    env_vars = get_all_job_env_vars(pipeline, stage_instance, job_config)
+    env_vars = get_all_job_env_vars(pipeline, stage_instance, job_config, pipeline_instance)
     export_cmds = Enum.map(env_vars, fn var ->
       %{
         "name" => "export",
@@ -509,13 +509,26 @@ defmodule ExGoCD.Scheduler do
   end
 
   # Helper to aggregate all environment variables across all hierarchy levels
-  defp get_all_job_env_vars(pipeline, stage_instance, job_config) do
+  defp get_all_job_env_vars(pipeline, stage_instance, job_config, pipeline_instance) do
     env_vars = get_env_level_vars(pipeline.name)
     pipe_vars = map_to_gocd_vars(pipeline.environment_variables)
     stage_vars = get_stage_vars(pipeline.id, stage_instance.name)
     job_vars = if job_config, do: map_to_gocd_vars(job_config.environment_variables), else: []
 
-    merge_env_vars(env_vars, pipe_vars, stage_vars, job_vars)
+    override_vars =
+      case pipeline_instance.build_cause do
+        %{"environmentVariables" => list} when is_list(list) ->
+          Enum.map(list, fn item ->
+            name = item["name"] || item[:name]
+            value = decrypt_variable(item)
+            %{"name" => to_string(name), "value" => to_string(value)}
+          end)
+
+        _ ->
+          []
+      end
+
+    merge_env_vars(env_vars, pipe_vars, stage_vars, job_vars, override_vars)
   end
 
   defp get_env_level_vars(pipeline_name) do
@@ -556,17 +569,19 @@ defmodule ExGoCD.Scheduler do
   end
   defp map_to_gocd_vars(_), do: []
 
-  defp merge_env_vars(env, pipe, stage, job) do
+  defp merge_env_vars(env, pipe, stage, job, overrides) do
     norm_env = list_to_var_map(env)
     norm_pipe = list_to_var_map(pipe)
     norm_stage = list_to_var_map(stage)
     norm_job = list_to_var_map(job)
+    norm_overrides = list_to_var_map(overrides)
 
     merged =
       norm_env
       |> Map.merge(norm_pipe)
       |> Map.merge(norm_stage)
       |> Map.merge(norm_job)
+      |> Map.merge(norm_overrides)
 
     Map.values(merged)
   end

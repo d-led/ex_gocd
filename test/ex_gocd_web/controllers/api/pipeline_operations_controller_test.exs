@@ -98,4 +98,132 @@ defmodule ExGoCDWeb.API.PipelineOperationsControllerTest do
       assert response["message"] == "Pipeline 'test-go-api-unpause' unpaused successfully."
     end
   end
+
+  describe "GET /api/pipelines/:pipeline_name/status" do
+    test "returns the pipeline status successfully", %{conn: conn} do
+      pipeline = Repo.insert!(%Pipelines.Pipeline{name: "test-api-status", group: "test"})
+
+      conn = get(conn, ~p"/api/pipelines/#{pipeline.name}/status")
+
+      assert response = json_response(conn, 200)
+      assert response["paused"] == false
+      assert response["paused_cause"] == ""
+      assert response["paused_by"] == ""
+      assert response["locked"] == false
+      assert response["schedulable"] == true
+    end
+
+    test "returns locked if pipeline has a running instance", %{conn: conn} do
+      pipeline = Repo.insert!(%Pipelines.Pipeline{name: "test-api-status-locked", group: "test", lock_behavior: "unlockWhenFinished"})
+      stage = Repo.insert!(%Pipelines.Stage{name: "build", pipeline_id: pipeline.id})
+      # Insert running pipeline instance and stage instance
+      instance = Repo.insert!(%Pipelines.PipelineInstance{
+        pipeline_id: pipeline.id,
+        counter: 1,
+        label: "1",
+        natural_order: 1.0,
+        build_cause: %{"message" => "trigger"}
+      })
+      Repo.insert!(%Pipelines.StageInstance{
+        pipeline_instance_id: instance.id,
+        name: stage.name,
+        counter: 1,
+        order_id: 1,
+        state: "Building",
+        result: "Unknown",
+        approval_type: "success",
+        created_time: DateTime.utc_now() |> DateTime.truncate(:second)
+      })
+
+      conn = get(conn, ~p"/api/pipelines/#{pipeline.name}/status")
+
+      assert response = json_response(conn, 200)
+      assert response["locked"] == true
+      assert response["schedulable"] == false
+    end
+  end
+
+  describe "POST /api/pipelines/:pipeline_name/unlock" do
+    test "unlocks pipeline successfully", %{conn: conn} do
+      pipeline = Repo.insert!(%Pipelines.Pipeline{name: "test-api-unlock", group: "test", locked: true})
+
+      conn = conn
+      |> put_req_header("x-gocd-confirm", "true")
+      |> post(~p"/api/pipelines/#{pipeline.name}/unlock")
+
+      assert response = json_response(conn, 200)
+      assert response["message"] == "Pipeline lock released for test-api-unlock."
+
+      updated = Repo.get!(Pipelines.Pipeline, pipeline.id)
+      assert updated.locked == false
+    end
+
+    test "requires X-GoCD-Confirm header", %{conn: conn} do
+      pipeline = Repo.insert!(%Pipelines.Pipeline{name: "test-api-unlock-no-confirm", group: "test", locked: true})
+
+      conn = post(conn, ~p"/api/pipelines/#{pipeline.name}/unlock")
+      assert json_response(conn, 400) == %{"error" => "Missing required header 'X-GoCD-Confirm: true'"}
+    end
+  end
+
+  describe "POST /api/pipelines/:pipeline_name/schedule" do
+    test "schedules pipeline and triggers first stage", %{conn: conn} do
+      # Seed pipeline config
+      pipeline = Repo.insert!(%Pipelines.Pipeline{name: "test-api-schedule", group: "test"})
+      material = Repo.insert!(%Pipelines.Material{type: "git", url: "https://github.com/d-led/ex_gocd", branch: "master"})
+      Repo.insert_all("pipelines_materials", [%{pipeline_id: pipeline.id, material_id: material.id}])
+      stage = Repo.insert!(%Pipelines.Stage{name: "build", pipeline_id: pipeline.id})
+      job = Repo.insert!(%Pipelines.Job{name: "test", stage_id: stage.id})
+      Repo.insert!(%Pipelines.Task{type: "exec", command: "echo", arguments: ["1"], job_id: job.id})
+
+      # Trigger via API
+      conn = post(conn, ~p"/api/pipelines/#{pipeline.name}/schedule")
+      assert json_response(conn, 202) == %{"message" => "Request to schedule pipeline test-api-schedule accepted"}
+
+      # Verify DB state
+      [instance] = Repo.all(Pipelines.PipelineInstance)
+      assert instance.counter == 1
+      assert instance.build_cause["triggerForced"] == false
+
+      # Check job enqueued in scheduler
+      assert ExGoCD.Scheduler.pending_count() == 1
+    end
+
+    test "schedules pipeline with environment variables and materials overrides", %{conn: conn} do
+      pipeline = Repo.insert!(%Pipelines.Pipeline{name: "test-api-schedule-overrides", group: "test"})
+      material = Repo.insert!(%Pipelines.Material{type: "git", url: "https://github.com/d-led/ex_gocd", branch: "master"})
+      Repo.insert_all("pipelines_materials", [%{pipeline_id: pipeline.id, material_id: material.id}])
+      stage = Repo.insert!(%Pipelines.Stage{name: "build", pipeline_id: pipeline.id})
+      job = Repo.insert!(%Pipelines.Job{name: "test", stage_id: stage.id})
+      Repo.insert!(%Pipelines.Task{type: "exec", command: "echo", arguments: ["1"], job_id: job.id})
+
+      fingerprint = Pipelines.material_fingerprint(material)
+
+      params = %{
+        "environment_variables" => [
+          %{"name" => "OVERRIDDEN_VAR", "value" => "override_val", "secure" => false}
+        ],
+        "materials" => [
+          %{"fingerprint" => fingerprint, "revision" => "abcdef123456"}
+        ]
+      }
+
+      conn = post(conn, ~p"/api/pipelines/#{pipeline.name}/schedule", params)
+      assert json_response(conn, 202) == %{"message" => "Request to schedule pipeline test-api-schedule-overrides accepted"}
+
+      [instance] = Repo.all(Pipelines.PipelineInstance)
+      assert instance.build_cause["environmentVariables"] == params["environment_variables"]
+
+      [pmr] = Repo.all(Pipelines.PipelineMaterialRevision) |> Repo.preload(:modification)
+      assert pmr.modification.revision == "abcdef123456"
+
+      # Verify env vars are merged for execution
+      [ji] = Repo.all(Pipelines.JobInstance) |> Repo.preload([stage_instance: [pipeline_instance: :pipeline], job: :tasks])
+      cmd = ExGoCD.Scheduler.build_command_from_job_instance(ji)
+      # Locate the export subcommand
+      export_subcmd = Enum.find(cmd["subCommands"], &(&1["name"] == "export" and List.first(&1["args"]) == "OVERRIDDEN_VAR"))
+      assert export_subcmd != nil
+      assert List.last(export_subcmd["args"]) == "override_val"
+    end
+  end
 end

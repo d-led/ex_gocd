@@ -102,4 +102,110 @@ defmodule ExGoCDWeb.API.PipelineOperationsController do
         |> json(%{error: "Forbidden"})
     end
   end
+
+  def status(conn, %{"pipeline_name" => name}) do
+    user = get_current_user(conn)
+    case ExGoCD.Policies.permit?(ExGoCD.Policies.EnvironmentPolicy, :trigger_pipeline, user) do
+      true ->
+        case Pipelines.get_pipeline_by_name(name) do
+          nil ->
+            conn
+            |> put_status(:not_found)
+            |> json(%{error: "Pipeline '#{name}' not found."})
+
+          pipeline ->
+            locked = Pipelines.pipeline_locked?(pipeline)
+            conn
+            |> put_status(:ok)
+            |> put_view(json: ExGoCDWeb.API.PipelineOperationsJSON)
+            |> render(:status, %{
+              paused: pipeline.paused,
+              paused_cause: pipeline.pause_cause || "",
+              paused_by: pipeline.paused_by || "",
+              locked: locked,
+              schedulable: not pipeline.paused and not locked
+            })
+        end
+
+      false ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{error: "Forbidden"})
+    end
+  end
+
+  def unlock(conn, %{"pipeline_name" => name}) do
+    user = get_current_user(conn)
+    case ExGoCD.Policies.permit?(ExGoCD.Policies.EnvironmentPolicy, :trigger_pipeline, user) do
+      true ->
+        confirm_header = get_req_header(conn, "x-gocd-confirm")
+        if List.first(confirm_header) in ["true", "confirm"] do
+          case Pipelines.unlock_pipeline(name) do
+            {:ok, _pipeline} ->
+              conn
+              |> put_status(:ok)
+              |> put_view(json: ExGoCDWeb.API.PipelineOperationsJSON)
+              |> render(:message, message: "Pipeline lock released for #{name}.")
+
+            {:error, :pipeline_not_found} ->
+              conn
+              |> put_status(:not_found)
+              |> json(%{error: "Pipeline '#{name}' not found."})
+
+            {:error, _} ->
+              conn
+              |> put_status(:unprocessable_entity)
+              |> json(%{error: "Failed to unlock pipeline."})
+          end
+        else
+          conn
+          |> put_status(:bad_request)
+          |> json(%{error: "Missing required header 'X-GoCD-Confirm: true'"})
+        end
+
+      false ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{error: "Forbidden"})
+    end
+  end
+
+  def schedule(conn, %{"pipeline_name" => name} = params) do
+    user = get_current_user(conn)
+    case ExGoCD.Policies.permit?(ExGoCD.Policies.EnvironmentPolicy, :trigger_pipeline, user) do
+      true ->
+        case Pipelines.trigger_pipeline(name, params) do
+          {:ok, _instance} ->
+            conn
+            |> put_status(:accepted)
+            |> put_view(json: ExGoCDWeb.API.PipelineOperationsJSON)
+            |> render(:message, message: "Request to schedule pipeline #{name} accepted")
+
+          {:error, :pipeline_not_found} ->
+            conn
+            |> put_status(:not_found)
+            |> json(%{error: "Pipeline '#{name}' not found."})
+
+          {:error, :pipeline_paused} ->
+            conn
+            |> put_status(:conflict)
+            |> json(%{error: "Pipeline '#{name}' is paused."})
+
+          {:error, :pipeline_locked} ->
+            conn
+            |> put_status(:conflict)
+            |> json(%{error: "Pipeline '#{name}' is locked."})
+
+          {:error, reason} ->
+            conn
+            |> put_status(:unprocessable_entity)
+            |> json(%{error: "Failed to schedule pipeline. Reason: #{inspect(reason)}"})
+        end
+
+      false ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{error: "Forbidden"})
+    end
+  end
 end

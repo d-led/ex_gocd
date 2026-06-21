@@ -128,9 +128,14 @@ defmodule ExGoCDWeb.Router do
     # Schedule a job (enqueue for next idle agent; GoCD-style pipeline/stage/job)
     post "/jobs/schedule", JobController, :schedule
 
-    # Pipeline operations (pause/unpause/approve)
+    get "/version", VersionController, :show
+
+    # Pipeline operations (pause/unpause/approve/status/unlock/schedule)
+    get "/pipelines/:pipeline_name/status", PipelineOperationsController, :status
     post "/pipelines/:pipeline_name/pause", PipelineOperationsController, :pause
     post "/pipelines/:pipeline_name/unpause", PipelineOperationsController, :unpause
+    post "/pipelines/:pipeline_name/unlock", PipelineOperationsController, :unlock
+    post "/pipelines/:pipeline_name/schedule", PipelineOperationsController, :schedule
     post "/pipelines/:pipeline_name/:counter/:stage_name/run", PipelineOperationsController, :approve_stage
   end
 
@@ -161,9 +166,14 @@ defmodule ExGoCDWeb.Router do
     post "/builds/:build_id/console", BuildConsoleController, :append
     post "/jobs/schedule", JobController, :schedule
 
-    # Pipeline operations (pause/unpause/approve)
+    get "/version", VersionController, :show
+
+    # Pipeline operations (pause/unpause/approve/status/unlock/schedule)
+    get "/pipelines/:pipeline_name/status", PipelineOperationsController, :status
     post "/pipelines/:pipeline_name/pause", PipelineOperationsController, :pause
     post "/pipelines/:pipeline_name/unpause", PipelineOperationsController, :unpause
+    post "/pipelines/:pipeline_name/unlock", PipelineOperationsController, :unlock
+    post "/pipelines/:pipeline_name/schedule", PipelineOperationsController, :schedule
     post "/pipelines/:pipeline_name/:counter/:stage_name/run", PipelineOperationsController, :approve_stage
   end
 
