@@ -6,7 +6,6 @@ defmodule ExGoCD.Pipelines.ManualGateTest do
 
   import Ecto.Query
 
-  alias Ecto.Adapters.SQL.Sandbox
   alias ExGoCD.Pipelines
   alias ExGoCD.Pipelines.{Job, JobInstance, Pipeline, Stage, StageInstance, Task}
   alias ExGoCD.Repo

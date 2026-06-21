@@ -8,7 +8,6 @@ defmodule ExGoCD.Materials.TimerSchedulerTest do
 
   import Ecto.Query
 
-  alias Ecto.Adapters.SQL.Sandbox
   alias ExGoCD.Materials.TimerScheduler
   alias ExGoCD.Pipelines
   alias ExGoCD.Pipelines.{Job, Modification, Pipeline, PipelineInstance, Stage, Task}

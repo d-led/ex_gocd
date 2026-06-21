@@ -1,7 +1,6 @@
 defmodule ExGoCD.SchedulerTest do
   use ExGoCD.DataCase, async: false
 
-  alias Ecto.Adapters.SQL.Sandbox
   alias ExGoCD.Agents
   alias ExGoCD.Scheduler
   alias ExGoCDWeb.AgentPresence

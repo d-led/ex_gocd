@@ -4,7 +4,6 @@
 defmodule ExGoCD.TestAgentTest do
   use ExGoCD.DataCase, async: false
 
-  alias Ecto.Adapters.SQL.Sandbox
   alias ExGoCD.AgentJobRuns
   alias ExGoCD.Agents
   alias ExGoCD.Scheduler

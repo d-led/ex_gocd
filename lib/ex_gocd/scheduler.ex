@@ -129,8 +129,9 @@ defmodule ExGoCD.Scheduler do
   end
 
   def handle_call(:clear_queue, _from, state) do
-    # Clear both in-memory queue and database-backed scheduled runs in test env
-    clear_db_scheduled_runs()
+    # Only reset the in-memory queue. DB isolation is handled by the test sandbox,
+    # which rolls back all changes per test. Running a Repo query here would borrow
+    # the calling test's sandbox connection and block this GenServer when that owner exits.
     broadcast_pending_count(0)
     {:reply, :ok, %{state | in_memory_queue: []}}
   end
@@ -620,11 +621,6 @@ defmodule ExGoCD.Scheduler do
     end, 0)
   end
 
-  defp clear_db_scheduled_runs do
-    safe_db(fn ->
-      Repo.delete_all(from(ji in JobInstance, where: ji.state == "Scheduled"))
-    end, {0, nil})
-  end
 
   # Triggers try_assign_work for all currently connected idle agents
   defp trigger_assignment_for_idle_agents do

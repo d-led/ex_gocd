@@ -4,7 +4,6 @@ defmodule ExGoCD.Materials.PollerTest do
   """
   use ExGoCD.DataCase, async: false
 
-  alias Ecto.Adapters.SQL.Sandbox
   alias ExGoCD.Materials.Poller
   alias ExGoCD.Pipelines.{Job, Material, Modification, Pipeline, PipelineInstance, Stage, Task}
   alias ExGoCD.Repo
