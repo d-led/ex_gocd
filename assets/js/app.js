@@ -69,9 +69,11 @@ const VSMGraph = {
       const paths = svg.querySelectorAll(".vsm-path");
       paths.forEach(p => p.remove());
 
-      // Adjust SVG size to match scrollable area
-      svg.setAttribute("width", this.el.scrollWidth);
-      svg.setAttribute("height", this.el.scrollHeight);
+      // Size SVG to the visible container area (client, not scroll)
+      // so paths don't force horizontal scroll in narrow/mobile view.
+      svg.setAttribute("width", this.el.clientWidth);
+      svg.setAttribute("height", Math.max(this.el.clientHeight, this.el.scrollHeight));
+      svg.style.overflow = "visible";
 
       const wrapperRect = this.el.getBoundingClientRect();
       const nodes = this.el.querySelectorAll(".vsm-node");
@@ -94,11 +96,13 @@ const VSMGraph = {
       const nodeArr = Object.values(nodeMap);
       const narrow = detectNarrowLayout(nodeArr);
 
-      // Bus lane X coordinate for narrow-mode routing
+      // Bus lane X coordinate for narrow-mode routing.
+      // Use the LEFT side so arrowheads point right into targets and their
+      // bases extend left (outside node bounding boxes, visible above z-index).
       let busX = 0;
       if (narrow && nodeArr.length > 0) {
-        const maxRight = Math.max(...nodeArr.map(n => n.x + n.width));
-        busX = maxRight + 48;
+        const minLeft = Math.min(...nodeArr.map(n => n.x));
+        busX = Math.max(20, minLeft - 48);
       }
 
       // Render paths for each dependency link
@@ -127,13 +131,15 @@ const VSMGraph = {
           const isHighlight = source.isCurrent || target.isCurrent;
 
           if (narrow) {
-            // Sewage-pipe routing: out to bus → down/up the bus → back into target.
-            // Stagger each fan-out edge so parallel lines don't overlap in the bus.
-            const stagger = depIdx * 7;
+            // Left-side sewage-pipe: exit source LEFT edge → bus on the left →
+            // down/up the bus → enter target LEFT edge.
+            // Arrow points RIGHT into target, base extends LEFT (visible).
+            const stagger = depIdx * 5;
             const bx = busX + stagger;
+            const lx = source.x; // source left edge
 
             path.setAttribute("d",
-              `M ${sx} ${sy}` +
+              `M ${lx} ${sy}` +
               ` L ${bx} ${sy}` +
               ` L ${bx} ${ty}` +
               ` L ${tx} ${ty}`

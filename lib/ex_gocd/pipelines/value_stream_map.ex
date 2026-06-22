@@ -326,6 +326,9 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
       case pipeline_name do
         "build-linux" -> ["deploy-staging"]
         "deploy-staging" -> ["deploy-production"]
+        "upstream-lib" -> ["component-a", "component-b", "downstream-app"]
+        "component-a" -> ["integration-pipeline"]
+        "component-b" -> ["integration-pipeline"]
         _ -> []
       end
 
@@ -351,6 +354,10 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
       case pipeline_name do
         "deploy-staging" -> ["build-linux"]
         "deploy-production" -> ["deploy-staging"]
+        "component-a" -> ["upstream-lib"]
+        "component-b" -> ["upstream-lib"]
+        "integration-pipeline" -> ["component-a", "component-b"]
+        "downstream-app" -> ["upstream-lib"]
         _ -> []
       end
 

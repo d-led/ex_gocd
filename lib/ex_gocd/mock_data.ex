@@ -128,6 +128,78 @@ defmodule ExGoCD.MockData do
           %{type: "git", url: "https://github.com/gocd/gocd.git", branch: "release"}
         ]
       },
+      # ── Diamond fan-in/fan-out for VSM testing ─────────────────────────
+      %{
+        name: "upstream-lib",
+        group: "demo",
+        counter: 3,
+        status: "Passed",
+        triggered_by: "Triggered from dashboard",
+        last_run: ~U[2026-06-22 11:20:00Z],
+        stages: [
+          %{name: "build", status: "Passed", duration: 45}
+        ],
+        materials: [
+          %{type: "git", url: "https://github.com/d-led/ex_gocd.git", branch: "main"}
+        ]
+      },
+      %{
+        name: "component-a",
+        group: "demo",
+        counter: 3,
+        status: "Passed",
+        triggered_by: "Triggered by upstream-lib",
+        last_run: ~U[2026-06-22 11:20:51Z],
+        stages: [
+          %{name: "build", status: "Passed", duration: 30}
+        ],
+        materials: [
+          %{type: "dependency", url: "upstream-lib"}
+        ]
+      },
+      %{
+        name: "component-b",
+        group: "demo",
+        counter: 3,
+        status: "Passed",
+        triggered_by: "Triggered by upstream-lib",
+        last_run: ~U[2026-06-22 11:20:51Z],
+        stages: [
+          %{name: "build", status: "Passed", duration: 30}
+        ],
+        materials: [
+          %{type: "dependency", url: "upstream-lib"}
+        ]
+      },
+      %{
+        name: "integration-pipeline",
+        group: "demo",
+        counter: 4,
+        status: "Passed",
+        triggered_by: "Triggered by component-a + component-b",
+        last_run: ~U[2026-06-22 11:21:00Z],
+        stages: [
+          %{name: "integrate", status: "Passed", duration: 60}
+        ],
+        materials: [
+          %{type: "dependency", url: "component-a"},
+          %{type: "dependency", url: "component-b"}
+        ]
+      },
+      %{
+        name: "downstream-app",
+        group: "demo",
+        counter: 3,
+        status: "Passed",
+        triggered_by: "Triggered by upstream-lib",
+        last_run: ~U[2026-06-22 11:20:51Z],
+        stages: [
+          %{name: "package", status: "Passed", duration: 30}
+        ],
+        materials: [
+          %{type: "dependency", url: "upstream-lib"}
+        ]
+      },
       %{
         name: "docs-build",
         group: "Documentation",
@@ -210,7 +282,7 @@ defmodule ExGoCD.MockData do
         Map.put(mat, :pipeline_name, p.name)
       end)
     end)
-    |> Enum.group_by(fn mat -> {mat.type, mat.url, mat.branch} end)
+    |> Enum.group_by(fn mat -> {mat.type, mat.url, Map.get(mat, :branch) || ""} end)
     |> Enum.map(fn {{type, url, branch}, mats} ->
       pipelines = Enum.map(mats, & &1.pipeline_name) |> Enum.uniq() |> Enum.sort()
       %{
