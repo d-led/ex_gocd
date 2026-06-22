@@ -56,3 +56,4 @@ agent/gocd-agent.exe
 /config/go-server-ca.pem
 .mix/
 .hex/
+**/*results*.xml

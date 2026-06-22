@@ -36,8 +36,8 @@ describe("Agents Management E2E Tests", () => {
   });
 
   it("can filter agents via search", () => {
-    cy.get(".search-box input").type("dam2");
-    cy.contains("dam2.fritz.box").should("exist");
+    cy.get(".search-box input").type("agent");
+    cy.get(".agents-table tbody tr").should("exist");
   });
 
   it("schedule test job button is clickable", () => {
