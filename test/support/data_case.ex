@@ -86,4 +86,36 @@ defmodule ExGoCD.DataCase do
       end)
     end)
   end
+
+  # ── Shared test helpers ───────────────────────────────────────────────
+
+  @doc """
+  Creates a pipeline with a stage, runs it, and sets stage result.
+  Returns {pipeline, stage, instance, stage_instance}.
+  Used to reduce boilerplate in VSM, stage, and job tests.
+  """
+  def create_pipeline_with_result(name, stage_result, stage_state \\ "Completed") do
+    alias ExGoCD.Pipelines.{Pipeline, Stage, PipelineInstance, StageInstance}
+    alias ExGoCD.Repo
+
+    {:ok, p} = Repo.insert(%Pipeline{} |> Pipeline.changeset(%{name: name, group: "default", label_template: "${COUNT}"}))
+    {:ok, stage} = Repo.insert(%Stage{} |> Stage.changeset(%{name: "build", pipeline_id: p.id, order_id: 0}))
+
+    completed_at = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+    created_time = DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.add(-300, :second)
+
+    {:ok, instance} = Repo.insert(%PipelineInstance{} |> PipelineInstance.changeset(%{
+      pipeline_id: p.id, counter: 1, label: "1", natural_order: 1.0,
+      build_cause: %{"materialRevisions" => []}
+    }))
+
+    {:ok, si} = Repo.insert(%StageInstance{} |> StageInstance.changeset(%{
+      stage_id: stage.id, pipeline_instance_id: instance.id,
+      name: "build", counter: 1, order_id: 0,
+      state: stage_state, result: stage_result,
+      approval_type: "success", created_time: created_time, completed_at: completed_at
+    }))
+
+    {p, stage, instance, si}
+  end
 end

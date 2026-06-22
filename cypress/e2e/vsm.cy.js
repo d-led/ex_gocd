@@ -96,5 +96,59 @@ describe("Value Stream Map", () => {
       });
       cy.theVSMHasExactlyLevels(4);
     });
+
+    it("draws dependency arrows between connected nodes", () => {
+      cy.theVSMSvgIsRendered();
+      cy.theVSMHitPathsExist(6);
+    });
+
+    it("highlights connected nodes and dims other arrows on hover", () => {
+      // Hover the material → upstream-lib arrow
+      cy.hoverVSMArrow("4c470f082924a11e", "upstream-lib");
+
+      // The hovered arrow stays bright
+      cy.theVSMHoveredArrowIsBright("4c470f082924a11e", "upstream-lib");
+
+      // All other arrows dim to 15%
+      cy.theVSMOtherArrowsAreDimmed("4c470f082924a11e", "upstream-lib");
+
+      // Source (material) and target (pipeline) nodes glow
+      cy.theVSMArrowHighlightsNodes("4c470f082924a11e", "upstream-lib");
+
+      // An unrelated node does NOT glow
+      cy.theVSMArrowDoesNotHighlightNode("integration-pipeline");
+    });
+
+    it("restores all arrows and removes glow on mouseleave", () => {
+      cy.hoverVSMArrow("4c470f082924a11e", "upstream-lib");
+      cy.unhoverVSMArrow("4c470f082924a11e", "upstream-lib");
+
+      cy.theVSMAllArrowsAreBright();
+      cy.theVSMNoNodesAreHighlighted();
+    });
+
+    it("persists highlight on click / tap for mobile interaction", () => {
+      cy.clickVSMArrow("4c470f082924a11e", "upstream-lib");
+
+      cy.theVSMArrowHighlightsNodes("4c470f082924a11e", "upstream-lib");
+      cy.theVSMOtherArrowsAreDimmed("4c470f082924a11e", "upstream-lib");
+
+      // Second click dismisses
+      cy.clickVSMArrow("4c470f082924a11e", "upstream-lib");
+      cy.theVSMNoNodesAreHighlighted();
+      cy.theVSMAllArrowsAreBright();
+    });
+
+    it("highlights downstream pipeline fan-out arrows independently", () => {
+      // Hover the upstream-lib → component-a arrow
+      cy.hoverVSMArrow("upstream-lib", "component-a");
+
+      cy.theVSMArrowHighlightsNodes("upstream-lib", "component-a");
+      cy.theVSMHoveredArrowIsBright("upstream-lib", "component-a");
+      cy.theVSMOtherArrowsAreDimmed("upstream-lib", "component-a");
+
+      // Clean up
+      cy.unhoverVSMArrow("upstream-lib", "component-a");
+    });
   });
 });

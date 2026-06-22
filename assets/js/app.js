@@ -197,10 +197,13 @@ const VSMGraph = {
   // ── interactive arrow highlight / dim ──────────────────────────
 
   _highlight(path, svg) {
-    // Dim all paths except the hovered one
+    // Dim all paths except the hovered one AND its visible sibling
+    // (both share the same sourceId+targetId dataset).
+    const src = path.dataset.sourceId;
+    const tgt = path.dataset.targetId;
     const all = svg.querySelectorAll(".vsm-path");
     all.forEach(p => {
-      if (p === path) {
+      if (p.dataset.sourceId === src && p.dataset.targetId === tgt) {
         p.style.opacity = "1";
         p.setAttribute("stroke-width", p.dataset.origWidth || p.getAttribute("stroke-width"));
       } else {
@@ -209,9 +212,8 @@ const VSMGraph = {
       }
     });
 
-    // Highlight the source (trigger) and target (downstream) nodes
-    this._setNodeHighlight(path.dataset.sourceId, true);
-    this._setNodeHighlight(path.dataset.targetId, true);
+    this._setNodeHighlight(src, true);
+    this._setNodeHighlight(tgt, true);
   },
 
   _unhighlight(svg) {

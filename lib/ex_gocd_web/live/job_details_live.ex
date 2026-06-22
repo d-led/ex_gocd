@@ -292,7 +292,10 @@ defmodule ExGoCDWeb.JobDetailsLive do
   def console_with_links(nil), do: ""
   def console_with_links(log) when is_binary(log) do
     ~r{(https?://\S+)}
-    |> Regex.replace(log, ~S|<a href="\1" target="_blank" rel="noopener" class="text-cyan-400 underline hover:text-cyan-300">\1</a>|)
+    |> Regex.replace(log, fn url ->
+      safe = Plug.HTML.html_escape(url)
+      ~s|<a href="#{safe}" target="_blank" rel="noopener" class="text-cyan-400 underline hover:text-cyan-300">#{safe}</a>|
+    end)
     |> Phoenix.HTML.raw()
   end
 

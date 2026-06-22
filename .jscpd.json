@@ -1,0 +1,21 @@
+{
+  "formatsExts": {
+    "elixir": ["ex", "exs", "heex"],
+    "javascript": ["js", "mjs", "cjs"],
+    "typescript": ["ts", "tsx"],
+    "go": ["go"]
+  },
+  "minLines": 5,
+  "minTokens": 40,
+  "threshold": 0,
+  "ignore": [
+    "**/node_modules/**",
+    "**/deps/**",
+    "**/_build/**",
+    "**/cover/**",
+    "**/cypress/results/**",
+    "**/vendor/**",
+    "**/priv/static/**",
+    "**/agent/work/**"
+  ]
+}

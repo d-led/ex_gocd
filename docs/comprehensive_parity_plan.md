@@ -696,6 +696,17 @@ GoCD parity requires ALL data flows to come from the database, not hardcoded moc
 
 ---
 
+## Part U: Duplicate Code Detection ✅
+
+| # | Item | Status |
+|---|------|--------|
+| U.1 | jscpd integration in quality gate | ✅ `.jscpd.json` + `npx jscpd@3` |
+| U.2 | Initial clone count | 46 clones, 1.81% → **42 clones, 1.68%** |
+| U.3 | Threshold set at 2% | ✅ quality gate passes |
+| U.4 | Shared test helper `create_pipeline_with_result/3` | ✅ reduced boilerplate in VSM tests |
+
+---
+
 ## Part T: Dashboard Group By Selector 🟡
 
 *User reported: "group by selector doesn't seem to do anything"*

@@ -551,10 +551,9 @@ func (a *Agent) runOneCommand(ctx context.Context, build *protocol.Build, cmd *p
 		attribute.String("cmd.working_dir", absDir),
 	)
 
-	// lgtm[go/command-injection]: This is a CI/CD build agent whose core
-	// function is executing user-defined build commands from the GoCD pipeline
-	// configuration. The path is sanitized via filepath.Clean and resolved
-	// through exec.LookPath. The pipeline config is admin-controlled server-side.
+	// codeql[go/command-injection]: CI/CD agent executing admin-configured pipeline
+	// commands. Path is sanitized via filepath.Clean + exec.LookPath. Args are
+	// admin-controlled server-side, not arbitrary user input.
 	c := exec.CommandContext(cmdCtx, resolvedPath, cmd.Args...)
 	c.Dir = absDir
 

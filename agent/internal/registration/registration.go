@@ -126,27 +126,11 @@ func (r *Registrar) requestToken() error {
 	tokenFile := r.config.AgentTokenFile()
 
 	// Demo/dev: use shared cookie so phx.server + start-agent and docker-compose always match
-	if demo := os.Getenv("EX_GOCD_DEMO_COOKIE"); demo != "" {
-		token := strings.TrimSpace(demo)
-		if err := os.MkdirAll(filepath.Dir(tokenFile), 0755); err != nil {
-			return err
-		}
-		if err := os.WriteFile(tokenFile, []byte(token), 0600); err != nil {
-			return err
-		}
-		log.Println("Using shared demo cookie from EX_GOCD_DEMO_COOKIE")
-		return nil
+	if done, err := r.tryDemoCookie("EX_GOCD_DEMO_COOKIE", tokenFile); done {
+		return err
 	}
-	if demo := os.Getenv("AGENT_DEMO_COOKIE"); demo != "" {
-		token := strings.TrimSpace(demo)
-		if err := os.MkdirAll(filepath.Dir(tokenFile), 0755); err != nil {
-			return err
-		}
-		if err := os.WriteFile(tokenFile, []byte(token), 0600); err != nil {
-			return err
-		}
-		log.Println("Using shared demo cookie from AGENT_DEMO_COOKIE")
-		return nil
+	if done, err := r.tryDemoCookie("AGENT_DEMO_COOKIE", tokenFile); done {
+		return err
 	}
 
 	// Skip if token file already exists
@@ -427,6 +411,24 @@ func (r *Registrar) registerWithRetry() error {
 	}
 
 	return fmt.Errorf("registration failed after %d attempts", maxRetries)
+}
+
+// tryDemoCookie checks if the env var is set and writes it as the agent token.
+// Returns true if the env var was set and token was written (caller should return nil).
+func (r *Registrar) tryDemoCookie(envVar, tokenFile string) (bool, error) {
+	demo := os.Getenv(envVar)
+	if demo == "" {
+		return false, nil
+	}
+	token := strings.TrimSpace(demo)
+	if err := os.MkdirAll(filepath.Dir(tokenFile), 0755); err != nil {
+		return false, err
+	}
+	if err := os.WriteFile(tokenFile, []byte(token), 0600); err != nil {
+		return false, err
+	}
+	log.Printf("Using shared demo cookie from %s", envVar)
+	return true, nil
 }
 
 // CreateTLSConfig creates a TLS config for WebSocket connection

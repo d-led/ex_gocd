@@ -395,6 +395,92 @@ Cypress.Commands.add('insideVSMNode', (nodeId, fn) => {
   cy.get(`[data-id="${nodeId}"]`).within(fn);
 });
 
+// -- VSM arrow interactions (domain language) -------------------------
+
+const vsmNodeId = (label) => {
+  // Find the vsm-node whose displayed text contains the label, return its data-id
+  return cy.get('.vsm-node').contains(label).closest('.vsm-node').invoke('attr', 'data-id');
+};
+
+const vsmArrowSelector = (sourceId, targetId) =>
+  `#vsm-svg .vsm-path[data-source-id="${sourceId}"][data-target-id="${targetId}"]`;
+
+Cypress.Commands.add('hoverOnArrowBetween', (sourceLabel, targetLabel) => {
+  vsmNodeId(sourceLabel).then((srcId) => {
+    vsmNodeId(targetLabel).then((tgtId) => {
+      cy.get(vsmArrowSelector(srcId, tgtId)).first().trigger('mouseenter', { force: true });
+    });
+  });
+});
+
+Cypress.Commands.add('tapOnArrowBetween', (sourceLabel, targetLabel) => {
+  vsmNodeId(sourceLabel).then((srcId) => {
+    vsmNodeId(targetLabel).then((tgtId) => {
+      cy.get(vsmArrowSelector(srcId, tgtId)).first().trigger('click', { force: true });
+    });
+  });
+});
+
+Cypress.Commands.add('arrowBetweenShouldBeHighlighted', (sourceLabel, targetLabel) => {
+  vsmNodeId(sourceLabel).then((srcId) => {
+    vsmNodeId(targetLabel).then((tgtId) => {
+      cy.get(vsmArrowSelector(srcId, tgtId)).first().should('have.css', 'opacity', '1');
+    });
+  });
+});
+
+Cypress.Commands.add('nodesShouldGlow', (sourceLabel, targetLabel) => {
+  vsmNodeId(sourceLabel).then((srcId) => {
+    vsmNodeId(targetLabel).then((tgtId) => {
+      cy.get(`.vsm-node[data-id="${srcId}"]`).should('have.class', 'vsm-path-highlighted');
+      cy.get(`.vsm-node[data-id="${tgtId}"]`).should('have.class', 'vsm-path-highlighted');
+    });
+  });
+});
+
+Cypress.Commands.add('nodeShouldNotGlow', (label) => {
+  vsmNodeId(label).then((id) => {
+    cy.get(`.vsm-node[data-id="${id}"]`).should('not.have.class', 'vsm-path-highlighted');
+  });
+});
+
+Cypress.Commands.add('allOtherArrowsShouldBeDimmed', (sourceLabel, targetLabel) => {
+  vsmNodeId(sourceLabel).then((srcId) => {
+    vsmNodeId(targetLabel).then((tgtId) => {
+      cy.get('#vsm-svg .vsm-path').each(($el) => {
+        const s = $el.attr('data-source-id');
+        const t = $el.attr('data-target-id');
+        if (s !== srcId || t !== tgtId) {
+          cy.wrap($el).should('have.css', 'opacity', '0.15');
+        }
+      });
+    });
+  });
+});
+
+Cypress.Commands.add('moveMouseAwayFromArrowBetween', (sourceLabel, targetLabel) => {
+  vsmNodeId(sourceLabel).then((srcId) => {
+    vsmNodeId(targetLabel).then((tgtId) => {
+      cy.get(vsmArrowSelector(srcId, tgtId)).first().trigger('mouseleave', { force: true });
+    });
+  });
+});
+
+Cypress.Commands.add('allArrowsShouldBeBright', () => {
+  cy.get('#vsm-svg .vsm-path').each(($el) => {
+    cy.wrap($el).should('not.have.css', 'opacity', '0.15');
+  });
+});
+
+Cypress.Commands.add('noNodesShouldGlow', () => {
+  cy.get('.vsm-node.vsm-path-highlighted').should('not.exist');
+});
+
+Cypress.Commands.add('vsmArrowsShouldBeDrawn', (minCount) => {
+  cy.get('#vsm-svg .vsm-path[stroke="rgba(0,0,0,0.02)"]')
+    .should('have.length.at.least', minCount);
+});
+
 // -- Audit Log ----------------------------------------------------------
 
 Cypress.Commands.add('theAuditLogAcceptsActorFilter', () => {

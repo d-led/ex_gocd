@@ -169,87 +169,23 @@ defmodule ExGoCD.Pipelines.ValueStreamMapTest do
     end
 
     test "stage status uses result (Passed/Failed), not lifecycle state (Completed)" do
-      {:ok, p} =
-        %ExGoCD.Pipelines.Pipeline{}
-        |> ExGoCD.Pipelines.Pipeline.changeset(%{name: "status-test", group: "default", label_template: "${COUNT}"})
-        |> ExGoCD.Repo.insert()
-
-      {:ok, stage} =
-        %ExGoCD.Pipelines.Stage{}
-        |> ExGoCD.Pipelines.Stage.changeset(%{name: "build", pipeline_id: p.id, order_id: 0})
-        |> ExGoCD.Repo.insert()
-
-      completed_at = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
-      created_time = DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.add(-300, :second)
-
-      {:ok, instance} =
-        %ExGoCD.Pipelines.PipelineInstance{}
-        |> ExGoCD.Pipelines.PipelineInstance.changeset(%{
-          pipeline_id: p.id, counter: 1, label: "1", natural_order: 1.0,
-          build_cause: %{"materialRevisions" => []}
-        })
-        |> ExGoCD.Repo.insert()
-
-      # Stage is Completed with result Passed — VSM must show "Passed", NOT "Completed"
-      {:ok, _} =
-        %ExGoCD.Pipelines.StageInstance{}
-        |> ExGoCD.Pipelines.StageInstance.changeset(%{
-          stage_id: stage.id, pipeline_instance_id: instance.id,
-          name: "build", counter: 1, order_id: 0,
-          state: "Completed", result: "Passed",
-          approval_type: "success", created_time: created_time, completed_at: completed_at
-        })
-        |> ExGoCD.Repo.insert()
-
+      {_p, _stage, _instance, _si} = create_pipeline_with_result("status-test", "Passed")
       {:ok, vsm} = ValueStreamMap.get_pipeline_vsm("status-test", 1)
       [_, pipe_level | _] = vsm["levels"]
       [pipe_node] = pipe_level["nodes"]
       [inst] = pipe_node["instances"]
       [vsm_stage] = inst["stages"]
-
-      # THIS is the critical assertion: result over state
       assert vsm_stage["status"] == "Passed",
         "VSM must use result (Passed), not lifecycle state (Completed). Got: #{inspect(vsm_stage["status"])}"
     end
 
     test "stage status uses result=Failed, not state=Completed" do
-      {:ok, p} =
-        %ExGoCD.Pipelines.Pipeline{}
-        |> ExGoCD.Pipelines.Pipeline.changeset(%{name: "failed-test", group: "default", label_template: "${COUNT}"})
-        |> ExGoCD.Repo.insert()
-
-      {:ok, stage} =
-        %ExGoCD.Pipelines.Stage{}
-        |> ExGoCD.Pipelines.Stage.changeset(%{name: "build", pipeline_id: p.id, order_id: 0})
-        |> ExGoCD.Repo.insert()
-
-      completed_at = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
-      created_time = DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.add(-300, :second)
-
-      {:ok, instance} =
-        %ExGoCD.Pipelines.PipelineInstance{}
-        |> ExGoCD.Pipelines.PipelineInstance.changeset(%{
-          pipeline_id: p.id, counter: 1, label: "1", natural_order: 1.0,
-          build_cause: %{"materialRevisions" => []}
-        })
-        |> ExGoCD.Repo.insert()
-
-      {:ok, _} =
-        %ExGoCD.Pipelines.StageInstance{}
-        |> ExGoCD.Pipelines.StageInstance.changeset(%{
-          stage_id: stage.id, pipeline_instance_id: instance.id,
-          name: "build", counter: 1, order_id: 0,
-          state: "Completed", result: "Failed",
-          approval_type: "success", created_time: created_time, completed_at: completed_at
-        })
-        |> ExGoCD.Repo.insert()
-
+      {_p, _stage, _instance, _si} = create_pipeline_with_result("failed-test", "Failed")
       {:ok, vsm} = ValueStreamMap.get_pipeline_vsm("failed-test", 1)
       [_, pipe_level | _] = vsm["levels"]
       [pipe_node] = pipe_level["nodes"]
       [inst] = pipe_node["instances"]
       [vsm_stage] = inst["stages"]
-
       assert vsm_stage["status"] == "Failed",
         "VSM must use result (Failed), not lifecycle state. Got: #{inspect(vsm_stage["status"])}"
     end

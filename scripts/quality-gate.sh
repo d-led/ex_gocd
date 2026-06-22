@@ -126,6 +126,19 @@ else
   fail_step "Go agent tests — failures"
 fi
 
+# ── Duplicate Code Detection (jscpd) ────────────────────────────────────
+
+echo ""
+echo "=== Duplicate Code Detection (jscpd) ==="
+JSCPD_OUT=$(npx --yes jscpd@3 lib/ test/ 2>&1) || true
+DUP_COUNT=$(echo "$JSCPD_OUT" | grep "Clones found" | grep -oE '[0-9]+' || echo "0")
+if [ "$DUP_COUNT" -eq 0 ] 2>/dev/null; then
+  pass_step "Duplicate code — no clones found"
+else
+  echo "$JSCPD_OUT"
+  fail_step "Duplicate code — ${DUP_COUNT} clones found (fix them to pass)"
+fi
+
 # ── Link Checker (internal only) ────────────────────────────────────────
 
 echo ""
