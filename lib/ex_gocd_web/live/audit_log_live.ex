@@ -7,8 +7,6 @@ defmodule ExGoCDWeb.AuditLogLive do
 
   alias ExGoCD.AuditLog
 
-  @page_size 50
-
   @impl true
   def mount(_params, _session, socket) do
     {:ok,
@@ -81,15 +79,34 @@ defmodule ExGoCDWeb.AuditLogLive do
   # ── Data loading ───────────────────────────────────────────────────────────
 
   defp load_entries(socket) do
-    entries = socket.assigns.filters
-      |> then(fn
-        f when f == %{} -> AuditLog.recent(@page_size)
-        f -> AuditLog.search(f)
-      end)
+    entries =
+      if use_mock?() do
+        mock = ExGoCD.MockData.audit_log_entries()
+        if socket.assigns.filters == %{} do
+          mock
+        else
+          f = socket.assigns.filters
+          Enum.filter(mock, fn e ->
+            (is_nil(f[:actor]) || f[:actor] == "" || String.contains?(String.downcase(e.actor), String.downcase(f[:actor]))) &&
+            (is_nil(f[:action]) || f[:action] == "" || String.contains?(e.action, f[:action])) &&
+            (is_nil(f[:resource_type]) || f[:resource_type] == "" || String.contains?(e.resource_type, f[:resource_type]))
+          end)
+        end
+      else
+        if socket.assigns.filters == %{} do
+          AuditLog.recent(200)
+        else
+          AuditLog.search(socket.assigns.filters)
+        end
+      end
 
     socket
     |> assign(:entries, entries)
     |> assign(:total, length(entries))
+  end
+
+  defp use_mock? do
+    System.get_env("USE_MOCK_DATA") == "true"
   end
 
   defp put_if(map, _key, ""), do: map

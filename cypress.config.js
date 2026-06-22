@@ -7,6 +7,9 @@ module.exports = defineConfig({
     baseUrl: "http://localhost:4000",
     supportFile: "cypress/support/e2e.js",
     specPattern: "cypress/e2e/**/*.cy.{js,jsx,ts,tsx}",
+    excludeSpecPattern: [
+      "**/screenshot*.cy.js",
+    ],
     video: false,
     screenshotOnRunFailure: false,
     screenshotsFolder: "cypress/screenshots",

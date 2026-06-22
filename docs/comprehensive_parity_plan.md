@@ -366,9 +366,9 @@ The `BuildCause` is serialized to JSON for the Compare API. Variables are includ
 | Pipeline env vars | ✅ | `environment_variables` map on Pipeline |
 | Stage env vars | ✅ | `environment_variables` map on Stage |
 | Job env vars | ✅ | `environment_variables` map on Job |
-| Secure vars | 🔴 | NO `isSecure` flag, NO encryption |
+| Secure vars | ✅ | AES-256-CBC via ExGoCD.Cipher; secure_variables on Pipeline/Stage/Job |
 | Trigger-time vars | 🔴 | `build_cause` map exists but no `variables` key |
-| Console masking | 🔴 | No masking of secure values in console output |
+| Console masking | ✅ | Masks TOKEN, SECRET, PASS, KEY patterns, private keys, Bearer tokens |
 | Compare env vars | 🔴 | Compare API doesn't show env var differences |
 
 ### M.3 Implementation Plan

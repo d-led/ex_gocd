@@ -24,10 +24,23 @@ defmodule ExGoCDWeb.AdminLive do
       pipeline_groups = fetch_pipeline_groups(empty_groups)
       environments = fetch_environments_ui()
 
-      config_repos = ConfigRepos.list_config_repos()
+      config_repos =
+        if use_mock?() do
+          ExGoCD.MockData.config_repos()
+        else
+          ConfigRepos.list_config_repos()
+        end
 
       # Load existing database users
       users = Accounts.list_users()
+
+      # Audit log entries (mock or empty — AuditLogLive handles full UI)
+      _audit_log_entries =
+        if use_mock?() do
+          ExGoCD.MockData.audit_log_entries()
+        else
+          []
+        end
 
       plugins = []
 
@@ -67,6 +80,10 @@ defmodule ExGoCDWeb.AdminLive do
        |> assign(:env_form_variables, [])
        |> assign(:available_pipelines, [])}
     end
+  end
+
+  defp use_mock? do
+    System.get_env("USE_MOCK_DATA") == "true"
   end
 
   defp fetch_pipeline_groups(empty_groups) do
@@ -1193,7 +1210,22 @@ defmodule ExGoCDWeb.AdminLive do
   end
 
   defp load_audit_log(socket, filters) do
-    entries = AuditLog.search(filters)
+    entries =
+      if use_mock?() do
+        mock = ExGoCD.MockData.audit_log_entries()
+        if filters == %{} do
+          mock
+        else
+          Enum.filter(mock, fn e ->
+            (is_nil(filters[:actor]) || filters[:actor] == "" || String.contains?(String.downcase(e.actor), String.downcase(filters[:actor]))) &&
+            (is_nil(filters[:action]) || filters[:action] == "" || String.contains?(e.action, filters[:action])) &&
+            (is_nil(filters[:resource_type]) || filters[:resource_type] == "" || String.contains?(e.resource_type, filters[:resource_type]))
+          end)
+        end
+      else
+        AuditLog.search(filters)
+      end
+
     socket
     |> assign(:audit_log_entries, entries)
     |> assign(:audit_log_filters, filters)

@@ -215,3 +215,14 @@ Cypress.Commands.add('appScreenshot', (name) => {
     if (res && res.error) throw new Error(res.error);
   });
 });
+
+// --- Auth helpers ---
+
+Cypress.Commands.add('loginAsAdmin', () => {
+  cy.session('admin', () => {
+    cy.visit('/auth/login');
+    cy.get('#session_username').type('admin');
+    cy.get('.btn-login').click();
+    cy.url().should('eq', Cypress.config().baseUrl + '/');
+  });
+});

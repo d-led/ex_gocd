@@ -221,4 +221,92 @@ defmodule ExGoCD.MockData do
       }
     end)
   end
+
+  @doc """
+  Mock config repositories for the admin config repos page.
+  """
+  def config_repos do
+    [
+      %{
+        id: 1,
+        url: "https://github.com/d-led/ex_gocd.git",
+        branch: "main",
+        source_type: "gocd_pipeline",
+        material_type: "git",
+        plugin_id: "",
+        configuration: %{},
+        last_parsed_at: ~U[2026-06-22 00:00:00Z],
+        inserted_at: ~U[2026-06-20 00:00:00Z],
+        updated_at: ~U[2026-06-22 00:00:00Z]
+      },
+      %{
+        id: 2,
+        url: "https://github.com/myteam/backend.git",
+        branch: "main",
+        source_type: "github_actions",
+        material_type: "git",
+        plugin_id: "",
+        configuration: %{},
+        last_parsed_at: nil,
+        inserted_at: ~U[2026-06-21 00:00:00Z],
+        updated_at: ~U[2026-06-21 00:00:00Z]
+      }
+    ]
+  end
+
+  @doc """
+  Mock audit log entries for the audit log page.
+  """
+  def audit_log_entries do
+    [
+      %{
+        actor: "admin",
+        action: "pipeline_trigger",
+        resource_type: "pipeline",
+        resource_name: "build-linux",
+        details: %{counter: 145},
+        inserted_at: ~U[2026-06-22 07:00:00Z]
+      },
+      %{
+        actor: "admin",
+        action: "config_update",
+        resource_type: "pipeline",
+        resource_name: "deploy-staging",
+        details: %{field: "environment_variables"},
+        inserted_at: ~U[2026-06-22 06:30:00Z]
+      },
+      %{
+        actor: "dmitry",
+        action: "stage_approve",
+        resource_type: "stage",
+        resource_name: "build-linux/test",
+        details: %{stage_counter: 1},
+        inserted_at: ~U[2026-06-22 06:00:00Z]
+      },
+      %{
+        actor: "admin",
+        action: "pipeline_pause",
+        resource_type: "pipeline",
+        resource_name: "security-scan",
+        details: %{cause: "maintenance window"},
+        inserted_at: ~U[2026-06-22 05:00:00Z]
+      },
+      %{
+        actor: "admin",
+        action: "pipeline_unpause",
+        resource_type: "pipeline",
+        resource_name: "security-scan",
+        details: %{},
+        inserted_at: ~U[2026-06-22 04:00:00Z]
+      },
+      %{
+        actor: "gocd",
+        action: "pipeline_trigger",
+        resource_type: "pipeline",
+        resource_name: "performance-tests",
+        details: %{counter: 23, trigger: "timer"},
+        inserted_at: ~U[2026-06-21 22:00:00Z]
+      }
+    ]
+  end
 end

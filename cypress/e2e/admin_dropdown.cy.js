@@ -7,13 +7,8 @@ describe("Admin dropdown — desktop viewport usability", () => {
   }
 
   const openAdminDropdown = () => {
-    // The dropdown opens on hover via CSS. Cypress doesn't natively
-    // trigger CSS :hover well, so we force display and then verify.
-    cy.get('li.is-drop-down').then($li => {
-      $li[0].dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }))
-      $li[0].dispatchEvent(new MouseEvent('mouseover', { bubbles: true }))
-    })
-    cy.get('.sub-navigation').invoke('css', 'display', 'flex')
+    cy.get('li.is-drop-down').trigger('mouseover')
+    cy.get('.sub-navigation').invoke('attr', 'style', 'display: flex !important;')
   }
 
   // ── viewport boundary rules ──────────────────────────────────
@@ -42,6 +37,7 @@ describe("Admin dropdown — desktop viewport usability", () => {
   describe("desktop dropdown visibility", () => {
     beforeEach(() => {
       cy.viewport(...DESKTOP)
+      cy.loginAsAdmin()
       cy.visit("/pipelines")
       ready()
     })
