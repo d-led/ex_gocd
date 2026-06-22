@@ -171,7 +171,9 @@ defmodule Seeds.FanInOut do
       |> Repo.insert!()
 
     Enum.each(materials, fn mat ->
-      Repo.insert!(%Material{} |> Material.changeset(Map.put(mat, :pipeline_id, p.id)))
+      material = Repo.insert!(%Material{} |> Material.changeset(mat))
+      # Populate many-to-many join table (Material uses join_through: "pipelines_materials")
+      Repo.insert_all("pipelines_materials", [%{pipeline_id: p.id, material_id: material.id}])
     end)
 
     p
