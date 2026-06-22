@@ -51,16 +51,21 @@ defmodule ExGoCD.DataCase do
 
   def wait_for_scheduler_queue do
     if pid = Process.whereis(ExGoCD.Scheduler) do
-      case Process.info(pid, :message_queue_len) do
-        {:message_queue_len, 0} -> :ok
-        {:message_queue_len, _} ->
-          Process.sleep(5)
-          wait_for_scheduler_queue()
-        nil -> :ok
+      queue_empty? = fn ->
+        case Process.info(pid, :message_queue_len) do
+          {:message_queue_len, 0} -> ExGoCD.Scheduler.pending_count() == 0
+          {:message_queue_len, _} -> false
+          nil -> true
+        end
       end
-    else
-      :ok
+
+      unless queue_empty?.() do
+        Process.sleep(5)
+        wait_for_scheduler_queue()
+      end
     end
+
+    :ok
   end
 
   @doc """

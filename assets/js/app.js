@@ -48,27 +48,14 @@ const AgentsUpdates = {
 
 const VSMGraph = {
   mounted() {
-    console.log("[VSM] mounted");
     this._persistentHighlight = null;
     this.drawLines();
-
-    // Debug: track all mouse movement over the SVG
-    const svg = this.el.querySelector("#vsm-svg");
-    if (svg) {
-      svg.addEventListener("mousemove", (e) => {
-        console.log("[VSM] SVG mousemove", { x: Math.round(e.offsetX), y: Math.round(e.offsetY), target: e.target.tagName, targetClass: e.target.className?.baseVal || e.target.className });
-      });
-      svg.addEventListener("mouseenter", () => console.log("[VSM] SVG mouseenter"));
-      svg.addEventListener("mouseleave", () => console.log("[VSM] SVG mouseleave"));
-      svg.addEventListener("click", (e) => console.log("[VSM] SVG click", { x: Math.round(e.offsetX), y: Math.round(e.offsetY), target: e.target.tagName }));
-    }
 
     this.resizeObserver = new ResizeObserver(() => this.drawLines());
     this.resizeObserver.observe(this.el);
     window.addEventListener("resize", this.handleResize = () => this.drawLines());
   },
   updated() {
-    console.log("[VSM] updated");
     this.drawLines();
   },
   destroyed() {
@@ -76,20 +63,14 @@ const VSMGraph = {
     window.removeEventListener("resize", this.handleResize);
   },
   drawLines() {
-    // Defer to next tick so DOM layout is settled (nodes have final positions).
-    // setTimeout is more reliable than requestAnimationFrame across all browsers
-    // and doesn't get throttled into non-existence in background tabs.
     setTimeout(() => {
       const svg = this.el.querySelector("#vsm-svg");
       if (!svg) return;
 
-      // Clear existing paths; reset persistent highlight on redraw
       const oldPaths = svg.querySelectorAll(".vsm-path");
       oldPaths.forEach(p => p.remove());
       this._persistentHighlight = null;
 
-      // Size SVG to the visible container area (client, not scroll)
-      // so paths don't force horizontal scroll in narrow/mobile view.
       svg.setAttribute("width", this.el.clientWidth);
       svg.setAttribute("height", Math.max(this.el.clientHeight, this.el.scrollHeight));
       svg.style.overflow = "visible";
@@ -111,31 +92,22 @@ const VSMGraph = {
         };
       });
 
-      // Detect narrow / vertically-stacked layout (mobile / narrow browser)
       const nodeArr = Object.values(nodeMap);
       const narrow = detectNarrowLayout(nodeArr);
 
-      // Bus lane X coordinate for narrow-mode routing.
-      // Use the LEFT side so arrowheads point right into targets and their
-      // bases extend left (outside node bounding boxes, visible above z-index).
       let busX = 0;
       if (narrow && nodeArr.length > 0) {
         const minLeft = Math.min(...nodeArr.map(n => n.x));
         busX = Math.max(20, minLeft - 48);
       }
 
-      // Render paths for each dependency link
       nodes.forEach(node => {
         const sourceId = node.dataset.id;
         const source = nodeMap[sourceId];
         if (!source) return;
 
         let dependents = [];
-        try {
-          dependents = JSON.parse(node.dataset.dependents || "[]");
-        } catch (e) {
-          console.error(e);
-        }
+        try { dependents = JSON.parse(node.dataset.dependents || "[]"); } catch (e) {}
 
         dependents.forEach((depId, depIdx) => {
           const target = nodeMap[depId];
@@ -146,31 +118,24 @@ const VSMGraph = {
           const tx = target.x;
           const ty = target.y + target.height / 2;
 
-          const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
           const isHighlight = source.isCurrent || target.isCurrent;
 
           let pathD;
           if (narrow) {
-            // Left-side sewage-pipe: exit source LEFT edge → bus on the left →
-            // down/up the bus → enter target LEFT edge.
-            // Arrow points RIGHT into target, base extends LEFT (visible).
             const stagger = depIdx * 5;
             const bx = busX + stagger;
-            const lx = source.x; // source left edge
-
+            const lx = source.x;
             pathD = `M ${lx} ${sy} L ${bx} ${sy} L ${bx} ${ty} L ${tx} ${ty}`;
           } else {
-            // Wide mode: cubic bezier with natural approach angle
             const dx = Math.max(40, (tx - sx) / 2);
             pathD = `M ${sx} ${sy} C ${sx + dx} ${sy}, ${tx - dx} ${sy}, ${tx} ${ty}`;
           }
 
-          // Hit path: wide invisible stroke for easy hover/tap.
-          // Must be a <path> (not <g>) so the bounding box includes the stroke.
+          // Invisible hit path — 20px wide for easy hover/tap
           const hit = document.createElementNS("http://www.w3.org/2000/svg", "path");
           hit.setAttribute("d", pathD);
           hit.setAttribute("class", "vsm-path");
-          hit.setAttribute("stroke", "rgba(255,0,0,0.05)");
+          hit.setAttribute("stroke", "transparent");
           hit.setAttribute("stroke-width", "20");
           hit.setAttribute("fill", "none");
           hit.setAttribute("stroke-linecap", "round");
@@ -181,44 +146,29 @@ const VSMGraph = {
           hit.dataset.sourceId = sourceId;
           hit.dataset.targetId = depId;
 
-          if (sourceId === "4c470f082924a11e" && depId === "upstream-lib") {
-            console.log("[VSM] hit path created", { sourceId, depId, pointerEvents: hit.getAttribute("pointer-events"), stroke: hit.getAttribute("stroke"), strokeWidth: hit.getAttribute("stroke-width") });
-          }
-
-          // Visible path: renders the thin coloured line + arrowhead.
-          // pointer-events: none so events pass through to the hit path.
-          path.setAttribute("d", pathD);
-          path.setAttribute("class", "vsm-path");
-          path.setAttribute("stroke", isHighlight ? "#943a9e" : "#2fa8b6");
-          path.setAttribute("stroke-width", isHighlight ? "3" : "2");
-          path.setAttribute("fill", "none");
-          path.setAttribute("stroke-linejoin", "round");
-          path.setAttribute("marker-end", isHighlight ? "url(#arrow-current)" : "url(#arrow)");
-          path.style.pointerEvents = "none";
-          path.style.transition = "opacity 0.2s";
-          path.dataset.sourceId = sourceId;
-          path.dataset.targetId = depId;
+          // Visible path — thin coloured line + arrowhead
+          const vis = document.createElementNS("http://www.w3.org/2000/svg", "path");
+          vis.setAttribute("d", pathD);
+          vis.setAttribute("class", "vsm-path");
+          vis.setAttribute("stroke", isHighlight ? "#943a9e" : "#2fa8b6");
+          vis.setAttribute("stroke-width", isHighlight ? "2" : "1.5");
+          vis.setAttribute("fill", "none");
+          vis.setAttribute("stroke-linejoin", "round");
+          vis.setAttribute("marker-end", isHighlight ? "url(#arrow-current)" : "url(#arrow)");
+          vis.style.pointerEvents = "none";
+          vis.style.transition = "opacity 0.2s";
+          vis.dataset.sourceId = sourceId;
+          vis.dataset.targetId = depId;
 
           const self = this;
-          hit.addEventListener("mouseenter", () => {
-            console.log("[VSM] mouseenter", { src: sourceId, tgt: depId });
-            self._highlight(hit, svg);
-          });
-          hit.addEventListener("mouseleave", () => {
-            console.log("[VSM] mouseleave", { src: sourceId, tgt: depId });
-            self._unhighlight(svg);
-          });
-          hit.addEventListener("click", (e) => {
-            e.stopPropagation();
-            console.log("[VSM] click", { src: sourceId, tgt: depId, persistent: self._persistentHighlight !== null });
-            self._togglePersistent(hit, svg);
-          });
+          hit.addEventListener("mouseenter", () => self._highlight(hit, svg));
+          hit.addEventListener("mouseleave", () => self._unhighlight(svg));
+          hit.addEventListener("click", (e) => { e.stopPropagation(); self._togglePersistent(hit, svg); });
 
           svg.appendChild(hit);
-          svg.appendChild(path);
+          svg.appendChild(vis);
         });
       });
-      console.log("[VSM] drawLines done", { narrow, pathCount: svg.querySelectorAll(".vsm-path").length });
     }, 0);
   },
 
@@ -227,49 +177,25 @@ const VSMGraph = {
   _highlight(path, svg) {
     const src = path.dataset.sourceId;
     const tgt = path.dataset.targetId;
-    console.log("[VSM] _highlight", { src, tgt });
-    const all = svg.querySelectorAll(".vsm-path");
-    all.forEach(p => {
-      const isHovered = p.dataset.sourceId === src && p.dataset.targetId === tgt;
-      const isHit = (p.getAttribute("stroke") || "").startsWith("rgba");
-      if (isHit) {
-        p.style.opacity = "1";
-      } else if (isHovered) {
-        p.setAttribute("stroke", "#000000");
-        p.setAttribute("stroke-width", "5");
+    svg.querySelectorAll(".vsm-path").forEach(p => {
+      const isHit = p.getAttribute("stroke") === "transparent";
+      if (isHit) { p.style.opacity = "1"; return; }
+      if (p.dataset.sourceId === src && p.dataset.targetId === tgt) {
         p.style.opacity = "1";
       } else {
-        p.setAttribute("stroke", "#ff00ff");
-        p.setAttribute("stroke-width", "1");
-        p.style.opacity = "0.5";
+        p.style.opacity = "0.15";
       }
     });
-
     this._setNodeHighlight(src, true);
     this._setNodeHighlight(tgt, true);
   },
 
   _unhighlight(svg) {
-    if (this._persistentHighlight) {
-      this._highlight(this._persistentHighlight, svg);
-      return;
-    }
-    const all = svg.querySelectorAll(".vsm-path");
-    all.forEach(p => {
-      const isHit = (p.getAttribute("stroke") || "").startsWith("rgba");
-      if (isHit) {
-        p.style.opacity = "1";
-      } else {
-        const marker = p.getAttribute("marker-end") || "";
-        const isCurrent = marker.includes("arrow-current");
-        p.setAttribute("stroke", isCurrent ? "#943a9e" : "#2fa8b6");
-        p.setAttribute("stroke-width", isCurrent ? "3" : "2");
-        p.style.opacity = "1";
-      }
+    if (this._persistentHighlight) { this._highlight(this._persistentHighlight, svg); return; }
+    svg.querySelectorAll(".vsm-path").forEach(p => {
+      p.style.opacity = "1";
     });
-
-    const nodes = this.el.querySelectorAll(".vsm-node");
-    nodes.forEach(n => n.classList.remove("vsm-path-highlighted"));
+    this.el.querySelectorAll(".vsm-node").forEach(n => n.classList.remove("vsm-path-highlighted"));
   },
 
   _setNodeHighlight(nodeId, on) {
@@ -290,7 +216,8 @@ const VSMGraph = {
       this._highlight(path, svg);
     }
   },
-}
+
+};
 
 /** Detect vertical-stack layout: nodes are stacked in one column (narrow viewport). */
 function detectNarrowLayout(nodes) {

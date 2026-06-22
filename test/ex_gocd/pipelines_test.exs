@@ -482,7 +482,7 @@ defmodule ExGoCD.PipelinesTest do
     end
 
     test "returns error when no failed jobs exist" do
-      {pipeline, stage, _job} = insert_pipeline_with_jobs("rerun-all-passed", 1)
+      {pipeline, _stage, _job} = insert_pipeline_with_jobs("rerun-all-passed", 1)
 
       assert {:ok, instance} = Pipelines.trigger_pipeline(pipeline.name)
       [si] = Repo.all(from s in StageInstance, where: s.pipeline_instance_id == ^instance.id)
