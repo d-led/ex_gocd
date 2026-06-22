@@ -78,6 +78,28 @@ defmodule ExGoCD.Pipelines do
   end
 
   @doc """
+  Adds a comment to a pipeline instance.
+  Stores the comment in the build_cause map under the "comment" key.
+  """
+  def add_comment(pipeline_name, counter, comment) do
+    pi = Repo.one(
+      from pi in PipelineInstance,
+        join: p in assoc(pi, :pipeline),
+        where: p.name == ^pipeline_name and pi.counter == ^counter
+    )
+
+    case pi do
+      nil -> {:error, :instance_not_found}
+      %PipelineInstance{} = instance ->
+        build_cause = instance.build_cause || %{}
+        updated = Map.put(build_cause, "comment", comment)
+        instance
+        |> Ecto.Changeset.change(build_cause: updated)
+        |> Repo.update()
+    end
+  end
+
+  @doc """
   Triggers a pipeline run: creates PipelineInstance, StageInstances, JobInstances for the first stage,
   and enqueues each job to the Scheduler. Jobs will be picked up by idle agents.
   Returns {:ok, pipeline_instance} or {:error, changeset}.

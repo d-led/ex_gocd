@@ -106,6 +106,10 @@ defmodule ExGoCDWeb.Router do
       live "/admin/config_repos/:id/edit", ExternalCIRepoWizardLive, :edit
       live "/go/admin/config_repos/new", ExternalCIRepoWizardLive, :index
       live "/go/admin/config_repos/:id/edit", ExternalCIRepoWizardLive, :edit
+
+      # Audit log
+      live "/admin/audit_log", AuditLogLive, :index
+      live "/go/admin/audit_log", AuditLogLive, :index
     end
   end
 
@@ -156,12 +160,13 @@ defmodule ExGoCDWeb.Router do
     get "/dashboard", DashboardController, :show
     get "/version", VersionController, :show
 
-    # Pipeline operations (pause/unpause/approve/status/unlock/schedule)
+    # Pipeline operations (pause/unpause/approve/status/unlock/schedule/comment)
     get "/pipelines/:pipeline_name/status", PipelineOperationsController, :status
     post "/pipelines/:pipeline_name/pause", PipelineOperationsController, :pause
     post "/pipelines/:pipeline_name/unpause", PipelineOperationsController, :unpause
     post "/pipelines/:pipeline_name/unlock", PipelineOperationsController, :unlock
     post "/pipelines/:pipeline_name/schedule", PipelineOperationsController, :schedule
+    post "/pipelines/:pipeline_name/:counter/comment", PipelineOperationsController, :comment
     post "/pipelines/:pipeline_name/:counter/:stage_name/run", PipelineOperationsController, :approve_stage
 
     # SCM post-commit and push webhooks
@@ -255,12 +260,13 @@ defmodule ExGoCDWeb.Router do
     get "/dashboard", DashboardController, :show
     get "/version", VersionController, :show
 
-    # Pipeline operations (pause/unpause/approve/status/unlock/schedule)
+    # Pipeline operations (pause/unpause/approve/status/unlock/schedule/comment)
     get "/pipelines/:pipeline_name/status", PipelineOperationsController, :status
     post "/pipelines/:pipeline_name/pause", PipelineOperationsController, :pause
     post "/pipelines/:pipeline_name/unpause", PipelineOperationsController, :unpause
     post "/pipelines/:pipeline_name/unlock", PipelineOperationsController, :unlock
     post "/pipelines/:pipeline_name/schedule", PipelineOperationsController, :schedule
+    post "/pipelines/:pipeline_name/:counter/comment", PipelineOperationsController, :comment
     post "/pipelines/:pipeline_name/:counter/:stage_name/run", PipelineOperationsController, :approve_stage
 
     # SCM post-commit and push webhooks

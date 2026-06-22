@@ -208,4 +208,34 @@ defmodule ExGoCDWeb.API.PipelineOperationsController do
         |> json(%{error: "Forbidden"})
     end
   end
+
+  @doc "POST /api/pipelines/:pipeline_name/:counter/comment"
+  def comment(conn, %{"pipeline_name" => name, "counter" => counter_str, "comment" => comment}) do
+    user = get_current_user(conn)
+    case ExGoCD.Policies.permit?(ExGoCD.Policies.EnvironmentPolicy, :trigger_pipeline, user) do
+      true ->
+        counter = String.to_integer(counter_str)
+
+        case Pipelines.add_comment(name, counter, comment) do
+          {:ok, _instance} ->
+            ExGoCD.AuditLog.log(user.username, "pipeline_comment",
+              resource_type: "pipeline", resource_name: name,
+              details: %{counter: counter, comment: comment})
+
+            json(conn, %{message: "Comment added."})
+
+          {:error, :pipeline_not_found} ->
+            conn |> put_status(:not_found) |> json(%{error: "Pipeline '#{name}' not found."})
+
+          {:error, :instance_not_found} ->
+            conn |> put_status(:not_found) |> json(%{error: "Pipeline instance #{name}/#{counter} not found."})
+
+          {:error, reason} ->
+            conn |> put_status(:unprocessable_entity) |> json(%{error: "Failed to add comment: #{inspect(reason)}"})
+        end
+
+      false ->
+        conn |> put_status(:forbidden) |> json(%{error: "Forbidden"})
+    end
+  end
 end

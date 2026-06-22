@@ -195,10 +195,44 @@ defmodule ExGoCDWeb.ArtifactsController do
 
   # sobelow_skip ["Traversal.SendFile"]
   defp serve_file(conn, target_path) do
+    verify_checksum_on_fetch(target_path)
     content_type = MIME.from_path(target_path)
     conn
     |> put_resp_header("content-type", content_type)
     |> send_file(200, target_path)
+  end
+
+  # Verifies the MD5 checksum of the served file against the stored checksum.
+  # Logs a warning if mismatch (does not block serving — GoCD behavior).
+  defp verify_checksum_on_fetch(target_path) do
+    job_dir = Path.dirname(target_path)
+    checksum_file = Path.join(job_dir, "md5.checksum")
+    file_name = Path.basename(target_path)
+
+    if File.exists?(checksum_file) and File.exists?(target_path) do
+      stored = stored_checksum_for(checksum_file, file_name)
+      if stored do
+        computed = :crypto.hash(:md5, File.read!(target_path)) |> Base.encode16(case: :lower)
+        unless computed == stored do
+          require Logger
+          Logger.warning("Artifact checksum mismatch for #{file_name}: stored=#{stored}, computed=#{computed}")
+        end
+      end
+    end
+  rescue
+    _ -> :ok
+  end
+
+  defp stored_checksum_for(checksum_file, file_name) do
+    File.stream!(checksum_file)
+    |> Enum.find_value(fn line ->
+      case String.split(String.trim(line), "  ") do
+        [sum, ^file_name] -> String.trim(sum)
+        _ -> nil
+      end
+    end)
+  rescue
+    _ -> nil
   end
 
   defp serve_directory(conn, target_path) do

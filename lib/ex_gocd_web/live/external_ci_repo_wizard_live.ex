@@ -354,7 +354,8 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
 
   def source_type_label("github_actions"), do: "GitHub Actions"
   def source_type_label("gitlab_ci"), do: "GitLab CI"
-  def source_type_label(_), do: "GoCD Pipeline"
+  def source_type_label("gocd_pipeline"), do: "GoCD Pipeline Config"
+  def source_type_label(_), do: "GoCD Pipeline Config"
 
   def mode_label("translate"), do: "Translate to GoCD"
   def mode_label("execute_act"), do: "Execute via act"
@@ -486,6 +487,16 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
             ]}>
               <input type="radio" name="source_type" value="gitlab_ci" checked={@source_type == "gitlab_ci"} phx-click="set_source_type" phx-value-source_type="gitlab_ci" class="sr-only" />
               <span class="text-base"></span> GitLab CI
+            </label>
+            <label class={[
+              "flex items-center gap-2 px-4 py-2.5 rounded border cursor-pointer text-xs font-bold transition-all",
+              if(@source_type == "gocd_pipeline",
+                do: "bg-emerald-50 text-emerald-700 border-emerald-400 ring-1 ring-emerald-300",
+                else: "bg-white text-slate-500 border-[#d6e0e2] hover:border-emerald-300"
+              )
+            ]}>
+              <input type="radio" name="source_type" value="gocd_pipeline" checked={@source_type == "gocd_pipeline"} phx-click="set_source_type" phx-value-source_type="gocd_pipeline" class="sr-only" />
+              <span class="text-base">⚙</span> GoCD Pipeline Config
             </label>
           </div>
         </div>
