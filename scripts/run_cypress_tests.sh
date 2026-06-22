@@ -19,7 +19,7 @@ mix ecto.migrate --quiet 2>/dev/null || true
 # Seed required test data (demo pipeline etc.)
 mix run priv/repo/seeds.exs 2>/dev/null || true
 
-PORT=4001 USE_MOCK_DATA=true elixir --sname mock_test -S mix phx.server > /tmp/mock_server_cypress.log 2>&1 &
+PORT=4001 USE_MOCK_DATA=true elixir --sname mock_test -S mix phx.server > tmp/mock_server_cypress.log 2>&1 &
 SERVER_PID=$!
 
 # Ensure the server is killed if the script is interrupted or finishes
@@ -56,16 +56,14 @@ echo "===================================================="
 echo "Running Cypress E2E tests against http://localhost:4001..."
 echo "===================================================="
 
-# Run Cypress with the base URL override and select spec list (excluding agent daemon E2E specs)
+# Run Cypress (do NOT use set -e here — we want results XML even on failure)
 exit_code=0
-# Cypress specPattern + excludeSpecPattern are configured in cypress.config.js.
-# No --spec override needed — Cypress picks up all non-excluded specs.
-
 CYPRESS_BASE_URL=http://localhost:4001 npm run cypress:run || exit_code=$?
-
 
 if [ $exit_code -ne 0 ]; then
   echo "Cypress E2E tests FAILED!"
+  echo "--- Server logs (last 50 lines) ---"
+  tail -n 50 tmp/mock_server_cypress.log 2>/dev/null || true
 else
   echo "Cypress E2E tests PASSED successfully!"
 fi

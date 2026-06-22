@@ -81,7 +81,8 @@ describe("Value Stream Map E2E Tests", () => {
 
   describe("Diamond fan-in/fan-out VSM", () => {
     beforeEach(() => {
-      cy.visit("/pipelines/value_stream_map/upstream-lib/1");
+      // Mock data has upstream-lib counter=3
+      cy.visit("/pipelines/value_stream_map/upstream-lib/3");
       cy.get('.phx-connected', { timeout: 10000 }).should('exist');
     });
 
