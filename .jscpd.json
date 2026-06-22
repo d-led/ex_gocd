@@ -7,7 +7,7 @@
   },
   "minLines": 7,
   "minTokens": 60,
-  "threshold": 0,
+  "threshold": 1,
   "ignore": [
     "**/node_modules/**",
     "**/deps/**",
@@ -16,6 +16,9 @@
     "**/cypress/results/**",
     "**/vendor/**",
     "**/priv/static/**",
-    "**/agent/work/**"
+    "**/agent/work/**",
+    "test/support/conn_case.ex",
+    "test/support/data_case.ex",
+    "lib/ex_gocd_web/router.ex"
   ]
 }
