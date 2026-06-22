@@ -90,25 +90,28 @@ defmodule ExGoCDWeb.ApiSpec do
     "#{route.plug}.#{route.plug_opts}"
   end
 
+  @tag_patterns [
+    {"/agents", "Agents"},
+    {"/pipelines", "Pipelines"},
+    {"/materials", "Materials"},
+    {"/stage", "Stages"},
+    {"/job", "Jobs"},
+    {"/version", "Version"},
+    {"/admin", "Admin"},
+    {"/config_repo", "Config Repos"},
+    {"/users", "Users"},
+    {"/dashboard", "Dashboard"},
+    {"/cctray", "CCTray"},
+    {"/stats", "Stats"},
+    {"/webhooks", "Webhooks"},
+    {"/backup", "Backup"},
+    {"/artifacts", "Artifacts"},
+  ]
+
   defp route_tag(route) do
     path = route_path(route)
-    cond do
-      String.contains?(path, "/agents") -> "Agents"
-      String.contains?(path, "/pipelines") -> "Pipelines"
-      String.contains?(path, "/materials") -> "Materials"
-      String.contains?(path, "/stage") -> "Stages"
-      String.contains?(path, "/job") -> "Jobs"
-      String.contains?(path, "/version") -> "Version"
-      String.contains?(path, "/admin") -> "Admin"
-      String.contains?(path, "/config_repo") -> "Config Repos"
-      String.contains?(path, "/users") -> "Users"
-      String.contains?(path, "/dashboard") -> "Dashboard"
-      String.contains?(path, "/cctray") -> "CCTray"
-      String.contains?(path, "/stats") -> "Stats"
-      String.contains?(path, "/webhooks") -> "Webhooks"
-      String.contains?(path, "/backup") -> "Backup"
-      String.contains?(path, "/artifacts") -> "Artifacts"
-      true -> "General"
-    end
+    Enum.find_value(@tag_patterns, "General", fn {pattern, tag} ->
+      if String.contains?(path, pattern), do: tag
+    end)
   end
 end

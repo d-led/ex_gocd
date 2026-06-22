@@ -529,12 +529,6 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
     end
   end
 
-  defp map_instance_stages(instance, name) do
-    Enum.map(instance.stage_instances || [], fn si ->
-      %{"name" => si.name, "status" => si.state, "duration" => 45, "locator" => "/pipelines/#{name}/1/#{si.name}/#{si.counter}"}
-    end)
-  end
-
   defp build_material_node(mat, modification, pipeline_name) do
     fp = fingerprint(mat)
     %{

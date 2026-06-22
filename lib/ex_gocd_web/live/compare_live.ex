@@ -44,7 +44,7 @@ defmodule ExGoCDWeb.CompareLive do
     )
   end
 
-  defp get_mock_comparison(pipeline_name, _from_counter, _to_counter) do
+  defp get_mock_comparison(_pipeline_name, _from_counter, _to_counter) do
     # Generate realistic Git modifications
     [
       %{

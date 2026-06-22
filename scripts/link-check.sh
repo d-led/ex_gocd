@@ -20,8 +20,11 @@ echo "=== Link Checker (muffet) ==="
   --max-connections-per-host 4 \
   --max-redirections 5 \
   --timeout 10 \
-  --exclude '^https?://(?!localhost)[^/]+' \
+  --exclude 'https://github\.com/.*' \
+  --exclude 'https://www\.mozilla\.org/.*' \
   --exclude 'mailto:' \
+  --exclude '/assets/app\.css' \
+  --exclude '/favicon.*\.png' \
   --exclude '^#' \
   "$BASE_URL" 2>&1
 

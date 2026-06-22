@@ -26,9 +26,8 @@ defmodule ExGoCDWeb.API.VersionJSON do
       sha when is_binary(sha) and byte_size(sha) > 0 ->
         String.slice(sha, 0, 7)
       _ ->
-        case :os.cmd(~c'git rev-parse --short HEAD') do
-          sha when is_list(sha) ->
-            sha |> List.to_string() |> String.trim()
+        case System.cmd("git", ["rev-parse", "--short", "HEAD"]) do
+          {sha, 0} -> String.trim(sha)
           _ -> "unknown"
         end
     end
