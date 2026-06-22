@@ -4,6 +4,9 @@ defmodule ExGoCDWeb.CCTrayControllerTest do
   alias ExGoCD.Repo
   alias ExGoCD.Pipelines.{Pipeline, PipelineInstance, Stage, StageInstance}
 
+  import ExGoCD.PipelinesFixtures,
+    only: [insert_pipeline: 2, insert_stage: 2, insert_pipeline_instance: 2, insert_stage_instance: 3]
+
   setup do
     # Ensure clean state
     Repo.delete_all(StageInstance)
@@ -26,12 +29,12 @@ defmodule ExGoCDWeb.CCTrayControllerTest do
     end
 
     test "reports each stage of each pipeline as a Project element", %{conn: conn} do
-      pipeline = insert_pipeline("my-app", "default")
-      insert_stage_config(pipeline.id, "build")
-      insert_stage_config(pipeline.id, "test")
-      pi = insert_pipeline_instance(pipeline.id, 5, "5")
-      insert_stage_instance(pi.id, "build", 1, "Completed", "Passed")
-      insert_stage_instance(pi.id, "test", 1, "Completed", "Failed")
+      pipeline = insert_pipeline("my-app", group: "default")
+      insert_stage(pipeline.id, "build")
+      insert_stage(pipeline.id, "test")
+      pi = insert_pipeline_instance(pipeline.id, 5)
+      insert_stage_instance(pi.id, "build", counter: 1, state: "Completed", result: "Passed")
+      insert_stage_instance(pi.id, "test", counter: 1, state: "Completed", result: "Failed")
 
       conn = get(conn, "/go/cctray.xml")
 
@@ -46,33 +49,33 @@ defmodule ExGoCDWeb.CCTrayControllerTest do
     end
 
     test "maps stage statuses to CCTray statuses correctly", %{conn: conn} do
-      pipeline = insert_pipeline("status-test", "default")
-      insert_stage_config(pipeline.id, "s1")
-      pi = insert_pipeline_instance(pipeline.id, 1, "1")
+      pipeline = insert_pipeline("status-test", group: "default")
+      insert_stage(pipeline.id, "s1")
+      pi = insert_pipeline_instance(pipeline.id, 1)
 
       # Passed → Success
-      insert_stage_instance(pi.id, "s1", 1, "Completed", "Passed")
+      insert_stage_instance(pi.id, "s1", counter: 1, state: "Completed", result: "Passed")
       conn = get(conn, "/go/cctray.xml")
       assert conn.resp_body =~ ~s(lastBuildStatus="Success")
 
       # Delete and re-insert: Failed → Failure
       Repo.delete_all(StageInstance)
-      insert_stage_instance(pi.id, "s1", 1, "Completed", "Failed")
+      insert_stage_instance(pi.id, "s1", counter: 1, state: "Completed", result: "Failed")
       conn = get(conn, "/go/cctray.xml")
       assert conn.resp_body =~ ~s(lastBuildStatus="Failure")
 
       # Cancelled → Exception
       Repo.delete_all(StageInstance)
-      insert_stage_instance(pi.id, "s1", 1, "Completed", "Cancelled")
+      insert_stage_instance(pi.id, "s1", counter: 1, state: "Completed", result: "Cancelled")
       conn = get(conn, "/go/cctray.xml")
       assert conn.resp_body =~ ~s(lastBuildStatus="Exception")
     end
 
     test "shows Building activity for active stages", %{conn: conn} do
-      pipeline = insert_pipeline("active-pipe", "default")
-      insert_stage_config(pipeline.id, "deploy")
-      pi = insert_pipeline_instance(pipeline.id, 3, "3")
-      insert_stage_instance(pi.id, "deploy", 1, "Building", "Unknown")
+      pipeline = insert_pipeline("active-pipe", group: "default")
+      insert_stage(pipeline.id, "deploy")
+      pi = insert_pipeline_instance(pipeline.id, 3)
+      insert_stage_instance(pi.id, "deploy", counter: 1, state: "Building", result: "Unknown")
 
       conn = get(conn, "/go/cctray.xml")
 
@@ -80,10 +83,10 @@ defmodule ExGoCDWeb.CCTrayControllerTest do
     end
 
     test "escapes XML special characters in names", %{conn: conn} do
-      pipeline = insert_pipeline("foo & bar", "default")
-      insert_stage_config(pipeline.id, "build < test")
-      pi = insert_pipeline_instance(pipeline.id, 1, "1")
-      insert_stage_instance(pi.id, "build < test", 1, "Completed", "Passed")
+      pipeline = insert_pipeline("foo & bar", group: "default")
+      insert_stage(pipeline.id, "build < test")
+      pi = insert_pipeline_instance(pipeline.id, 1)
+      insert_stage_instance(pi.id, "build < test", counter: 1, state: "Completed", result: "Passed")
 
       conn = get(conn, "/go/cctray.xml")
 
@@ -92,10 +95,10 @@ defmodule ExGoCDWeb.CCTrayControllerTest do
     end
 
     test "includes webUrl for each project", %{conn: conn} do
-      pipeline = insert_pipeline("web-url-pipe", "group1")
-      insert_stage_config(pipeline.id, "stage1")
-      pi = insert_pipeline_instance(pipeline.id, 42, "42")
-      insert_stage_instance(pi.id, "stage1", 1, "Completed", "Passed")
+      pipeline = insert_pipeline("web-url-pipe", group: "group1")
+      insert_stage(pipeline.id, "stage1")
+      pi = insert_pipeline_instance(pipeline.id, 42)
+      insert_stage_instance(pi.id, "stage1", counter: 1, state: "Completed", result: "Passed")
 
       conn = get(conn, "/go/cctray.xml")
 
@@ -103,48 +106,4 @@ defmodule ExGoCDWeb.CCTrayControllerTest do
     end
   end
 
-  # ── helpers ──
-
-  defp insert_pipeline(name, group) do
-    Repo.insert!(%Pipeline{
-      name: name,
-      group: group,
-      label_template: "${COUNT}"
-    })
-  end
-
-  defp insert_stage_config(pipeline_id, name) do
-    Repo.insert!(%Stage{
-      name: name,
-      pipeline_id: pipeline_id,
-      approval_type: "success"
-    })
-  end
-
-  defp insert_pipeline_instance(pipeline_id, counter, label) do
-    Repo.insert!(%PipelineInstance{
-      pipeline_id: pipeline_id,
-      counter: counter,
-      label: label,
-      natural_order: counter * 1.0,
-      build_cause: %{"triggerMessage" => "test trigger"}
-    })
-  end
-
-  defp insert_stage_instance(pipeline_instance_id, name, counter, state, result) do
-    now = DateTime.utc_now() |> DateTime.truncate(:second)
-    Repo.insert!(%StageInstance{
-      pipeline_instance_id: pipeline_instance_id,
-      name: name,
-      counter: counter,
-      order_id: 1,
-      state: state,
-      result: result,
-      approval_type: "success",
-      created_time: now,
-      completed_at: NaiveDateTime.truncate(now, :second),
-      latest_run: true,
-      artifacts_deleted: false
-    })
-  end
 end

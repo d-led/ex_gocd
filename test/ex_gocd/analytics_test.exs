@@ -2,14 +2,11 @@ defmodule ExGoCD.AnalyticsTest do
   use ExGoCD.DataCase, async: true
 
   alias ExGoCD.Analytics
-  alias ExGoCD.Pipelines.{
-    Job,
-    JobInstance,
-    Pipeline,
-    PipelineInstance,
-    Stage,
-    StageInstance
-  }
+  alias ExGoCD.Pipelines.{Job, Pipeline, Stage}
+
+  import ExGoCD.PipelinesFixtures,
+    only: [insert_pipeline_instance_by_name: 3, insert_stage_instance: 3,
+           insert_job_instance: 4, insert_job_instance_unassigned: 3]
 
   @now ~U[2026-06-21 10:00:00Z]
 
@@ -33,10 +30,10 @@ defmodule ExGoCD.AnalyticsTest do
     test "returns avg wait time = assigned_at - inserted_at for first stage jobs" do
       # Pipeline triggered at T+0
       pi =
-        insert_pipeline_instance("wait-test-pipeline", 1, @now)
+        insert_pipeline_instance_by_name("wait-test-pipeline", 1, @now)
 
       si =
-        insert_stage_instance(pi.id, "build", ~U[2026-06-21 10:00:00Z])
+        insert_stage_instance(pi.id, "build", created_time: ~U[2026-06-21 10:00:00Z])
 
       _ji =
         insert_job_instance(si.id, "compile", ~U[2026-06-21 10:00:00Z], ~U[2026-06-21 10:02:00Z])
@@ -50,19 +47,19 @@ defmodule ExGoCD.AnalyticsTest do
     test "averages wait times across multiple pipeline instances" do
       # Instance 1: wait 60s
       pi1 =
-        insert_pipeline_instance("wait-test-pipeline", 1, @now)
+        insert_pipeline_instance_by_name("wait-test-pipeline", 1, @now)
 
       si1 =
-        insert_stage_instance(pi1.id, "build", @now)
+        insert_stage_instance(pi1.id, "build", created_time: @now)
 
       insert_job_instance(si1.id, "compile", @now, DateTime.add(@now, 60, :second))
 
       # Instance 2: wait 180s
       pi2 =
-        insert_pipeline_instance("wait-test-pipeline", 2, DateTime.add(@now, 300, :second))
+        insert_pipeline_instance_by_name("wait-test-pipeline", 2, DateTime.add(@now, 300, :second))
 
       si2 =
-        insert_stage_instance(pi2.id, "build", DateTime.add(@now, 300, :second))
+        insert_stage_instance(pi2.id, "build", created_time: DateTime.add(@now, 300, :second))
 
       insert_job_instance(si2.id, "compile", DateTime.add(@now, 300, :second), DateTime.add(@now, 480, :second))
 
@@ -73,10 +70,10 @@ defmodule ExGoCD.AnalyticsTest do
 
     test "uses earliest assigned_at among jobs in first stage" do
       pi =
-        insert_pipeline_instance("wait-test-pipeline", 1, @now)
+        insert_pipeline_instance_by_name("wait-test-pipeline", 1, @now)
 
       si =
-        insert_stage_instance(pi.id, "build", @now)
+        insert_stage_instance(pi.id, "build", created_time: @now)
 
       # Job A assigned later
       insert_job_instance(si.id, "compile", @now, DateTime.add(@now, 300, :second))
@@ -92,10 +89,10 @@ defmodule ExGoCD.AnalyticsTest do
     test "ignores instances where no job has been assigned yet" do
       # Instance with no agent assignment (assigned_at = nil)
       pi =
-        insert_pipeline_instance("wait-test-pipeline", 1, @now)
+        insert_pipeline_instance_by_name("wait-test-pipeline", 1, @now)
 
       si =
-        insert_stage_instance(pi.id, "build", @now)
+        insert_stage_instance(pi.id, "build", created_time: @now)
 
       insert_job_instance_unassigned(si.id, "compile", @now)
 
@@ -114,10 +111,10 @@ defmodule ExGoCD.AnalyticsTest do
 
     test "filters out instances where wait time is zero or negative" do
       pi =
-        insert_pipeline_instance("wait-test-pipeline", 1, @now)
+        insert_pipeline_instance_by_name("wait-test-pipeline", 1, @now)
 
       si =
-        insert_stage_instance(pi.id, "build", @now)
+        insert_stage_instance(pi.id, "build", created_time: @now)
 
       # All assigned at same time as trigger → 0s wait, should be filtered out
       insert_job_instance(si.id, "compile", @now, @now)
@@ -128,61 +125,5 @@ defmodule ExGoCD.AnalyticsTest do
     end
   end
 
-  # ── Helpers ───────────────────────────────────────────────────────
-
-  defp insert_pipeline_instance(name, counter, inserted_at) do
-    pipeline = Repo.get_by!(Pipeline, name: name)
-    Repo.insert!(%PipelineInstance{
-      counter: counter,
-      label: to_string(counter),
-      natural_order: counter * 1.0,
-      build_cause: %{"approver" => "test"},
-      pipeline_id: pipeline.id,
-      inserted_at: inserted_at,
-      updated_at: inserted_at
-    })
-  end
-
-  defp insert_stage_instance(pipeline_instance_id, name, inserted_at) do
-    Repo.insert!(%StageInstance{
-      name: name,
-      counter: 1,
-      order_id: 1,
-      state: "Building",
-      result: "Passed",
-      approval_type: "success",
-      created_time: inserted_at,
-      pipeline_instance_id: pipeline_instance_id,
-      inserted_at: inserted_at,
-      updated_at: inserted_at
-    })
-  end
-
-  defp insert_job_instance(stage_instance_id, name, scheduled_at, assigned_at) do
-    Repo.insert!(%JobInstance{
-      name: name,
-      state: "Completed",
-      result: "Passed",
-      scheduled_at: DateTime.to_naive(scheduled_at),
-      assigned_at: DateTime.to_naive(assigned_at),
-      completed_at: DateTime.to_naive(DateTime.add(assigned_at, 60, :second)),
-      stage_instance_id: stage_instance_id,
-      inserted_at: scheduled_at,
-      updated_at: assigned_at
-    })
-  end
-
-  defp insert_job_instance_unassigned(stage_instance_id, name, scheduled_at) do
-    Repo.insert!(%JobInstance{
-      name: name,
-      state: "Scheduled",
-      result: "Unknown",
-      scheduled_at: DateTime.to_naive(scheduled_at),
-      assigned_at: nil,
-      completed_at: nil,
-      stage_instance_id: stage_instance_id,
-      inserted_at: scheduled_at,
-      updated_at: scheduled_at
-    })
-  end
+  # ── Helpers kept: none — all moved to ExGoCD.PipelinesFixtures ──
 end

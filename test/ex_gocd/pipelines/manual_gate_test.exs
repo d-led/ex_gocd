@@ -7,8 +7,10 @@ defmodule ExGoCD.Pipelines.ManualGateTest do
   import Ecto.Query
 
   alias ExGoCD.Pipelines
-  alias ExGoCD.Pipelines.{Job, JobInstance, Pipeline, Stage, StageInstance, Task}
+  alias ExGoCD.Pipelines.{JobInstance, StageInstance}
   alias ExGoCD.Repo
+
+  import ExGoCD.PipelinesFixtures, only: [insert_pipeline_with_two_stages: 1]
 
   setup do
     :ok
@@ -60,25 +62,5 @@ defmodule ExGoCD.Pipelines.ManualGateTest do
       assert ji2.name == "job2"
       assert ji2.state == "Scheduled"
     end
-  end
-
-  defp insert_pipeline_with_two_stages(name) do
-    material = Repo.insert!(%ExGoCD.Pipelines.Material{} |> ExGoCD.Pipelines.Material.changeset(%{
-      type: "git", url: "https://github.com/test/#{name}.git", branch: "main", name: "#{name}-mat"
-    }))
-
-    pipeline = Repo.insert!(%Pipeline{} |> Pipeline.changeset(%{name: name, group: "test", lock_behavior: "lockOnFailure"}))
-    {:ok, _} = Pipelines.add_material_to_pipeline(pipeline, material)
-    pipeline = Repo.preload(pipeline, :materials)
-
-    stage1 = Repo.insert!(%Stage{} |> Stage.changeset(%{name: "stage1", pipeline_id: pipeline.id, approval_type: "success", order_id: 1}))
-    job1 = Repo.insert!(%Job{} |> Job.changeset(%{name: "job1", stage_id: stage1.id}))
-    Repo.insert!(%Task{} |> Task.changeset(%{type: "exec", command: "echo", arguments: ["1"], job_id: job1.id}))
-
-    stage2 = Repo.insert!(%Stage{} |> Stage.changeset(%{name: "stage2", pipeline_id: pipeline.id, approval_type: "manual", order_id: 2}))
-    job2 = Repo.insert!(%Job{} |> Job.changeset(%{name: "job2", stage_id: stage2.id}))
-    Repo.insert!(%Task{} |> Task.changeset(%{type: "exec", command: "echo", arguments: ["2"], job_id: job2.id}))
-
-    {pipeline, stage1, stage2}
   end
 end

@@ -384,8 +384,7 @@ Cypress.Commands.add('theVSMHasExactlyLevels', (n) => {
 });
 
 Cypress.Commands.add('theVSMStageIndicatorShows', (label) => {
-  // Behavior: a stage indicator exists somewhere on the page (by title or text)
-  cy.get(`[title*="${label}"]`).should('exist');
+  cy.get(`[aria-label*="${label}"]`).should('exist');
 });
 
 Cypress.Commands.add('theVSMRendersOnMobile', () => {

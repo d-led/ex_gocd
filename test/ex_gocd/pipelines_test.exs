@@ -11,6 +11,9 @@ defmodule ExGoCD.PipelinesTest do
   alias ExGoCD.Pipelines.{Job, JobInstance, Pipeline, Stage, StageInstance, Task, Template}
   alias ExGoCD.Repo
 
+  import ExGoCD.PipelinesFixtures,
+    only: [insert_pipeline_with_jobs: 2, insert_pipeline_with_template: 3]
+
   setup do
     :ok
   end
@@ -288,25 +291,6 @@ defmodule ExGoCD.PipelinesTest do
     end
   end
 
-  defp insert_pipeline_with_template(pipeline_name, template_name, job_count) do
-    template = Repo.insert!(%Template{} |> Template.changeset(%{name: template_name}))
-    stage = Repo.insert!(%Stage{} |> Stage.changeset(%{name: "template-stage", template_id: template.id, approval_type: "success"}))
-
-    jobs =
-      for i <- 1..job_count do
-        job_name = "tpl-job-#{i}"
-        job = Repo.insert!(%Job{} |> Job.changeset(%{name: job_name, stage_id: stage.id, resources: []}))
-        Repo.insert!(%Task{} |> Task.changeset(%{type: "exec", command: "echo", arguments: [job_name], job_id: job.id}))
-        job
-      end
-
-    pipeline = Repo.insert!(%Pipeline{} |> Pipeline.changeset(%{name: pipeline_name, group: "test", template_id: template.id}))
-
-    pipeline = Repo.preload(pipeline, [:materials, :template, stages: [jobs: :tasks]])
-
-    {pipeline, %{template: template |> Repo.preload(stages: [jobs: :tasks]), stage: stage, jobs: jobs}}
-  end
-
   describe "downstream triggering (fan-in/fan-out)" do
     test "last stage completion triggers downstream pipeline with dependency material" do
       # Create upstream pipeline
@@ -421,22 +405,6 @@ defmodule ExGoCD.PipelinesTest do
     end
   end
 
-  defp insert_pipeline_with_jobs(name, job_count) when job_count >= 1 do
-    pipeline = Repo.insert!(%Pipeline{} |> Pipeline.changeset(%{name: name, group: "test"}))
-    stage = Repo.insert!(%Stage{} |> Stage.changeset(%{name: "build", pipeline_id: pipeline.id, approval_type: "success"}))
-
-    jobs =
-      for i <- 1..job_count do
-        job_name = "job-#{i}"
-        job = Repo.insert!(%Job{} |> Job.changeset(%{name: job_name, stage_id: stage.id, resources: []}))
-        Repo.insert!(%Task{} |> Task.changeset(%{type: "exec", command: "echo", arguments: [job_name], job_id: job.id}))
-        job
-      end
-
-    pipeline = Repo.preload(pipeline, [stages: [jobs: :tasks]])
-    stage = List.first(pipeline.stages)
-    {pipeline, stage, jobs}
-  end
 
   describe "config_diff/2" do
     test "returns nil when no previous run exists" do

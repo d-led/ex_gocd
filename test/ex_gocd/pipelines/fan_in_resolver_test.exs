@@ -3,11 +3,15 @@ defmodule ExGoCD.Pipelines.FanInResolverTest do
 
   alias ExGoCD.Pipelines.FanInResolver
   alias ExGoCD.Pipelines.Material
-  alias ExGoCD.Pipelines.Modification
-  alias ExGoCD.Pipelines.Pipeline
-  alias ExGoCD.Pipelines.PipelineInstance
-  alias ExGoCD.Pipelines.PipelineMaterialRevision
   alias ExGoCD.Repo
+
+  import ExGoCD.PipelinesFixtures,
+    only: [insert_pipeline: 1, insert_material: 3, insert_modification: 2,
+           insert_pipeline_instance: 2, insert_pmr: 5]
+
+  defp add_material_to_pipeline(pipeline, material) do
+    ExGoCD.Pipelines.add_material_to_pipeline(pipeline, material)
+  end
 
   describe "verify_consistency/1" do
     test "always consistent for a single SCM material" do
@@ -136,49 +140,5 @@ defmodule ExGoCD.Pipelines.FanInResolverTest do
     end
   end
 
-  # Helpers
-  defp insert_pipeline(name) do
-    Repo.insert!(%Pipeline{name: name, group: "test", label_template: "${COUNT}"})
-  end
-
-  defp insert_material(pipeline, type, url) do
-    mat = Repo.insert!(%Material{type: type, url: url})
-    {:ok, _} = ExGoCD.Pipelines.add_material_to_pipeline(pipeline, mat)
-    mat
-  end
-
-  defp add_material_to_pipeline(pipeline, material) do
-    ExGoCD.Pipelines.add_material_to_pipeline(pipeline, material)
-  end
-
-  defp insert_modification(material, revision) do
-    Repo.insert!(%Modification{
-      material_id: material.id,
-      revision: revision,
-      committer_name: "test",
-      committer_email: "test@example.com",
-      comment: "comment",
-      modified_time: DateTime.utc_now() |> DateTime.truncate(:second)
-    })
-  end
-
-  defp insert_pipeline_instance(pipeline, counter) do
-    Repo.insert!(%PipelineInstance{
-      pipeline_id: pipeline.id,
-      counter: counter,
-      label: "#{pipeline.name}/#{counter}",
-      natural_order: counter * 1.0,
-      build_cause: %{}
-    })
-  end
-
-  defp insert_pmr(pipeline_instance_id, material_id, modification_id, parent_pi_id, revision) do
-    Repo.insert!(%PipelineMaterialRevision{
-      pipeline_instance_id: pipeline_instance_id,
-      material_id: material_id,
-      modification_id: modification_id,
-      parent_pipeline_instance_id: parent_pi_id,
-      revision: revision
-    })
-  end
+  # Helpers kept: add_material_to_pipeline/2 (shorthand, used in tests)
 end

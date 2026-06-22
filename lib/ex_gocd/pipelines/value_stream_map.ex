@@ -596,9 +596,14 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
   # For the current pipeline: actual stages come from build_db_pipeline_vsm directly.
   defp get_pipeline_stages(name) do
     if use_mock?(name) do
-      [
-        %{"name" => "build", "status" => "Passed", "duration" => 90, "locator" => "/pipelines/#{name}/1/build/1"}
-      ]
+      mock_pipeline = Enum.find(MockData.pipelines(), &(&1.name == name))
+      if mock_pipeline && mock_pipeline.stages do
+        Enum.map(mock_pipeline.stages, fn s ->
+          %{"name" => s.name, "status" => s.status, "duration" => s.duration || 90, "locator" => "/pipelines/#{name}/1/#{s.name}/1"}
+        end)
+      else
+        [%{"name" => "build", "status" => "Passed", "duration" => 90, "locator" => "/pipelines/#{name}/1/build/1"}]
+      end
     else
       # Look up the actual pipeline config — return configured stages as "Not Yet Run"
       # GoCD parity: UnrunStagesPopulator adds NullStage (grey) for each configured stage

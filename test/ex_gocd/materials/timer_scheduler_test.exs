@@ -9,9 +9,10 @@ defmodule ExGoCD.Materials.TimerSchedulerTest do
   import Ecto.Query
 
   alias ExGoCD.Materials.TimerScheduler
-  alias ExGoCD.Pipelines
-  alias ExGoCD.Pipelines.{Job, Modification, Pipeline, PipelineInstance, Stage, Task}
+  alias ExGoCD.Pipelines.{Modification, Pipeline, PipelineInstance}
   alias ExGoCD.Repo
+
+  import ExGoCD.PipelinesFixtures, only: [insert_pipeline_with_job_and_material: 1]
 
   setup do
     :ok
@@ -37,7 +38,7 @@ defmodule ExGoCD.Materials.TimerSchedulerTest do
 
   describe "timer_tick / trigger behaviour" do
     test "tick triggers a pipeline and creates an instance" do
-      pipeline = insert_pipeline_with_job("tick-trigger-pipe")
+      pipeline = insert_pipeline_with_job_and_material("tick-trigger-pipe")
       |> then(fn {p, _s, _j} ->
         {:ok, p} = p |> Pipeline.changeset(%{timer: "* * * * *"}) |> Repo.update()
         p
@@ -56,7 +57,7 @@ defmodule ExGoCD.Materials.TimerSchedulerTest do
     end
 
     test "tick with timer_only_on_changes: true and no new modifications does not trigger" do
-      {pipeline, stage, _job} = insert_pipeline_with_job("only-on-changes-no-mod")
+      {pipeline, stage, _job} = insert_pipeline_with_job_and_material("only-on-changes-no-mod")
       {:ok, pipeline} = pipeline
         |> Pipeline.changeset(%{timer: "* * * * *", timer_only_on_changes: true})
         |> Repo.update()
@@ -87,7 +88,7 @@ defmodule ExGoCD.Materials.TimerSchedulerTest do
     end
 
     test "tick with timer_only_on_changes: true and a new modification triggers" do
-      {pipeline, stage, _job} = insert_pipeline_with_job("only-on-changes-with-mod")
+      {pipeline, stage, _job} = insert_pipeline_with_job_and_material("only-on-changes-with-mod")
       {:ok, pipeline} = pipeline
         |> Pipeline.changeset(%{timer: "* * * * *", timer_only_on_changes: true})
         |> Repo.update()
@@ -120,7 +121,7 @@ defmodule ExGoCD.Materials.TimerSchedulerTest do
 
   describe "config reload on pipelines:updated" do
     test "removing a timer from a pipeline de-registers it" do
-      {pipeline, _s, _j} = insert_pipeline_with_job("deregister-pipe")
+      {pipeline, _s, _j} = insert_pipeline_with_job_and_material("deregister-pipe")
       {:ok, pipeline} = pipeline |> Pipeline.changeset(%{timer: "* * * * *"}) |> Repo.update()
 
       send(Process.whereis(TimerScheduler), :reload_timers)
@@ -134,22 +135,5 @@ defmodule ExGoCD.Materials.TimerSchedulerTest do
 
       refute pipeline.name in TimerScheduler.scheduled_pipelines()
     end
-  end
-
-  defp insert_pipeline_with_job(name) do
-    material = Repo.insert!(%ExGoCD.Pipelines.Material{} |> ExGoCD.Pipelines.Material.changeset(%{
-      type: "git", url: "https://github.com/test/#{name}.git", branch: "main", name: "#{name}-mat"
-    }))
-
-    pipeline = Repo.insert!(%Pipeline{} |> Pipeline.changeset(%{name: name, group: "test"}))
-
-    {:ok, _} = Pipelines.add_material_to_pipeline(pipeline, material)
-    pipeline = Repo.preload(pipeline, :materials)
-
-    stage = Repo.insert!(%Stage{} |> Stage.changeset(%{name: "build", pipeline_id: pipeline.id, approval_type: "success"}))
-    job = Repo.insert!(%Job{} |> Job.changeset(%{name: "job-1", stage_id: stage.id, resources: []}))
-    Repo.insert!(%Task{} |> Task.changeset(%{type: "exec", command: "echo", arguments: ["hi"], job_id: job.id}))
-
-    {pipeline, stage, job}
   end
 end

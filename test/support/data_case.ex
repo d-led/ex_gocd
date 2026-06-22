@@ -63,7 +63,9 @@ defmodule ExGoCD.DataCase do
       _ = Enum.reduce_while(1..200, :waiting, fn _i, :waiting ->
         case Process.info(pid, :message_queue_len) do
           {:message_queue_len, 0} -> {:halt, :done}
-          {:message_queue_len, _} -> Process.sleep(5); {:cont, :waiting}
+          {:message_queue_len, _} ->
+            Process.sleep(5)
+            {:cont, :waiting}
           nil -> {:halt, :dead}
         end
       end)

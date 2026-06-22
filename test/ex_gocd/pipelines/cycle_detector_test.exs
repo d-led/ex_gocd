@@ -2,9 +2,8 @@ defmodule ExGoCD.Pipelines.CycleDetectorTest do
   use ExGoCD.DataCase, async: true
 
   alias ExGoCD.Pipelines.CycleDetector
-  alias ExGoCD.Pipelines.Material
-  alias ExGoCD.Pipelines.Pipeline
-  alias ExGoCD.Repo
+
+  import ExGoCD.PipelinesFixtures, only: [insert_pipeline: 1, insert_material: 3]
 
   describe "check_dependency_cycles/0" do
     test "returns :ok for empty database" do
@@ -119,17 +118,5 @@ defmodule ExGoCD.Pipelines.CycleDetectorTest do
       assert "pipe-a" in path
       assert "pipe-b" in path
     end
-  end
-
-  # --- Helpers ---
-
-  defp insert_pipeline(name) do
-    Repo.insert!(%Pipeline{name: name, group: "test", label_template: "${COUNT}"})
-  end
-
-  defp insert_material(pipeline, type, url) do
-    mat = Repo.insert!(%Material{type: type, url: url})
-    {:ok, _} = ExGoCD.Pipelines.add_material_to_pipeline(pipeline, mat)
-    mat
   end
 end

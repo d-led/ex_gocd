@@ -9,13 +9,7 @@ defmodule ExGoCD.EnvironmentsTest do
   alias ExGoCD.Pipelines.Pipeline
   alias ExGoCD.Repo
 
-  defp insert_pipeline(name) do
-    Repo.insert!(%Pipeline{
-      name: name,
-      group: "default",
-      label_template: "${COUNT}"
-    })
-  end
+  import ExGoCD.PipelinesFixtures, only: [insert_pipeline: 1]
 
   describe "create_environment/1" do
     test "creates an environment with valid attributes" do

@@ -36,15 +36,13 @@ defmodule ExGoCD.PipelinesFixtures do
     - `:template_id` — optional template association
   """
   def insert_pipeline(name, opts \\ []) do
-    %Pipeline{}
-    |> Pipeline.changeset(%{
+    Repo.insert!(%Pipeline{
       name: name,
       group: Keyword.get(opts, :group, "test"),
       label_template: Keyword.get(opts, :label_template, "${COUNT}"),
       lock_behavior: Keyword.get(opts, :lock_behavior, "none"),
       template_id: Keyword.get(opts, :template_id)
     })
-    |> Repo.insert!()
   end
 
   @doc """
@@ -143,13 +141,12 @@ defmodule ExGoCD.PipelinesFixtures do
   Inserts a stage config record (not an instance).
   """
   def insert_stage(pipeline_id, name, opts \\ []) do
-    Repo.insert!(%Stage{} |> Stage.changeset(%{
+    Repo.insert!(%Stage{
       name: name,
       pipeline_id: pipeline_id,
       approval_type: Keyword.get(opts, :approval_type, "success"),
-      order_id: Keyword.get(opts, :order_id),
       template_id: Keyword.get(opts, :template_id)
-    }))
+    })
   end
 
   # ═══════════════════════════════════════════════════════════════════
@@ -159,15 +156,21 @@ defmodule ExGoCD.PipelinesFixtures do
   @doc """
   Inserts a PipelineInstance. Accepts either a Pipeline struct or a pipeline_id integer.
   """
-  def insert_pipeline_instance(pipeline_or_id, counter_or_attrs) when is_integer(pipeline_or_id) do
-    counter = counter_or_attrs
-    label = Keyword.get(counter_or_attrs, :label, to_string(counter_or_attrs))
+  def insert_pipeline_instance(pipeline_or_id, counter_or_opts) when is_integer(pipeline_or_id) do
+    {counter, opts} =
+      if is_list(counter_or_opts) do
+        {Keyword.get(counter_or_opts, :counter, 1), counter_or_opts}
+      else
+        {counter_or_opts, []}
+      end
+
+    label = Keyword.get(opts, :label, to_string(counter))
     Repo.insert!(%PipelineInstance{
       pipeline_id: pipeline_or_id,
       counter: counter,
       label: label,
       natural_order: counter * 1.0,
-      build_cause: %{"triggerMessage" => "test trigger"}
+      build_cause: Keyword.get(opts, :build_cause, %{"triggerMessage" => "test trigger"})
     })
   end
 
@@ -214,11 +217,12 @@ defmodule ExGoCD.PipelinesFixtures do
   def insert_stage_instance(pipeline_instance_id, name, opts \\ []) do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
     created = Keyword.get(opts, :created_time, now)
-    completed = Keyword.get(opts, :completed_at)
     state = Keyword.get(opts, :state, "Building")
-    result = Keyword.get(opts, :result, state == "Building" && "Unknown" || "Passed")
+    result = Keyword.get(opts, :result, if(state == "Building", do: "Unknown", else: "Passed"))
+    # Default completed_at: nil for Building, now for terminal states
+    completed = Keyword.get(opts, :completed_at, if(state != "Building", do: NaiveDateTime.truncate(now, :second)))
 
-    Repo.insert!(%StageInstance{} |> StageInstance.changeset(%{
+    Repo.insert!(%StageInstance{
       pipeline_instance_id: pipeline_instance_id,
       name: name,
       counter: Keyword.get(opts, :counter, 1),
@@ -229,8 +233,11 @@ defmodule ExGoCD.PipelinesFixtures do
       created_time: created,
       completed_at: completed,
       latest_run: Keyword.get(opts, :latest_run, true),
-      artifacts_deleted: Keyword.get(opts, :artifacts_deleted, false)
-    }))
+      artifacts_deleted: Keyword.get(opts, :artifacts_deleted, false),
+      rerun_of_counter: Keyword.get(opts, :rerun_of_counter),
+      inserted_at: Keyword.get(opts, :inserted_at, created),
+      updated_at: Keyword.get(opts, :updated_at, created)
+    })
   end
 
   @doc """
