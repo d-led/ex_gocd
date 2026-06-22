@@ -183,64 +183,18 @@ func (r *Registrar) registerAndGetCerts() error {
 
 // registerHTTP performs basic registration for HTTP servers (no certificates)
 func (r *Registrar) registerHTTP() error {
-	// Read token
-	token, err := os.ReadFile(r.config.AgentTokenFile())
-	if err != nil {
-		return fmt.Errorf("failed to read token: %w", err)
+	if _, err := r.doRegistration(); err != nil {
+		return err
 	}
-
-	// Prepare registration form data
-	formData := r.registrationData()
-	formData.Set("token", string(token))
-
-	// Register with server
-	registrationURL := r.config.RegistrationURL()
-	resp, err := r.httpClient.PostForm(registrationURL, formData)
-	if err != nil {
-		return fmt.Errorf("failed to POST registration to %s: %w", registrationURL, err)
-	}
-	defer resp.Body.Close()
-
-	// For HTTP, we might get an empty 200 response which is OK
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("registration failed: status %d, body: %s", resp.StatusCode, string(body))
-	}
-
 	log.Println("HTTP registration completed")
 	return nil
 }
 
 // registerAndDownloadCerts performs HTTPS registration and downloads certificates
 func (r *Registrar) registerAndDownloadCerts() error {
-	// Read token
-	token, err := os.ReadFile(r.config.AgentTokenFile())
+	bodyBytes, err := r.doRegistration()
 	if err != nil {
-		return fmt.Errorf("failed to read token: %w", err)
-	}
-
-	// Prepare registration form data
-	formData := r.registrationData()
-	formData.Set("token", string(token))
-
-	// Register with server
-	registrationURL := r.config.RegistrationURL()
-
-	resp, err := r.httpClient.PostForm(registrationURL, formData)
-	if err != nil {
-		return fmt.Errorf("failed to POST registration to %s: %w", registrationURL, err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("registration failed: status %d, body: %s", resp.StatusCode, string(body))
-	}
-
-	// Read response body
-	bodyBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("failed to read response body: %w", err)
+		return err
 	}
 
 	// Check if response is empty (agent pending approval)
@@ -257,22 +211,41 @@ func (r *Registrar) registerAndDownloadCerts() error {
 	if registration.AgentCertificate == "" {
 		return fmt.Errorf("registration failed: empty certificate (agent may need approval on server)")
 	}
+	return r.saveCertificates(registration)
+}
 
-	// Save private key and certificate
-	privateKeyFile := r.config.AgentPrivateKeyFile()
-	certFile := r.config.AgentCertFile()
+// doRegistration POSTs the agent registration form and returns the response body.
+func (r *Registrar) doRegistration() ([]byte, error) {
+	token, err := os.ReadFile(r.config.AgentTokenFile())
+	if err != nil {
+		return nil, fmt.Errorf("failed to read token: %w", err)
+	}
+	formData := r.registrationData()
+	formData.Set("token", string(token))
+	registrationURL := r.config.RegistrationURL()
+	resp, err := r.httpClient.PostForm(registrationURL, formData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to POST registration to %s: %w", registrationURL, err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("registration failed: status %d, body: %s", resp.StatusCode, string(body))
+	}
+	return io.ReadAll(resp.Body)
+}
 
-	if err := os.WriteFile(privateKeyFile, []byte(registration.AgentPrivateKey), 0600); err != nil {
+// saveCertificates writes the TLS certificates from a registration response.
+func (r *Registrar) saveCertificates(reg protocol.Registration) error {
+	if err := os.WriteFile(r.config.AgentPrivateKeyFile(), []byte(reg.AgentPrivateKey), 0600); err != nil {
 		return fmt.Errorf("failed to write private key: %w", err)
 	}
-
-	if err := os.WriteFile(certFile, []byte(registration.AgentCertificate), 0600); err != nil {
+	if err := os.WriteFile(r.config.AgentCertFile(), []byte(reg.AgentCertificate), 0600); err != nil {
 		return fmt.Errorf("failed to write certificate: %w", err)
 	}
-
-	log.Println("HTTPS registration completed with certificates")
 	return nil
 }
+
 
 // registrationData prepares the form data for registration
 func (r *Registrar) registrationData() url.Values {

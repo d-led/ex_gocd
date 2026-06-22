@@ -447,12 +447,22 @@ Cypress.Commands.add('nodeShouldNotGlow', (label) => {
 Cypress.Commands.add('allOtherArrowsShouldBeDimmed', (sourceLabel, targetLabel) => {
   vsmNodeId(sourceLabel).then((srcId) => {
     vsmNodeId(targetLabel).then((tgtId) => {
-      cy.get('#vsm-svg .vsm-path').each(($el) => {
-        const s = $el.attr('data-source-id');
-        const t = $el.attr('data-target-id');
-        if (s !== srcId || t !== tgtId) {
-          cy.wrap($el).should('have.css', 'opacity', '0.15');
-        }
+      // Collect all arrow source→target pairs, then assert each individually
+      // (avoids detached-DOM errors from LiveView re-renders)
+      cy.get('#vsm-svg .vsm-path').then(($paths) => {
+        const pairs = [];
+        $paths.each((_, el) => {
+          const s = el.getAttribute('data-source-id');
+          const t = el.getAttribute('data-target-id');
+          if (s && t) pairs.push({ s, t });
+        });
+        pairs.forEach(({ s, t }) => {
+          if (s !== srcId || t !== tgtId) {
+            cy.get(`#vsm-svg .vsm-path[data-source-id="${s}"][data-target-id="${t}"]`)
+              .first()
+              .should('have.css', 'opacity', '0.15');
+          }
+        });
       });
     });
   });
@@ -467,6 +477,8 @@ Cypress.Commands.add('moveMouseAwayFromArrowBetween', (sourceLabel, targetLabel)
 });
 
 Cypress.Commands.add('allArrowsShouldBeBright', () => {
+  // Re-query each time to survive LiveView re-renders
+  cy.get('#vsm-svg .vsm-path').should('have.length.greaterThan', 0);
   cy.get('#vsm-svg .vsm-path').each(($el) => {
     cy.wrap($el).should('not.have.css', 'opacity', '0.15');
   });

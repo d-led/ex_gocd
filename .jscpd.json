@@ -5,8 +5,8 @@
     "typescript": ["ts", "tsx"],
     "go": ["go"]
   },
-  "minLines": 5,
-  "minTokens": 40,
+  "minLines": 7,
+  "minTokens": 60,
   "threshold": 0,
   "ignore": [
     "**/node_modules/**",

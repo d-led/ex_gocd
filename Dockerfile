@@ -19,7 +19,7 @@ ENV MIX_ENV="prod"
 COPY mix.exs mix.lock ./
 RUN --mount=type=cache,target=/root/.hex \
     --mount=type=cache,target=/root/.mix \
-    --mount=type=cache,target=/app/deps \
+    --mount=type=cache,target=/app/deps,sharing=shared \
     mix deps.get --only $MIX_ENV
 
 RUN --mount=type=cache,target=/root/.hex \
