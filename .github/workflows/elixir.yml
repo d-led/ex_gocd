@@ -59,13 +59,14 @@ jobs:
         DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ex_gocd_test
         CI: "true"
 
+    - uses: actions/setup-go@v6
+      with:
+        go-version: '1.26'
     - name: Run Go Agent tests
-      run: |
-        cd agent
-        go test ./...
+      run: cd agent && go test ./...
 
     - name: Publish Elixir Test Results
-      uses: dorny/test-reporter@v2
+      uses: dorny/test-reporter@v3
       if: always()
       with:
         name: Elixir Unit Tests
