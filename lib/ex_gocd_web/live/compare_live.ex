@@ -45,31 +45,25 @@ defmodule ExGoCDWeb.CompareLive do
   end
 
   defp get_mock_comparison(_pipeline_name, _from_counter, _to_counter) do
-    # Generate realistic Git modifications
-    [
-      %{
-        material_id: 1,
-        type: "git",
-        url: "https://github.com/d-led/ex_gocd.git",
-        branch: "master",
-        from_revision: "a0f2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0",
-        to_revision: "9f8e7d6c5b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e",
-        modifications: [
-          %{
-            "revision" => "9f8e7d6c5b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e",
-            "username" => "Dmitry Ledentsov <dmitry@example.com>",
-            "modifiedTime" => DateTime.utc_now() |> DateTime.to_iso8601(),
-            "comment" => "feat: add robust job log streaming support for agents"
-          },
-          %{
-            "revision" => "7c6b5a4f3e2d1c0b9a8f7e6d5c4b3a2f1e0d9c8b",
-            "username" => "Dmitry Ledentsov <dmitry@example.com>",
-            "modifiedTime" => DateTime.utc_now() |> DateTime.add(-3600) |> DateTime.to_iso8601(),
-            "comment" => "fix: improve dashboard live status updates and reconnect handling"
-          }
-        ]
-      }
-    ]
+    %{
+      materials: [
+        %{
+          material_id: 1,
+          type: "git",
+          url: "https://github.com/d-led/ex_gocd.git",
+          branch: "master",
+          from_revision: "a0f2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0",
+          to_revision: "9f8e7d6c5b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e",
+          modifications: [
+            %{"revision" => "9f8e7d6c5b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e", "username" => "Dmitry Ledentsov <dmitry@example.com>", "modifiedTime" => DateTime.utc_now() |> DateTime.to_iso8601(), "comment" => "feat: add job log streaming"},
+            %{"revision" => "7c6b5a4f3e2d1c0b9a8f7e6d5c4b3a2f1e0d9c8b", "username" => "Dmitry Ledentsov <dmitry@example.com>", "modifiedTime" => DateTime.utc_now() |> DateTime.add(-3600) |> DateTime.to_iso8601(), "comment" => "fix: dashboard live status"}
+          ]
+        }
+      ],
+      from_environment_variables: [%{"name" => "DEPLOY_ENV", "value" => "staging"}],
+      to_environment_variables: [%{"name" => "DEPLOY_ENV", "value" => "production"}, %{"name" => "FEATURE_FLAG", "value" => "new_ui"}],
+      config_changed: false
+    }
   end
 
   defp format_revision(rev) when is_binary(rev) do
@@ -117,12 +111,12 @@ defmodule ExGoCDWeb.CompareLive do
 
       <!-- Comparison Content -->
       <div class="flex flex-col gap-6">
-        <%= if Enum.empty?(@comparison) do %>
+        <%= if Enum.empty?(@comparison.materials) do %>
           <div class="bg-white border border-gray-200 rounded shadow-sm p-8 text-center text-gray-500 italic">
             No materials configuration or changes found to compare.
           </div>
         <% else %>
-          <%= for mat <- @comparison do %>
+          <%= for mat <- @comparison.materials do %>
             <div class="bg-white border border-gray-200 rounded shadow-sm overflow-hidden">
               <div class="bg-gray-50 border-b border-gray-200 px-6 py-4 flex justify-between items-center flex-wrap gap-2">
                 <div>

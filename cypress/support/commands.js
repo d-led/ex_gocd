@@ -489,7 +489,7 @@ Cypress.Commands.add('noNodesShouldGlow', () => {
 });
 
 Cypress.Commands.add('vsmArrowsShouldBeDrawn', (minCount) => {
-  cy.get('#vsm-svg .vsm-path[stroke="rgba(0,0,0,0.02)"]')
+  cy.get('#vsm-svg .vsm-path[stroke="transparent"]')
     .should('have.length.at.least', minCount);
 });
 

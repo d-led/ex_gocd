@@ -992,16 +992,12 @@ defmodule ExGoCD.Pipelines do
     from_instance = if from_counter > 0, do: get_pipeline_instance(pipeline_name, from_counter), else: nil
     to_instance = get_pipeline_instance(pipeline_name, to_counter)
 
-    # Extract materials from pipeline config, or from the instances if configs missing
     pipeline = get_pipeline_by_name(pipeline_name)
     materials = if pipeline, do: pipeline.materials, else: []
 
-    # Map each material to its revisions in from_instance and to_instance
-    Enum.map(materials, fn material ->
+    material_comparison = Enum.map(materials, fn material ->
       from_rev_info = extract_revision_info(from_instance, material.id)
       to_rev_info = extract_revision_info(to_instance, material.id)
-
-      # Accumulate modifications that happened in between (i.e. those in to_instance)
       modifications = Map.get(to_rev_info, :modifications, [])
 
       %{
@@ -1014,6 +1010,34 @@ defmodule ExGoCD.Pipelines do
         modifications: modifications
       }
     end)
+
+    # Extract environment variables from both runs
+    from_env = extract_env_vars(from_instance)
+    to_env = extract_env_vars(to_instance)
+
+    # Detect config changes
+    from_snapshot = extract_config_snapshot(from_instance)
+    to_snapshot = extract_config_snapshot(to_instance)
+    config_changed = from_snapshot && to_snapshot && from_snapshot != to_snapshot
+
+    %{
+      materials: material_comparison,
+      from_environment_variables: from_env,
+      to_environment_variables: to_env,
+      config_changed: config_changed
+    }
+  end
+
+  defp extract_env_vars(nil), do: []
+  defp extract_env_vars(instance) do
+    (instance.build_cause || %{})
+    |> Map.get("environmentVariables", [])
+    |> List.wrap()
+  end
+
+  defp extract_config_snapshot(nil), do: nil
+  defp extract_config_snapshot(instance) do
+    (instance.build_cause || %{})["configSnapshot"]
   end
 
   defp extract_revision_info(nil, _material_id), do: %{revision: "N/A", modifications: []}

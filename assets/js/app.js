@@ -156,7 +156,7 @@ const VSMGraph = {
           const hit = document.createElementNS("http://www.w3.org/2000/svg", "path");
           hit.setAttribute("d", pathD);
           hit.setAttribute("class", "vsm-path");
-          hit.setAttribute("stroke", "rgba(0,0,0,0.02)");
+          hit.setAttribute("stroke", "transparent");
           hit.setAttribute("stroke-width", "20");
           hit.setAttribute("fill", "none");
           hit.setAttribute("stroke-linecap", "round");
