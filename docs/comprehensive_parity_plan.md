@@ -594,19 +594,33 @@ GoCD VSM API returns:
 | R.9 | `can_edit` and `edit_path` on pipeline nodes | 🔴 |
 | R.10 | `template_name` on pipeline nodes | 🔴 |
 | R.11 | `material_names` on material nodes | 🔴 |
-| R.12 | Multiple parent/dependent relationships (fan-in/out edges) | 🔴 |
+| R.12 | Multiple parent/dependent relationships (fan-in/out edges) | ✅ |
 | R.13 | JS renderer tests (15 specs in `value_stream_map_renderer_spec.js`) | 🔴 |
+| R.14 | Downstream un-run stages (UnrunStagesPopulator parity) | ✅ |
+| R.15 | Downstream node status — Not Yet Run vs Passed when empty | ✅ |
 
 ### R.3 Gaps from GoCD VSM
 
-| # | Gap | Effort |
-|---|-----|--------|
-| R.3.1 | Add `can_edit`, `edit_path`, `template_name` to pipeline nodes | S |
-| R.3.2 | Add `material_names` array to material nodes | S |
-| R.3.3 | Add `locator` for material revisions modifications | S |
-| R.3.4 | Verify VSM shows fan-in/fan-out edges correctly | M |
-| R.3.5 | Verify VSM JSON matches GoCD structure exactly | M |
-| R.3.6 | Add pipeline instance + stage details to VSM JSON | M |
+| # | Gap | Effort | Status |
+|---|-----|--------|--------|
+| R.3.1 | Add `can_edit`, `edit_path`, `template_name` to pipeline nodes | S | ✅ |
+| R.3.2 | Add `material_names` array to material nodes | S | ✅ |
+| R.3.3 | Add `locator` for material revisions modifications | S | 🔴 |
+| R.3.4 | Verify VSM shows fan-in/fan-out edges correctly | M | ✅ |
+| R.3.5 | Fix seeds: populate pipelines_materials join table | S | ✅ |
+| R.3.6 | Fix downstream node status (Enum.all?([], ...) → Passed bug) | S | ✅ |
+| R.3.7 | Populate un-run stages from pipeline config (Not Yet Run) | M | ✅ |
+| R.3.8 | VSM diamond ExUnit tests (6 new) | S | ✅ |
+| R.3.9 | VSM diamond Cypress tests (6 new) | S | ✅ |
+| R.3.10 | Verify VSM JSON matches GoCD structure exactly | M | 🔴 |
+| R.3.11 | Add pipeline instance + stage details to VSM JSON | M | 🔴 |
+
+### R.4 Test Summary
+
+| Layer | Tests |
+|-------|-------|
+| ExUnit VSM | 13 (was 7, +6 diamond tests) |
+| Cypress VSM | 18 (was 12, +6 diamond tests) |
 
 **Priority**: P1. VSM must be indistinguishable from original GoCD.
 

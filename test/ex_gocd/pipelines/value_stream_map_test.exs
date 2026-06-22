@@ -168,4 +168,129 @@ defmodule ExGoCD.Pipelines.ValueStreamMapTest do
       assert is_integer(stage["duration"])
     end
   end
+
+  describe "diamond fan-in/fan-out VSM" do
+    setup do
+      # Create the diamond: upstream-lib → (component-a, component-b) → integration-pipeline
+      {:ok, upstream} = create_pipeline_with_material("upstream-lib", "git", "https://github.com/d-led/upstream.git")
+
+      {:ok, comp_a} = create_pipeline_with_material("component-a", "dependency", "upstream-lib")
+      {:ok, comp_b} = create_pipeline_with_material("component-b", "dependency", "upstream-lib")
+      {:ok, integration} = create_pipeline_with_material("integration-pipeline", "dependency", "component-a")
+      # integration-pipeline also depends on component-b (fan-in)
+      {:ok, mat_b} = create_material("dependency", "component-b")
+      ExGoCD.Repo.insert_all("pipelines_materials", [%{pipeline_id: integration.id, material_id: mat_b.id}])
+
+      # Create instance for upstream-lib (stage already created by helper)
+      stage = ExGoCD.Repo.get_by!(ExGoCD.Pipelines.Stage, pipeline_id: upstream.id, name: "build")
+
+      completed_at = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+      created_time = DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.add(-300, :second)
+
+      {:ok, instance} =
+        %ExGoCD.Pipelines.PipelineInstance{}
+        |> ExGoCD.Pipelines.PipelineInstance.changeset(%{
+          pipeline_id: upstream.id, counter: 5, label: "5", natural_order: 5.0,
+          build_cause: %{"materialRevisions" => []}
+        })
+        |> ExGoCD.Repo.insert()
+
+      {:ok, _si} =
+        %ExGoCD.Pipelines.StageInstance{}
+        |> ExGoCD.Pipelines.StageInstance.changeset(%{
+          stage_id: stage.id, pipeline_instance_id: instance.id,
+          name: "build", counter: 1, order_id: 0, state: "Building", result: "Unknown",
+          approval_type: "success", created_time: created_time, completed_at: completed_at
+        })
+        |> ExGoCD.Repo.insert()
+
+      %{
+        upstream: upstream,
+        comp_a: comp_a,
+        comp_b: comp_b,
+        integration: integration,
+        instance: instance
+      }
+    end
+
+    test "shows 4 levels for the diamond", %{upstream: upstream} do
+      {:ok, vsm} = ValueStreamMap.get_pipeline_vsm(upstream.name, 5)
+      assert length(vsm["levels"]) == 4
+    end
+
+    test "level 2 shows downstream pipelines component-a and component-b", %{upstream: upstream} do
+      {:ok, vsm} = ValueStreamMap.get_pipeline_vsm(upstream.name, 5)
+      [_mat, _pipe, downstream_level | _] = vsm["levels"]
+      names = downstream_level["nodes"] |> Enum.map(& &1["name"])
+      assert "component-a" in names
+      assert "component-b" in names
+    end
+
+    test "level 3 shows fan-in integration-pipeline", %{upstream: upstream} do
+      {:ok, vsm} = ValueStreamMap.get_pipeline_vsm(upstream.name, 5)
+      levels = vsm["levels"]
+      assert length(levels) >= 4
+      last_level = Enum.at(levels, 3)
+      names = last_level["nodes"] |> Enum.map(& &1["name"])
+      assert "integration-pipeline" in names
+    end
+
+    test "downstream nodes show un-run stages (Not Yet Run)", %{upstream: upstream} do
+      {:ok, vsm} = ValueStreamMap.get_pipeline_vsm(upstream.name, 5)
+      [_mat, _pipe, downstream_level | _] = vsm["levels"]
+
+      for node <- downstream_level["nodes"] do
+        [inst] = node["instances"]
+        stages = inst["stages"]
+
+        # Downstreams haven't been triggered — all stages should be "Not Yet Run"
+        refute Enum.empty?(stages), "downstream #{node["name"]} should have configured stages"
+        assert Enum.all?(stages, &(&1["status"] == "Not Yet Run")),
+          "all stages on #{node["name"]} should be 'Not Yet Run', got: #{inspect(stages)}"
+      end
+    end
+
+    test "upstream node shows fan-out count", %{upstream: upstream} do
+      {:ok, vsm} = ValueStreamMap.get_pipeline_vsm(upstream.name, 5)
+      [_, pipe_level | _] = vsm["levels"]
+      [pipe_node] = pipe_level["nodes"]
+      assert pipe_node["fan_out"] >= 2
+      assert pipe_node["name"] == "upstream-lib"
+    end
+
+    test "integration-pipeline has two parents (fan-in)", %{upstream: upstream} do
+      {:ok, vsm} = ValueStreamMap.get_pipeline_vsm(upstream.name, 5)
+      levels = vsm["levels"]
+      last_level = Enum.at(levels, 3)
+      [integration_node] = last_level["nodes"]
+      parents = integration_node["parents"]
+      assert "component-a" in parents
+      assert "component-b" in parents
+    end
+  end
+
+  defp create_pipeline_with_material(name, mat_type, mat_url) do
+    {:ok, pipeline} =
+      %ExGoCD.Pipelines.Pipeline{}
+      |> ExGoCD.Pipelines.Pipeline.changeset(%{name: name, group: "default", label_template: "${COUNT}"})
+      |> ExGoCD.Repo.insert()
+
+    {:ok, material} = create_material(mat_type, mat_url)
+    ExGoCD.Repo.insert_all("pipelines_materials", [%{pipeline_id: pipeline.id, material_id: material.id}])
+
+    # Ensure each pipeline has a stage config (needed for un-run stage population)
+    unless ExGoCD.Repo.get_by(ExGoCD.Pipelines.Stage, pipeline_id: pipeline.id, name: "build") do
+      %ExGoCD.Pipelines.Stage{}
+      |> ExGoCD.Pipelines.Stage.changeset(%{name: "build", pipeline_id: pipeline.id, order_id: 0})
+      |> ExGoCD.Repo.insert()
+    end
+
+    {:ok, pipeline}
+  end
+
+  defp create_material(type, url) do
+    %ExGoCD.Pipelines.Material{}
+    |> ExGoCD.Pipelines.Material.changeset(%{type: type, url: url, branch: "main"})
+    |> ExGoCD.Repo.insert()
+  end
 end

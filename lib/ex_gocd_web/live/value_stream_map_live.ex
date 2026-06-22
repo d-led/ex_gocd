@@ -75,6 +75,7 @@ defmodule ExGoCDWeb.ValueStreamMapLive do
       "Cancelled" -> "bg-[#f0ad4e]"
       "Awaiting" -> "bg-[#e7eef0] border border-[#b6cdd2]"
       "Completed" -> "bg-[#5cb85c]"
+      "Not Yet Run" -> "bg-[#e7eef0] border border-dashed border-[#b6cdd2]"
       _ -> "bg-gray-300"
     end
   end
@@ -86,8 +87,14 @@ defmodule ExGoCDWeb.ValueStreamMapLive do
 
   defp do_pipeline_node_status(inst) do
     stages = inst["stages"] || []
-    statuses = Enum.map(stages, & &1["status"])
 
+    cond do
+      stages == [] -> nil
+      true -> do_stage_status(Enum.map(stages, & &1["status"]))
+    end
+  end
+
+  defp do_stage_status(statuses) do
     cond do
       Enum.any?(statuses, &(&1 == "Failed")) -> "Failed"
       Enum.any?(statuses, &(&1 == "Building")) -> "Building"

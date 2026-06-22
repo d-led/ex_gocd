@@ -525,15 +525,31 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
     build_material_vsm_data(matching_mat, material_fingerprint, revision)
   end
 
+  # Returns stages for a pipeline node in the VSM.
+  # For downstream nodes: returns configured stages as un-run (grey) indicators.
+  # For the current pipeline: actual stages come from build_db_pipeline_vsm directly.
   defp get_pipeline_stages(name) do
     if use_mock?(name) do
-      # mock stages — only used in mock mode
       [
         %{"name" => "build", "status" => "Passed", "duration" => 90, "locator" => "/pipelines/#{name}/1/build/1"}
       ]
     else
-      # Use the DB instance stages (already fetched by build_db_pipeline_vsm)
-      []  # stages are rendered from the main VSM data, not via this helper
+      # Look up the actual pipeline config — return configured stages as "Not Yet Run"
+      # GoCD parity: UnrunStagesPopulator adds NullStage (grey) for each configured stage
+      pipeline = Repo.get_by(Pipeline, name: name) |> Repo.preload(stages: [jobs: :tasks])
+
+      if pipeline && pipeline.stages do
+        Enum.map(pipeline.stages, fn stage ->
+          %{
+            "name" => stage.name,
+            "status" => "Not Yet Run",
+            "duration" => 0,
+            "locator" => "/pipelines/#{name}/1/#{stage.name}/1"
+          }
+        end)
+      else
+        []
+      end
     end
   end
 

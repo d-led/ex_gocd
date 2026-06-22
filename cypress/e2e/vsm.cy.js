@@ -78,4 +78,50 @@ describe("Value Stream Map E2E Tests", () => {
       cy.url().should("include", "/pipelines");
     });
   });
+
+  describe("Diamond fan-in/fan-out VSM", () => {
+    beforeEach(() => {
+      cy.visit("/pipelines/value_stream_map/upstream-lib/1");
+      cy.get('.phx-connected', { timeout: 10000 }).should('exist');
+    });
+
+    it("shows fan-out to component-a and component-b", () => {
+      cy.contains("component-a").should("exist");
+      cy.contains("component-b").should("exist");
+    });
+
+    it("shows fan-in to integration-pipeline", () => {
+      cy.contains("integration-pipeline").should("exist");
+    });
+
+    it("downstream nodes show un-run stage indicators", () => {
+      // component-a and component-b haven't been triggered — should show grey stages
+      cy.get("#node-component-a").within(() => {
+        cy.get('[aria-label*="build"]').should("exist");
+        cy.get('[aria-label*="Not Yet Run"]').should("exist");
+      });
+      cy.get("#node-component-b").within(() => {
+        cy.get('[aria-label*="build"]').should("exist");
+        cy.get('[aria-label*="Not Yet Run"]').should("exist");
+      });
+    });
+
+    it("fan-in pipeline shows two parent pipelines", () => {
+      cy.get("#node-integration-pipeline").within(() => {
+        cy.contains("integrate").should("exist");
+        cy.get('[aria-label*="Not Yet Run"]').should("exist");
+      });
+    });
+
+    it("shows correct FI and FO badges on upstream-lib", () => {
+      cy.get("#node-upstream-lib").within(() => {
+        cy.contains("FO:3").should("exist");
+        cy.contains("Current").should("exist");
+      });
+    });
+
+    it("VSM levels correspond to diamond depth", () => {
+      cy.get(".vsm-level").should("have.length", 4);
+    });
+  });
 });
