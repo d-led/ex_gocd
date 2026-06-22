@@ -99,56 +99,53 @@ describe("Value Stream Map", () => {
 
     it("draws dependency arrows between connected nodes", () => {
       cy.theVSMSvgIsRendered();
-      cy.theVSMHitPathsExist(6);
+      cy.vsmArrowsShouldBeDrawn(6);
     });
 
-    it("highlights connected nodes and dims other arrows on hover", () => {
-      // Hover the material → upstream-lib arrow
-      cy.hoverVSMArrow("4c470f082924a11e", "upstream-lib");
+    it("highlights the arrow and connected nodes when hovering over it", () => {
+      cy.hoverOnArrowBetween("ex_gocd.git", "upstream-lib");
 
-      // The hovered arrow stays bright
-      cy.theVSMHoveredArrowIsBright("4c470f082924a11e", "upstream-lib");
+      // The arrow from the material to the pipeline stays bright
+      cy.arrowBetweenShouldBeHighlighted("ex_gocd.git", "upstream-lib");
 
-      // All other arrows dim to 15%
-      cy.theVSMOtherArrowsAreDimmed("4c470f082924a11e", "upstream-lib");
+      // All other arrows fade to the background
+      cy.allOtherArrowsShouldBeDimmed("ex_gocd.git", "upstream-lib");
 
-      // Source (material) and target (pipeline) nodes glow
-      cy.theVSMArrowHighlightsNodes("4c470f082924a11e", "upstream-lib");
+      // Both the material card and the pipeline card glow
+      cy.nodesShouldGlow("ex_gocd.git", "upstream-lib");
 
-      // An unrelated node does NOT glow
-      cy.theVSMArrowDoesNotHighlightNode("integration-pipeline");
+      // An unrelated downstream pipeline does not glow
+      cy.nodeShouldNotGlow("integration-pipeline");
     });
 
-    it("restores all arrows and removes glow on mouseleave", () => {
-      cy.hoverVSMArrow("4c470f082924a11e", "upstream-lib");
-      cy.unhoverVSMArrow("4c470f082924a11e", "upstream-lib");
+    it("restores all arrows and removes the glow when moving the mouse away", () => {
+      cy.hoverOnArrowBetween("ex_gocd.git", "upstream-lib");
+      cy.moveMouseAwayFromArrowBetween("ex_gocd.git", "upstream-lib");
 
-      cy.theVSMAllArrowsAreBright();
-      cy.theVSMNoNodesAreHighlighted();
+      cy.allArrowsShouldBeBright();
+      cy.noNodesShouldGlow();
     });
 
-    it("persists highlight on click / tap for mobile interaction", () => {
-      cy.clickVSMArrow("4c470f082924a11e", "upstream-lib");
+    it("keeps the highlight after a tap so mobile users can inspect the arrow", () => {
+      cy.tapOnArrowBetween("ex_gocd.git", "upstream-lib");
 
-      cy.theVSMArrowHighlightsNodes("4c470f082924a11e", "upstream-lib");
-      cy.theVSMOtherArrowsAreDimmed("4c470f082924a11e", "upstream-lib");
+      cy.nodesShouldGlow("ex_gocd.git", "upstream-lib");
+      cy.allOtherArrowsShouldBeDimmed("ex_gocd.git", "upstream-lib");
 
-      // Second click dismisses
-      cy.clickVSMArrow("4c470f082924a11e", "upstream-lib");
-      cy.theVSMNoNodesAreHighlighted();
-      cy.theVSMAllArrowsAreBright();
+      // A second tap dismisses the highlight
+      cy.tapOnArrowBetween("ex_gocd.git", "upstream-lib");
+      cy.noNodesShouldGlow();
+      cy.allArrowsShouldBeBright();
     });
 
-    it("highlights downstream pipeline fan-out arrows independently", () => {
-      // Hover the upstream-lib → component-a arrow
-      cy.hoverVSMArrow("upstream-lib", "component-a");
+    it("highlights different fan-out arrows independently", () => {
+      cy.hoverOnArrowBetween("upstream-lib", "component-a");
 
-      cy.theVSMArrowHighlightsNodes("upstream-lib", "component-a");
-      cy.theVSMHoveredArrowIsBright("upstream-lib", "component-a");
-      cy.theVSMOtherArrowsAreDimmed("upstream-lib", "component-a");
+      cy.nodesShouldGlow("upstream-lib", "component-a");
+      cy.arrowBetweenShouldBeHighlighted("upstream-lib", "component-a");
+      cy.allOtherArrowsShouldBeDimmed("upstream-lib", "component-a");
 
-      // Clean up
-      cy.unhoverVSMArrow("upstream-lib", "component-a");
+      cy.moveMouseAwayFromArrowBetween("upstream-lib", "component-a");
     });
   });
 });
