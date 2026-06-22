@@ -541,6 +541,17 @@ GoCD detects config changes between pipeline runs and shows them in the pipeline
 | Q.3.4 | Implement fan-in gate: wait for ALL dependencies before triggering | M |
 | Q.3.5 | Trigger with specific revision support | M |
 
+### Q.4 Fairness Tests (GoCD AgentInstance.firstMatching parity)
+
+*Cross-referenced from `AgentInstanceTest.java`*
+
+| # | GoCD Test | Our Test | Status |
+|---|-----------|----------|--------|
+| Q.4.1 | `shouldReturnFirstMatchingJobPlan` — FIFO ordering | FIFO fairness: 3 jobs assigned in order | ✅ |
+| Q.4.2 | `shouldReturnAJobPlanWithMatchingUuidSet` — agent UUID affinity | agent UUID affinity: pinned job → specific agent | ✅ |
+| Q.4.3 | `shouldReturnNullWhenNoMatchingJobs` — no match | no match: mismatched resources → no_work | ✅ |
+| Q.4.4 | Resource matching — agent gets jobs matching resources | resource matching: java→java agent, go→go agent | ✅ |
+
 **Priority**: P1. Scheduling must be indistinguishable from original GoCD.
 
 ---

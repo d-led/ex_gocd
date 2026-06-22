@@ -35,6 +35,12 @@
             end}>
             {@job_instance.result || "Unknown"}
           </span>
+          <%= if @agent do %>
+            <span class="text-gray-400 font-bold uppercase tracking-wider text-[9px] ml-2">Agent</span>
+            <.link navigate={~p"/agents"} class="font-bold text-[#2d6ca2] hover:underline">
+              {@agent.hostname} <span class="text-gray-400 font-normal">({String.slice(@agent.uuid, 0, 8)}...)</span>
+            </.link>
+          <% end %>
         </div>
       <% end %>
     </div>

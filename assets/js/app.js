@@ -115,7 +115,10 @@ const VSMGraph = {
           const dx = Math.max(40, (x2 - x1) / 2);
 
           const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-          path.setAttribute("d", `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`);
+          // Control points both share the source Y so the exit tangent is horizontal
+          // and the entry tangent naturally points toward the source — the arrow
+          // orients to match the curve's true approach angle at the target edge.
+          path.setAttribute("d", `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y1}, ${x2} ${y2}`);
           path.setAttribute("class", "vsm-path");
           
           const isHighlight = source.isCurrent || target.isCurrent;

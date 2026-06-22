@@ -100,6 +100,82 @@ defmodule ExGoCD.SchedulerTest do
       assert Scheduler.pending_count() == n0
     end
 
+    test "FIFO fairness: first enqueued job is assigned first (GoCD firstMatching parity)" do
+      {:ok, _} = Agents.register_agent(%{uuid: @uuid, hostname: "agent-a", ipaddress: "127.0.0.1"})
+      n0 = Scheduler.pending_count()
+
+      # Enqueue three jobs — j1 first, j2 second, j3 third
+      assert {:ok, j1_id} = Scheduler.schedule_job(%{"pipeline" => "p", "stage" => "s", "job" => "j1"})
+      assert {:ok, j2_id} = Scheduler.schedule_job(%{"pipeline" => "p", "stage" => "s", "job" => "j2"})
+      assert {:ok, j3_id} = Scheduler.schedule_job(%{"pipeline" => "p", "stage" => "s", "job" => "j3"})
+      assert Scheduler.pending_count() == n0 + 3
+
+      # FIFO: three assignments get j1, j2, j3 in order
+      # Reset agent to Idle between each to simulate job completion
+      assert_fifo_assign(@uuid, j1_id)
+      assert_fifo_assign(@uuid, j2_id)
+      assert_fifo_assign(@uuid, j3_id)
+
+      assert Scheduler.pending_count() == n0
+    end
+
+    test "agent UUID affinity: job pinned to specific agent is assigned to that agent (GoCD parity)" do
+      {:ok, _} = Agents.register_agent(%{uuid: @uuid, hostname: "agent-a", ipaddress: "127.0.0.1"})
+      {:ok, _} = Agents.register_agent(%{uuid: @uuid_b, hostname: "agent-b", ipaddress: "127.0.0.2"})
+
+      n0 = Scheduler.pending_count()
+
+      # Job pinned to agent B
+      assert {:ok, pinned_id} = Scheduler.schedule_job(%{
+        "pipeline" => "p", "stage" => "s", "job" => "pinned",
+        "agent_uuid" => @uuid_b
+      })
+
+      # Agent A tries — should not get the pinned job
+      AgentPresence.track(self(), @presence_topic, @uuid, %{})
+      assert Scheduler.try_assign_work(@uuid) == :no_work
+
+      # Agent B tries — should get the pinned job
+      AgentPresence.track(self(), @presence_topic, @uuid_b, %{})
+      assert {:assigned, spec} = Scheduler.try_assign_work_with_spec(@uuid_b)
+      assert spec.id == pinned_id
+      assert spec.job == "pinned"
+      assert spec.agent_uuid == @uuid_b
+
+      assert Scheduler.pending_count() == n0
+    end
+
+    test "resource matching: agent only gets jobs matching its resources" do
+      {:ok, _} = Agents.register_agent(%{uuid: @uuid, hostname: "agent-a", ipaddress: "127.0.0.1", resources: ["java", "linux"]})
+      {:ok, _} = Agents.register_agent(%{uuid: @uuid_b, hostname: "agent-b", ipaddress: "127.0.0.2", resources: ["go", "linux"]})
+
+      n0 = Scheduler.pending_count()
+
+      assert {:ok, java_id} = Scheduler.schedule_job(%{"pipeline" => "p", "stage" => "s", "job" => "java-job", "resources" => ["java"]})
+      assert {:ok, go_id} = Scheduler.schedule_job(%{"pipeline" => "p", "stage" => "s", "job" => "go-job", "resources" => ["go"]})
+
+      # Agent A (java,linux) should get java-job
+      AgentPresence.track(self(), @presence_topic, @uuid, %{})
+      assert {:assigned, spec_a} = Scheduler.try_assign_work_with_spec(@uuid)
+      assert spec_a.id == java_id
+
+      # Agent B (go,linux) should get go-job
+      AgentPresence.track(self(), @presence_topic, @uuid_b, %{})
+      assert {:assigned, spec_b} = Scheduler.try_assign_work_with_spec(@uuid_b)
+      assert spec_b.id == go_id
+
+      assert Scheduler.pending_count() == n0
+    end
+
+    test "no match: agent with mismatched resources gets no_work" do
+      {:ok, _} = Agents.register_agent(%{uuid: @uuid, hostname: "agent-a", ipaddress: "127.0.0.1", resources: ["docker"]})
+
+      assert {:ok, _} = Scheduler.schedule_job(%{"pipeline" => "p", "stage" => "s", "job" => "java-job", "resources" => ["java"]})
+
+      AgentPresence.track(self(), @presence_topic, @uuid, %{})
+      assert Scheduler.try_assign_work(@uuid) == :no_work
+    end
+
     test "two idle agents each receive one job when queue has two (GoCD-style work distribution)" do
       {:ok, _} = Agents.register_agent(%{uuid: @uuid, hostname: "agent-a", ipaddress: "127.0.0.1"})
       {:ok, _} = Agents.register_agent(%{uuid: @uuid_b, hostname: "agent-b", ipaddress: "127.0.0.2"})
@@ -417,5 +493,15 @@ defmodule ExGoCD.SchedulerTest do
         "dest" => "libs"
       }
     end
+  end
+
+  defp assert_fifo_assign(uuid, expected_id) do
+    # Reset agent to Idle to simulate previous job completing
+    agent = ExGoCD.Repo.get_by!(ExGoCD.Agents.Agent, uuid: uuid)
+    ExGoCD.Agents.update_agent(agent, %{state: "Idle"})
+    AgentPresence.track(self(), @presence_topic, uuid, %{})
+
+    assert {:assigned, spec} = Scheduler.try_assign_work_with_spec(uuid)
+    assert spec.id == expected_id
   end
 end

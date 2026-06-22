@@ -67,17 +67,10 @@ defmodule ExGoCDWeb.ValueStreamMapLive do
     node["id"] == vsm["current_pipeline"] or node["id"] == vsm["current_material"]
   end
 
+  alias ExGoCD.StageStatus
+
   defp stage_status_bg(status) do
-    case status do
-      "Passed" -> "bg-[#5cb85c]"
-      "Failed" -> "bg-[#d9534f]"
-      "Building" -> "bg-[#5bc0de]"
-      "Cancelled" -> "bg-[#f0ad4e]"
-      "Awaiting" -> "bg-[#e7eef0] border border-[#b6cdd2]"
-      "Completed" -> "bg-[#5cb85c]"
-      "Not Yet Run" -> "bg-[#e7eef0] border border-dashed border-[#b6cdd2]"
-      _ -> "bg-gray-300"
-    end
+    StageStatus.stage_bg(status)
   end
 
   defp pipeline_node_status(node) do
@@ -87,44 +80,15 @@ defmodule ExGoCDWeb.ValueStreamMapLive do
 
   defp do_pipeline_node_status(inst) do
     stages = inst["stages"] || []
-
-    cond do
-      stages == [] -> nil
-      true -> do_stage_status(Enum.map(stages, & &1["status"]))
-    end
-  end
-
-  defp do_stage_status(statuses) do
-    cond do
-      Enum.any?(statuses, &(&1 == "Failed")) -> "Failed"
-      Enum.any?(statuses, &(&1 == "Building")) -> "Building"
-      Enum.any?(statuses, &(&1 == "Cancelled")) -> "Cancelled"
-      Enum.all?(statuses, &(&1 in ["Passed", "Completed"])) -> "Passed"
-      Enum.any?(statuses, &(&1 == "Awaiting")) -> "Awaiting"
-      true -> "Unknown"
-    end
+    StageStatus.pipeline_status(Enum.map(stages, & &1["status"]))
   end
 
   defp node_status_border(status) do
-    case status do
-      "Passed" -> "border-[#5cb85c] border-2"
-      "Failed" -> "border-[#d9534f] border-2"
-      "Building" -> "border-[#5bc0de] border-2"
-      "Cancelled" -> "border-[#f0ad4e] border-2"
-      "Awaiting" -> "border-[#b6cdd2] border-2"
-      _ -> "border-[#2fa8b6]"
-    end
+    StageStatus.node_border(status)
   end
 
   defp node_status_badge(status) do
-    case status do
-      "Passed" -> "bg-[#5cb85c] text-white"
-      "Failed" -> "bg-[#d9534f] text-white"
-      "Building" -> "bg-[#5bc0de] text-white"
-      "Cancelled" -> "bg-[#f0ad4e] text-white"
-      "Awaiting" -> "bg-[#e7eef0] text-gray-600"
-      _ -> "bg-gray-300 text-gray-600"
-    end
+    StageStatus.node_badge(status)
   end
 
   defp vsm_node_widget(assigns) do

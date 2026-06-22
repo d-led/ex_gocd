@@ -61,6 +61,15 @@ defmodule ExGoCD.Scheduler do
   end
 
   @doc """
+  Same as `try_assign_work/1` but returns `{:assigned, %JobSpec{}}` on success.
+  Used for testing fairness / ordering.
+  """
+  def try_assign_work_with_spec(agent_uuid) when is_binary(agent_uuid) do
+    parent_ctx = VsmTracer.current_ctx()
+    GenServer.call(__MODULE__, {:try_assign_work_with_spec, agent_uuid, parent_ctx})
+  end
+
+  @doc """
   Returns count of pending jobs in the queue (for UI).
   """
   def pending_count do
@@ -110,19 +119,16 @@ defmodule ExGoCD.Scheduler do
   def handle_call({:try_assign_work, agent_uuid, parent_ctx}, _from, state) do
     VsmTracer.attach_ctx(parent_ctx)
     VsmTracer.trace("scheduler.assign_work", %{"agent.uuid" => agent_uuid}, fn ->
-      result = if connected?(agent_uuid) do
-        case Agents.get_agent_by_uuid(agent_uuid) do
-          nil ->
-            VsmTracer.set_status({:error, "agent not found"})
-            {:reply, :agent_not_found, state}
+      result = try_assign_work_impl(agent_uuid, state, :simple)
+      VsmTracer.set_status(:ok)
+      result
+    end)
+  end
 
-          agent ->
-            try_assign_to_idle_agent(agent_uuid, agent, state)
-        end
-      else
-        VsmTracer.set_status({:error, "agent not connected"})
-        {:reply, :agent_not_connected, state}
-      end
+  def handle_call({:try_assign_work_with_spec, agent_uuid, parent_ctx}, _from, state) do
+    VsmTracer.attach_ctx(parent_ctx)
+    VsmTracer.trace("scheduler.assign_work", %{"agent.uuid" => agent_uuid}, fn ->
+      result = try_assign_work_impl(agent_uuid, state, :with_spec)
       VsmTracer.set_status(:ok)
       result
     end)
@@ -137,6 +143,28 @@ defmodule ExGoCD.Scheduler do
     # which rolls back all changes per test.
     broadcast_pending_count(0)
     {:reply, :ok, %{state | in_memory_queue: [], db_pending_count: 0}}
+  end
+
+  # -- private helpers ---------------------------------------------------------
+
+  defp try_assign_work_impl(agent_uuid, state, mode) do
+    if connected?(agent_uuid) do
+      case Agents.get_agent_by_uuid(agent_uuid) do
+        nil ->
+          {:reply, :agent_not_found, state}
+
+        agent ->
+          {:reply, reply, new_state} = try_assign_to_idle_agent(agent_uuid, agent, state)
+          case {mode, reply} do
+            {:with_spec, {:assigned, spec}} -> {:reply, {:assigned, spec}, new_state}
+            {:with_spec, other} -> {:reply, other, new_state}
+            {:simple, {:assigned, _spec}} -> {:reply, :assigned, new_state}
+            {:simple, other} -> {:reply, other, new_state}
+          end
+      end
+    else
+      {:reply, :agent_not_connected, state}
+    end
   end
 
   # -- private enqueue helpers -------------------------------------------------
@@ -281,7 +309,7 @@ defmodule ExGoCD.Scheduler do
             {queue, max(db_count - 1, 0)}
           end
         broadcast_pending_count(length(new_queue) + new_db_count)
-        {:reply, :assigned, %{state | in_memory_queue: new_queue, db_pending_count: new_db_count}}
+        {:reply, {:assigned, job_spec}, %{state | in_memory_queue: new_queue, db_pending_count: new_db_count}}
     end
   end
 

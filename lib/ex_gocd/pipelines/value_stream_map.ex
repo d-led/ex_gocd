@@ -103,7 +103,7 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
           end
         %{
           "name" => si.name,
-          "status" => si.state,
+          "status" => Map.get(si, :result) || si.state,
           "duration" => duration,
           "locator" => "/pipelines/#{pipeline_name}/#{instance.counter}/#{si.name}/#{si.counter}"
         }
@@ -369,9 +369,9 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
       nodes =
         unvisited_names
         |> Enum.map(fn name ->
-          instance_stages = get_pipeline_stages(name)
-
           downstream = get_downstream_pipelines(name)
+
+          instance_data = get_downstream_instance_data(name, parents)
 
           %{
             "id" => name,
@@ -380,14 +380,7 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
             "depth" => depth,
             "parents" => parents,
             "dependents" => downstream,
-            "instances" => [
-              %{
-                "label" => "1",
-                "counter" => 1,
-                "locator" => "/pipelines/value_stream_map/#{name}/1",
-                "stages" => instance_stages
-              }
-            ]
+            "instances" => [instance_data]
           }
         end)
 
@@ -396,6 +389,78 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
 
       nodes ++ build_all_downstream_nodes(next_names, next_parents, depth + 1, new_visited)
     end
+  end
+
+  @doc """
+  Returns VSM instance data for a downstream pipeline node.
+  Looks up the actual PipelineInstance triggered by any of the parent pipelines.
+  Falls back to un-run stages if no instance found.
+  """
+  def get_downstream_instance_data(name, parents) when is_list(parents) do
+    case find_triggered_instance(name, parents) do
+      nil -> build_unrun_instance(name)
+      instance -> build_real_instance(instance)
+    end
+  end
+
+  defp find_triggered_instance(name, parents) do
+    from(pi in PipelineInstance,
+      join: p in assoc(pi, :pipeline),
+      where: p.name == ^name,
+      order_by: [desc: pi.counter],
+      limit: 5,
+      preload: [:pipeline, stage_instances: :job_instances]
+    )
+    |> Repo.all()
+    |> Enum.find(fn pi ->
+      bc = pi.build_cause || %{}
+      revisions = bc["materialRevisions"] || []
+      Enum.any?(revisions, fn rev ->
+        mat = rev["material"] || rev
+        mat_type = mat["type"] || rev["material_type"] || rev["type"]
+        mat_url = mat["url"] || rev["url"] || rev["pipeline_name"] || rev["name"]
+        mat_type == "dependency" && Enum.member?(parents, mat_url)
+      end)
+    end)
+  end
+
+  defp build_real_instance(instance) do
+    pipeline_name =
+      case instance.pipeline do
+        %Ecto.Association.NotLoaded{} ->
+          # Fallback: extract pipeline name from build_cause or just use stage instance names
+          instance.stage_instances |> List.first() |> Map.get(:name) || "unknown"
+        pipeline ->
+          pipeline.name
+      end
+
+    stages =
+      (instance.stage_instances || [])
+      |> Enum.sort_by(& &1.order_id)
+      |> Enum.map(fn si ->
+        %{
+          "name" => si.name,
+          "status" => Map.get(si, :result) || si.state,
+          "duration" => diff_time(si.completed_at, si.created_time),
+          "locator" => "/pipelines/#{pipeline_name}/#{instance.counter}/#{si.name}/#{si.counter}"
+        }
+      end)
+
+    %{
+      "label" => instance.label,
+      "counter" => instance.counter,
+      "locator" => "/pipelines/value_stream_map/#{pipeline_name}/#{instance.counter}",
+      "stages" => stages
+    }
+  end
+
+  defp build_unrun_instance(name) do
+    %{
+      "label" => "1",
+      "counter" => 1,
+      "locator" => "/pipelines/value_stream_map/#{name}/1",
+      "stages" => get_pipeline_stages(name)
+    }
   end
 
   defp get_db_or_mock_modification(mat, instance) do

@@ -7,6 +7,7 @@ defmodule ExGoCDWeb.JobDetailsLive do
   import Ecto.Query
 
   alias ExGoCD.AgentJobRuns
+  alias ExGoCD.Agents
   alias ExGoCD.Pipelines.JobInstance
   alias ExGoCD.Repo
   alias ExGoCD.Pipelines.PipelineMaterialRevision
@@ -69,6 +70,14 @@ defmodule ExGoCDWeb.JobDetailsLive do
     artifacts = list_artifacts(pipeline_name, pipeline_counter, stage_name, stage_counter, job_name)
     materials = list_materials(pipeline_name, pipeline_counter)
 
+    agent = cond do
+      is_struct(job_instance, JobInstance) && job_instance.agent_uuid ->
+        Agents.get_agent_by_uuid(job_instance.agent_uuid)
+      is_map(job_instance) && job_instance[:agent_uuid] ->
+        Agents.get_agent_by_uuid(job_instance[:agent_uuid])
+      true -> nil
+    end
+
     {:ok,
      socket
      |> assign(:pipeline_name, pipeline_name)
@@ -81,6 +90,7 @@ defmodule ExGoCDWeb.JobDetailsLive do
      |> assign(:active_tab, "console")
      |> assign(:artifacts, artifacts)
      |> assign(:materials, materials)
+     |> assign(:agent, agent)
      |> assign(:page_title, "Job Details: #{job_name}")}
   end
 
