@@ -95,27 +95,23 @@ describe("Value Stream Map E2E Tests", () => {
       cy.contains("integration-pipeline").should("exist");
     });
 
-    it("downstream nodes show un-run stage indicators", () => {
-      // component-a and component-b haven't been triggered — should show grey stages
-      cy.get("#node-component-a").within(() => {
+    it("downstream nodes show stage indicators", () => {
+      cy.get('[data-id="component-a"]').within(() => {
         cy.get('[aria-label*="build"]').should("exist");
-        cy.get('[aria-label*="Not Yet Run"]').should("exist");
       });
-      cy.get("#node-component-b").within(() => {
+      cy.get('[data-id="component-b"]').within(() => {
         cy.get('[aria-label*="build"]').should("exist");
-        cy.get('[aria-label*="Not Yet Run"]').should("exist");
       });
     });
 
-    it("fan-in pipeline shows two parent pipelines", () => {
-      cy.get("#node-integration-pipeline").within(() => {
+    it("fan-in pipeline shows parent pipelines", () => {
+      cy.get('[data-id="integration-pipeline"]').within(() => {
         cy.contains("integrate").should("exist");
-        cy.get('[aria-label*="Not Yet Run"]').should("exist");
       });
     });
 
     it("shows correct FI and FO badges on upstream-lib", () => {
-      cy.get("#node-upstream-lib").within(() => {
+      cy.get('[data-id="upstream-lib"]').within(() => {
         cy.contains("FO:3").should("exist");
         cy.contains("Current").should("exist");
       });

@@ -48,6 +48,7 @@ const AgentsUpdates = {
 
 const VSMGraph = {
   mounted() {
+    this._persistentHighlight = null;
     this.drawLines();
     this.resizeObserver = new ResizeObserver(() => this.drawLines());
     this.resizeObserver.observe(this.el);
@@ -65,9 +66,10 @@ const VSMGraph = {
       const svg = this.el.querySelector("#vsm-svg");
       if (!svg) return;
 
-      // Clear existing connection paths
-      const paths = svg.querySelectorAll(".vsm-path");
-      paths.forEach(p => p.remove());
+      // Clear existing paths & hit areas; reset persistent highlight on redraw
+      const oldPaths = svg.querySelectorAll(".vsm-path, .vsm-hit");
+      oldPaths.forEach(p => p.remove());
+      this._persistentHighlight = null;
 
       // Size SVG to the visible container area (client, not scroll)
       // so paths don't force horizontal scroll in narrow/mobile view.
@@ -130,6 +132,7 @@ const VSMGraph = {
           const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
           const isHighlight = source.isCurrent || target.isCurrent;
 
+          let pathD;
           if (narrow) {
             // Left-side sewage-pipe: exit source LEFT edge → bus on the left →
             // down/up the bus → enter target LEFT edge.
@@ -138,30 +141,86 @@ const VSMGraph = {
             const bx = busX + stagger;
             const lx = source.x; // source left edge
 
-            path.setAttribute("d",
-              `M ${lx} ${sy}` +
-              ` L ${bx} ${sy}` +
-              ` L ${bx} ${ty}` +
-              ` L ${tx} ${ty}`
-            );
+            pathD = `M ${lx} ${sy} L ${bx} ${sy} L ${bx} ${ty} L ${tx} ${ty}`;
           } else {
             // Wide mode: cubic bezier with natural approach angle
             const dx = Math.max(40, (tx - sx) / 2);
-            path.setAttribute("d", `M ${sx} ${sy} C ${sx + dx} ${sy}, ${tx - dx} ${sy}, ${tx} ${ty}`);
+            pathD = `M ${sx} ${sy} C ${sx + dx} ${sy}, ${tx - dx} ${sy}, ${tx} ${ty}`;
           }
 
+          path.setAttribute("d", pathD);
           path.setAttribute("class", "vsm-path");
           path.setAttribute("stroke", isHighlight ? "#943a9e" : "#2fa8b6");
           path.setAttribute("stroke-width", isHighlight ? "3" : "2");
           path.setAttribute("fill", "none");
           path.setAttribute("stroke-linejoin", "round");
           path.setAttribute("marker-end", isHighlight ? "url(#arrow-current)" : "url(#arrow)");
+          path.style.transition = "opacity 0.2s";
 
           svg.appendChild(path);
+
+          // Invisible wide hit area for touch / hover on mobile & desktop
+          const hit = document.createElementNS("http://www.w3.org/2000/svg", "path");
+          hit.setAttribute("d", pathD);
+          hit.setAttribute("class", "vsm-hit");
+          hit.setAttribute("stroke", "transparent");
+          hit.setAttribute("stroke-width", "24");
+          hit.setAttribute("fill", "none");
+          hit.setAttribute("stroke-linecap", "round");
+          hit.setAttribute("stroke-linejoin", "round");
+          hit.style.pointerEvents = "stroke";
+          hit.style.cursor = "pointer";
+
+          const self = this;
+          hit.addEventListener("mouseenter", () => self._highlight(path, svg));
+          hit.addEventListener("mouseleave", () => self._unhighlight(svg));
+          hit.addEventListener("click", (e) => {
+            e.stopPropagation();
+            self._togglePersistent(path, svg);
+          });
+
+          svg.appendChild(hit);
         });
       });
     });
-  }
+  },
+
+  // ── interactive arrow highlight / dim ──────────────────────────
+
+  _highlight(path, svg) {
+    const all = svg.querySelectorAll(".vsm-path");
+    all.forEach(p => {
+      if (p === path) {
+        p.style.opacity = "1";
+        p.setAttribute("stroke-width", p.dataset.origWidth || p.getAttribute("stroke-width"));
+      } else {
+        p.style.opacity = "0.18";
+        if (!p.dataset.origWidth) p.dataset.origWidth = p.getAttribute("stroke-width");
+      }
+    });
+  },
+
+  _unhighlight(svg) {
+    if (this._persistentHighlight) {
+      this._highlight(this._persistentHighlight, svg);
+      return;
+    }
+    const all = svg.querySelectorAll(".vsm-path");
+    all.forEach(p => {
+      p.style.opacity = "1";
+      p.setAttribute("stroke-width", p.dataset.origWidth || p.getAttribute("stroke-width"));
+    });
+  },
+
+  _togglePersistent(path, svg) {
+    if (this._persistentHighlight === path) {
+      this._persistentHighlight = null;
+      this._unhighlight(svg);
+    } else {
+      this._persistentHighlight = path;
+      this._highlight(path, svg);
+    }
+  },
 }
 
 /** Detect vertical-stack layout: nodes are stacked in one column (narrow viewport). */

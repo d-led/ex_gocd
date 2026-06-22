@@ -47,8 +47,8 @@ done
 
 if [ "$READY" = false ]; then
   echo "Error: Phoenix server failed to start on port 4001 in time."
-  echo "Logs from /tmp/mock_server_cypress.log:"
-  cat /tmp/mock_server_cypress.log | tail -n 30
+  echo "Logs from tmp/mock_server_cypress.log:"
+  cat tmp/mock_server_cypress.log | tail -n 30
   exit 1
 fi
 
