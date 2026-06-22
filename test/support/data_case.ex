@@ -49,20 +49,23 @@ defmodule ExGoCD.DataCase do
     :ok
   end
 
+  @doc """
+  Waits for the scheduler GenServer to become idle (empty mailbox).
+  Does NOT require the job queue to be empty — jobs may be enqueued
+  without any agent to pick them up, which is normal in isolated tests.
+  `clear_queue/0` in setup handles cleanup between tests.
+  """
   def wait_for_scheduler_queue do
     if pid = Process.whereis(ExGoCD.Scheduler) do
-      queue_empty? = fn ->
+      # Cap retries to prevent infinite loops (e.g. timer messages).
+      # The scheduler's mailbox should drain in well under 1s.
+      _ = Enum.reduce_while(1..200, :waiting, fn _i, :waiting ->
         case Process.info(pid, :message_queue_len) do
-          {:message_queue_len, 0} -> ExGoCD.Scheduler.pending_count() == 0
-          {:message_queue_len, _} -> false
-          nil -> true
+          {:message_queue_len, 0} -> {:halt, :done}
+          {:message_queue_len, _} -> Process.sleep(5); {:cont, :waiting}
+          nil -> {:halt, :dead}
         end
-      end
-
-      unless queue_empty?.() do
-        Process.sleep(5)
-        wait_for_scheduler_queue()
-      end
+      end)
     end
 
     :ok

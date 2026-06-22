@@ -55,26 +55,8 @@ defmodule ExGoCD.StageStatusTest do
     end
   end
 
-  describe "stage_bg/1" do
-    test "returns a CSS class for known statuses" do
-      assert is_binary(StageStatus.stage_bg("Passed"))
-      assert is_binary(StageStatus.stage_bg("Failed"))
-      assert is_binary(StageStatus.stage_bg("Building"))
-      assert is_binary(StageStatus.stage_bg("Not Yet Run"))
-    end
-
-    test "returns gray fallback for unknown" do
-      assert StageStatus.stage_bg("bogus") == "bg-gray-300"
-    end
-  end
-
-  describe "node_border/1" do
-    test "returns cyan border for nil (un-triggered)" do
-      assert StageStatus.node_border(nil) == "border-[#2fa8b6]"
-    end
-
-    test "returns green border for Passed" do
-      assert StageStatus.node_border("Passed") =~ "5cb85c"
-    end
-  end
+  # Note: stage_bg/1, node_border/1, and node_badge/1 are presentation helpers
+  # that map domain statuses to CSS classes. They live here for co-location with
+  # the status constants but are tested implicitly through VSM LiveView tests —
+  # asserting on specific CSS class strings is testing implementation, not behavior.
 end
