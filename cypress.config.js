@@ -3,6 +3,11 @@ const fs = require("fs");
 const path = require("path");
 
 module.exports = defineConfig({
+  reporter: "junit",
+  reporterOptions: {
+    mochaFile: "cypress/results/results-[hash].xml",
+    toConsole: true,
+  },
   e2e: {
     baseUrl: "http://localhost:4000",
     supportFile: "cypress/support/e2e.js",

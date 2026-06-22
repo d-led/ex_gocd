@@ -210,9 +210,6 @@ jobs:
         run: |
           mkdir -p cypress/results
           bash scripts/run_cypress_tests.sh
-        env:
-          CYPRESS_REPORTER: junit
-          CYPRESS_REPORTER_OPTIONS: "mochaFile=cypress/results/results-[hash].xml"
 
       - name: Publish Cypress Test Results
         uses: dorny/test-reporter@v2
