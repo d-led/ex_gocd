@@ -44,32 +44,70 @@ describe("Auto screenshot — dashboards", () => {
     });
   });
 
-  // ── Jaeger: Trace detail (span waterfall) ──────────────────
+  // ── Jaeger: Trace detail (pipeline trigger trace) ──────────
 
   it("jaeger trace detail", function () {
-    cy.request({ url: JAEGER_SEARCH, failOnStatusCode: false }).then((resp) => {
-      if (resp.status !== 200) {
-        cy.log("** SKIP: Jaeger not reachable");
+    // Use Jaeger API to find the richest pipeline.trigger trace
+    const api = "http://localhost:16686/api/traces?service=ex_gocd&limit=20&lookback=24h";
+    cy.request({ url: api, failOnStatusCode: false }).then((resp) => {
+      if (resp.status !== 200 || !resp.body.data || !resp.body.data.length) {
+        cy.log("** SKIP: Jaeger API returned no traces");
         this.skip();
         return;
       }
-      cy.visit(`${JAEGER_SEARCH}?service=ex_gocd&lookback=24h&limit=5`);
-      cy.get("header", READY);
-      cy.contains("button", "Find Traces").click();
-      cy.wait(3000);
-      // Click first trace link if available
-      cy.get("body").then(($body) => {
-        const traceLink = $body.find('a[href*="/trace/"]').first();
-        if (!traceLink.length) {
-          cy.log("** SKIP: no traces to inspect");
-          this.skip();
-          return;
+      // Prefer a trace with pipeline.trigger AND the most spans (richest waterfall)
+      let best = null;
+      for (const t of resp.body.data) {
+        const ops = (t.spans || []).map((s) => s.operationName);
+        const hasTrigger = ops.some((o) => o === "pipeline.trigger");
+        const score = (hasTrigger ? 1000 : 0) + (t.spans || []).length;
+        if (!best || score > best._score) {
+          best = t;
+          best._score = score;
         }
-        cy.visit(traceLink.attr("href"));
-      });
+      }
+      if (!best) {
+        cy.log("** SKIP: no suitable trace found");
+        this.skip();
+        return;
+      }
+      const ops = (best.spans || []).map((s) => s.operationName);
+      cy.log(`Trace: ${best.traceID} (${ops.length} spans: ${ops.slice(0, 8).join(", ")}...)`);
+      cy.visit(`http://localhost:16686/trace/${best.traceID}`);
+      cy.get("header", READY);
+      cy.wait(3000);
+      cy.appScreenshot("jaeger-trace-detail");
+    });
+  });
+
+  // ── Jaeger: Agent trace (separate service) ──────────────────
+
+  it("jaeger agent trace", function () {
+    const api = "http://localhost:16686/api/traces?service=gocd-agent&limit=5&lookback=24h";
+    cy.request({ url: api, failOnStatusCode: false }).then((resp) => {
+      if (resp.status !== 200 || !resp.body.data || !resp.body.data.length) {
+        cy.log("** SKIP: no agent traces found");
+        this.skip();
+        return;
+      }
+      // Pick the trace with the most spans
+      let best = null;
+      for (const t of resp.body.data) {
+        if (!best || (t.spans || []).length > (best.spans || []).length) {
+          best = t;
+        }
+      }
+      if (!best) {
+        cy.log("** SKIP: no suitable agent trace");
+        this.skip();
+        return;
+      }
+      const ops = (best.spans || []).map((s) => s.operationName);
+      cy.log(`Agent trace: ${best.traceID} (${ops.length} spans: ${ops.join(", ")})`);
+      cy.visit(`http://localhost:16686/trace/${best.traceID}`);
       cy.get("header", READY);
       cy.wait(2000);
-      cy.appScreenshot("jaeger-trace-detail");
+      cy.appScreenshot("jaeger-agent-trace");
     });
   });
 

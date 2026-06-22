@@ -13,9 +13,6 @@ log_location: /tmp/ex_gocd_processes.log
 log_level: info
 is_strict: true
 
-# Disable process-compose's built-in web UI (conflicts with other services)
-port: 0
-
 processes:
   # ── Phoenix Server ──────────────────────────────────────────────────
   server:
@@ -28,9 +25,9 @@ processes:
         host: localhost
         port: 4000
         path: /pipelines
-      initial_delay_seconds: 5
-      period_seconds: 3
-      timeout_seconds: 10
+      initial_delay_seconds: 180
+      period_seconds: 5
+      timeout_seconds: 30
     depends_on: {}
     availability:
       restart: always

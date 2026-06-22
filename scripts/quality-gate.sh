@@ -117,6 +117,16 @@ else
   fail_step "Go agent tests — failures"
 fi
 
+# ── Link Checker (internal only) ────────────────────────────────────────
+
+echo ""
+echo "=== Link Checker (muffet) ==="
+if bash scripts/link-check.sh http://localhost:4000 2>&1; then
+  pass_step "Link checker — no broken internal links"
+else
+  fail_step "Link checker — broken links found"
+fi
+
 # ── Summary ─────────────────────────────────────────────────────────────
 
 echo ""
