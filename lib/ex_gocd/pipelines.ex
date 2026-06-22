@@ -141,6 +141,75 @@ defmodule ExGoCD.Pipelines do
   end
 
   @doc """
+  Re-runs all failed/cancelled jobs in a stage instance.
+  Resets them to Scheduled and enqueues for agent pickup.
+  Returns {:ok, stage_instance} or {:error, reason}.
+  """
+  def rerun_failed_jobs(pipeline_name, pipeline_counter, stage_name, stage_counter)
+      when is_binary(pipeline_name) and is_integer(pipeline_counter)
+      and is_binary(stage_name) and is_integer(stage_counter) do
+    query =
+      from si in StageInstance,
+        join: pi in assoc(si, :pipeline_instance),
+        join: p in assoc(pi, :pipeline),
+        where: p.name == ^pipeline_name and pi.counter == ^pipeline_counter
+          and si.name == ^stage_name and si.counter == ^stage_counter,
+        preload: [job_instances: [], pipeline_instance: :pipeline]
+
+    case Repo.one(query) do
+      nil -> {:error, :stage_not_found}
+      si -> do_rerun_failed_jobs(si)
+    end
+  end
+
+  defp do_rerun_failed_jobs(%StageInstance{job_instances: jobs} = si) do
+    failed_jobs = Enum.filter(jobs, &(&1.result in ["Failed", "Cancelled"]))
+
+    if Enum.empty?(failed_jobs) do
+      {:error, :no_failed_jobs}
+    else
+      pipeline = si.pipeline_instance.pipeline
+      pipeline_config = Repo.get(Pipeline, pipeline.id) |> Repo.preload(stages: [jobs: :tasks])
+      stage_config = Enum.find(pipeline_config.stages, &(&1.name == si.name))
+      p_counter = si.pipeline_instance.counter
+
+      now = DateTime.utc_now()
+
+      Repo.transaction(fn ->
+        if si.state in ["Completed", "Failed", "Cancelled"] do
+          si
+          |> StageInstance.changeset(%{state: "Building", result: "Unknown", last_transitioned_time: now})
+          |> Repo.update!()
+        end
+
+        Enum.each(failed_jobs, fn ji ->
+          ji
+          |> JobInstance.changeset(%{state: "Scheduled", result: "Unknown", agent_uuid: nil})
+          |> Repo.update!()
+
+          resources = if stage_config, do: (hd(stage_config.jobs || []) |> Map.get(:resources) || []), else: []
+
+          ExGoCD.Scheduler.schedule_job(%{
+            pipeline: pipeline.name,
+            pipeline_counter: p_counter,
+            stage: si.name,
+            stage_counter: si.counter,
+            job: ji.name,
+            resources: resources,
+            job_instance_id: ji.id
+          })
+        end)
+
+        length(failed_jobs)
+      end)
+      |> case do
+        {:ok, count} -> {:ok, count}
+        {:error, reason} -> {:error, reason}
+      end
+    end
+  end
+
+  @doc """
   Triggers a pipeline run: creates PipelineInstance, StageInstances, JobInstances for the first stage,
   and enqueues each job to the Scheduler. Jobs will be picked up by idle agents.
   Returns {:ok, pipeline_instance} or {:error, changeset}.

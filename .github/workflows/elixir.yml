@@ -186,33 +186,27 @@ jobs:
           - 5432:5432
 
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v7
+      - uses: actions/checkout@v7
 
-      - name: Set up Elixir
-        uses: erlef/setup-beam@v1
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/build-push-action@v7
         with:
-          elixir-version: '1.20.1'
-          otp-version: '29.0'
+          context: .
+          file: ./Dockerfile
+          load: true
+          tags: ex_gocd:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version: '22'
-          cache: 'npm'
+      - run: npm ci
 
-      - name: Install Elixir and Node dependencies
-        run: |
-          mix deps.get
-          npm ci
+      - run: bash scripts/run_cypress_ci.sh
 
-      - name: Run Cypress tests
-        run: |
-          mkdir -p cypress/results
-          bash scripts/run_cypress_tests.sh
+      - if: failure()
+        run: docker logs ex_gocd_ci
 
-      - name: Publish Cypress Test Results
-        uses: dorny/test-reporter@v2
+      - uses: dorny/test-reporter@v3
         if: always()
         with:
           name: Cypress E2E Tests

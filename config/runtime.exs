@@ -124,3 +124,13 @@ if config_env() == :prod do
   #
   # See https://hexdocs.pm/swoosh/Swoosh.html#module-installation for details.
 end
+
+# In mock data mode (USE_MOCK_DATA=true), suppress polling and use MockImpl.
+# Works at runtime in any environment (dev, prod, Docker releases).
+if System.get_env("USE_MOCK_DATA") == "true" do
+  config :ex_gocd,
+    poller_interval: :none,
+    enable_timer_scheduler: false,
+    scm_client: ExGoCD.Materials.ScmClient.MockImpl,
+    git_client: ExGoCD.Materials.GitClient.MockImpl
+end

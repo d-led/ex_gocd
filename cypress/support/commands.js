@@ -397,20 +397,14 @@ Cypress.Commands.add('insideVSMNode', (nodeId, fn) => {
 
 // -- Audit Log ----------------------------------------------------------
 
-Cypress.Commands.add('filterAuditLogByActor', (value) => {
-  cy.get("input[name='actor']").clear().type(value);
+Cypress.Commands.add('theAuditLogAcceptsActorFilter', () => {
+  cy.get("input[name='actor']").clear().type('test_user');
+  cy.get("input[name='actor']").should('have.value', 'test_user');
 });
 
-Cypress.Commands.add('filterAuditLogByAction', (value) => {
-  cy.get("input[name='action']").clear().type(value);
-});
-
-Cypress.Commands.add('theAuditLogActorFilterIs', (value) => {
-  cy.get("input[name='actor']").should('have.value', value);
-});
-
-Cypress.Commands.add('theAuditLogActionFilterIs', (value) => {
-  cy.get("input[name='action']").should('have.value', value);
+Cypress.Commands.add('theAuditLogAcceptsActionFilter', () => {
+  cy.get("input[name='action']").clear().type('pipeline_trigger');
+  cy.get("input[name='action']").should('have.value', 'pipeline_trigger');
 });
 
 Cypress.Commands.add('theAuditLogHasResourceFilters', () => {

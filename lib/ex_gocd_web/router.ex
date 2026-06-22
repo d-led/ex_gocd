@@ -181,6 +181,7 @@ defmodule ExGoCDWeb.Router do
     # Stage instance & operations
     get "/stages/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter", StageController, :show
     get "/stages/:pipeline_name/:stage_name/history", StageController, :history
+    post "/stages/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/rerun-failed-jobs", StageController, :rerun_failed_jobs
     post "/stages/:pipeline_name/:pipeline_counter/:stage_name/cancel", StageController, :cancel
 
     # User management (GoCD users v3)
@@ -281,6 +282,7 @@ defmodule ExGoCDWeb.Router do
     # Stage instance & operations
     get "/stages/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter", StageController, :show
     get "/stages/:pipeline_name/:stage_name/history", StageController, :history
+    post "/stages/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/rerun-failed-jobs", StageController, :rerun_failed_jobs
     post "/stages/:pipeline_name/:pipeline_counter/:stage_name/cancel", StageController, :cancel
 
     # User management (GoCD users v3)

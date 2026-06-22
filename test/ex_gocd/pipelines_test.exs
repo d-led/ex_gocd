@@ -474,4 +474,57 @@ defmodule ExGoCD.PipelinesTest do
       assert {:ok, nil} = Pipelines.config_diff(pipeline.name, instance2.counter)
     end
   end
+
+  describe "rerun_failed_jobs/4" do
+    test "returns error when stage not found" do
+      assert {:error, :stage_not_found} =
+        Pipelines.rerun_failed_jobs("nonexistent", 1, "build", 1)
+    end
+
+    test "returns error when no failed jobs exist" do
+      {pipeline, stage, _job} = insert_pipeline_with_jobs("rerun-all-passed", 1)
+
+      assert {:ok, instance} = Pipelines.trigger_pipeline(pipeline.name)
+      [si] = Repo.all(from s in StageInstance, where: s.pipeline_instance_id == ^instance.id)
+
+      # Mark stage and jobs as passed
+      si |> StageInstance.changeset(%{state: "Completed", result: "Passed"}) |> Repo.update!()
+      Repo.all(from j in JobInstance, where: j.stage_instance_id == ^si.id)
+      |> Enum.each(fn j -> j |> JobInstance.changeset(%{state: "Completed", result: "Passed"}) |> Repo.update!() end)
+
+      assert {:error, :no_failed_jobs} =
+        Pipelines.rerun_failed_jobs(pipeline.name, instance.counter, "build", si.counter)
+    end
+
+    test "re-runs failed jobs and resets stage to Building" do
+      {pipeline, _stage, _jobs} = insert_pipeline_with_jobs("rerun-failed", 2)
+
+      assert {:ok, instance} = Pipelines.trigger_pipeline(pipeline.name)
+      [si] = Repo.all(from s in StageInstance, where: s.pipeline_instance_id == ^instance.id)
+
+      # Mark one job as failed, one as passed
+      jobs = Repo.all(from j in JobInstance, where: j.stage_instance_id == ^si.id, order_by: j.id)
+      [j1, j2] = jobs
+      j1 |> JobInstance.changeset(%{state: "Completed", result: "Failed"}) |> Repo.update!()
+      j2 |> JobInstance.changeset(%{state: "Completed", result: "Passed"}) |> Repo.update!()
+      si |> StageInstance.changeset(%{state: "Completed", result: "Failed"}) |> Repo.update!()
+
+      # Re-run failed jobs
+      assert {:ok, 1} = Pipelines.rerun_failed_jobs(pipeline.name, instance.counter, "build", si.counter)
+
+      # Failed job should now be Scheduled
+      j1_reloaded = Repo.get!(JobInstance, j1.id)
+      assert j1_reloaded.state == "Scheduled"
+      assert j1_reloaded.result == "Unknown"
+
+      # Passed job should be unchanged
+      j2_reloaded = Repo.get!(JobInstance, j2.id)
+      assert j2_reloaded.state == "Completed"
+      assert j2_reloaded.result == "Passed"
+
+      # Stage should be back to Building
+      si_reloaded = Repo.get!(StageInstance, si.id)
+      assert si_reloaded.state == "Building"
+    end
+  end
 end

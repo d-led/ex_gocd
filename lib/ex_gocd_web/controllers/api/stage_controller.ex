@@ -93,6 +93,31 @@ defmodule ExGoCDWeb.API.StageController do
     end
   end
 
+  @doc "POST /api/stages/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/rerun-failed-jobs"
+  def rerun_failed_jobs(conn, %{
+        "pipeline_name" => pipeline_name,
+        "pipeline_counter" => counter_str,
+        "stage_name" => stage_name,
+        "stage_counter" => stage_counter_str
+      }) do
+    pipeline_counter = String.to_integer(counter_str)
+    stage_counter = String.to_integer(stage_counter_str)
+
+    case Pipelines.rerun_failed_jobs(pipeline_name, pipeline_counter, stage_name, stage_counter) do
+      {:ok, count} ->
+        json(conn, %{message: "Re-running #{count} failed job(s) in stage '#{stage_name}'."})
+
+      {:error, :stage_not_found} ->
+        conn |> put_status(:not_found) |> json(%{message: "Stage not found."})
+
+      {:error, :no_failed_jobs} ->
+        conn |> put_status(:unprocessable_entity) |> json(%{message: "No failed jobs to re-run."})
+
+      {:error, reason} ->
+        conn |> put_status(:unprocessable_entity) |> json(%{message: "Re-run failed: #{reason}"})
+    end
+  end
+
   defp stage_json(%StageInstance{} = si) do
     %{
       name: si.name,

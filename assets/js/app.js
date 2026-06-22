@@ -151,6 +151,24 @@ const VSMGraph = {
             pathD = `M ${sx} ${sy} C ${sx + dx} ${sy}, ${tx - dx} ${sy}, ${tx} ${ty}`;
           }
 
+          // Hit path: wide invisible stroke for easy hover/tap.
+          // Must be a <path> (not <g>) so the bounding box includes the stroke.
+          const hit = document.createElementNS("http://www.w3.org/2000/svg", "path");
+          hit.setAttribute("d", pathD);
+          hit.setAttribute("class", "vsm-path");
+          hit.setAttribute("stroke", "rgba(0,0,0,0.02)");
+          hit.setAttribute("stroke-width", "20");
+          hit.setAttribute("fill", "none");
+          hit.setAttribute("stroke-linecap", "round");
+          hit.setAttribute("stroke-linejoin", "round");
+          hit.style.pointerEvents = "stroke";
+          hit.style.cursor = "pointer";
+          hit.style.transition = "opacity 0.2s";
+          hit.dataset.sourceId = sourceId;
+          hit.dataset.targetId = depId;
+
+          // Visible path: renders the thin coloured line + arrowhead.
+          // pointer-events: none so events pass through to the hit path.
           path.setAttribute("d", pathD);
           path.setAttribute("class", "vsm-path");
           path.setAttribute("stroke", isHighlight ? "#943a9e" : "#2fa8b6");
@@ -158,20 +176,18 @@ const VSMGraph = {
           path.setAttribute("fill", "none");
           path.setAttribute("stroke-linejoin", "round");
           path.setAttribute("marker-end", isHighlight ? "url(#arrow-current)" : "url(#arrow)");
+          path.style.pointerEvents = "none";
           path.style.transition = "opacity 0.2s";
-          path.style.cursor = "pointer";
-          path.style.pointerEvents = "stroke";
-          path.dataset.sourceId = sourceId;
-          path.dataset.targetId = depId;
 
           const self = this;
-          path.addEventListener("mouseenter", () => self._highlight(path, svg));
-          path.addEventListener("mouseleave", () => self._unhighlight(svg));
-          path.addEventListener("click", (e) => {
+          hit.addEventListener("mouseenter", () => self._highlight(hit, svg));
+          hit.addEventListener("mouseleave", () => self._unhighlight(svg));
+          hit.addEventListener("click", (e) => {
             e.stopPropagation();
-            self._togglePersistent(path, svg);
+            self._togglePersistent(hit, svg);
           });
 
+          svg.appendChild(hit);
           svg.appendChild(path);
         });
       });

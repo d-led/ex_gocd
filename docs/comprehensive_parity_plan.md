@@ -91,7 +91,7 @@
 |---|-----|--------|-------|
 | B1 | Pipeline config admin: `index` action handler | S | Route auto-generated but no controller `index/2` |
 | B2 | Job comment API: `POST /api/pipelines/:name/:counter/comment` | S | Add controller action |
-| B3 | Stage run-failed-jobs / run-selected-jobs APIs | M | Need stage re-trigger logic |
+| B3 | Stage run-failed-jobs / run-selected-jobs APIs | ✅ | `rerun_failed_jobs/4` + 3 tests + API route |
 | B4 | Config XML import/export | M | Serialize DB → cruise-config.xml |
 | B5 | Disk space monitor / artifact auto-cleanup | M | GenServer polling + purge policies |
 | B6 | Artifact MD5 verification on downstream fetch | S | Verify checksums when fetching artifacts |
