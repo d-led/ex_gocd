@@ -104,6 +104,7 @@ jobs:
           tags: |
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
             type=ref,event=tag,pattern=^v[0-9]
+            type=ref,event=branch
 
       - name: Build and push Server Docker image
         uses: docker/build-push-action@v7
@@ -149,6 +150,7 @@ jobs:
           tags: |
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
             type=ref,event=tag,pattern=^v[0-9]
+            type=ref,event=branch
 
       - name: Build and push Agent Docker image
         uses: docker/build-push-action@v7

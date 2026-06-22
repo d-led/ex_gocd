@@ -19,19 +19,17 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7
+      - uses: actions/checkout@v7
 
-      - name: Set up Docker Compose
-        run: docker compose version
+      - uses: docker/setup-buildx-action@v4
 
-      - name: Run E2E and Performance Verification
-        run: ./scripts/run_perf_test.sh
+      - run: docker compose version
+
+      - run: bash scripts/run_perf_test.sh --build
         env:
           AGENT_COUNT: ${{ github.event.inputs.agent_count || '100' }}
 
-      - name: Publish E2E Test Results
-        uses: dorny/test-reporter@v1
+      - uses: dorny/test-reporter@v3
         if: always()
         with:
           name: E2E Performance Tests
