@@ -54,7 +54,7 @@ jobs:
     - name: Install dependencies
       run: mix deps.get
     - name: Run Elixir tests
-      run: mix test
+      run: mix test --formatter JUnitFormatter 2>&1
       env:
         DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ex_gocd_test
         CI: "true"
@@ -62,7 +62,7 @@ jobs:
     - name: Run Go Agent tests
       run: |
         cd agent
-        go test -json ./... > testresults.json
+        go test ./...
 
     - name: Publish Elixir Test Results
       uses: dorny/test-reporter@v1
@@ -71,14 +71,6 @@ jobs:
         name: Elixir Unit Tests
         path: _build/test-results/*.xml
         reporter: java-junit
-
-    - name: Publish Go Agent Test Results
-      uses: dorny/test-reporter@v1
-      if: always()
-      with:
-        name: Go Agent Tests
-        path: agent/testresults.json
-        reporter: go-json
 
   publish-server:
     name: Build and publish Server Docker image
