@@ -1760,46 +1760,46 @@ defmodule ExGoCD.Pipelines do
     }
   end
 
-  defp material_snapshot(%{name: name, type: type, url: url, branch: branch} = mat) do
+  defp material_snapshot(mat) do
     %{
-      "name" => name,
-      "type" => type,
-      "url" => url || "",
-      "branch" => branch || "",
+      "name" => Map.get(mat, :name),
+      "type" => Map.get(mat, :type),
+      "url" => Map.get(mat, :url) || "",
+      "branch" => Map.get(mat, :branch) || "",
       "fingerprint" => Map.get(mat, :fingerprint) || material_fingerprint(mat)
     }
   end
 
-  defp stage_snapshot(%{name: name, trigger_type: tt, approval_type: at, jobs: jobs}) do
+  defp stage_snapshot(stage) do
     %{
-      "name" => name,
-      "triggerType" => tt || "success",
-      "approvalType" => at || "success",
-      "environmentVariables" => [],
-      "jobs" => Enum.map(jobs || [], &job_snapshot/1)
+      "name" => Map.get(stage, :name),
+      "approvalType" => Map.get(stage, :approval_type) || "success",
+      "environmentVariables" => Map.get(stage, :environment_variables) || %{},
+      "secureVariables" => Map.get(stage, :secure_variables) || %{},
+      "jobs" => (Map.get(stage, :jobs) || []) |> Enum.map(&job_snapshot/1)
     }
   end
 
-  defp job_snapshot(%{name: name, tasks: tasks, resources: resources, timeout: timeout, run_instance_count: ric}) do
+  defp job_snapshot(job) do
     %{
-      "name" => name,
-      "timeout" => timeout,
-      "runInstanceCount" => ric || nil,
-      "resources" => resources || [],
-      "environmentVariables" => [],
-      "tasks" => Enum.map(tasks || [], &task_snapshot/1)
+      "name" => Map.get(job, :name),
+      "timeout" => Map.get(job, :timeout),
+      "runInstanceCount" => Map.get(job, :run_instance_count),
+      "resources" => Map.get(job, :resources) || [],
+      "environmentVariables" => Map.get(job, :environment_variables) || %{},
+      "secureVariables" => Map.get(job, :secure_variables) || %{},
+      "tasks" => (Map.get(job, :tasks) || []) |> Enum.map(&task_snapshot/1)
     }
-  end
-
-  defp task_snapshot(%{type: "exec", attrs: attrs}) do
-    %{"type" => "exec", "command" => (attrs || %{}) |> Map.get("command") || ""}
-  end
-
-  defp task_snapshot(%{type: type, attrs: attrs}) do
-    %{"type" => type, "attrs" => (attrs || %{}) |> Map.drop(["command"])}
   end
 
   defp task_snapshot(task) do
-    %{"type" => Map.get(task, :type) || "unknown"}
+    type = Map.get(task, :type) || "unknown"
+    base = %{"type" => type}
+
+    attrs = Map.get(task, :attrs) || %{}
+    case type do
+      "exec" -> Map.put(base, "command", Map.get(attrs, "command") || Map.get(attrs, :command) || "")
+      _ -> Map.put(base, "attrs", attrs |> Map.drop(["command", :command]))
+    end
   end
 end

@@ -11,6 +11,8 @@ defmodule ExGoCDWeb.ApiSpec do
   alias OpenApiSpex.{Info, OpenApi, Operation, PathItem, Response, Server, Tag}
   alias ExGoCDWeb.{Endpoint, Router}
 
+  @valid_methods MapSet.new(~w(get put post delete options head patch trace)a)
+
   @impl OpenApi
   def spec do
     %OpenApi{
@@ -58,9 +60,16 @@ defmodule ExGoCDWeb.ApiSpec do
 
   defp build_paths do
     Router.__routes__()
+    |> Enum.filter(fn route -> MapSet.member?(@valid_methods, route.verb) end)
     |> Enum.group_by(&route_path/1)
     |> Enum.map(fn {path, routes} ->
-      ops = routes |> Enum.map(&build_operation/1) |> Enum.reduce(%{}, fn {method, op}, acc -> Map.put(acc, method, op) end)
+      ops =
+        routes
+        |> Enum.map(&build_operation/1)
+        |> Enum.reduce(%{}, fn {method, op}, acc ->
+          Map.put(acc, method, op)
+        end)
+
       {path, struct!(PathItem, ops)}
     end)
     |> Enum.into(%{})
@@ -69,9 +78,9 @@ defmodule ExGoCDWeb.ApiSpec do
   defp route_path(route), do: route.path
 
   defp build_operation(route) do
-    method = route.verb |> to_string() |> String.downcase()
+    method = route.verb
     tag = route_tag(route)
-    summary = "#{String.upcase(method)} #{tag}"
+    summary = "#{method |> to_string() |> String.upcase()} #{tag}"
 
     {method,
      %Operation{
@@ -87,7 +96,13 @@ defmodule ExGoCDWeb.ApiSpec do
   end
 
   defp operation_id(route) do
-    "#{route.plug}.#{route.plug_opts}"
+    opts =
+      case Map.get(route, :plug_opts) || Map.get(route, :opts) do
+        opts when is_atom(opts) -> ".#{opts}"
+        _opts -> ""
+      end
+
+    "#{route.plug}#{opts}"
   end
 
   @tag_patterns [

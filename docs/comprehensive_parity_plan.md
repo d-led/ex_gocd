@@ -450,7 +450,7 @@ GoCD detects config changes between pipeline runs and shows them in the pipeline
 ### P.3 Tasks
 | # | Item | Effort |
 |---|------|--------|
-| P.3.1 | Store `config_snapshot` in PipelineInstance.build_cause on trigger | S |
+| P.3.1 | Store `config_snapshot` in PipelineInstance.build_cause on trigger | ✅ |
 | P.3.2 | Add `{:map_diff, "~> 1.3"}` to mix.exs deps | S |
 | P.3.3 | Diff pipeline config against previous run | M |
 | P.3.4 | Show "Config Changed" badge in pipeline activity/history | S |

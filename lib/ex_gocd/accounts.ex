@@ -285,26 +285,19 @@ defmodule ExGoCD.Accounts do
   """
   @spec can_access_pipeline_group?(User.t(), String.t(), String.t()) :: boolean()
   def can_access_pipeline_group?(%User{} = user, pipeline_group, required_role \\ "viewer") do
-    # In mock mode, admin user has full access
-    if mock?() do
-      User.has_role?(user, :admin)
-    else
-      # Global admins can access everything
-      if User.has_role?(user, :admin) do
-        true
-      else
-        # Guest users (nil id) have no permissions
-        if is_nil(user.id) do
-          false
-        else
-          perm = Repo.get_by(PipelineGroupPermission, user_id: user.id, pipeline_group: pipeline_group)
+    if mock?(), do: User.has_role?(user, :admin), else: check_group_permission(user, pipeline_group, required_role)
+  end
 
-          case perm do
-            nil -> false
-            %{role: role} -> role_sufficient?(role, required_role)
-          end
-        end
-      end
+  defp check_group_permission(user, pipeline_group, required_role) do
+    User.has_role?(user, :admin) or
+      (user.id && group_role_sufficient?(user.id, pipeline_group, required_role))
+  end
+
+  defp group_role_sufficient?(user_id, pipeline_group, required_role) do
+    Repo.get_by(PipelineGroupPermission, user_id: user_id, pipeline_group: pipeline_group)
+    |> case do
+      nil -> false
+      %{role: role} -> role_sufficient?(role, required_role)
     end
   end
 
