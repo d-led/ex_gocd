@@ -452,13 +452,20 @@ defmodule ExGoCDWeb.DashboardLive do
   end
 
   defp grouping_data(all_pipelines, "pipeline_group", true) do
-    Enum.group_by(all_pipelines, & &1.group)
-    |> Enum.sort_by(fn {k, _} -> k || "" end)
+    Enum.group_by(all_pipelines, &(Map.get(&1, :group) || "Default"))
+    |> Enum.sort_by(fn {k, _} -> k end)
+    |> Map.new()
+  end
+
+  defp grouping_data(all_pipelines, "environment", true) do
+    # Environments not yet implemented — group by group with "Default" label for now
+    # TODO: implement real environment grouping when environments are added
+    Enum.group_by(all_pipelines, fn _ -> "Default" end)
     |> Map.new()
   end
 
   defp grouping_data(all_pipelines, _scheme, true) do
-    Enum.group_by(all_pipelines, fn p -> p[:group] || p.group || "Default" end)
+    Enum.group_by(all_pipelines, fn p -> Map.get(p, :group, "Default") end)
     |> Enum.sort_by(fn {k, _} -> k end)
     |> Map.new()
   end

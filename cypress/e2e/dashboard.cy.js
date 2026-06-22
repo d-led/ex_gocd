@@ -1,29 +1,25 @@
-describe("Pipeline Dashboard E2E Tests", () => {
+describe("Pipeline Dashboard", () => {
   beforeEach(() => {
-    cy.visit("/pipelines");
-    cy.get('.phx-connected', { timeout: 10000 }).should('exist');
+    cy.visitPage("/pipelines");
   });
 
-  it("successfully loads dashboard and displays pipeline groups", () => {
-    cy.verifyDashboardLoaded();
-    cy.verifyPipelineVisible("build-linux");
-    cy.verifyPipelineVisible("deploy-staging");
+  it("loads and displays pipeline groups", () => {
+    cy.theDashboardShows("demo", "upstream-lib");
   });
 
-  it("can filter pipelines by name via the search box", () => {
-    cy.verifyDashboardLoaded();
-    cy.searchPipelines("linux");
-    cy.verifyPipelineVisible("build-linux");
-    cy.verifyPipelineNotVisible("deploy-staging");
+  it("filters pipelines by name via the search box", () => {
+    cy.theDashboardShows("demo", "upstream-lib");
+    cy.iSearchPipelines("upstream");
+    cy.theDashboardShows("upstream-lib");
+    cy.theDashboardDoesNotShow("demo");
 
-    cy.searchPipelines("");
-    cy.verifyPipelineVisible("build-linux");
-    cy.verifyPipelineVisible("deploy-staging");
+    cy.iSearchPipelines("");
+    cy.theDashboardShows("demo", "upstream-lib");
   });
 
-  it("allows triggering a pipeline execution", () => {
-    cy.verifyDashboardLoaded();
-    cy.triggerPipeline("build-linux");
-    cy.get(".alert-info").should("contain", "triggered");
+  it("triggers a pipeline execution via the play button", () => {
+    cy.theDashboardShows("demo");
+    cy.iTriggerPipelineRun("demo");
+    cy.theFlashSays("triggered");
   });
 });

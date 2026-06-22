@@ -171,6 +171,69 @@ defmodule ExGoCDWeb.DashboardLiveTest do
       assert has_element?(view, ".c-dropdown-head[tabindex='0']")
       assert has_element?(view, ".c-dropdown-item[tabindex='0']")
     end
+
+    test "Pipeline Group grouping shows distinct group sections with DB data", %{conn: conn} do
+      # Create pipelines with different groups
+      alias ExGoCD.Pipelines.Pipeline
+      alias ExGoCD.Repo
+
+      Repo.insert!(%Pipeline{} |> Pipeline.changeset(%{name: "grp-frontend", group: "frontend"}))
+      Repo.insert!(%Pipeline{} |> Pipeline.changeset(%{name: "grp-backend", group: "backend"}))
+
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      # Select Pipeline Group
+      view |> element(".c-dropdown-head") |> render_click()
+      view |> element(".c-dropdown-item", "Pipeline Group") |> render_click()
+
+      html = render(view)
+      assert html =~ "frontend"
+      assert html =~ "backend"
+      refute html =~ "Default"
+    end
+
+    test "Environment grouping shows all pipelines under one section when no environments exist", %{conn: conn} do
+      alias ExGoCD.Pipelines.Pipeline
+      alias ExGoCD.Repo
+
+      Repo.insert!(%Pipeline{} |> Pipeline.changeset(%{name: "env-frontend", group: "frontend"}))
+      Repo.insert!(%Pipeline{} |> Pipeline.changeset(%{name: "env-backend", group: "backend"}))
+
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      # Select Environment
+      view |> element(".c-dropdown-head") |> render_click()
+      view |> element(".c-dropdown-item", "Environment") |> render_click()
+
+      html = render(view)
+      # Without environments, all pipelines should appear together (not grouped by pipeline group)
+      assert html =~ "env-frontend"
+      assert html =~ "env-backend"
+    end
+
+    test "switching between Pipeline Group and Environment changes grouping output", %{conn: conn} do
+      alias ExGoCD.Pipelines.Pipeline
+      alias ExGoCD.Repo
+
+      Repo.insert!(%Pipeline{} |> Pipeline.changeset(%{name: "switch-frontend", group: "frontend"}))
+      Repo.insert!(%Pipeline{} |> Pipeline.changeset(%{name: "switch-backend", group: "backend"}))
+
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      # Pipeline Group — should show separate section headers
+      view |> element(".c-dropdown-head") |> render_click()
+      view |> element(".c-dropdown-item", "Pipeline Group") |> render_click()
+      pg_html = render(view)
+
+      # Environment — should show different structure
+      view |> element(".c-dropdown-head") |> render_click()
+      view |> element(".c-dropdown-item", "Environment") |> render_click()
+      env_html = render(view)
+
+      # The two modes should produce DIFFERENT HTML (not identical)
+      assert pg_html != env_html,
+        "Pipeline Group and Environment grouping must produce distinct results"
+    end
   end
 
   describe "accessibility" do

@@ -226,3 +226,220 @@ Cypress.Commands.add('loginAsAdmin', () => {
     cy.url().should('eq', Cypress.config().baseUrl + '/');
   });
 });
+
+// ============================================================
+// Domain Language Commands
+//
+// Compose technical commands into behavior-level steps so
+// tests read like plain English. When the DOM or framework
+// details change, fix only these commands — tests stay untouched.
+// ============================================================
+
+// -- App / Navigation ---------------------------------------------------
+
+/** Visit a LiveView page and wait until the socket connects. */
+Cypress.Commands.add('visitPage', (path) => {
+  cy.visit(path);
+  cy.get('.phx-connected', { timeout: 10000 }).should('exist');
+});
+
+/** Click a button by its visible label. */
+Cypress.Commands.add('iClickButton', (label) => {
+  cy.get('button').contains(label).click();
+});
+
+/** Click a link by its visible text. */
+Cypress.Commands.add('iClickLink', (label) => {
+  cy.get('a').contains(label).click();
+});
+
+/** Assert the current URL includes the given path segment. */
+Cypress.Commands.add('theUrlContains', (path) => {
+  cy.url().should('include', path);
+});
+
+/** Assert some visible text appears on the page. */
+Cypress.Commands.add('thePageShows', (text) => {
+  cy.contains(text).should('exist');
+});
+
+/** Assert an element matching the selector is visible. */
+Cypress.Commands.add('theElementIsVisible', (selector) => {
+  cy.get(selector).should('be.visible');
+});
+
+/** Assert a success / info flash message is shown. */
+Cypress.Commands.add('theFlashSays', (text) => {
+  cy.get('.alert-info').should('contain', text);
+});
+
+/** Assert an error alert message is shown. */
+Cypress.Commands.add('theErrorSays', (text) => {
+  cy.get("[role='alert']").should('contain', text);
+});
+
+/** Type into a form field identified by its name attribute. */
+Cypress.Commands.add('iTypeInto', (fieldName, value) => {
+  cy.get(`input[name="${fieldName}"]`).clear().type(value);
+});
+
+/** Select an option from a <select> identified by its name attribute. */
+Cypress.Commands.add('iSelectOption', (selectName, value) => {
+  cy.get(`select[name="${selectName}"]`).select(value);
+});
+
+// -- Dashboard ----------------------------------------------------------
+
+/** The dashboard is loaded and shows the given pipelines. */
+Cypress.Commands.add('theDashboardShows', (...pipelineNames) => {
+  cy.verifyDashboardLoaded();
+  pipelineNames.forEach(n => cy.verifyPipelineVisible(n));
+});
+
+/** The dashboard does NOT show a given pipeline. */
+Cypress.Commands.add('theDashboardDoesNotShow', (name) => {
+  cy.verifyPipelineNotVisible(name);
+});
+
+/** Search for pipelines on the dashboard. */
+Cypress.Commands.add('iSearchPipelines', (query) => {
+  cy.searchPipelines(query);
+});
+
+/** Trigger a pipeline run from the dashboard. */
+Cypress.Commands.add('iTriggerPipelineRun', (name) => {
+  cy.triggerPipeline(name);
+});
+
+// -- Agents -------------------------------------------------------------
+
+/** Switch to a named agent tab (STATIC / ELASTIC). */
+Cypress.Commands.add('iSwitchToAgentTab', (tabName) => {
+  cy.selectAgentTab(tabName);
+});
+
+/** Assert the given agent tab is active. */
+Cypress.Commands.add('theActiveAgentTabIs', (tabName) => {
+  cy.verifyActiveTab(tabName);
+});
+
+/** Filter agents via the search box. */
+Cypress.Commands.add('iFilterAgents', (query) => {
+  cy.get('.search-box input').type(query);
+});
+
+// -- Materials ----------------------------------------------------------
+
+/** The materials page is loaded. */
+Cypress.Commands.add('theMaterialsPageIsLoaded', () => {
+  cy.verifyMaterialsPageLoaded();
+});
+
+/** A material with the given URL is visible. */
+Cypress.Commands.add('theMaterialIsVisible', (url) => {
+  cy.verifyMaterialVisible(url);
+});
+
+/** A material with the given URL is NOT visible. */
+Cypress.Commands.add('theMaterialIsNotVisible', (url) => {
+  cy.verifyMaterialNotVisible(url);
+});
+
+/** Search materials by query. */
+Cypress.Commands.add('iSearchMaterials', (query) => {
+  cy.searchMaterials(query);
+});
+
+/** Expand a material card by fingerprint. */
+Cypress.Commands.add('iExpandMaterial', (fingerprint) => {
+  cy.expandMaterialCard(fingerprint);
+});
+
+/** Open the Usages modal for a material. */
+Cypress.Commands.add('iOpenUsagesModal', (fingerprint) => {
+  cy.openUsagesModal(fingerprint);
+});
+
+/** Assert the Usages modal contains a pipeline name. */
+Cypress.Commands.add('theUsagesModalContains', (pipelineName) => {
+  cy.verifyUsagesModalContains(pipelineName);
+});
+
+/** Click a pipeline link inside the Usages modal. */
+Cypress.Commands.add('iClickUsagesModalPipelineLink', (pipelineName) => {
+  cy.clickUsagesModalPipelineLink(pipelineName);
+});
+
+/** Close the Usages modal. */
+Cypress.Commands.add('iCloseUsagesModal', () => {
+  cy.closeUsagesModal();
+});
+
+/** Open the Modifications modal for a material. */
+Cypress.Commands.add('iOpenModificationsModal', (fingerprint) => {
+  cy.openModificationsModal(fingerprint);
+});
+
+/** Assert the Modifications modal contains some text. */
+Cypress.Commands.add('theModificationsModalContains', (text) => {
+  cy.verifyModificationsModalContains(text);
+});
+
+/** Search inside the Modifications modal. */
+Cypress.Commands.add('iSearchModifications', (query) => {
+  cy.searchModificationsInModal(query);
+});
+
+/** Close the Modifications modal. */
+Cypress.Commands.add('iCloseModificationsModal', () => {
+  cy.closeModificationsModal();
+});
+
+/** Assert the material's SCM type icon matches. */
+Cypress.Commands.add('theMaterialScmTypeIs', (fingerprint, type) => {
+  cy.verifySCMType(fingerprint, type);
+});
+
+/** Assert auto-update status in expanded material card. */
+Cypress.Commands.add('theMaterialAutoUpdateIs', (fingerprint, status) => {
+  cy.verifyAutoUpdateStatus(fingerprint, status);
+});
+
+/** Assert branch name in expanded material card. */
+Cypress.Commands.add('theMaterialBranchIs', (fingerprint, branch) => {
+  cy.verifyBranchName(fingerprint, branch);
+});
+
+// -- Pipeline Config ----------------------------------------------------
+
+/** Click the Add Material button on the pipeline config page. */
+Cypress.Commands.add('iAddMaterial', () => {
+  cy.get('button').contains('Add Material').click();
+});
+
+/** Select a material type in the pipeline config form. */
+Cypress.Commands.add('iSelectMaterialType', (type) => {
+  cy.get("select[name='type']").select(type);
+});
+
+/** Click Save Configuration. */
+Cypress.Commands.add('iSaveConfiguration', () => {
+  cy.get('button').contains('Save Configuration').click();
+});
+
+// -- VSM ----------------------------------------------------------------
+
+/** Assert a VSM node with the given label exists. */
+Cypress.Commands.add('theVSMShowsNode', (label) => {
+  cy.get('.vsm-node').contains(label).should('exist');
+});
+
+/** Assert the VSM SVG is rendered. */
+Cypress.Commands.add('theVSMSvgIsRendered', () => {
+  cy.get('#vsm-svg').should('exist');
+});
+
+/** Assert the VSM has at least N levels. */
+Cypress.Commands.add('theVSMHasLevels', (minLevels) => {
+  cy.get('.vsm-level').should('have.length.at.least', minLevels);
+});
