@@ -51,6 +51,18 @@ const VSMGraph = {
     console.log("[VSM] mounted");
     this._persistentHighlight = null;
     this.drawLines();
+
+    // Debug: track all mouse movement over the SVG
+    const svg = this.el.querySelector("#vsm-svg");
+    if (svg) {
+      svg.addEventListener("mousemove", (e) => {
+        console.log("[VSM] SVG mousemove", { x: Math.round(e.offsetX), y: Math.round(e.offsetY), target: e.target.tagName, targetClass: e.target.className?.baseVal || e.target.className });
+      });
+      svg.addEventListener("mouseenter", () => console.log("[VSM] SVG mouseenter"));
+      svg.addEventListener("mouseleave", () => console.log("[VSM] SVG mouseleave"));
+      svg.addEventListener("click", (e) => console.log("[VSM] SVG click", { x: Math.round(e.offsetX), y: Math.round(e.offsetY), target: e.target.tagName }));
+    }
+
     this.resizeObserver = new ResizeObserver(() => this.drawLines());
     this.resizeObserver.observe(this.el);
     window.addEventListener("resize", this.handleResize = () => this.drawLines());
@@ -158,7 +170,7 @@ const VSMGraph = {
           const hit = document.createElementNS("http://www.w3.org/2000/svg", "path");
           hit.setAttribute("d", pathD);
           hit.setAttribute("class", "vsm-path");
-          hit.setAttribute("stroke", "rgba(0,0,0,0.001)");
+          hit.setAttribute("stroke", "rgba(255,0,0,0.05)");
           hit.setAttribute("stroke-width", "20");
           hit.setAttribute("fill", "none");
           hit.setAttribute("stroke-linecap", "round");
