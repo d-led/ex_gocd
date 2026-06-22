@@ -88,6 +88,7 @@ defmodule ExGoCD.MixProject do
       {:excoveralls, "~> 0.18", only: [:test]},
       {:junit_formatter, "~> 3.4", only: [:test]},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:map_diff, "~> 1.3"},
 
       {:dialyxir, "~> 1.4", only: [:dev], runtime: false},
       {:logger_backends, "~> 1.0"},

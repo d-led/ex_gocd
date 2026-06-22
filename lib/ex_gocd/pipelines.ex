@@ -594,7 +594,8 @@ defmodule ExGoCD.Pipelines do
       "approver" => "anonymous",
       "triggerMessage" => "Triggered from dashboard",
       "triggerForced" => false,
-      "materialRevisions" => material_revisions
+      "materialRevisions" => material_revisions,
+      "configSnapshot" => pipeline_config_snapshot(pipeline)
     }
 
     build_cause =
@@ -1739,5 +1740,66 @@ defmodule ExGoCD.Pipelines do
 
   def delete_template(%Template{} = template) do
     Repo.delete(template)
+  end
+
+  @doc """
+  Generates a config snapshot of the pipeline at trigger time.
+  Used to detect config changes between pipeline runs (Config Diff / Compare).
+  """
+  def pipeline_config_snapshot(%Pipeline{} = pipeline) do
+    %{
+      "name" => pipeline.name,
+      "group" => pipeline.group,
+      "labelTemplate" => pipeline.label_template,
+      "lockBehavior" => pipeline.lock_behavior,
+      "trackingTool" => pipeline.tracking_tool,
+      "timer" => pipeline.timer,
+      "environmentVariables" => (pipeline.secure_variables || %{}) |> Map.merge(pipeline.parameters || %{}),
+      "materials" => Enum.map(pipeline.materials || [], &material_snapshot/1),
+      "stages" => Enum.map(pipeline.stages || [], &stage_snapshot/1)
+    }
+  end
+
+  defp material_snapshot(%{name: name, type: type, url: url, branch: branch} = mat) do
+    %{
+      "name" => name,
+      "type" => type,
+      "url" => url || "",
+      "branch" => branch || "",
+      "fingerprint" => Map.get(mat, :fingerprint) || material_fingerprint(mat)
+    }
+  end
+
+  defp stage_snapshot(%{name: name, trigger_type: tt, approval_type: at, jobs: jobs}) do
+    %{
+      "name" => name,
+      "triggerType" => tt || "success",
+      "approvalType" => at || "success",
+      "environmentVariables" => [],
+      "jobs" => Enum.map(jobs || [], &job_snapshot/1)
+    }
+  end
+
+  defp job_snapshot(%{name: name, tasks: tasks, resources: resources, timeout: timeout, run_instance_count: ric}) do
+    %{
+      "name" => name,
+      "timeout" => timeout,
+      "runInstanceCount" => ric || nil,
+      "resources" => resources || [],
+      "environmentVariables" => [],
+      "tasks" => Enum.map(tasks || [], &task_snapshot/1)
+    }
+  end
+
+  defp task_snapshot(%{type: "exec", attrs: attrs}) do
+    %{"type" => "exec", "command" => (attrs || %{}) |> Map.get("command") || ""}
+  end
+
+  defp task_snapshot(%{type: type, attrs: attrs}) do
+    %{"type" => type, "attrs" => (attrs || %{}) |> Map.drop(["command"])}
+  end
+
+  defp task_snapshot(task) do
+    %{"type" => Map.get(task, :type) || "unknown"}
   end
 end

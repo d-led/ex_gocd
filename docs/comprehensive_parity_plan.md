@@ -612,4 +612,60 @@ GoCD VSM API returns:
 
 ---
 
+## Part S: Fake/Mock Data Elimination 🔴
+
+*107 references to `use_mock?`/`MockData`/`get_mock_*` across 14 files.*
+
+GoCD parity requires ALL data flows to come from the database, not hardcoded mock data. Mock mode (`USE_MOCK_DATA=true`) is acceptable for development/CI but must NEVER be the only data path.
+
+### S.1 Files with mock references (ordered by severity)
+
+| File | Mock Refs | What It Fakes |
+|------|-----------|---------------|
+| `value_stream_map.ex` | 20 | VSM data: materials, modifications, pipeline stages |
+| `agents.ex` | 16 | Agent listing, environments, state |
+| `dashboard_live.ex` | 15 | Pipeline cards, stage summaries, grouping |
+| `pipeline_activity_live.ex` | 10 | Pipeline run history |
+| `scheduler.ex` | 8 | Job plans, environments, build commands |
+| `stage_details_live.ex` | 7 | Stage details |
+| `materials_live.ex` | 7 | Materials listing |
+| `admin_live.ex` | 7 | Config repos, audit log entries |
+| `compare_live.ex` | 4 | Pipeline comparison |
+| `audit_log_live.ex` | 3 | Audit log entries |
+| `agent_job_history_live.ex` | 3 | Agent job history |
+| `job_details_live.ex` | 2 | Job console, tests, artifacts |
+| `agent_job_run_detail_live.ex` | 2 | Agent job run details |
+
+### S.2 Mock data patterns
+
+1. **`use_mock?()` guard**: checks `System.get_env("USE_MOCK_DATA")` — if true, uses hardcoded data
+2. **`fallback_to_mock`**: DB query returns empty → uses mock data as fallback (BAD: hides DB issues)
+3. **`get_mock_*` functions**: return hardcoded structs/maps (VSM, stage summaries, pipeline runs)
+4. **`MockData.audit_log_entries()`**: fake audit entries (needed for demo until audit events are emitted)
+
+### S.3 Elimination plan
+
+| # | File | Fix | Effort |
+|---|------|-----|--------|
+| S.3.1 | `value_stream_map.ex` | Remove all mock fallbacks; VSM from DB only | M |
+| S.3.2 | `agents.ex` | Remove Mock module; DB agents only | M |
+| S.3.3 | `dashboard_live.ex` | Remove `MockData.pipelines()` fallback | M |
+| S.3.4 | `pipeline_activity_live.ex` | Remove `get_mock_runs` fallback | S |
+| S.3.5 | `scheduler.ex` | Remove `mock_mode?` guards; DB-only env lookup | M |
+| S.3.6 | `admin_live.ex` | Remove mock config_repos/audit entries (use DB seeds) | S |
+| S.3.7 | `audit_log_live.ex` | Remove mock audit entries (emit real events) | M |
+| S.3.8 | All others | Remove mock fallbacks, keep `USE_MOCK_DATA` for dev only | M |
+
+### S.4 Mock Data Keep Rules
+
+- **Keep**: `MockData` module itself — useful for dev/CI without database
+- **Remove**: `fallback_to_mock` patterns — DB empty should show empty, not fake data
+- **Keep**: `USE_MOCK_DATA=true` env var for dev mode — but mock data should match real shape exactly
+- **Document**: All uses of mock data must have a comment explaining why
+
+**Priority**: P1 — cannot claim feature parity with fake data.
+**Estimated effort**: L (touches 14 files, ~107 references)
+
+---
+
 *Plan updated 2026-06-22.*

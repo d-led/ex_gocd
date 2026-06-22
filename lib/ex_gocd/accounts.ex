@@ -325,7 +325,6 @@ defmodule ExGoCD.Accounts do
       id: 1,
       username: "admin",
       display_name: "Admin",
-      email: "admin@example.com",
       roles: ["admin"],
       status: "Active",
       inserted_at: ~U[2026-01-01 00:00:00Z],
