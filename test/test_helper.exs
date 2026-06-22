@@ -12,5 +12,7 @@ ExUnit.start()
 
 # When running without Postgres (EX_GOCD_TEST_NO_DB=1), Repo is not started; skip sandbox.
 if System.get_env("EX_GOCD_TEST_NO_DB") != "1" do
-  Ecto.Adapters.SQL.Sandbox.mode(ExGoCD.Repo, :manual)
+  # {:shared, pid} allows GenServer processes (Scheduler, Poller) to access DB
+  # without DBConnection.OwnershipError. Uses self() which is the ExUnit runner.
+  Ecto.Adapters.SQL.Sandbox.mode(ExGoCD.Repo, {:shared, self()})
 end
