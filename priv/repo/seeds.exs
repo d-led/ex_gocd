@@ -144,65 +144,92 @@ else
   IO.puts("Config repo already seeded, skipping")
 end
 
-# ── Fan-in / Fan-out demo: chained pipelines ────────────────────────────
-# upstream-pipeline produces artifacts → downstream-pipeline consumes them
+# ── Fan-in / Fan-out demo: classic GoCD gate pattern ──────────────────
+# Pattern: C1 → (C2, C3) → Package (gate)
+# C1 = upstream-lib: builds a shared library
+# C2 = component-a: fan-out, depends on upstream-lib
+# C3 = component-b: fan-out, depends on upstream-lib
+# Package = integration-pipeline: fan-in gate, waits for both C2 AND C3 green
 alias ExGoCD.Pipelines.Material
 
-# Upstream: builds a library
+defmodule Seeds.FanInOut do
+  def create_pipeline(name, group, stage_name, job_name, task_cmd, materials \\ []) do
+    p = %Pipeline{}
+      |> Pipeline.changeset(%{name: name, group: group})
+      |> Repo.insert!()
+
+    s = %Stage{}
+      |> Stage.changeset(%{name: stage_name, pipeline_id: p.id, approval_type: "success"})
+      |> Repo.insert!()
+
+    j = %Job{}
+      |> Job.changeset(%{name: job_name, stage_id: s.id, resources: ["elixir"]})
+      |> Repo.insert!()
+
+    %Task{}
+      |> Task.changeset(%{type: "exec", command: "echo", arguments: [task_cmd], job_id: j.id})
+      |> Repo.insert!()
+
+    Enum.each(materials, fn mat ->
+      Repo.insert!(%Material{} |> Material.changeset(Map.put(mat, :pipeline_id, p.id)))
+    end)
+
+    p
+  end
+end
+
+# C1: upstream-lib — builds shared library
 unless Repo.get_by(Pipeline, name: "upstream-lib") do
-  up = %Pipeline{}
-    |> Pipeline.changeset(%{name: "upstream-lib", group: "demo"})
-    |> Repo.insert!()
-
-  up_stage = %Stage{}
-    |> Stage.changeset(%{name: "build", pipeline_id: up.id, approval_type: "success"})
-    |> Repo.insert!()
-
-  up_job = %Job{}
-    |> Job.changeset(%{name: "compile", stage_id: up_stage.id, resources: ["elixir"]})
-    |> Repo.insert!()
-
-  %Task{}
-    |> Task.changeset(%{type: "exec", command: "echo", arguments: ["built lib v1.0"], job_id: up_job.id})
-    |> Repo.insert!()
-
-  # Add git material to upstream
-  Repo.insert!(%Material{} |> Material.changeset(%{
-    type: "git", url: "https://github.com/d-led/ex_gocd.git",
-    branch: "main", pipeline_id: up.id
-  }))
-
-  IO.puts("Seeded: upstream-lib pipeline (fan-out source)")
+  Seeds.FanInOut.create_pipeline("upstream-lib", "demo", "build", "compile",
+    "built lib v1.0",
+    [%{type: "git", url: "https://github.com/d-led/ex_gocd.git", branch: "main"}])
+  IO.puts("Seeded: upstream-lib (C1 — fan-out source)")
 else
   IO.puts("Pipeline 'upstream-lib' already exists")
 end
 
-# Downstream: depends on upstream-lib output
-unless Repo.get_by(Pipeline, name: "downstream-app") do
-  down = %Pipeline{}
-    |> Pipeline.changeset(%{name: "downstream-app", group: "demo"})
-    |> Repo.insert!()
-
-  down_stage = %Stage{}
-    |> Stage.changeset(%{name: "package", pipeline_id: down.id, approval_type: "success"})
-    |> Repo.insert!()
-
-  down_job = %Job{}
-    |> Job.changeset(%{name: "bundle", stage_id: down_stage.id, resources: ["elixir"]})
-    |> Repo.insert!()
-
-  %Task{}
-    |> Task.changeset(%{type: "exec", command: "echo", arguments: ["packaged app with upstream lib"], job_id: down_job.id})
-    |> Repo.insert!()
-
-  # Add pipeline material: depends on upstream-lib
+# C2: component-a — fan-out, depends on upstream-lib
+unless Repo.get_by(Pipeline, name: "component-a") do
   up = Repo.get_by!(Pipeline, name: "upstream-lib")
-  Repo.insert!(%Material{} |> Material.changeset(%{
-    type: "pipeline", pipeline_name: "upstream-lib", stage_name: "build",
-    pipeline_id: down.id
-  }))
+  Seeds.FanInOut.create_pipeline("component-a", "demo", "build", "test",
+    "tested component-a with lib",
+    [%{type: "pipeline", pipeline_name: "upstream-lib", stage_name: "build"}])
+  IO.puts("Seeded: component-a (C2 — fan-out from upstream-lib)")
+else
+  IO.puts("Pipeline 'component-a' already exists")
+end
 
-  IO.puts("Seeded: downstream-app pipeline (fan-in: depends on upstream-lib)")
+# C3: component-b — fan-out, depends on upstream-lib
+unless Repo.get_by(Pipeline, name: "component-b") do
+  up = Repo.get_by!(Pipeline, name: "upstream-lib")
+  Seeds.FanInOut.create_pipeline("component-b", "demo", "build", "test",
+    "tested component-b with lib",
+    [%{type: "pipeline", pipeline_name: "upstream-lib", stage_name: "build"}])
+  IO.puts("Seeded: component-b (C3 — fan-out from upstream-lib)")
+else
+  IO.puts("Pipeline 'component-b' already exists")
+end
+
+# Package: integration-pipeline — fan-in gate, depends on BOTH component-a AND component-b
+unless Repo.get_by(Pipeline, name: "integration-pipeline") do
+  Seeds.FanInOut.create_pipeline("integration-pipeline", "demo", "integrate", "package",
+    "packaged integration with all components",
+    [
+      %{type: "pipeline", pipeline_name: "component-a", stage_name: "build"},
+      %{type: "pipeline", pipeline_name: "component-b", stage_name: "build"}
+    ])
+  IO.puts("Seeded: integration-pipeline (fan-in gate — depends on component-a + component-b)")
+else
+  IO.puts("Pipeline 'integration-pipeline' already exists")
+end
+
+# Keep backward compat: downstream-app (simple chain)
+unless Repo.get_by(Pipeline, name: "downstream-app") do
+  up = Repo.get_by!(Pipeline, name: "upstream-lib")
+  Seeds.FanInOut.create_pipeline("downstream-app", "demo", "package", "bundle",
+    "packaged app with upstream lib",
+    [%{type: "pipeline", pipeline_name: "upstream-lib", stage_name: "build"}])
+  IO.puts("Seeded: downstream-app (legacy chain)")
 else
   IO.puts("Pipeline 'downstream-app' already exists")
 end

@@ -1,38 +1,34 @@
+// Shared helpers for both test suites
+const DESKTOP = [1280, 720]
+const NARROW = [1024, 720]
+
+const ready = () => {
+  cy.get('.site-header', { timeout: 10000 }).should('be.visible')
+  cy.window().should('have.property', 'liveSocket')
+}
+
+const openAdminDropdown = () => {
+  cy.get('li.is-drop-down').trigger('mouseenter')
+  // Cypress can't trigger CSS :hover pseudo-class natively, so we force display
+  cy.get('.sub-navigation').invoke('css', 'display', 'flex')
+}
+
+const assertWithinHorizontalViewport = ($el) => {
+  const rect = $el[0].getBoundingClientRect()
+  const vpW = Cypress.config('viewportWidth')
+  expect(rect.left).to.be.at.least(0,
+    `dropdown left edge (${rect.left}px) overflows left off-screen (viewport ${vpW}px)`)
+  expect(rect.right).to.be.at.most(vpW,
+    `dropdown right edge (${rect.right}px) overflows right off-screen (viewport ${vpW}px)`)
+}
+
+const assertNotOverflowUpward = ($el) => {
+  const rect = $el[0].getBoundingClientRect()
+  expect(rect.top).to.be.at.least(0,
+    `dropdown top edge (${rect.top}px) overflows above viewport`)
+}
+
 describe("Admin dropdown — desktop viewport usability", () => {
-  const DESKTOP = [1280, 720]
-
-  const ready = () => {
-    cy.get('.site-header', { timeout: 10000 }).should('be.visible')
-    cy.window().should('have.property', 'liveSocket')
-  }
-
-  const openAdminDropdown = () => {
-    cy.get('li.is-drop-down').trigger('mouseover')
-    cy.get('.sub-navigation').invoke('attr', 'style', 'display: flex !important;')
-  }
-
-  // ── viewport boundary rules ──────────────────────────────────
-  // The header sits at the top of the page. The dropdown can
-  // freely overflow DOWNWARD (the page scrolls). It must NOT
-  // overflow LEFT, RIGHT, or UPWARD — those clip content.
-
-  const assertWithinHorizontalViewport = ($el) => {
-    const rect = $el[0].getBoundingClientRect()
-    const vpW = Cypress.config('viewportWidth')
-
-    expect(rect.left).to.be.at.least(0,
-      `dropdown left edge (${rect.left}px) overflows left off-screen (viewport ${vpW}px)`)
-    expect(rect.right).to.be.at.most(vpW,
-      `dropdown right edge (${rect.right}px) overflows right off-screen (viewport ${vpW}px)`)
-  }
-
-  const assertNotOverflowUpward = ($el) => {
-    const rect = $el[0].getBoundingClientRect()
-    expect(rect.top).to.be.at.least(0,
-      `dropdown top edge (${rect.top}px) overflows above viewport`)
-  }
-
-  // ── desktop: dropdown visible and usable ─────────────────────
 
   describe("desktop dropdown visibility", () => {
     beforeEach(() => {
@@ -221,34 +217,12 @@ describe("Admin dropdown — desktop viewport usability", () => {
 // ── narrow viewport: still no horizontal overflow ──────────────
 
 describe("Admin dropdown — narrow viewport", () => {
-  const NARROW = [1024, 768]
-
-  const ready = () => {
-    cy.get('.site-header', { timeout: 10000 }).should('be.visible')
-    cy.window().should('have.property', 'liveSocket')
-  }
-
-  const openAdminDropdown = () => {
-    cy.get('li.is-drop-down').then($li => {
-      $li[0].dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }))
-    })
-    cy.get('.sub-navigation').invoke('css', 'display', 'flex')
-  }
-
   it("dropdown does NOT overflow left or right at 1024px width", () => {
     cy.viewport(...NARROW)
+    cy.loginAsAdmin()
     cy.visit("/pipelines")
     ready()
     openAdminDropdown()
-
-    cy.get('.sub-navigation').then($el => {
-      const rect = $el[0].getBoundingClientRect()
-      const vpW = Cypress.config('viewportWidth')
-
-      expect(rect.left).to.be.at.least(0,
-        `dropdown left edge (${rect.left}px) overflows at ${vpW}px viewport`)
-      expect(rect.right).to.be.at.most(vpW,
-        `dropdown right edge (${rect.right}px) overflows at ${vpW}px viewport`)
-    })
+    cy.get('.sub-navigation').then(assertWithinHorizontalViewport)
   })
 })
