@@ -121,6 +121,10 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
       "dependents" => downstream_names,
       "fan_in" => fan_in,
       "fan_out" => length(downstream_names),
+      "locator" => "/go/pipeline/activity/#{pipeline_name}",
+      "can_edit" => true,
+      "edit_path" => "/go/admin/pipelines/#{pipeline_name}/edit/general",
+      "template_name" => instance.pipeline_config.template_name,
       "instances" => [
         %{
           "label" => instance.label,
@@ -197,6 +201,10 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
         "depth" => 1,
         "parents" => Enum.map(material_nodes, & &1["id"]),
         "dependents" => downstream_names,
+        "locator" => "/go/pipeline/activity/#{pipeline_name}",
+        "can_edit" => true,
+        "edit_path" => "/go/admin/pipelines/#{pipeline_name}/edit/general",
+        "template_name" => nil,
         "instances" => [
           %{
             "label" => to_string(counter),

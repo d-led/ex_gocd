@@ -483,4 +483,133 @@ GoCD detects config changes between pipeline runs and shows them in the pipeline
 
 ---
 
+## Part Q: Downstream Pipeline Trigger (Fan-in/Fan-out) 🔴
+
+### Q.1 Current state
+- `trigger_completed_downstreams/1` queries pipelines with `material.type == "dependency"` matching the completed pipeline name ✅
+- Diamond seeds: `upstream-lib` → (`component-a`, `component-b`) → `integration-pipeline` ✅
+- Test: single downstream trigger passes ✅
+- Test: fan-out (1→2) passes ✅
+- Material uses `many_to_many` via `pipelines_materials` join table — fixed in seeds ✅
+
+### Q.2 GoCD Scheduler Test Case Catalog
+
+*Cross-referenced from `BuildCauseProducerServiceTest.java` (22 test methods)*
+
+| # | GoCD Test | What We Have | Status |
+|---|-----------|-------------|--------|
+| 1 | `onErrorShouldUpdateServerHealth` | — | 🔴 |
+| 2 | `shouldAllowRetriggeringIfPreviousTriggerFailed` | — | 🔴 |
+| 3 | `shouldCheckForModificationsWhenManuallyScheduling` | SCM polling exists, manual trigger not tested | 🟡 |
+| 4 | `shouldNotCheckForModificationsIfAlreadyChecking` | — | 🔴 |
+| 5 | `shouldAllowTriggeringAfterMaterialUpdate` | — | 🔴 |
+| 6 | `manualTriggerShouldNotTriggerIfMaterialUpdateFailed` | — | 🔴 |
+| 7 | `shouldNotCheckForModificationsUnableToTriggerManual` | — | 🔴 |
+| 8 | `shouldScheduleAfterAllMaterialsAreUpdated` | — | 🔴 |
+| 9 | `shouldUpdateResultAsAcceptedOnSuccess` | — | 🔴 |
+| 10 | `shouldBeAbleToPassInSpecificRevision` | — | 🔴 |
+| 11 | `shouldHandleCaseWhereSpecifiedRevisionDoesNotExist` | — | 🔴 |
+| 12 | `shouldHandleCaseWhenExceptionWithoutMessage` | — | 🔴 |
+| 13 | `shouldUpdateOnlyOnceIfTwoMaterialsSameFingerprintDiffDest` | — | 🔴 |
+| 14 | `shouldUpdatePipelineConfigWhenMaterialIsConfigRepo` | — | 🔴 |
+| 15 | `shouldUpdateJustPipelineConfigNotMaterialsWhenMDUFlagOff` | — | 🔴 |
+| 16 | `shouldRequestUpdateOfNewMaterialsWhenConfigInConfigRepo` | — | 🔴 |
+| 17 | `shouldHandleNoModificationExceptionThrownByAutoBuild` | — | 🔴 |
+
+*Cross-referenced from `FanInGraphTest.java`*
+
+| # | GoCD Test | Status |
+|---|-----------|--------|
+| 18 | `shouldConstructFaninGraph` (diamond: p1→p2,p3→p4) | 🟡 seeds exist, no graph validation test |
+
+*Cross-referenced from `ScheduleServiceTest.java`*
+
+| # | GoCD Test | Status |
+|---|-----------|--------|
+| 19 | `shouldTriggerNextStageWhenStageCompletes` | ✅ `trigger_next_stage` + test |
+| 20 | `shouldNotTriggerNextStageIfStageFailed` | 🟡 |
+| 21 | `shouldTriggerDownstreamWhenLastStageCompletes` | ✅ test added |
+| 22 | `shouldTriggerNewerPipelineStageIfExists` | 🔴 `triggerCurrentStageInNewerPipeline` missing |
+
+### Q.3 Implementation Plan
+
+| # | Item | Effort |
+|---|------|--------|
+| Q.3.1 | Implement `triggerCurrentStageInNewerPipeline` (GoCD parity) | M |
+| Q.3.2 | Write tests for #1-#17 from GoCD catalog | L |
+| Q.3.3 | Write fan-in graph construction test (#18) | S |
+| Q.3.4 | Implement fan-in gate: wait for ALL dependencies before triggering | M |
+| Q.3.5 | Trigger with specific revision support | M |
+
+**Priority**: P1. Scheduling must be indistinguishable from original GoCD.
+
+---
+
+## Part R: VSM — Value Stream Map Parity 🔴
+
+*Cross-referenced from GoCD `value_stream_map_controller_spec.rb` and `value_stream_map_renderer_spec.js`*
+
+### R.1 GoCD VSM JSON Structure
+
+GoCD VSM API returns:
+```json
+{
+  "levels": [{
+    "nodes": [{
+      "id": "...",
+      "parents": ["..."],
+      "dependents": ["..."],
+      "node_type": "GIT|PIPELINE",
+      "name": "...",
+      "depth": 1,
+      "instances": [{
+        "stages": [{"name":"...", "duration":0, "locator":"...", "status":"Passed"}],
+        "counter": 1,
+        "label": "..."
+      }],
+      "material_revisions": [{
+        "modifications": [{"comment":"...", "revision":"...", "user":"...", "modified_time":"...", "locator":"..."}]
+      }],
+      "locator": "/go/pipeline/activity/...",
+      "can_edit": false,
+      "edit_path": "/go/admin/pipelines/.../general"
+    }]
+  }],
+  "current_pipeline": "..."
+}
+```
+
+### R.2 GoCD VSM Test Cases
+
+| # | GoCD Test | Our Status |
+|---|-----------|-----------|
+| R.1 | Route: `/pipelines/value_stream_map/:name/:counter` (json/html) | ✅ |
+| R.2 | Route: `/materials/value_stream_map/:fp/:revision` | ✅ |
+| R.3 | Pipelines with dots in name (e.g., `P.Q`) | 🟡 |
+| R.4 | Error when pipeline/counter unresolved | 🟡 |
+| R.5 | JSON render with pipeline dependency graph | ✅ basic |
+| R.6 | JSON render with instance + stage details | 🟡 partial |
+| R.7 | Error message when pipeline doesn't exist | ✅ |
+| R.8 | Material VSM with modification locators | 🔴 |
+| R.9 | `can_edit` and `edit_path` on pipeline nodes | 🔴 |
+| R.10 | `template_name` on pipeline nodes | 🔴 |
+| R.11 | `material_names` on material nodes | 🔴 |
+| R.12 | Multiple parent/dependent relationships (fan-in/out edges) | 🔴 |
+| R.13 | JS renderer tests (15 specs in `value_stream_map_renderer_spec.js`) | 🔴 |
+
+### R.3 Gaps from GoCD VSM
+
+| # | Gap | Effort |
+|---|-----|--------|
+| R.3.1 | Add `can_edit`, `edit_path`, `template_name` to pipeline nodes | S |
+| R.3.2 | Add `material_names` array to material nodes | S |
+| R.3.3 | Add `locator` for material revisions modifications | S |
+| R.3.4 | Verify VSM shows fan-in/fan-out edges correctly | M |
+| R.3.5 | Verify VSM JSON matches GoCD structure exactly | M |
+| R.3.6 | Add pipeline instance + stage details to VSM JSON | M |
+
+**Priority**: P1. VSM must be indistinguishable from original GoCD.
+
+---
+
 *Plan updated 2026-06-22.*
