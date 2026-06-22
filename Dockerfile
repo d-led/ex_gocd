@@ -39,14 +39,14 @@ RUN --mount=type=cache,target=/root/.hex \
     --mount=type=cache,target=/root/.mix \
     --mount=type=cache,target=/app/deps,sharing=shared \
     --mount=type=cache,target=/app/_build,sharing=shared \
-    mix compile
+    mix local.hex --force && mix local.rebar --force && mix compile
 
 # Compile assets and digest them
 RUN --mount=type=cache,target=/root/.hex \
     --mount=type=cache,target=/root/.mix \
     --mount=type=cache,target=/app/deps,sharing=shared \
     --mount=type=cache,target=/app/_build,sharing=shared \
-    mix assets.deploy
+    mix local.hex --force && mix assets.deploy
 
 # Copy compiled files out of cache mounts to persistent locations
 RUN --mount=type=cache,target=/app/deps,sharing=shared \
