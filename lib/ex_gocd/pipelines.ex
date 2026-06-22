@@ -100,6 +100,47 @@ defmodule ExGoCD.Pipelines do
   end
 
   @doc """
+  Detects config changes between a pipeline instance and its previous run.
+  Returns {:ok, diff_map} if config changed, {:ok, nil} if unchanged,
+  or {:error, reason} if instance not found.
+  """
+  def config_diff(pipeline_name, counter) do
+    pi = Repo.one(
+      from pi in PipelineInstance,
+        join: p in assoc(pi, :pipeline),
+        where: p.name == ^pipeline_name and pi.counter == ^counter
+    )
+
+    case pi do
+      nil -> {:error, :instance_not_found}
+      instance ->
+        current_snapshot = (instance.build_cause || %{})["configSnapshot"]
+        previous_snapshot = get_previous_config_snapshot(instance.pipeline_id, counter)
+
+        if current_snapshot && previous_snapshot && current_snapshot != previous_snapshot do
+          diff = MapDiff.diff(previous_snapshot, current_snapshot)
+          {:ok, diff}
+        else
+          {:ok, nil}
+        end
+    end
+  end
+
+  defp get_previous_config_snapshot(pipeline_id, current_counter) do
+    from(pi in PipelineInstance,
+      where: pi.pipeline_id == ^pipeline_id and pi.counter < ^current_counter,
+      order_by: [desc: pi.counter],
+      limit: 1,
+      select: pi.build_cause
+    )
+    |> Repo.one()
+    |> case do
+      nil -> nil
+      bc -> bc["configSnapshot"]
+    end
+  end
+
+  @doc """
   Triggers a pipeline run: creates PipelineInstance, StageInstances, JobInstances for the first stage,
   and enqueues each job to the Scheduler. Jobs will be picked up by idle agents.
   Returns {:ok, pipeline_instance} or {:error, changeset}.

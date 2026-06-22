@@ -245,16 +245,16 @@ Config repos DO NOT require checkout to disk. They represent pipeline-as-code de
 
 ---
 
-## Part I: Console Log Viewer 🔴
+## Part I: Console Log Viewer �
 
 GoCD console log features we need parity with:
-- Toggle timestamps on/off in log view
-- Clickable links to individual log lines (anchors)
-- Collapsible log sections (fold/unfold ANSI regions)
-- Live log following (auto-scroll to bottom)
-- Log search/highlight within a job
+- Toggle timestamps on/off in log view ✅ (checkbox + ConsoleScroller hook)
+- Clickable links to individual log lines ✅ (`console_with_links/1` URL→anchor)
+- Collapsible log sections (fold/unfold ANSI regions) 🔴
+- Live log following (auto-scroll to bottom) ✅ (Follow checkbox + ConsoleScroller)
+- Log search/highlight within a job 🔴
 
-**Status**: Basic console log display exists. None of the above implemented.
+**Status**: Clickable links, follow, timestamps done. Collapsible sections + search remaining.
 **Priority**: P2. High user impact for debugging.
 
 ---
@@ -264,8 +264,8 @@ GoCD console log features we need parity with:
 | # | Item | Effort | Status |
 |---|------|--------|--------|
 | J.1 | Pipeline config admin `index` action | S | ✅ done |
-| J.2 | Artifact MD5 verify on downstream fetch | S | 🔴 |
-| J.3 | Job comment API | S | 🔴 |
+| J.2 | Artifact MD5 verify on downstream fetch | S | ✅ done (verify_checksum_on_fetch + stored_checksum_for) |
+| J.3 | Job comment API | S | ✅ done (POST /api/pipelines/:name/:counter/comment + add_comment/3) |
 | J.4 | Config repo wizard persistence | M | ✅ done (edit mode with pre-fill) |
 | J.5 | Fan-in/fan-out demo seeds | S | ✅ done (upstream-lib → downstream-app) |
 | J.6 | Config repo → pipeline dashboard mapping | S | ✅ done (config_repo_id badge on cards) |
@@ -452,10 +452,9 @@ GoCD detects config changes between pipeline runs and shows them in the pipeline
 |---|------|--------|
 | P.3.1 | Store `config_snapshot` in PipelineInstance.build_cause on trigger | ✅ |
 | P.3.2 | Add `{:map_diff, "~> 1.3"}` to mix.exs deps | ✅ |
-| P.3.3 | Diff pipeline config against previous run | 🔴 |
-| P.3.4 | Show "Config Changed" badge in pipeline activity/history | S |
-| P.3.5 | Diff viewer UI (collapsible, side-by-side) | M |
-
+| P.3.3 | Diff pipeline config against previous run | ✅ | `config_diff/2` + 3 tests |
+| P.3.4 | Show "Config Changed" badge in pipeline activity/history | ✅ | `config_changed` boolean in run map |
+| P.3.5 | Diff viewer UI (collapsible, side-by-side) | M | 🔴 |
 **Priority**: P1. Core GoCD feature for auditing config changes.
 
 ---

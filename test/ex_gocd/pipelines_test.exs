@@ -437,4 +437,41 @@ defmodule ExGoCD.PipelinesTest do
     stage = List.first(pipeline.stages)
     {pipeline, stage, jobs}
   end
+
+  describe "config_diff/2" do
+    test "returns nil when no previous run exists" do
+      {pipeline, _stage, _job} = insert_pipeline_with_jobs("cfg-diff-new", 1)
+      assert {:ok, instance} = Pipelines.trigger_pipeline(pipeline.name)
+      assert {:ok, nil} = Pipelines.config_diff(pipeline.name, instance.counter)
+    end
+
+    test "returns diff when config changes between runs" do
+      {pipeline, _stage, _job} = insert_pipeline_with_jobs("cfg-diff-chg", 1)
+
+      # First run
+      assert {:ok, _} = Pipelines.trigger_pipeline(pipeline.name)
+
+      # Modify pipeline config (rename it — this changes the snapshot)
+      pipeline
+      |> Pipeline.changeset(%{label_template: "v2-${COUNT}"})
+      |> Repo.update!()
+
+      # Second run
+      assert {:ok, instance2} = Pipelines.trigger_pipeline(pipeline.name)
+
+      # Should detect config change
+      assert {:ok, diff} = Pipelines.config_diff(pipeline.name, instance2.counter)
+      assert diff != nil
+      assert is_map(diff)
+    end
+
+    test "returns nil for same config between runs" do
+      {pipeline, _stage, _job} = insert_pipeline_with_jobs("cfg-diff-same", 1)
+
+      assert {:ok, _} = Pipelines.trigger_pipeline(pipeline.name)
+      assert {:ok, instance2} = Pipelines.trigger_pipeline(pipeline.name)
+
+      assert {:ok, nil} = Pipelines.config_diff(pipeline.name, instance2.counter)
+    end
+  end
 end

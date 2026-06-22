@@ -88,7 +88,8 @@ defmodule ExGoCDWeb.PipelineActivityLive do
       triggered_by: build_cause["triggerMessage"] || "Triggered manually",
       last_run: pi.inserted_at || pi.updated_at || DateTime.utc_now(),
       stages: pi.stage_instances |> Enum.sort_by(& &1.order_id) |> Enum.map(&map_stage_instance/1),
-      modifications: build_cause["materialRevisions"] |> List.wrap() |> Enum.flat_map(&map_modifications/1)
+      modifications: build_cause["materialRevisions"] |> List.wrap() |> Enum.flat_map(&map_modifications/1),
+      config_changed: Map.has_key?(build_cause, "configSnapshot")
     }
   end
 
@@ -287,6 +288,11 @@ defmodule ExGoCDWeb.PipelineActivityLive do
                     end}>
                     {run.status}
                   </span>
+                  <%= if Map.get(run, :config_changed) do %>
+                    <span class="text-[9px] font-bold px-1.5 py-0.5 rounded uppercase font-mono bg-purple-100 text-purple-700" title="Pipeline config changed since previous run">
+                      Config
+                    </span>
+                  <% end %>
                 </div>
 
                 <div class="mt-3">
