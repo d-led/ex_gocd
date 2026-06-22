@@ -17,7 +17,6 @@ echo "=== Link Checker (muffet) ==="
 # Run muffet: check only localhost links, max 1 connection, follow redirects, detect loops
 "$MUFFET" \
   --buffer-size 4096 \
-  --concurrency 1 \
   --max-connections-per-host 4 \
   --max-redirections 5 \
   --timeout 10 \
