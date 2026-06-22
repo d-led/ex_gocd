@@ -20,6 +20,7 @@ defmodule ExGoCD.Pipelines.Job do
           timeout: String.t() | nil,
           resources: [String.t()] | nil,
           environment_variables: map() | nil,
+          secure_variables: map() | nil,
           run_on_all_agents: boolean() | nil,
           elastic_profile_id: String.t() | nil,
           tabs: map() | nil,
@@ -38,6 +39,7 @@ defmodule ExGoCD.Pipelines.Job do
     field :timeout, :string
     field :resources, {:array, :string}, default: []
     field :environment_variables, :map, default: %{}
+    field :secure_variables, :map, default: %{}
     field :run_on_all_agents, :boolean, default: false
     field :elastic_profile_id, :string
     field :tabs, :map, default: %{}

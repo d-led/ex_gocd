@@ -21,6 +21,7 @@ defmodule ExGoCD.Pipelines.Stage do
           never_cleanup_artifacts: boolean() | nil,
           approval_type: String.t() | nil,
           environment_variables: map() | nil,
+          secure_variables: map() | nil,
           approval_authorization: map() | nil,
           pipeline_id: integer() | nil,
           template_id: integer() | nil,
@@ -38,6 +39,7 @@ defmodule ExGoCD.Pipelines.Stage do
     field :never_cleanup_artifacts, :boolean, default: false
     field :approval_type, :string, default: "success"
     field :environment_variables, :map, default: %{}
+    field :secure_variables, :map, default: %{}
     field :approval_authorization, :map, default: %{}
 
     belongs_to :pipeline, Pipeline

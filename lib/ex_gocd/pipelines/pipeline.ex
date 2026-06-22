@@ -19,7 +19,7 @@ defmodule ExGoCD.Pipelines.Pipeline do
           group: String.t() | nil,
           label_template: String.t() | nil,
           lock_behavior: String.t() | nil,
-          environment_variables: map() | nil,
+          secure_variables: map() | nil,
           timer: String.t() | nil,
           timer_only_on_changes: boolean() | nil,
           params: map() | nil,
@@ -50,6 +50,7 @@ defmodule ExGoCD.Pipelines.Pipeline do
     field :label_template, :string, default: "${COUNT}"
     field :lock_behavior, :string, default: "none"
     field :environment_variables, :map, default: %{}
+    field :secure_variables, :map, default: %{}
     field :timer, :string
     field :timer_only_on_changes, :boolean, default: false
     field :params, :map, default: %{}

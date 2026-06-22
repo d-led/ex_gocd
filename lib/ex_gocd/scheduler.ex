@@ -579,8 +579,10 @@ defmodule ExGoCD.Scheduler do
   defp get_all_job_env_vars(pipeline, stage_instance, job_config, pipeline_instance) do
     env_vars = get_env_level_vars(pipeline.name)
     pipe_vars = map_to_gocd_vars(pipeline.environment_variables)
+    pipe_secure = decrypt_secure_vars(pipeline.secure_variables)
     stage_vars = get_stage_vars(pipeline.id, stage_instance.name)
     job_vars = if job_config, do: map_to_gocd_vars(job_config.environment_variables), else: []
+    job_secure = if job_config, do: decrypt_secure_vars(job_config.secure_variables), else: []
 
     override_vars =
       case pipeline_instance.build_cause do
@@ -595,7 +597,7 @@ defmodule ExGoCD.Scheduler do
           []
       end
 
-    merge_env_vars(env_vars, pipe_vars, stage_vars, job_vars, override_vars)
+    merge_env_vars(env_vars, pipe_vars ++ pipe_secure, stage_vars, job_vars ++ job_secure, override_vars)
   end
 
   defp get_env_level_vars(pipeline_name) do
@@ -636,6 +638,34 @@ defmodule ExGoCD.Scheduler do
   end
   defp map_to_gocd_vars(_), do: []
 
+  # Decrypt secure variables map → list of %{"name" => _, "value" => _}
+  defp decrypt_secure_vars(nil), do: []
+  defp decrypt_secure_vars(secure) when is_map(secure) do
+    Enum.map(secure, fn {name, encrypted} ->
+      value = ExGoCD.Cipher.safe_decrypt(encrypted)
+      |> case do
+        {:ok, plain} -> plain
+        :error -> "******"
+      end
+      %{"name" => to_string(name), "value" => value}
+    end)
+  end
+  defp decrypt_secure_vars(_), do: []
+
+  # Decrypt a single secure variable item from build_cause override
+  defp decrypt_variable(%{"encrypted_value" => enc}), do: decrypt_var_value(enc)
+  defp decrypt_variable(%{encrypted_value: enc}), do: decrypt_var_value(enc)
+  defp decrypt_variable(%{"value" => val}), do: val
+  defp decrypt_variable(%{value: val}), do: val
+  defp decrypt_variable(_), do: ""
+
+  defp decrypt_var_value(enc) do
+    case ExGoCD.Cipher.safe_decrypt(enc) do
+      {:ok, plain} -> plain
+      :error -> "******"
+    end
+  end
+
   defp merge_env_vars(env, pipe, stage, job, overrides) do
     norm_env = list_to_var_map(env)
     norm_pipe = list_to_var_map(pipe)
@@ -663,22 +693,6 @@ defmodule ExGoCD.Scheduler do
         acc
       end
     end)
-  end
-
-  defp decrypt_variable(var) do
-    cond do
-      val = Map.get(var, "value") || Map.get(var, :value) ->
-        to_string(val)
-
-      enc = Map.get(var, "encrypted_value") || Map.get(var, :encrypted_value) ->
-        case Base.decode64(to_string(enc)) do
-          {:ok, decoded} -> decoded
-          _ -> to_string(enc)
-        end
-
-      true ->
-        ""
-    end
   end
 
   # Triggers try_assign_work for all currently connected idle agents.
