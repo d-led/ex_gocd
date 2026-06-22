@@ -8,6 +8,10 @@ set -e
 cd "$(dirname "$0")/.."
 
 echo "Starting Elixir Phoenix server on port 4001 with USE_MOCK_DATA=true..."
+
+# Ensure migrations are up to date (Phoenix checks this on startup)
+MIX_ENV=test mix ecto.migrate --quiet 2>/dev/null || true
+
 PORT=4001 USE_MOCK_DATA=true elixir --sname mock_test -S mix phx.server > /tmp/mock_server_cypress.log 2>&1 &
 SERVER_PID=$!
 
