@@ -424,7 +424,11 @@ Cypress.Commands.add('tapOnArrowBetween', (sourceLabel, targetLabel) => {
 Cypress.Commands.add('arrowBetweenShouldBeHighlighted', (sourceLabel, targetLabel) => {
   vsmNodeId(sourceLabel).then((srcId) => {
     vsmNodeId(targetLabel).then((tgtId) => {
-      cy.get(vsmArrowSelector(srcId, tgtId)).first().should('have.css', 'opacity', '1');
+      // The visible path (not the transparent hit path) turns bright red
+      cy.get(`#vsm-svg .vsm-path[data-source-id="${srcId}"][data-target-id="${tgtId}"]`)
+        .not('[stroke="transparent"]')
+        .first()
+        .should('have.attr', 'stroke', '#e53e3e');
     });
   });
 });
@@ -447,20 +451,20 @@ Cypress.Commands.add('nodeShouldNotGlow', (label) => {
 Cypress.Commands.add('allOtherArrowsShouldBeDimmed', (sourceLabel, targetLabel) => {
   vsmNodeId(sourceLabel).then((srcId) => {
     vsmNodeId(targetLabel).then((tgtId) => {
-      // Collect all arrow source→target pairs, then assert each individually
-      // (avoids detached-DOM errors from LiveView re-renders)
       cy.get('#vsm-svg .vsm-path').then(($paths) => {
         const pairs = [];
         $paths.each((_, el) => {
           const s = el.getAttribute('data-source-id');
           const t = el.getAttribute('data-target-id');
-          if (s && t) pairs.push({ s, t });
+          const st = el.getAttribute('stroke');
+          if (s && t && st !== 'transparent') pairs.push({ s, t });
         });
         pairs.forEach(({ s, t }) => {
           if (s !== srcId || t !== tgtId) {
             cy.get(`#vsm-svg .vsm-path[data-source-id="${s}"][data-target-id="${t}"]`)
+              .not('[stroke="transparent"]')
               .first()
-              .should('have.css', 'opacity', '0.15');
+              .should('have.attr', 'stroke', '#cbd5e0');
           }
         });
       });

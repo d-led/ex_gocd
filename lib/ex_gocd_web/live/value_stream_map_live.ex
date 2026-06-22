@@ -91,6 +91,29 @@ defmodule ExGoCDWeb.ValueStreamMapLive do
     StageStatus.node_badge(status)
   end
 
+  # ── Material type icon helpers ──────────────────────────────────────────
+
+  defp material_icon("git"), do: "fa-brands fa-git"
+  defp material_icon("hg"), do: "fa-solid fa-code-fork"
+  defp material_icon("svn"), do: "fa-solid fa-database"
+  defp material_icon("p4"), do: "fa-solid fa-terminal"
+  defp material_icon("tfs"), do: "fa-brands fa-windows"
+  defp material_icon("dependency"), do: "fa-solid fa-diagram-project"
+  defp material_icon("package"), do: "fa-solid fa-box"
+  defp material_icon("plugin"), do: "fa-solid fa-plug"
+  defp material_icon("pluggable_scm"), do: "fa-solid fa-plug"
+  defp material_icon(_), do: "fa-solid fa-code-branch"
+
+  defp material_icon_bg("dependency"), do: "bg-purple-50 text-purple-600"
+  defp material_icon_bg("package"), do: "bg-amber-50 text-amber-600"
+  defp material_icon_bg(_), do: "bg-orange-50 text-orange-600"
+
+  defp material_label_color("dependency"), do: "text-purple-600"
+  defp material_label_color("package"), do: "text-amber-600"
+  defp material_label_color(_), do: "text-orange-600"
+
+  # ── Node widget ─────────────────────────────────────────────────────────
+
   defp vsm_node_widget(assigns) do
     ~H"""
     <%
@@ -114,20 +137,12 @@ defmodule ExGoCDWeb.ValueStreamMapLive do
       <div class="flex items-start justify-between">
         <div class="flex items-center gap-2.5">
           <%= if @node["node_type"] == "MATERIAL" do %>
-            <div class="bg-orange-50 text-orange-600 rounded p-1.5 flex items-center justify-center w-8 h-8 flex-shrink-0">
-              <%= case Map.get(@node, "material_type") || "git" do %>
-                <% "git" -> %> <i class="fa-brands fa-git-alt text-lg"></i>
-                <% "hg" -> %> <i class="fa-solid fa-code-fork text-lg"></i>
-                <% "svn" -> %> <i class="fa-solid fa-database text-lg"></i>
-                <% "p4" -> %> <i class="fa-solid fa-terminal text-lg"></i>
-                <% "tfs" -> %> <i class="fa-brands fa-windows text-lg"></i>
-                <% "package" -> %> <i class="fa-solid fa-box text-lg"></i>
-                <% "plugin" -> %> <i class="fa-solid fa-plug text-lg"></i>
-                <% _ -> %> <i class="fa-solid fa-circle-question text-lg"></i>
-              <% end %>
+            <% mat_type = Map.get(@node, "material_type") || "git" %>
+            <div class={"rounded p-1.5 flex items-center justify-center w-8 h-8 flex-shrink-0 " <> material_icon_bg(mat_type)}>
+              <i class={material_icon(mat_type) <> " text-lg"}></i>
             </div>
             <div class="flex flex-col min-w-0">
-              <span class="text-[9px] text-orange-600 font-bold uppercase tracking-wider">Material</span>
+              <span class={"text-[9px] font-bold uppercase tracking-wider " <> material_label_color(mat_type)}>Material</span>
               <span class="text-xs font-semibold text-gray-700 truncate w-40" title={@node["name"]}>
                 {Path.basename(@node["name"] || "")}
               </span>
@@ -156,12 +171,12 @@ defmodule ExGoCDWeb.ValueStreamMapLive do
           <% end %>
           <%= if @node["fan_in"] && @node["fan_in"] > 1 do %>
             <span class="text-[9px] bg-amber-100 text-amber-700 font-bold px-1.5 py-0.5 rounded uppercase font-mono" title="Multiple upstreams converge here">
-              FI:{@node["fan_in"]}
+              {"FI:"}{@node["fan_in"]}
             </span>
           <% end %>
           <%= if @node["fan_out"] && @node["fan_out"] > 1 do %>
             <span class="text-[9px] bg-blue-100 text-blue-700 font-bold px-1.5 py-0.5 rounded uppercase font-mono" title="Multiple downstreams diverge here">
-              FO:{@node["fan_out"]}
+              {"FO:"}{@node["fan_out"]}
             </span>
           <% end %>
         </div>
@@ -173,7 +188,7 @@ defmodule ExGoCDWeb.ValueStreamMapLive do
             <%= for mod <- rev["modifications"] || [] do %>
               <div class="flex flex-col text-xs text-gray-500 gap-1">
                 <div class="flex items-center justify-between">
-                  <span class="font-bold text-gray-700 truncate w-32">{mod["user"]}</span>
+                  <span class="font-bold text-gray-700 truncate max-w-[180px]" title={mod["user"]}>{mod["user"]}</span>
                   <.link navigate={mod["locator"]} class="font-mono text-cyan-600 hover:underline">{String.slice(mod["revision"], 0, 8)}</.link>
                 </div>
                 <p class="text-gray-600 italic line-clamp-2 mt-0.5 font-medium">"{mod["comment"]}"</p>
@@ -266,7 +281,7 @@ defmodule ExGoCDWeb.ValueStreamMapLive do
         </div>
       </div>
 
-      <div id="vsm-container" phx-hook="VSMGraph" phx-update="ignore" class="vsm-container-wrapper relative border border-gray-200 rounded-lg p-4 md:p-10 bg-white shadow-sm overflow-x-auto min-h-[400px] md:min-h-[500px]">
+      <div id="vsm-container" phx-hook="VSMGraph" class="vsm-container-wrapper relative border border-gray-200 rounded-lg p-4 md:p-10 bg-white shadow-sm overflow-x-auto min-h-[400px] md:min-h-[500px]">
         <svg id="vsm-svg" class="absolute top-0 left-0 w-full h-full" style="z-index: 1; overflow: visible;">
           <defs>
             <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto">

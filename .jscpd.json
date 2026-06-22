@@ -7,7 +7,7 @@
   },
   "minLines": 7,
   "minTokens": 60,
-  "threshold": 1,
+  "threshold": 0,
   "ignore": [
     "**/node_modules/**",
     "**/deps/**",

@@ -74,45 +74,48 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
 
   defp build_db_pipeline_vsm(instance) do
     pipeline_name = instance.pipeline_config.name
-    materials =
-      case instance.pipeline_config.materials || [] do
-        [] -> []
-        list -> list
-      end
+    materials = instance.pipeline_config.materials || []
     downstream_names = get_downstream_pipelines(pipeline_name)
 
-    # Level 0 nodes (SCM Materials)
-    material_nodes =
-      materials
-      |> Enum.map(fn mat ->
-        modification = get_db_or_mock_modification(mat, instance)
-        build_material_node(mat, modification, pipeline_name)
-      end)
-
-    # Level 1 node (Target Pipeline)
-    stages =
-      (instance.stage_instances || [])
-      |> Enum.sort_by(& &1.order_id)
-      |> Enum.map(fn si ->
-        duration =
-          if si.completed_at && si.created_time do
-            # Convert NaiveDateTime to DateTime or difference
-            diff_time(si.completed_at, si.created_time)
-          else
-            45
-          end
-        %{
-          "name" => si.name,
-          "status" => Map.get(si, :result) || si.state,
-          "duration" => duration,
-          "locator" => "/pipelines/#{pipeline_name}/#{instance.counter}/#{si.name}/#{si.counter}"
-        }
-      end)
-
-    # Fan-in: count unique upstream paths to this pipeline
+    material_nodes = build_material_nodes(materials, instance, pipeline_name)
+    stages = build_stages_list(instance, pipeline_name)
     fan_in = count_fan_in(pipeline_name)
 
-    pipeline_node = %{
+    pipeline_node = build_pipeline_node(pipeline_name, instance, material_nodes, downstream_names, stages, fan_in, materials)
+    downstream_nodes = build_all_downstream_nodes(downstream_names, [pipeline_name], 2)
+    levels = assemble_levels(material_nodes, pipeline_node, downstream_nodes)
+
+    {:ok, %{"current_pipeline" => pipeline_name, "levels" => levels}}
+  end
+
+  defp build_material_nodes(materials, instance, pipeline_name) do
+    Enum.map(materials, fn mat ->
+      modification = get_db_or_mock_modification(mat, instance)
+      build_material_node(mat, modification, pipeline_name)
+    end)
+  end
+
+  defp build_stages_list(instance, pipeline_name) do
+    (instance.stage_instances || [])
+    |> Enum.sort_by(& &1.order_id)
+    |> Enum.map(fn si ->
+      duration =
+        if si.completed_at && si.created_time do
+          diff_time(si.completed_at, si.created_time)
+        else
+          45
+        end
+      %{
+        "name" => si.name,
+        "status" => Map.get(si, :result) || si.state,
+        "duration" => duration,
+        "locator" => "/pipelines/#{pipeline_name}/#{instance.counter}/#{si.name}/#{si.counter}"
+      }
+    end)
+  end
+
+  defp build_pipeline_node(pipeline_name, instance, material_nodes, downstream_names, stages, fan_in, materials) do
+    %{
       "id" => pipeline_name,
       "name" => pipeline_name,
       "node_type" => "PIPELINE",
@@ -138,32 +141,23 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
               %{
                 "type" => m.type || "git",
                 "url" => m.url,
-                "branch" => m.branch
+                "branch" => Map.get(m, :branch) || "main"
               }
             end)
           }
         }
       ]
     }
+  end
 
-    # Level 2 nodes (Downstream Pipelines recursively)
-    downstream_nodes = build_all_downstream_nodes(downstream_names, [pipeline_name], 2)
-
+  defp assemble_levels(material_nodes, pipeline_node, downstream_nodes) do
     downstream_levels =
       downstream_nodes
       |> Enum.group_by(& &1["depth"])
       |> Enum.sort_by(fn {depth, _nodes} -> depth end)
       |> Enum.map(fn {_depth, nodes} -> %{"nodes" => nodes} end)
 
-    levels = [
-      %{"nodes" => material_nodes},
-      %{"nodes" => [pipeline_node]}
-    ] ++ downstream_levels
-
-    {:ok, %{
-      "current_pipeline" => pipeline_name,
-      "levels" => levels
-    }}
+    [%{"nodes" => material_nodes}, %{"nodes" => [pipeline_node]}] ++ downstream_levels
   end
 
   defp get_mock_pipeline_vsm(pipeline_name, counter) do
@@ -535,7 +529,7 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
   end
 
   defp fingerprint(mat) do
-    :crypto.hash(:sha256, "#{mat.type}-#{mat.url || ""}-#{mat.branch || ""}")
+    :crypto.hash(:sha256, "#{mat.type}-#{mat.url || ""}-#{Map.get(mat, :branch) || ""}")
     |> Base.encode16(case: :lower)
     |> String.slice(0, 16)
   end

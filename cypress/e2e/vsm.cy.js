@@ -105,17 +105,13 @@ describe("Value Stream Map", () => {
     it("highlights the arrow and connected nodes when hovering over it", () => {
       cy.hoverOnArrowBetween("ex_gocd.git", "upstream-lib");
 
-      // The arrow from the material to the pipeline stays bright
       cy.arrowBetweenShouldBeHighlighted("ex_gocd.git", "upstream-lib");
-
-      // All other arrows fade to the background
       cy.allOtherArrowsShouldBeDimmed("ex_gocd.git", "upstream-lib");
-
-      // Both the material card and the pipeline card glow
       cy.nodesShouldGlow("ex_gocd.git", "upstream-lib");
-
-      // An unrelated downstream pipeline does not glow
       cy.nodeShouldNotGlow("integration-pipeline");
+
+      // Visual proof — screenshot shows the glow + dimming
+      cy.screenshot("vsm-hover-glow", { capture: "viewport" });
     });
 
     it("restores all arrows and removes the glow when moving the mouse away", () => {
@@ -124,6 +120,9 @@ describe("Value Stream Map", () => {
 
       cy.allArrowsShouldBeBright();
       cy.noNodesShouldGlow();
+
+      // Visual proof — screenshot shows everything restored
+      cy.screenshot("vsm-mouseleave-restored", { capture: "viewport" });
     });
 
     it("keeps the highlight after a tap so mobile users can inspect the arrow", () => {

@@ -176,37 +176,37 @@ defmodule ExGoCD.Pipelines do
       now = DateTime.utc_now()
 
       Repo.transaction(fn ->
-        if si.state in ["Completed", "Failed", "Cancelled"] do
-          si
-          |> StageInstance.changeset(%{state: "Building", result: "Unknown", last_transitioned_time: now})
-          |> Repo.update!()
-        end
-
-        Enum.each(failed_jobs, fn ji ->
-          ji
-          |> JobInstance.changeset(%{state: "Scheduled", result: "Unknown", agent_uuid: nil})
-          |> Repo.update!()
-
-          resources = if stage_config, do: (hd(stage_config.jobs || []) |> Map.get(:resources) || []), else: []
-
-          ExGoCD.Scheduler.schedule_job(%{
-            pipeline: pipeline.name,
-            pipeline_counter: p_counter,
-            stage: si.name,
-            stage_counter: si.counter,
-            job: ji.name,
-            resources: resources,
-            job_instance_id: ji.id
-          })
-        end)
-
+        reset_stage_if_terminal(si, now)
+        Enum.each(failed_jobs, &reset_and_schedule_job(&1, pipeline, si, p_counter, stage_config))
         length(failed_jobs)
       end)
-      |> case do
-        {:ok, count} -> {:ok, count}
-        {:error, reason} -> {:error, reason}
-      end
     end
+  end
+
+  defp reset_stage_if_terminal(si, now) do
+    if si.state in ["Completed", "Failed", "Cancelled"] do
+      si
+      |> StageInstance.changeset(%{state: "Building", result: "Unknown", last_transitioned_time: now})
+      |> Repo.update!()
+    end
+  end
+
+  defp reset_and_schedule_job(ji, pipeline, si, p_counter, stage_config) do
+    ji
+    |> JobInstance.changeset(%{state: "Scheduled", result: "Unknown", agent_uuid: nil})
+    |> Repo.update!()
+
+    resources = if stage_config, do: (hd(stage_config.jobs || []) |> Map.get(:resources) || []), else: []
+
+    ExGoCD.Scheduler.schedule_job(%{
+      pipeline: pipeline.name,
+      pipeline_counter: p_counter,
+      stage: si.name,
+      stage_counter: si.counter,
+      job: ji.name,
+      resources: resources,
+      job_instance_id: ji.id
+    })
   end
 
   @doc """

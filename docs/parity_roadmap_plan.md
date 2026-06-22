@@ -117,4 +117,4 @@ All 7 previously identified gaps have been addressed. Summary:
 - **Package materials** (NuGet, Yum, APT): Schema supports `type: "package"` but not polled.
 - **FetchArtifact task type**: Downstream fetch with checksum verification exists as schema but not wired.
 - **Pipeline groups UI management**: RBAC permissions are API/DB-backed but no admin UI for managing group permissions.
-- **Agent elastic profiles**: Schema fields exist (`elastic_profile_id`) but no Kubernetes/cloud auto-scaling.
+- **Ecto query performance review & testing**: Audit all Ecto queries for N+1, missing indexes, eager/join inefficiencies. Write isolated performance tests with benchmarks for critical query paths (VSM graph, dashboard, pipeline activity, scheduler polling). Review preloads, subqueries, and join strategies.

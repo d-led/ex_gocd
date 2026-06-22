@@ -156,12 +156,12 @@ const VSMGraph = {
           const hit = document.createElementNS("http://www.w3.org/2000/svg", "path");
           hit.setAttribute("d", pathD);
           hit.setAttribute("class", "vsm-path");
-          hit.setAttribute("stroke", "transparent");
+          hit.setAttribute("stroke", "rgba(0,0,0,0.001)");
           hit.setAttribute("stroke-width", "20");
           hit.setAttribute("fill", "none");
           hit.setAttribute("stroke-linecap", "round");
           hit.setAttribute("stroke-linejoin", "round");
-          hit.style.pointerEvents = "stroke";
+          hit.style.pointerEvents = "all";
           hit.style.cursor = "pointer";
           hit.style.transition = "opacity 0.2s";
           hit.dataset.sourceId = sourceId;
@@ -178,6 +178,8 @@ const VSMGraph = {
           path.setAttribute("marker-end", isHighlight ? "url(#arrow-current)" : "url(#arrow)");
           path.style.pointerEvents = "none";
           path.style.transition = "opacity 0.2s";
+          path.dataset.sourceId = sourceId;
+          path.dataset.targetId = depId;
 
           const self = this;
           hit.addEventListener("mouseenter", () => self._highlight(hit, svg));
@@ -197,18 +199,22 @@ const VSMGraph = {
   // ── interactive arrow highlight / dim ──────────────────────────
 
   _highlight(path, svg) {
-    // Dim all paths except the hovered one AND its visible sibling
-    // (both share the same sourceId+targetId dataset).
     const src = path.dataset.sourceId;
     const tgt = path.dataset.targetId;
     const all = svg.querySelectorAll(".vsm-path");
     all.forEach(p => {
-      if (p.dataset.sourceId === src && p.dataset.targetId === tgt) {
+      const isHovered = p.dataset.sourceId === src && p.dataset.targetId === tgt;
+      const isHit = (p.getAttribute("stroke") || "").startsWith("rgba");
+      if (isHit) {
         p.style.opacity = "1";
-        p.setAttribute("stroke-width", p.dataset.origWidth || p.getAttribute("stroke-width"));
+      } else if (isHovered) {
+        p.setAttribute("stroke", "#e53e3e");
+        p.setAttribute("stroke-width", "4");
+        p.style.opacity = "1";
       } else {
-        p.style.opacity = "0.15";
-        if (!p.dataset.origWidth) p.dataset.origWidth = p.getAttribute("stroke-width");
+        p.setAttribute("stroke", "#cbd5e0");
+        p.setAttribute("stroke-width", "1");
+        p.style.opacity = "0.3";
       }
     });
 
@@ -223,11 +229,18 @@ const VSMGraph = {
     }
     const all = svg.querySelectorAll(".vsm-path");
     all.forEach(p => {
-      p.style.opacity = "1";
-      p.setAttribute("stroke-width", p.dataset.origWidth || p.getAttribute("stroke-width"));
+      const isHit = (p.getAttribute("stroke") || "").startsWith("rgba");
+      if (isHit) {
+        p.style.opacity = "1";
+      } else {
+        const marker = p.getAttribute("marker-end") || "";
+        const isCurrent = marker.includes("arrow-current");
+        p.setAttribute("stroke", isCurrent ? "#943a9e" : "#2fa8b6");
+        p.setAttribute("stroke-width", isCurrent ? "3" : "2");
+        p.style.opacity = "1";
+      }
     });
 
-    // Remove all node highlights
     const nodes = this.el.querySelectorAll(".vsm-node");
     nodes.forEach(n => n.classList.remove("vsm-path-highlighted"));
   },

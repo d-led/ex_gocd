@@ -3,13 +3,30 @@
 
 alias ExGoCD.Repo
 alias ExGoCD.Pipelines.{Pipeline, Stage, Job, Task, Material}
+import Ecto.Query, only: [from: 2]
 
-ensure_material = fn pipeline, type, url, branch ->
-  unless Repo.get_by(Material, type: type, url: url) do
-    mat = Repo.insert!(%Material{} |> Material.changeset(%{type: type, url: url, branch: branch || "main"}))
+ensure_material = fn pipeline, type, url ->
+  branch = "main"
+  mat =
+    case Repo.one(from(m in Material, where: m.type == ^type and m.url == ^url, limit: 1)) do
+      nil ->
+        mat = Repo.insert!(%Material{} |> Material.changeset(%{type: type, url: url, branch: branch}))
+        mat
+      existing ->
+        existing
+    end
+
+  # Link pipeline to this material if not already linked
+  linked? = Repo.exists?(
+    from(pm in "pipelines_materials",
+    where: pm.pipeline_id == ^pipeline.id and pm.material_id == ^mat.id)
+  )
+
+  unless linked? do
     Repo.insert_all("pipelines_materials", [%{pipeline_id: pipeline.id, material_id: mat.id}])
-    mat
   end
+
+  mat
 end
 
 # Demo pipeline: one stage "build", one job "default", one exec task
@@ -206,10 +223,10 @@ end
 
 # C2: component-a — fan-out, depends on upstream-lib
 unless Repo.get_by(Pipeline, name: "component-a") do
-  up = Repo.get_by!(Pipeline, name: "upstream-lib")
+  _up = Repo.get_by!(Pipeline, name: "upstream-lib")
   Seeds.FanInOut.create_pipeline("component-a", "demo", "build", "test",
     "tested component-a with lib",
-    [%{type: "dependency", url: "upstream-lib", stage_name: "build"}])
+    [%{type: "dependency", url: "upstream-lib", branch: "build"}])
   IO.puts("Seeded: component-a (C2 — fan-out from upstream-lib)")
 else
   IO.puts("Pipeline 'component-a' already exists")
@@ -217,10 +234,10 @@ end
 
 # C3: component-b — fan-out, depends on upstream-lib
 unless Repo.get_by(Pipeline, name: "component-b") do
-  up = Repo.get_by!(Pipeline, name: "upstream-lib")
+  _up = Repo.get_by!(Pipeline, name: "upstream-lib")
   Seeds.FanInOut.create_pipeline("component-b", "demo", "build", "test",
     "tested component-b with lib",
-    [%{type: "dependency", url: "upstream-lib", stage_name: "build"}])
+    [%{type: "dependency", url: "upstream-lib", branch: "build"}])
   IO.puts("Seeded: component-b (C3 — fan-out from upstream-lib)")
 else
   IO.puts("Pipeline 'component-b' already exists")
@@ -231,8 +248,8 @@ unless Repo.get_by(Pipeline, name: "integration-pipeline") do
   Seeds.FanInOut.create_pipeline("integration-pipeline", "demo", "integrate", "package",
     "packaged integration with all components",
     [
-      %{type: "dependency", url: "component-a", stage_name: "build"},
-      %{type: "dependency", url: "component-b", stage_name: "build"}
+      %{type: "dependency", url: "component-a", branch: "build"},
+      %{type: "dependency", url: "component-b", branch: "build"}
     ])
   IO.puts("Seeded: integration-pipeline (fan-in gate — depends on component-a + component-b)")
 else
@@ -241,10 +258,10 @@ end
 
 # Keep backward compat: downstream-app (simple chain)
 unless Repo.get_by(Pipeline, name: "downstream-app") do
-  up = Repo.get_by!(Pipeline, name: "upstream-lib")
+  _up = Repo.get_by!(Pipeline, name: "upstream-lib")
   Seeds.FanInOut.create_pipeline("downstream-app", "demo", "package", "bundle",
     "packaged app with upstream lib",
-    [%{type: "dependency", url: "upstream-lib", stage_name: "build"}])
+    [%{type: "dependency", url: "upstream-lib", branch: "build"}])
   IO.puts("Seeded: downstream-app (legacy chain)")
 else
   IO.puts("Pipeline 'downstream-app' already exists")
@@ -308,12 +325,11 @@ end
 
 # ── Ensure all pipelines have at least a git material ───────────────────
 # Runs every seed (not guarded) to fix pipelines created before the join-table fix
-import Ecto.Query
 
 Repo.all(from p in Pipeline, preload: [:materials])
 |> Enum.each(fn p ->
   if Enum.empty?(p.materials) do
-    ensure_material.(p, "git", "https://github.com/d-led/ex_gocd.git", "main")
+    ensure_material.(p, "git", "https://github.com/d-led/ex_gocd.git")
     IO.puts("  + added git material to #{p.name}")
   end
 end)
