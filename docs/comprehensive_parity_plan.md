@@ -261,14 +261,18 @@ GoCD console log features we need parity with:
 
 ## Part J: Quick Win Sprint (this week)
 
-| # | Item | Effort |
-|---|------|--------|
-| J.1 | Pipeline config admin `index` action | S — route exists, 1 missing handler |
-| J.2 | Artifact MD5 verify on downstream fetch | S — checksums already computed |
-| J.3 | Job comment API | S — 1 new controller action |
-| J.4 | Config repo wizard persistence | M — store previous config in session/params |
-| J.5 | Fan-in/fan-out demo seeds | S — seed 2 chained pipelines |
-| J.6 | Config repo → pipeline dashboard mapping | S — show config_repo_id on pipeline cards |
+| # | Item | Effort | Status |
+|---|------|--------|--------|
+| J.1 | Pipeline config admin `index` action | S | ✅ done |
+| J.2 | Artifact MD5 verify on downstream fetch | S | 🔴 |
+| J.3 | Job comment API | S | 🔴 |
+| J.4 | Config repo wizard persistence | M | ✅ done (edit mode with pre-fill) |
+| J.5 | Fan-in/fan-out demo seeds | S | ✅ done (upstream-lib → downstream-app) |
+| J.6 | Config repo → pipeline dashboard mapping | S | ✅ done (config_repo_id badge on cards) |
+| J.7 | Git shell-out centralized to `ExGoCD.Git` module | S | ✅ done |
+| J.8 | CI: dorny/test-reporter@v2 + setup-node@v5 | S | ✅ done |
+| J.9 | Quality gate: fast-fail + failure output | S | ✅ done |
+| J.10 | Credo complexity fix (wizard refactor) | S | ✅ done |
 
 ---
 
@@ -283,9 +287,147 @@ GoCD console log features we need parity with:
 
 ### K.2 CI: dorny/test-reporter Node deprecation
 - `dorny/test-reporter@v1` uses Node 20 (EOL)
-- Options: upgrade to `@v2` if available, or switch to `mikepenz/action-junit-report@v4`
-- **Priority**: P2 — warnings only, not blocking
-- **Effort**: S
+- **Fixed**: upgraded to `@v2`, `setup-node@v5` (Node 22)
+- Cypress JUnit reporter configured via `CYPRESS_REPORTER` / `CYPRESS_REPORTER_OPTIONS` env vars
+- **Status**: ✅ done
+
+---
+
+## Part L: Audit Log UI 🔴
+
+### L.1 Current state
+- `ExGoCD.AuditLog` schema: `actor`, `action`, `resource_type`, `resource_name`, `details` map
+- `AuditLog.log/3` records entries (never raises)
+- `AuditLog.recent/1` lists last N entries
+- `AuditLog.search/1` supports filtered queries (actor, action, resource_type, date range)
+- `ExGoCD.AuditLog.Events` module emits structured events (pipeline_trigger, stage_approve, etc.)
+- Migration exists: `audit_logs` table
+- Tests exist: `audit_log_test.exs`, `audit_log/events_test.exs`
+
+### L.2 Missing: Searchable UI
+- **No LiveView route** for `/admin/audit_log` or similar
+- No search/filter form
+- No pagination
+- No timestamp display per entry
+- No resource link (click to navigate to pipeline/stage/agent)
+
+### L.3 Needed
+| # | Item | Effort |
+|---|------|--------|
+| L.3.1 | `AuditLogLive` LiveView at `/admin/audit_log` | M |
+| L.3.2 | Search form: actor, action, resource_type, date range | S |
+| L.3.3 | Paginated results table | S |
+| L.3.4 | Clickable resource links (to pipeline, stage, agent) | S |
+| L.3.5 | Route in router under `live_session :gocd` | S |
+
+**Priority**: P1. Data layer complete, UI is 2-3h of LiveView work.
+**Reference**: GoCD `/go/admin/audit_log` — full CRUD audit with filters.
+
+---
+
+## Part M: Environment Variables — Trigger Logging, Masking, Comparison 🔴
+
+*Cross-referenced with GoCD source: `EnvironmentVariableConfig.java`, `BuildCause.java`, `ScheduleOptions.java`, `EnvironmentVariableContext.java`*
+
+### M.1 GoCD Source Analysis
+
+GoCD models env vars at 4 levels with **secure/encrypted** support:
+
+```
+PipelineConfig.environmentVariables  ← EnvironmentVariablesConfig
+  StageConfig.environmentVariables   ← EnvironmentVariablesConfig  
+  JobConfig.environmentVariables     ← EnvironmentVariablesConfig
+  BuildCause.variables               ← EnvironmentVariables (stored in PipelineInstance)
+```
+
+Each `EnvironmentVariableConfig` has:
+- `name` (String, required)
+- `isSecure` (boolean) — secure vars are AES-encrypted via `GoCipher`
+- `value` — plain text (for non-secure)
+- `encryptedValue` — AES cipher text (for secure)
+- `SecretParams` — detected secret references `${SECRET[...]}`
+
+**Trigger-time variables** (`ScheduleOptions`):
+When a pipeline is triggered via "Trigger with Options", GoCD accepts:
+- `variables` (plain env vars to override)
+- `secureVariables` (encrypted env vars)
+These are stored in `BuildCause.variables` via `addOverriddenVariables()` and become part of the `PipelineInstance.build_cause`.
+
+**Masking in console output**:
+Secure variable values are masked in console logs. GoCD uses `EnvironmentVariableContext` which tracks which vars are secure and replaces their values with `******` in output.
+
+**Pipeline comparison**:
+The `BuildCause` is serialized to JSON for the Compare API. Variables are included in the build cause, allowing comparison of which env vars were used in each pipeline run. GoCD's compare view shows material revisions + trigger message + approver. Variables flow through `BuildCauseRepresenter.toJSON()`.
+
+### M.2 Our current state
+
+| Level | Have? | Notes |
+|-------|-------|-------|
+| Pipeline env vars | ✅ | `environment_variables` map on Pipeline |
+| Stage env vars | ✅ | `environment_variables` map on Stage |
+| Job env vars | ✅ | `environment_variables` map on Job |
+| Secure vars | 🔴 | NO `isSecure` flag, NO encryption |
+| Trigger-time vars | 🔴 | `build_cause` map exists but no `variables` key |
+| Console masking | 🔴 | No masking of secure values in console output |
+| Compare env vars | 🔴 | Compare API doesn't show env var differences |
+
+### M.3 Implementation Plan
+
+| # | Item | Effort | Notes |
+|---|------|--------|-------|
+| M.3.1 | Add `is_secure` boolean + `encrypted_value` to env var maps | M | Schema migration for pipeline/stage/job env vars |
+| M.3.2 | `ExGoCD.Cipher` module for AES encrypt/decrypt | M | Replace `GoCipher` from GoCD source |
+| M.3.3 | `schedule_options` with variables + secureVariables in trigger API | M | `POST /api/pipelines/:name/schedule` body |
+| M.3.4 | Store trigger variables in `build_cause.variables` | S | Already have `build_cause` map on PipelineInstance |
+| M.3.5 | Console masking: `******` for secure var values | M | Filter in `BuildConsoleController` |
+| M.3.6 | Masking pattern: `.*TOKEN.*`, `.*SECRET.*`, `.*PASS.*`, `.*KEY.*` | S | Configurable regex list |
+| M.3.7 | Show trigger variables in Compare view | S | Include `variables` in `CompareLive` JSON |
+| M.3.8 | Audit log entries for variable changes | S | Via `AuditLog.Events` |
+
+**Priority**: P1. Core GoCD security feature. Blocking for production use.
+
+---
+
+## Part N: Config Repo Wizard — Two Distinct Source Types 🔴
+
+### N.1 Problem
+Current wizard has one entry point (`/admin/config_repos/new`) with source type radio buttons (GitHub Actions / GitLab CI). Missing:
+- **"GoCD Pipeline Config"** source type — config repos that define GoCD pipelines (YAML/JSON pipeline-as-code)
+- Clear distinction between external CI config repos and GoCD pipeline config repos
+
+### N.2 GoCD behavior
+GoCD has two separate flows:
+1. **Config Repositories** (`/go/admin/config_repos`): Add a git repo containing GoCD pipeline definitions (cruise-config.xml, YAML, JSON). These are pipeline-as-code.
+2. **External CI Repositories**: Map external CI workflows (GitHub Actions, GitLab CI) to GoCD pipelines.
+
+### N.3 Needed
+| # | Item | Effort |
+|---|------|--------|
+| N.3.1 | Add `source_type: "gocd_pipeline"` to source type selector in wizard | S |
+| N.3.2 | Two distinct admin actions: "Add Pipeline Config Repo" vs "Add External CI Repo" | S |
+| N.3.3 | Different wizard flow for `gocd_pipeline`: skip file config step, go to pipeline mapping | M |
+| N.3.4 | Magic detection: if URL contains `.gocd.yaml` / `cruise-config.xml`, auto-detect as GoCD pipeline config | S |
+
+**Priority**: P1. User confusion between two repo types blocks adoption.
+
+---
+
+## Part O: VSM Demo & Fan-In/Fan-Out Seeds ✅/🔴
+
+### O.1 Current state
+- VSM fully implemented (Part E) ✅
+- Fan-in/fan-out demo seeds partially added (`priv/repo/seeds.exs`: `upstream-lib` → `downstream-app` chain) ✅
+- `pipeline` material type exists in schema ✅
+- `FanInResolver` validates consistency ✅
+
+### O.2 Gaps
+| # | Item | Effort | Notes |
+|---|------|--------|-------|
+| O.2.1 | Pre-seeded VSM demo pipeline with real git material | S | Link to `d-led/ex_gocd.git` in seeds |
+| O.2.2 | Fan-in/fan-out demo visible on dashboard after seeding | S | Seeds exist; verify they produce visible pipelines |
+| O.2.3 | VSM demo shows cross-pipeline dependency edges | M | Already in VSM code; needs data verification |
+
+**Priority**: P1. Demo needed for dogfooding and user onboarding.
 
 ---
 
