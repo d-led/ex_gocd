@@ -423,6 +423,13 @@
     border-radius: 0 0 4px 4px;
     border: 1px solid #334155;
     border-top: none;
+    white-space: nowrap;
+  }
+
+  /* Right-anchored variant — set by JS when dropdown would overflow right */
+  .sub-navigation.anchor-right {
+    left: auto;
+    right: 0;
   }
   
   .site-sub-nav {

@@ -205,6 +205,79 @@ window.addEventListener("phx:page-loading-stop", _info => topbar.hide())
   })
 })()
 
+// --- Desktop admin dropdown: viewport-aware positioning ---
+;(function() {
+  const dropDownLi = document.querySelector('li.is-drop-down')
+  if (!dropDownLi) return
+
+  const subNav = dropDownLi.querySelector('.sub-navigation')
+  if (!subNav) return
+
+  function reposition() {
+    // Reset — let CSS defaults (left:0, position:absolute) apply
+    subNav.classList.remove('anchor-right')
+    subNav.style.left = ''
+    subNav.style.right = ''
+    subNav.style.position = ''
+
+    // Force layout so we measure the natural position
+    // eslint-disable-next-line no-unused-expressions
+    subNav.offsetHeight
+
+    const rect = subNav.getBoundingClientRect()
+    const vpW = window.innerWidth
+
+    // If it fits naturally, we're done
+    if (rect.right <= vpW && rect.left >= 0) return
+
+    // Try right-anchoring (right edge of dropdown = right edge of parent li)
+    subNav.classList.add('anchor-right')
+    // eslint-disable-next-line no-unused-expressions
+    subNav.offsetHeight
+    const rectR = subNav.getBoundingClientRect()
+
+    if (rectR.left >= 0) {
+      // Right-anchored fits — done
+      return
+    }
+
+    // Still overflows left → use fixed positioning pinned to viewport right
+    subNav.classList.remove('anchor-right')
+    subNav.style.position = 'fixed'
+    subNav.style.top = rect.top + 'px'
+    subNav.style.left = Math.max(0, vpW - rect.width - 16) + 'px'
+
+    // Last resort: if still too wide, allow horizontal scroll
+    // eslint-disable-next-line no-unused-expressions
+    subNav.offsetHeight
+    const rectF = subNav.getBoundingClientRect()
+    if (rectF.left < 0) {
+      subNav.style.left = '0px'
+      subNav.style.maxWidth = vpW + 'px'
+      subNav.style.overflowX = 'auto'
+    }
+  }
+
+  function resetPosition() {
+    subNav.classList.remove('anchor-right')
+    subNav.style.left = ''
+    subNav.style.right = ''
+    subNav.style.position = ''
+    subNav.style.top = ''
+    subNav.style.maxWidth = ''
+    subNav.style.overflowX = ''
+  }
+
+  dropDownLi.addEventListener('mouseenter', reposition)
+  dropDownLi.addEventListener('mouseleave', resetPosition)
+
+  // Recalculate on resize if visible
+  window.addEventListener('resize', () => {
+    const display = getComputedStyle(subNav).display
+    if (display === 'flex') reposition()
+  })
+})()
+
 // connect if there are any LiveViews on the page
 liveSocket.connect()
 

@@ -1,32 +1,48 @@
 defmodule ExGoCDWeb.ApiSpec do
   @moduledoc """
-  OpenAPI 3 specification for the ex_gocd server — auto-generated from router and controllers.
+  OpenAPI 3 specification for the ex_gocd server.
 
-  Uses open_api_spex to extract paths, schemas, and operations from the Phoenix router.
+  Auto-generates paths from the Phoenix router routes.
+  Uses route metadata (controller, action) to produce basic operation entries.
   Served at /api/openapi (JSON) and /swaggerui (Swagger UI).
   """
   @behaviour OpenApiSpex.OpenApi
 
-  alias OpenApiSpex.{Info, OpenApi, Paths, Server}
+  alias OpenApiSpex.{Info, OpenApi, Operation, PathItem, Response, Server, Tag}
   alias ExGoCDWeb.{Endpoint, Router}
 
   @impl OpenApi
   def spec do
     %OpenApi{
-      servers: [
-        Server.from_endpoint(Endpoint)
-      ],
+      servers: [Server.from_endpoint(Endpoint)],
       info: %Info{
-        title: "ex_gocd — GoCD-compatible CI/CD Server",
+        title: "ex_gocd — GoCD-compatible CI/CD Server API",
         version: version(),
         description: """
-        A GoCD-compatible CI/CD server built with Elixir and Phoenix.
+        Auto-generated API reference for the ex_gocd CI/CD server.
 
-        Automatically generated API specification. All endpoints are derived from
-        the Phoenix router and controller specs.
+        All endpoints mirror GoCD's JSON API. Use the /go/ prefix for
+        GoCD-compatible paths (e.g., /go/api/agents vs /api/agents).
         """
       },
-      paths: Paths.from_router(Router)
+      paths: build_paths(),
+      tags: [
+        %Tag{name: "Agents", description: "Agent registration and management"},
+        %Tag{name: "Pipelines", description: "Pipeline triggers, pause, unlock, schedule"},
+        %Tag{name: "Materials", description: "Material polling and notifications"},
+        %Tag{name: "Stages", description: "Stage instances and operations"},
+        %Tag{name: "Jobs", description: "Job history and console logs"},
+        %Tag{name: "Version", description: "Server version information"},
+        %Tag{name: "Admin", description: "Administrative operations"},
+        %Tag{name: "Config Repos", description: "Config repository management"},
+        %Tag{name: "Users", description: "User and permission management"},
+        %Tag{name: "Dashboard", description: "Pipeline dashboard"},
+        %Tag{name: "CCTray", description: "CCTray XML feed"},
+        %Tag{name: "Stats", description: "Server statistics"},
+        %Tag{name: "Webhooks", description: "SCM webhook receivers"},
+        %Tag{name: "Backup", description: "Server backup operations"},
+        %Tag{name: "Artifacts", description: "Artifact download and cleanup"},
+      ]
     }
     |> OpenApiSpex.resolve_schema_modules()
   end
@@ -35,6 +51,64 @@ defmodule ExGoCDWeb.ApiSpec do
     case :application.get_key(:ex_gocd, :vsn) do
       {:ok, vsn} -> List.to_string(vsn)
       :undefined -> "0.0.0"
+    end
+  end
+
+  # ── path generation ─────────────────────────────────────────────────
+
+  defp build_paths do
+    Router.__routes__()
+    |> Enum.group_by(&route_path/1)
+    |> Enum.map(fn {path, routes} ->
+      ops = routes |> Enum.map(&build_operation/1) |> Enum.reduce(%{}, fn {method, op}, acc -> Map.put(acc, method, op) end)
+      {path, struct!(PathItem, ops)}
+    end)
+    |> Enum.into(%{})
+  end
+
+  defp route_path(route), do: route.path
+
+  defp build_operation(route) do
+    method = route.verb |> to_string() |> String.downcase()
+    tag = route_tag(route)
+    summary = "#{String.upcase(method)} #{tag}"
+
+    {method,
+     %Operation{
+       tags: [tag],
+       summary: summary,
+       operationId: operation_id(route),
+       parameters: [],
+       responses: %{
+         "200" => %Response{description: "OK"},
+         "404" => %Response{description: "Not Found"}
+       }
+     }}
+  end
+
+  defp operation_id(route) do
+    "#{route.plug}.#{route.plug_opts}"
+  end
+
+  defp route_tag(route) do
+    path = route_path(route)
+    cond do
+      String.contains?(path, "/agents") -> "Agents"
+      String.contains?(path, "/pipelines") -> "Pipelines"
+      String.contains?(path, "/materials") -> "Materials"
+      String.contains?(path, "/stage") -> "Stages"
+      String.contains?(path, "/job") -> "Jobs"
+      String.contains?(path, "/version") -> "Version"
+      String.contains?(path, "/admin") -> "Admin"
+      String.contains?(path, "/config_repo") -> "Config Repos"
+      String.contains?(path, "/users") -> "Users"
+      String.contains?(path, "/dashboard") -> "Dashboard"
+      String.contains?(path, "/cctray") -> "CCTray"
+      String.contains?(path, "/stats") -> "Stats"
+      String.contains?(path, "/webhooks") -> "Webhooks"
+      String.contains?(path, "/backup") -> "Backup"
+      String.contains?(path, "/artifacts") -> "Artifacts"
+      true -> "General"
     end
   end
 end
