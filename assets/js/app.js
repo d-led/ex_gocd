@@ -90,6 +90,17 @@ const VSMGraph = {
         };
       });
 
+      // Detect narrow / vertically-stacked layout (mobile / narrow browser)
+      const nodeArr = Object.values(nodeMap);
+      const narrow = detectNarrowLayout(nodeArr);
+
+      // Bus lane X coordinate for narrow-mode routing
+      let busX = 0;
+      if (narrow && nodeArr.length > 0) {
+        const maxRight = Math.max(...nodeArr.map(n => n.x + n.width));
+        busX = maxRight + 48;
+      }
+
       // Render paths for each dependency link
       nodes.forEach(node => {
         const sourceId = node.dataset.id;
@@ -103,35 +114,59 @@ const VSMGraph = {
           console.error(e);
         }
 
-        dependents.forEach(depId => {
+        dependents.forEach((depId, depIdx) => {
           const target = nodeMap[depId];
           if (!target) return;
 
-          const x1 = source.x + source.width;
-          const y1 = source.y + source.height / 2;
-          const x2 = target.x;
-          const y2 = target.y + target.height / 2;
-
-          const dx = Math.max(40, (x2 - x1) / 2);
+          const sx = source.x + source.width;
+          const sy = source.y + source.height / 2;
+          const tx = target.x;
+          const ty = target.y + target.height / 2;
 
           const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-          // Control points both share the source Y so the exit tangent is horizontal
-          // and the entry tangent naturally points toward the source — the arrow
-          // orients to match the curve's true approach angle at the target edge.
-          path.setAttribute("d", `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y1}, ${x2} ${y2}`);
-          path.setAttribute("class", "vsm-path");
-          
           const isHighlight = source.isCurrent || target.isCurrent;
+
+          if (narrow) {
+            // Sewage-pipe routing: out to bus → down/up the bus → back into target.
+            // Stagger each fan-out edge so parallel lines don't overlap in the bus.
+            const stagger = depIdx * 7;
+            const bx = busX + stagger;
+
+            path.setAttribute("d",
+              `M ${sx} ${sy}` +
+              ` L ${bx} ${sy}` +
+              ` L ${bx} ${ty}` +
+              ` L ${tx} ${ty}`
+            );
+          } else {
+            // Wide mode: cubic bezier with natural approach angle
+            const dx = Math.max(40, (tx - sx) / 2);
+            path.setAttribute("d", `M ${sx} ${sy} C ${sx + dx} ${sy}, ${tx - dx} ${sy}, ${tx} ${ty}`);
+          }
+
+          path.setAttribute("class", "vsm-path");
           path.setAttribute("stroke", isHighlight ? "#943a9e" : "#2fa8b6");
           path.setAttribute("stroke-width", isHighlight ? "3" : "2");
           path.setAttribute("fill", "none");
+          path.setAttribute("stroke-linejoin", "round");
           path.setAttribute("marker-end", isHighlight ? "url(#arrow-current)" : "url(#arrow)");
-          
+
           svg.appendChild(path);
         });
       });
     });
   }
+}
+
+/** Detect vertical-stack layout: nodes are stacked in one column (narrow viewport). */
+function detectNarrowLayout(nodes) {
+  if (nodes.length < 2) return false;
+  const centers = nodes.map(n => n.x + n.width / 2);
+  const span = Math.max(...centers) - Math.min(...centers);
+  // If all node centers are within ~half a node width of each other horizontally,
+  // the layout is effectively vertical.
+  const avgWidth = nodes.reduce((s, n) => s + n.width, 0) / nodes.length;
+  return span < avgWidth * 0.6;
 }
 
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")

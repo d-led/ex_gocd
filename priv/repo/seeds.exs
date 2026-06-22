@@ -2,7 +2,15 @@
 #   mix run priv/repo/seeds.exs
 
 alias ExGoCD.Repo
-alias ExGoCD.Pipelines.{Pipeline, Stage, Job, Task}
+alias ExGoCD.Pipelines.{Pipeline, Stage, Job, Task, Material}
+
+ensure_material = fn pipeline, type, url, branch ->
+  unless Repo.get_by(Material, type: type, url: url) do
+    mat = Repo.insert!(%Material{} |> Material.changeset(%{type: type, url: url, branch: branch || "main"}))
+    Repo.insert_all("pipelines_materials", [%{pipeline_id: pipeline.id, material_id: mat.id}])
+    mat
+  end
+end
 
 # Demo pipeline: one stage "build", one job "default", one exec task
 unless Repo.get_by(Pipeline, name: "demo") do
@@ -29,6 +37,8 @@ unless Repo.get_by(Pipeline, name: "demo") do
     job_id: job.id
   })
   |> Repo.insert!()
+
+  ensure_material.(pipeline, "git", "https://github.com/d-led/ex_gocd.git")
 
   IO.puts("Seeded pipeline: demo (stage: build, job: default)")
 else
@@ -67,6 +77,8 @@ unless Repo.get_by(Pipeline, name: "ci") do
     })
     |> Repo.insert!()
   end
+
+  ensure_material.(pipeline, "git", "https://github.com/d-led/ex_gocd.git")
 
   IO.puts("Seeded pipeline: ci (stage: build, jobs: unit [no resources], integration [linux,docker])")
 else
@@ -120,6 +132,8 @@ unless Repo.get_by(Pipeline, name: "ex_gocd") do
     |> Task.changeset(%{type: "exec", command: cmd, arguments: args, job_id: job_quality.id})
     |> Repo.insert!()
   end
+
+  ensure_material.(pipeline, "git", "https://github.com/d-led/ex_gocd.git")
 
   IO.puts("Seeded dogfood pipeline: ex_gocd (ci: test + quality)")
 else
@@ -291,3 +305,15 @@ unless Repo.get_by(ExGoCD.Accounts.User, username: "viewer") do
   })
   IO.puts("Seeded user: viewer")
 end
+
+# ── Ensure all pipelines have at least a git material ───────────────────
+# Runs every seed (not guarded) to fix pipelines created before the join-table fix
+import Ecto.Query
+
+Repo.all(from p in Pipeline, preload: [:materials])
+|> Enum.each(fn p ->
+  if Enum.empty?(p.materials) do
+    ensure_material.(p, "git", "https://github.com/d-led/ex_gocd.git", "main")
+    IO.puts("  + added git material to #{p.name}")
+  end
+end)

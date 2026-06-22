@@ -289,6 +289,13 @@ defmodule ExGoCDWeb.JobDetailsLive do
     "/files/#{pipeline_name}/#{pipeline_counter}/#{stage_name}/#{stage_counter}/#{job_name}/testoutput/index.html"
   end
 
+  def console_with_links(nil), do: ""
+  def console_with_links(log) when is_binary(log) do
+    ~r{(https?://\S+)}
+    |> Regex.replace(log, ~S|<a href="\1" target="_blank" rel="noopener" class="text-cyan-400 underline hover:text-cyan-300">\1</a>|)
+    |> Phoenix.HTML.raw()
+  end
+
   def failure_reason(job_instance) do
     state = job_instance[:state] || "Unknown"
     result = job_instance[:result] || "Unknown"

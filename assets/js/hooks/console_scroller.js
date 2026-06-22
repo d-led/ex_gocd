@@ -1,12 +1,15 @@
-// Auto-scrolls console log container to bottom on mount and on each update.
+// Auto-scrolls console log container to bottom.
+// Respects data-follow="true" attribute — only scrolls when following is enabled.
 export const ConsoleScroller = {
   mounted() {
-    this.scrollToBottom()
+    this.scrollIfFollowing()
   },
   updated() {
-    this.scrollToBottom()
+    this.scrollIfFollowing()
   },
-  scrollToBottom() {
-    this.el.scrollTop = this.el.scrollHeight
+  scrollIfFollowing() {
+    if (this.el.dataset.follow === "true") {
+      this.el.scrollTop = this.el.scrollHeight
+    }
   }
 }

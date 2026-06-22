@@ -87,10 +87,26 @@
     <div class="p-6">
       <%= case @active_tab do %>
         <% "console" -> %>
-          <div class="bg-gray-950 rounded-lg p-6 font-mono text-gray-300 text-xs overflow-y-auto max-h-[600px] leading-relaxed shadow-inner border border-gray-900" id="console-container" phx-hook="ConsoleScroller">
+          <div class="flex items-center justify-between mb-2 px-1">
+            <span class="text-[10px] text-gray-400 uppercase tracking-wider font-bold">Console Output</span>
+            <div class="flex items-center gap-3">
+              <label class="flex items-center gap-1 text-[10px] text-gray-400 cursor-pointer select-none">
+                <input type="checkbox" id="toggle-timestamps" class="w-3 h-3" onchange="this.closest('.p-6').querySelector('#console-container').classList.toggle('show-timestamps')">
+                Timestamps
+              </label>
+              <label class="flex items-center gap-1 text-[10px] text-gray-400 cursor-pointer select-none">
+                <input type="checkbox" id="toggle-follow" checked class="w-3 h-3" onchange="const c=this.closest('.p-6').querySelector('#console-container');c.dataset.follow=this.checked">
+                Follow
+              </label>
+            </div>
+          </div>
+          <div class="bg-gray-950 rounded-lg p-6 font-mono text-gray-300 text-xs overflow-y-auto max-h-[600px] leading-relaxed shadow-inner border border-gray-900"
+               id="console-container"
+               phx-hook="ConsoleScroller"
+               data-follow="true">
             <%= cond do %>
               <% @run && is_map_key(@run, :console_log) && @run.console_log && @run.console_log != "" -> %>
-                <pre class="whitespace-pre-wrap select-text selection:bg-purple-900 selection:text-white"><%= @run.console_log %></pre>
+                <pre class="whitespace-pre-wrap select-text selection:bg-purple-900 selection:text-white"><%= console_with_links(@run.console_log) %></pre>
               <% @run && @run.state in ["Scheduled", "Assigned", "Preparing"] -> %>
                 <div class="text-gray-500 italic py-8 text-center flex flex-col items-center justify-center gap-2">
                   <i class="fa fa-spinner animate-spin text-xl text-gray-600"></i>
