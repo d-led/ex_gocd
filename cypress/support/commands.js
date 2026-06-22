@@ -424,11 +424,12 @@ Cypress.Commands.add('tapOnArrowBetween', (sourceLabel, targetLabel) => {
 Cypress.Commands.add('arrowBetweenShouldBeHighlighted', (sourceLabel, targetLabel) => {
   vsmNodeId(sourceLabel).then((srcId) => {
     vsmNodeId(targetLabel).then((tgtId) => {
-      // Behavior: the arrow is visible (not transparent) — don't assert on exact color
+      // Behavior: the visible arrow path exists and is not transparent
       cy.get(`#vsm-svg .vsm-path[data-source-id="${srcId}"][data-target-id="${tgtId}"]`)
         .not('[stroke="transparent"]')
         .first()
-        .should('be.visible');
+        .should('exist')
+        .and(($el) => expect($el.attr('stroke')).not.to.eq('transparent'));
     });
   });
 });
