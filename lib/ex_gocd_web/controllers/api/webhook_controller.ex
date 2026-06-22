@@ -6,6 +6,16 @@ defmodule ExGoCDWeb.API.WebhookController do
 
   action_fallback ExGoCDWeb.FallbackController
 
+  # In test mode we poll synchronously so tests are deterministic and isolated.
+  # In production, fire-and-forget via Task to avoid blocking the HTTP response.
+  defp trigger_poll(url) do
+    if Application.get_env(:ex_gocd, :sync_webhook_poll, false) do
+      Poller.poll_materials_by_url(url)
+    else
+      Task.start(fn -> Poller.poll_materials_by_url(url) end)
+    end
+  end
+
   @doc """
   POST /api/admin/materials/git/notify
   Triggers manual polling for git materials matching the provided repository_url.
@@ -16,10 +26,7 @@ defmodule ExGoCDWeb.API.WebhookController do
     if List.first(confirm_header) == "true" do
       case Map.get(params, "repository_url") do
         url when is_binary(url) and url != "" ->
-          # Trigger update in the background asynchronously
-          Task.start(fn ->
-            Poller.poll_materials_by_url(url)
-          end)
+          trigger_poll(url)
 
           conn
           |> put_status(:accepted)
@@ -47,9 +54,7 @@ defmodule ExGoCDWeb.API.WebhookController do
     if verify_github_signature(conn) do
       case extract_github_url(params) do
         url when is_binary(url) and url != "" ->
-          Task.start(fn ->
-            Poller.poll_materials_by_url(url)
-          end)
+          trigger_poll(url)
 
           conn
           |> put_status(:accepted)
@@ -75,9 +80,7 @@ defmodule ExGoCDWeb.API.WebhookController do
     if verify_gitlab_token(conn) do
       case extract_gitlab_url(params) do
         url when is_binary(url) and url != "" ->
-          Task.start(fn ->
-            Poller.poll_materials_by_url(url)
-          end)
+          trigger_poll(url)
 
           conn
           |> put_status(:accepted)

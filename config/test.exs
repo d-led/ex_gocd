@@ -5,6 +5,7 @@ config :ex_gocd,
   poller_interval: :none,
   enable_timer_scheduler: false,
   console_monitor_interval_ms: :none,
+  sync_webhook_poll: true,
   git_client: ExGoCD.Materials.GitClient.MockImpl,
   scm_client: ExGoCD.Materials.ScmClient.MockImpl
 

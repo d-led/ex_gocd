@@ -51,10 +51,8 @@ defmodule ExGoCDWeb.API.WebhookControllerTest do
       assert response = json_response(conn, 202)
       assert response["message"] == "The material is now scheduled for an update. Please check relevant pipeline(s) for status."
 
-      # Verify polling triggered in background and saved modification in database
-      await_db(fn ->
-        Repo.exists?(from m in Modification, where: m.revision == ^sha)
-      end)
+      # Polling is synchronous in test mode — DB is already updated
+      assert Repo.exists?(from m in Modification, where: m.revision == ^sha)
     end
   end
 
@@ -74,9 +72,8 @@ defmodule ExGoCDWeb.API.WebhookControllerTest do
       conn = post(conn, ~p"/api/webhooks/github/notify", payload)
       assert response(conn, 202) == "Accepted"
 
-      await_db(fn ->
-        Repo.exists?(from m in Modification, where: m.revision == ^sha)
-      end)
+      # Polling is synchronous in test mode
+      assert Repo.exists?(from m in Modification, where: m.revision == ^sha)
     end
 
     test "validates HMAC signature when GOCD_WEBHOOK_SECRET is set", %{conn: conn} do
@@ -113,9 +110,8 @@ defmodule ExGoCDWeb.API.WebhookControllerTest do
 
       assert response(conn_valid, 202) == "Accepted"
 
-      await_db(fn ->
-        Repo.exists?(from m in Modification, where: m.revision == ^sha)
-      end)
+      # Polling is synchronous in test mode
+      assert Repo.exists?(from m in Modification, where: m.revision == ^sha)
     end
   end
 
@@ -135,9 +131,8 @@ defmodule ExGoCDWeb.API.WebhookControllerTest do
       conn = post(conn, ~p"/api/webhooks/gitlab/notify", payload)
       assert response(conn, 202) == "Accepted"
 
-      await_db(fn ->
-        Repo.exists?(from m in Modification, where: m.revision == ^sha)
-      end)
+      # Polling is synchronous in test mode
+      assert Repo.exists?(from m in Modification, where: m.revision == ^sha)
     end
 
     test "validates token when GOCD_WEBHOOK_SECRET is set", %{conn: conn} do
@@ -169,9 +164,8 @@ defmodule ExGoCDWeb.API.WebhookControllerTest do
 
       assert response(conn_valid, 202) == "Accepted"
 
-      await_db(fn ->
-        Repo.exists?(from m in Modification, where: m.revision == ^sha)
-      end)
+      # Polling is synchronous in test mode
+      assert Repo.exists?(from m in Modification, where: m.revision == ^sha)
     end
   end
 
@@ -193,24 +187,5 @@ defmodule ExGoCDWeb.API.WebhookControllerTest do
     Repo.insert!(%Task{type: "exec", command: "echo", arguments: ["building..."], job_id: job.id})
 
     {material, pipeline}
-  end
-
-  defp await_db(fun, timeout \\ 1500, interval \\ 50) do
-    start_time = System.monotonic_time(:millisecond)
-    loop_await(fun, start_time, timeout, interval)
-  end
-
-  defp loop_await(fun, start_time, timeout, interval) do
-    if fun.() do
-      true
-    else
-      elapsed = System.monotonic_time(:millisecond) - start_time
-      if elapsed >= timeout do
-        flunk("Timeout waiting for condition")
-      else
-        Process.sleep(interval)
-        loop_await(fun, start_time, timeout, interval)
-      end
-    end
   end
 end
