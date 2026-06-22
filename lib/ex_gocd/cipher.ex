@@ -26,8 +26,6 @@ defmodule ExGoCD.Cipher do
     key = cipher_key()
     :crypto.crypto_one_time(:aes_256_cbc, key, iv, ciphertext, false)
     |> unpad()
-  rescue
-    _ -> raise "decryption failed — invalid ciphertext or key"
   end
 
   @doc "Decrypts or returns :error instead of raising."
