@@ -1663,13 +1663,36 @@ defmodule ExGoCD.Pipelines do
   end
 
   defp maybe_trigger_downstream(dp, upstream_name) do
-    Logger.info("[Pipelines] Downstream check: triggering #{dp.name} due to completion of #{upstream_name}")
-    case trigger_pipeline(dp.name) do
-      {:ok, _instance} ->
-        Logger.info("[Pipelines] Downstream check: successfully triggered #{dp.name}")
-      {:error, reason} ->
-        Logger.warning("[Pipelines] Downstream check: could not trigger #{dp.name}: #{inspect(reason)}")
+    # Fan-in gate: only trigger if ALL dependency materials have passed
+    if all_dependencies_passed?(dp) do
+      Logger.info("[Pipelines] Downstream check: triggering #{dp.name} due to completion of #{upstream_name}")
+      case trigger_pipeline(dp.name) do
+        {:ok, _instance} ->
+          Logger.info("[Pipelines] Downstream check: successfully triggered #{dp.name}")
+        {:error, reason} ->
+          Logger.warning("[Pipelines] Downstream check: could not trigger #{dp.name}: #{inspect(reason)}")
+      end
+    else
+      Logger.info("[Pipelines] Downstream check: waiting for all deps of #{dp.name} before triggering")
     end
+  end
+
+  # Checks whether all dependency materials for this pipeline have at least
+  # one completed (passed) stage instance.
+  defp all_dependencies_passed?(dp) do
+    deps = Repo.preload(dp, :materials).materials || []
+    dep_materials = Enum.filter(deps, &(&1.type == "dependency"))
+
+    Enum.all?(dep_materials, fn dep_mat ->
+      upstream_name = dep_mat.url
+      # Check if there's at least one passed pipeline instance for this upstream
+      Repo.exists?(
+        from pi in PipelineInstance,
+          join: p in assoc(pi, :pipeline),
+          join: si in assoc(pi, :stage_instances),
+          where: p.name == ^upstream_name and si.state == "Completed" and si.result == "Passed"
+      )
+    end)
   end
 
   # Emit OpenTelemetry telemetry events for pipeline triggers.

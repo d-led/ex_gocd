@@ -14,33 +14,54 @@ defmodule ExGoCD.Accounts do
 
   @doc """
   Returns all users ordered by username.
+  In mock mode, returns a single admin user for development/testing.
   """
   def list_users do
-    User
-    |> order_by(asc: :username)
-    |> Repo.all()
+    if mock?() do
+      [mock_admin_user()]
+    else
+      User
+      |> order_by(asc: :username)
+      |> Repo.all()
+    end
   end
 
   @doc """
   Retrieves a user by ID.
   """
-  def get_user!(id), do: Repo.get!(User, id)
+  def get_user!(id) do
+    if mock?() do
+      mock_admin_user()
+    else
+      Repo.get!(User, id)
+    end
+  end
 
   @doc """
   Retrieves a user by username.
+  In mock mode, returns admin user for "admin", nil for others.
   """
   def get_user_by_username(username) when is_binary(username) do
-    Repo.get_by(User, username: username)
+    if mock?() do
+      if username == "admin", do: mock_admin_user(), else: nil
+    else
+      Repo.get_by(User, username: username)
+    end
   end
+
   def get_user_by_username(_), do: nil
 
   @doc """
-  Creates a user.
+  Creates a user. In mock mode, returns a mock success.
   """
   def create_user(attrs \\ %{}) do
-    %User{}
-    |> User.changeset(attrs)
-    |> Repo.insert()
+    if mock?() do
+      {:ok, mock_admin_user()}
+    else
+      %User{}
+      |> User.changeset(attrs)
+      |> Repo.insert()
+    end
   end
 
   @doc """
@@ -264,19 +285,24 @@ defmodule ExGoCD.Accounts do
   """
   @spec can_access_pipeline_group?(User.t(), String.t(), String.t()) :: boolean()
   def can_access_pipeline_group?(%User{} = user, pipeline_group, required_role \\ "viewer") do
-    # Global admins can access everything
-    if User.has_role?(user, :admin) do
-      true
+    # In mock mode, admin user has full access
+    if mock?() do
+      User.has_role?(user, :admin)
     else
-      # Guest users (nil id) have no permissions
-      if is_nil(user.id) do
-        false
+      # Global admins can access everything
+      if User.has_role?(user, :admin) do
+        true
       else
-        perm = Repo.get_by(PipelineGroupPermission, user_id: user.id, pipeline_group: pipeline_group)
+        # Guest users (nil id) have no permissions
+        if is_nil(user.id) do
+          false
+        else
+          perm = Repo.get_by(PipelineGroupPermission, user_id: user.id, pipeline_group: pipeline_group)
 
-        case perm do
-          nil -> false
-          %{role: role} -> role_sufficient?(role, required_role)
+          case perm do
+            nil -> false
+            %{role: role} -> role_sufficient?(role, required_role)
+          end
         end
       end
     end
@@ -287,4 +313,23 @@ defmodule ExGoCD.Accounts do
   defp role_sufficient?("operator", _), do: true
   defp role_sufficient?("viewer", "viewer"), do: true
   defp role_sufficient?(_, _), do: false
+
+  # ── Mock helpers ────────────────────────────────────────────────────────
+
+  defp mock? do
+    System.get_env("USE_MOCK_DATA") == "true"
+  end
+
+  defp mock_admin_user do
+    %User{
+      id: 1,
+      username: "admin",
+      display_name: "Admin",
+      email: "admin@example.com",
+      roles: ["admin"],
+      status: "Active",
+      inserted_at: ~U[2026-01-01 00:00:00Z],
+      updated_at: ~U[2026-01-01 00:00:00Z]
+    }
+  end
 end

@@ -378,6 +378,47 @@ defmodule ExGoCD.PipelinesTest do
         assert inst != nil, "downstream #{suffix} should be triggered"
       end
     end
+
+    test "fan-in gate: downstream waits for ALL dependencies before triggering" do
+      # Create gate pipeline that depends on BOTH dep-a AND dep-b
+      gate = Repo.insert!(%Pipeline{} |> Pipeline.changeset(%{name: "fanin-gate", group: "test"}))
+      Repo.insert!(%Stage{} |> Stage.changeset(%{name: "integrate", pipeline_id: gate.id, approval_type: "success"}))
+      for dep_name <- ["dep-a", "dep-b"] do
+        mat = Repo.insert!(%ExGoCD.Pipelines.Material{} |> ExGoCD.Pipelines.Material.changeset(%{
+          type: "dependency", url: dep_name
+        }))
+        gate = Repo.preload(gate, :materials)
+        gate |> Ecto.Changeset.change() |> Ecto.Changeset.put_assoc(:materials, [mat | gate.materials]) |> Repo.update!()
+      end
+
+      # Create and complete dep-a
+      da = Repo.insert!(%Pipeline{} |> Pipeline.changeset(%{name: "dep-a", group: "test"}))
+      da_stage = Repo.insert!(%Stage{} |> Stage.changeset(%{name: "build", pipeline_id: da.id, approval_type: "success"}))
+      da_job = Repo.insert!(%Job{} |> Job.changeset(%{name: "compile", stage_id: da_stage.id, resources: []}))
+      Repo.insert!(%Task{} |> Task.changeset(%{type: "exec", command: "echo", arguments: ["ok"], job_id: da_job.id}))
+      {:ok, dai} = Pipelines.trigger_pipeline("dep-a")
+      [da_si] = from(StageInstance, where: [pipeline_instance_id: ^dai.id]) |> Repo.all()
+      [da_ji] = from(JobInstance, where: [stage_instance_id: ^da_si.id]) |> Repo.all()
+      Pipelines.complete_job_instance(da_ji.id, "Passed")
+
+      # Gate should NOT trigger yet — dep-b hasn't completed
+      assert Repo.one(from(pi in ExGoCD.Pipelines.PipelineInstance,
+        join: p in assoc(pi, :pipeline), where: p.name == "fanin-gate", limit: 1)) == nil
+
+      # Create and complete dep-b
+      db = Repo.insert!(%Pipeline{} |> Pipeline.changeset(%{name: "dep-b", group: "test"}))
+      db_stage = Repo.insert!(%Stage{} |> Stage.changeset(%{name: "build", pipeline_id: db.id, approval_type: "success"}))
+      db_job = Repo.insert!(%Job{} |> Job.changeset(%{name: "compile", stage_id: db_stage.id, resources: []}))
+      Repo.insert!(%Task{} |> Task.changeset(%{type: "exec", command: "echo", arguments: ["ok"], job_id: db_job.id}))
+      {:ok, dbi} = Pipelines.trigger_pipeline("dep-b")
+      [db_si] = from(StageInstance, where: [pipeline_instance_id: ^dbi.id]) |> Repo.all()
+      [db_ji] = from(JobInstance, where: [stage_instance_id: ^db_si.id]) |> Repo.all()
+      Pipelines.complete_job_instance(db_ji.id, "Passed")
+
+      # Now gate should trigger
+      assert Repo.one(from(pi in ExGoCD.Pipelines.PipelineInstance,
+        join: p in assoc(pi, :pipeline), where: p.name == "fanin-gate", limit: 1)) != nil
+    end
   end
 
   defp insert_pipeline_with_jobs(name, job_count) when job_count >= 1 do
