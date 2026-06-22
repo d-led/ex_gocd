@@ -73,9 +73,9 @@ else
   IO.puts("Pipeline 'ci' already exists, skipping seed")
 end
 
-# ── ex_gocd pipeline: builds & tests this very repo ──────────────────────
-# Stage "ci": two parallel jobs — compile+test (runs mix test) and quality (credo+dialyzer).
-# Agent must have resource "elixir" and work dir set to the repo root.
+# ── ex_gocd pipeline: dogfooding — builds & tests this very repo ────────
+# Stage "ci": two parallel jobs — test (elixir+postgres) and quality (elixir).
+# Agent work dir must be the repo root for mix commands to work.
 unless Repo.get_by(Pipeline, name: "ex_gocd") do
   pipeline =
     %Pipeline{}
@@ -97,10 +97,11 @@ unless Repo.get_by(Pipeline, name: "ex_gocd") do
     |> Job.changeset(%{name: "quality", stage_id: stage.id, resources: ["elixir"]})
     |> Repo.insert!()
 
-  # test job: deps → compile → test
+  # test job: clone → deps → compile → test (--warnings-as-errors)
   for {cmd, args} <- [
+    {"git", ["clone", "https://github.com/d-led/ex_gocd.git", "."]},
     {"mix", ["deps.get"]},
-    {"mix", ["compile"]},
+    {"mix", ["do", "compile", "--warnings-as-errors"]},
     {"mix", ["test"]}
   ] do
     %Task{}
@@ -108,8 +109,10 @@ unless Repo.get_by(Pipeline, name: "ex_gocd") do
     |> Repo.insert!()
   end
 
-  # quality job: credo → dialyzer
+  # quality job: clone → credo → dialyzer
   for {cmd, args} <- [
+    {"git", ["clone", "https://github.com/d-led/ex_gocd.git", "."]},
+    {"mix", ["deps.get"]},
     {"mix", ["credo", "--strict"]},
     {"mix", ["dialyzer"]}
   ] do
@@ -118,9 +121,27 @@ unless Repo.get_by(Pipeline, name: "ex_gocd") do
     |> Repo.insert!()
   end
 
-  IO.puts("Seeded pipeline: ex_gocd (stage: ci, jobs: test [elixir,postgres], quality [elixir])")
+  IO.puts("Seeded dogfood pipeline: ex_gocd (ci: test + quality)")
 else
   IO.puts("Pipeline 'ex_gocd' already exists, skipping seed")
+end
+
+# ── Config repo seed: dogfood our own repo ──────────────────────────────
+alias ExGoCD.ConfigRepos.ConfigRepo
+
+unless Repo.get_by(ConfigRepo, url: "https://github.com/d-led/ex_gocd.git") do
+  %ConfigRepo{}
+  |> ConfigRepo.changeset(%{
+    url: "https://github.com/d-led/ex_gocd.git",
+    branch: "main",
+    source_type: "gocd_pipeline",
+    material_type: "git"
+  })
+  |> Repo.insert!()
+
+  IO.puts("Seeded config repo: github.com/d-led/ex_gocd (dogfooding)")
+else
+  IO.puts("Config repo already seeded, skipping")
 end
 
 alias ExGoCD.AgentJobRuns.AgentJobRun
