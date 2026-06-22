@@ -3,7 +3,7 @@ ExUnit.configure(max_cases: max(1, div(System.schedulers_online(), 2)))
 if System.get_env("CI") do
   ExUnit.configure(
     formatters: [ExUnit.CLIFormatter, JUnitFormatter],
-    junit_formatter: [report_dir: "_build/test-results"]
+    junit_formatter: [report_dir: "_build/test/lib/ex_gocd"]
   )
 end
 

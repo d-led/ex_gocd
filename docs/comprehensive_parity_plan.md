@@ -272,4 +272,21 @@ GoCD console log features we need parity with:
 
 ---
 
-*Plan updated 2026-06-22. Next: execute Part J Sprint.*
+## Part K: Infrastructure & Dependencies
+
+### K.1 Replace shell-out git with hex `git` package
+- Currently: `:os.cmd` / `System.cmd` for `git rev-parse`, `git clone` in seeds/tasks
+- Plan: use `{:git, "~> 0.1"}` from hex.pm — pure Elixir, no shell-out
+- Affected: `version_json.ex` (rev-parse), seed tasks (git clone), materials/poller
+- **Priority**: P2 — reduces attack surface, faster, portable
+- **Effort**: S — replace `System.cmd("git", ...)` with `Git.rev_parse/1` etc.
+
+### K.2 CI: dorny/test-reporter Node deprecation
+- `dorny/test-reporter@v1` uses Node 20 (EOL)
+- Options: upgrade to `@v2` if available, or switch to `mikepenz/action-junit-report@v4`
+- **Priority**: P2 — warnings only, not blocking
+- **Effort**: S
+
+---
+
+*Plan updated 2026-06-22.*
