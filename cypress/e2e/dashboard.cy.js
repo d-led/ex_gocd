@@ -9,17 +9,17 @@ describe("Pipeline Dashboard", () => {
 
   it("filters pipelines by name via the search box", () => {
     cy.theDashboardShows("build-linux", "deploy-staging");
-    cy.iSearchPipelines("linux");
+    cy.searchPipelines("linux");
     cy.theDashboardShows("build-linux");
     cy.theDashboardDoesNotShow("deploy-staging");
 
-    cy.iSearchPipelines("");
+    cy.searchPipelines("");
     cy.theDashboardShows("build-linux", "deploy-staging");
   });
 
   it("triggers a pipeline execution via the play button", () => {
     cy.theDashboardShows("build-linux");
-    cy.iTriggerPipelineRun("build-linux");
+    cy.triggerPipeline("build-linux");
     cy.theFlashSays("triggered");
   });
 });

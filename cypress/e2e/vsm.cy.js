@@ -14,8 +14,8 @@ describe("Value Stream Map", () => {
 
       cy.theVSMShowsNode("Pipeline");
       cy.thePageShows("Current");
-      cy.get('[aria-label*="compile"]').should("exist");
-      cy.get('[aria-label*="test"]').should("exist");
+      cy.theVSMStageIndicatorShows("compile");
+      cy.theVSMStageIndicatorShows("test");
 
       cy.thePageShows("deploy-staging");
     });
@@ -26,7 +26,7 @@ describe("Value Stream Map", () => {
     });
 
     it("breadcrumb link navigates to pipeline activity", () => {
-      cy.iClickLink("build-linux");
+      cy.clickLink("build-linux");
       cy.theUrlContains("/pipeline/activity/build-linux");
     });
   });
@@ -44,14 +44,14 @@ describe("Value Stream Map", () => {
     it("renders the VSM container on a mobile viewport", () => {
       cy.viewport("iphone-6");
       cy.visitPage("/pipelines/value_stream_map/build-linux/1");
-      cy.theElementIsVisible("#vsm-container");
+      cy.theVSMRendersOnMobile();
     });
   });
 
   describe("Dashboard integration", () => {
     it("navigates from the dashboard VSM link to a pipeline VSM", () => {
       cy.visitPage("/pipelines");
-      cy.iClickLink("VSM");
+      cy.clickLink("VSM");
       cy.theUrlContains("/pipelines/value_stream_map/");
       cy.theVSMSvgIsRendered();
     });
@@ -77,24 +77,24 @@ describe("Value Stream Map", () => {
     it("shows fan-in to integration-pipeline with stage indicators on downstream nodes", () => {
       cy.thePageShows("integration-pipeline");
 
-      cy.get('[data-id="component-a"]').within(() => {
-        cy.get('[aria-label*="build"]').should("exist");
+      cy.insideVSMNode("component-a", () => {
+        cy.theVSMStageIndicatorShows("build");
       });
-      cy.get('[data-id="component-b"]').within(() => {
-        cy.get('[aria-label*="build"]').should("exist");
+      cy.insideVSMNode("component-b", () => {
+        cy.theVSMStageIndicatorShows("build");
       });
 
       // integration-pipeline has stage indicators from its upstream pipelines
-      cy.get('[data-id="integration-pipeline"]').within(() => {
-        cy.get('[aria-label*="integrate"]').should("exist");
+      cy.insideVSMNode("integration-pipeline", () => {
+        cy.theVSMStageIndicatorShows("integrate");
       });
     });
 
     it("marks upstream-lib as current and shows the diamond spans 4 VSM levels", () => {
-      cy.get('[data-id="upstream-lib"]').within(() => {
+      cy.insideVSMNode("upstream-lib", () => {
         cy.thePageShows("Current");
       });
-      cy.get(".vsm-level").should("have.length", 4);
+      cy.theVSMHasExactlyLevels(4);
     });
   });
 });

@@ -4,10 +4,8 @@ describe("Pipeline Configuration", () => {
   });
 
   it("validates and rejects a non-existent pipeline dependency", () => {
-    cy.iAddMaterial();
-    cy.iSelectMaterialType("dependency");
-    cy.iTypeInto("url", "non-existent-pipeline");
-    cy.iSaveConfiguration();
-    cy.theErrorSays("Error: Referenced pipeline 'non-existent-pipeline' does not exist");
+    cy.addMaterial();
+    cy.selectMaterialType("dependency");
+    cy.validateWithNonexistentPipelineDependency();
   });
 });

@@ -266,7 +266,7 @@ defmodule ExGoCDWeb.ValueStreamMapLive do
         </div>
       </div>
 
-      <div id="vsm-container" phx-hook="VSMGraph" class="vsm-container-wrapper relative border border-gray-200 rounded-lg p-4 md:p-10 bg-white shadow-sm overflow-x-auto min-h-[400px] md:min-h-[500px]">
+      <div id="vsm-container" phx-hook="VSMGraph" phx-update="ignore" class="vsm-container-wrapper relative border border-gray-200 rounded-lg p-4 md:p-10 bg-white shadow-sm overflow-x-auto min-h-[400px] md:min-h-[500px]">
         <svg id="vsm-svg" class="absolute top-0 left-0 w-full h-full" style="z-index: 1; overflow: visible;">
           <defs>
             <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto">
