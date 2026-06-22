@@ -175,11 +175,15 @@ const VSMGraph = {
           hit.setAttribute("fill", "none");
           hit.setAttribute("stroke-linecap", "round");
           hit.setAttribute("stroke-linejoin", "round");
-          hit.style.pointerEvents = "all";
+          hit.setAttribute("pointer-events", "all");
           hit.style.cursor = "pointer";
           hit.style.transition = "opacity 0.2s";
           hit.dataset.sourceId = sourceId;
           hit.dataset.targetId = depId;
+
+          if (sourceId === "4c470f082924a11e" && depId === "upstream-lib") {
+            console.log("[VSM] hit path created", { sourceId, depId, pointerEvents: hit.getAttribute("pointer-events"), stroke: hit.getAttribute("stroke"), strokeWidth: hit.getAttribute("stroke-width") });
+          }
 
           // Visible path: renders the thin coloured line + arrowhead.
           // pointer-events: none so events pass through to the hit path.

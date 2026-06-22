@@ -125,7 +125,7 @@ defmodule ExGoCDWeb.ValueStreamMapLive do
       data-id={@node["id"]}
       data-parents={Jason.encode!(@node["parents"] || [])}
       data-dependents={Jason.encode!(@node["dependents"] || [])}
-      class={"vsm-node p-3 md:p-4 border rounded shadow-sm w-64 md:w-72 flex flex-col justify-between transition-all duration-200 bg-white relative z-10 " <> current_overrides <> if(!@is_current && p_status, do: " hover:shadow-md", else: "")}
+      class={"vsm-node p-3 md:p-4 border rounded shadow-sm w-64 md:w-72 flex flex-col justify-between transition-all duration-200 bg-white relative z-10 pointer-events-auto " <> current_overrides <> if(!@is_current && p_status, do: " hover:shadow-md", else: "")}
     >
 
       <%= if @is_current do %>
@@ -281,8 +281,8 @@ defmodule ExGoCDWeb.ValueStreamMapLive do
         </div>
       </div>
 
-      <div id="vsm-container" phx-hook="VSMGraph" class="vsm-container-wrapper relative border border-gray-200 rounded-lg p-4 md:p-10 bg-white shadow-sm overflow-x-auto min-h-[400px] md:min-h-[500px]">
-        <svg id="vsm-svg" class="absolute top-0 left-0 w-full h-full" style="z-index: 5; overflow: visible;">
+      <div id="vsm-container" phx-hook="VSMGraph" phx-update="ignore" class="vsm-container-wrapper relative border border-gray-200 rounded-lg p-4 md:p-10 bg-white shadow-sm overflow-x-auto min-h-[400px] md:min-h-[500px]">
+        <svg id="vsm-svg" class="absolute top-0 left-0 w-full h-full" style="z-index: 10; overflow: visible;">
           <defs>
             <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto">
               <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#2fa8b6" />
@@ -293,7 +293,7 @@ defmodule ExGoCDWeb.ValueStreamMapLive do
           </defs>
         </svg>
 
-        <div class="flex flex-col md:flex-row justify-center items-center md:items-stretch gap-8 md:gap-16 min-w-0 md:min-w-[800px] relative z-10">
+        <div class="flex flex-col md:flex-row justify-center items-center md:items-stretch gap-8 md:gap-16 min-w-0 md:min-w-[800px] relative z-0 pointer-events-none">
           <%= for level <- @vsm["levels"] do %>
             <div class="vsm-level flex flex-col justify-center gap-10 relative">
               <%= for node <- level["nodes"] do %>
