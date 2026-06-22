@@ -90,6 +90,10 @@
           <div class="flex items-center justify-between mb-2 px-1">
             <span class="text-[10px] text-gray-400 uppercase tracking-wider font-bold">Console Output</span>
             <div class="flex items-center gap-3">
+              <button class="text-[10px] text-gray-400 hover:text-gray-200 font-bold uppercase tracking-wider"
+                      onclick="navigator.clipboard.writeText(this.closest('.p-6').querySelector('pre').textContent);this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',1500)">
+                Copy
+              </button>
               <label class="flex items-center gap-1 text-[10px] text-gray-400 cursor-pointer select-none">
                 <input type="checkbox" id="toggle-timestamps" class="w-3 h-3" onchange="this.closest('.p-6').querySelector('#console-container').classList.toggle('show-timestamps')">
                 Timestamps
