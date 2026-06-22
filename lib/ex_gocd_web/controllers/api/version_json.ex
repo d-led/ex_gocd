@@ -21,10 +21,16 @@ defmodule ExGoCDWeb.API.VersionJSON do
   end
 
   defp git_sha do
-    case :os.cmd(~c'git rev-parse --short HEAD') do
-      sha when is_list(sha) ->
-        sha |> to_string() |> String.trim()
-      _ -> "unknown"
+    # CI: use GITHUB_SHA; local: use git rev-parse
+    case System.get_env("GITHUB_SHA") do
+      sha when is_binary(sha) and byte_size(sha) > 0 ->
+        String.slice(sha, 0, 7)
+      _ ->
+        case :os.cmd(~c'git rev-parse --short HEAD') do
+          sha when is_list(sha) ->
+            sha |> List.to_string() |> String.trim()
+          _ -> "unknown"
+        end
     end
   rescue
     _ -> "unknown"
