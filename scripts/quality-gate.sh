@@ -15,22 +15,25 @@ NC='\033[0m' # No Color
 PASS=0
 FAIL=0
 
+die() { echo -e "${RED}[FATAL]${NC} $1"; exit 1; }
 pass_step() { echo -e "${GREEN}[PASS]${NC} $1"; PASS=$((PASS + 1)); }
-fail_step() { echo -e "${RED}[FAIL]${NC} $1"; FAIL=$((FAIL + 1)); }
+fail_step() { echo -e "${RED}[FAIL]${NC} $1"; FAIL=$((FAIL + 1)); die "Quality gate halted on failure."; }
 warn_step() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 
 # ── Elixir: Compile with warnings-as-errors ─────────────────────────────
 
 echo "=== Elixir: Compile (warnings as errors on non-otel files) ==="
-COMPILE_OUT=$(mix compile --warnings-as-errors 2>&1 || true)
+COMPILE_OUT=$(mix compile --warnings-as-errors 2>&1) && COMPILE_OK=1 || COMPILE_OK=0
 OTEL_WARNINGS=$(echo "$COMPILE_OUT" | grep -c "lib/ex_gocd/otel" || true)
 OTHER_WARNINGS=$(echo "$COMPILE_OUT" | grep -c "warning:" || true)
-# Filter out otel warnings (known WIP OpenTelemetry version mismatch)
 REAL_WARNINGS=$((OTHER_WARNINGS - OTEL_WARNINGS))
-if [ "$REAL_WARNINGS" -le 0 ] 2>/dev/null; then
+if [ "$COMPILE_OK" -eq 1 ] && [ "$REAL_WARNINGS" -le 0 ]; then
   pass_step "Elixir compile — no warnings (ignoring otel WIP)"
 else
-  echo "$COMPILE_OUT" | grep "warning:" | grep -v "lib/ex_gocd/otel"
+  echo ""
+  echo "=== COMPILE ERRORS/WARNINGS ==="
+  echo "$COMPILE_OUT" | grep -E "warning:|error:|\\*\\*" | grep -v "lib/ex_gocd/otel"
+  echo "=== END ==="
   fail_step "Elixir compile — ${REAL_WARNINGS} warnings found"
 fi
 
@@ -54,16 +57,22 @@ echo "=== Elixir: Credo ==="
 if mix credo --format=oneline 2>&1; then
   pass_step "Credo — no suggestions"
 else
-  warn_step "Credo — suggestions found (not blocking)"
+  fail_step "Credo — suggestions found"
 fi
 
 # ── Elixir: Test suite ─────────────────────────────────────────────────
 
 echo ""
 echo "=== Elixir: ExUnit tests ==="
-if mix test 2>&1 | tail -3; then
+TEST_OUT=$(mix test 2>&1) && TEST_EXIT=0 || TEST_EXIT=$?
+echo "$TEST_OUT" | tail -3
+if [ "$TEST_EXIT" -eq 0 ]; then
   pass_step "ExUnit tests — all passing"
 else
+  echo ""
+  echo "--- FAILURES ---"
+  echo "$TEST_OUT" | grep -A 10 "^\s*[0-9]\+) test " || echo "$TEST_OUT" | tail -40
+  echo "--- END FAILURES ---"
   fail_step "ExUnit tests — failures"
 fi
 
