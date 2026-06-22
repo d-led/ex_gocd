@@ -10,6 +10,8 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
   """
   use ExGoCDWeb, :live_view
 
+  import Ecto.Query
+
   alias ExGoCD.Repo
   alias ExGoCD.ConfigRepos.{ConfigRepo, ConfigRepoFile}
 
@@ -18,22 +20,74 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
   # ── Mount ──────────────────────────────────────────────────────────────────
 
   @impl true
-  def mount(_params, _session, socket) do
-    {:ok,
-     socket
-     |> assign(:step, 1)
-     |> assign(:source_type, "github_actions")
-     |> assign(:repo_url, "")
-     |> assign(:branch, "main")
-     |> assign(:plugin_id, "")
-     |> assign(:configuration, %{})
-     |> assign(:errors, %{})
-     |> assign(:discovered_files, [])
-     |> assign(:selected_paths, [])
-     |> assign(:file_configs, %{})
-     |> assign(:config_repo, nil)
-     |> assign(:saved, false)
-     |> assign(:saving, false)}
+  def mount(params, _session, socket) do
+    socket =
+      case params["id"] do
+        nil -> mount_new(socket)
+        id -> mount_edit(socket, id)
+      end
+
+    {:ok, socket}
+  end
+
+  defp mount_new(socket) do
+    socket
+    |> assign(:step, 1)
+    |> assign(:editing, false)
+    |> assign(:source_type, "github_actions")
+    |> assign(:repo_url, "")
+    |> assign(:branch, "main")
+    |> assign(:plugin_id, "")
+    |> assign(:configuration, %{})
+    |> assign(:errors, %{})
+    |> assign(:discovered_files, [])
+    |> assign(:selected_paths, [])
+    |> assign(:file_configs, %{})
+    |> assign(:config_repo, nil)
+    |> assign(:saved, false)
+    |> assign(:saving, false)
+  end
+
+  defp mount_edit(socket, id) do
+    case Repo.get(ConfigRepo, id) |> Repo.preload(:config_repo_files) do
+      nil ->
+        socket
+        |> put_flash(:error, "Config repository not found.")
+        |> redirect(to: "/admin/config_repos")
+
+      config_repo ->
+        existing_files = config_repo.config_repo_files || []
+        discovered = simulate_discovery(config_repo.source_type)
+        paths = Enum.map(existing_files, & &1.path)
+        file_configs =
+          Map.new(existing_files, fn f ->
+            selection = Repo.get_by(ExGoCD.ConfigRepos.ConfigRepoFileSelection,
+              config_repo_file_id: f.id)
+            {f.path,
+             %{
+               mode: (selection && selection.mode) || "translate",
+               selected_jobs: (selection && selection.selected_jobs) || [],
+               selected_triggers: (selection && selection.selected_triggers) || [],
+               overrides: (selection && selection.overrides) || %{}
+             }}
+          end)
+
+        socket
+        |> assign(:step, 1)
+        |> assign(:editing, true)
+        |> assign(:source_type, config_repo.source_type || "github_actions")
+        |> assign(:repo_url, config_repo.url || "")
+        |> assign(:branch, config_repo.branch || "main")
+        |> assign(:plugin_id, config_repo.plugin_id || "")
+        |> assign(:configuration, config_repo.configuration || %{})
+        |> assign(:errors, %{})
+        |> assign(:discovered_files, discovered)
+        |> assign(:selected_paths, paths)
+        |> assign(:file_configs, file_configs)
+        |> assign(:config_repo, config_repo)
+        |> assign(:saved, false)
+        |> assign(:saving, false)
+    end
   end
 
   # ── Events ─────────────────────────────────────────────────────────────────
@@ -49,38 +103,74 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
     errors = validate_step1(url, branch)
 
     if errors == %{} do
-      # Create the config repo immediately
-      case %ConfigRepo{}
-           |> ConfigRepo.changeset(%{
-             url: url,
-             branch: branch,
-             source_type: socket.assigns.source_type,
-             plugin_id: socket.assigns.plugin_id,
-             configuration: socket.assigns.configuration,
-             material_type: "git"
-           })
-           |> Repo.insert() do
-        {:ok, config_repo} ->
-          # Simulate file discovery based on source type
-          discovered = simulate_discovery(socket.assigns.source_type)
+      if socket.assigns.editing do
+        # Update existing config repo
+        changeset = ConfigRepo.changeset(socket.assigns.config_repo, %{
+          url: url,
+          branch: branch,
+          source_type: socket.assigns.source_type,
+          plugin_id: socket.assigns.plugin_id,
+          configuration: socket.assigns.configuration
+        })
 
-          {:noreply,
-           socket
-           |> assign(:repo_url, url)
-           |> assign(:branch, branch)
-           |> assign(:errors, %{})
-           |> assign(:config_repo, config_repo)
-           |> assign(:discovered_files, discovered)
-           |> assign(:selected_paths, Enum.map(discovered, & &1.path))
-           |> assign(:step, 2)}
+        case Repo.update(changeset) do
+          {:ok, config_repo} ->
+            discovered = simulate_discovery(config_repo.source_type)
+            existing_files = Repo.preload(config_repo, :config_repo_files).config_repo_files || []
+            existing_paths = Enum.map(existing_files, & &1.path)
+            # Merge existing paths with newly discovered
+            all_paths = Enum.uniq(existing_paths ++ Enum.map(discovered, & &1.path))
 
-        {:error, changeset} ->
-          url_error =
-            if changeset.errors[:url],
-              do: "URL already exists or is invalid",
-              else: "Failed to create config repo"
+            {:noreply,
+             socket
+             |> assign(:repo_url, url)
+             |> assign(:branch, branch)
+             |> assign(:errors, %{})
+             |> assign(:config_repo, config_repo)
+             |> assign(:discovered_files, discovered)
+             |> assign(:selected_paths, all_paths)
+             |> assign(:step, 2)}
 
-          {:noreply, assign(socket, :errors, %{repo_url: url_error})}
+          {:error, changeset} ->
+            url_error =
+              if changeset.errors[:url],
+                do: "URL already exists or is invalid",
+                else: "Failed to update config repo"
+            {:noreply, assign(socket, :errors, %{repo_url: url_error})}
+        end
+      else
+        # Create new config repo
+        case %ConfigRepo{}
+             |> ConfigRepo.changeset(%{
+               url: url,
+               branch: branch,
+               source_type: socket.assigns.source_type,
+               plugin_id: socket.assigns.plugin_id,
+               configuration: socket.assigns.configuration,
+               material_type: "git"
+             })
+             |> Repo.insert() do
+          {:ok, config_repo} ->
+            discovered = simulate_discovery(socket.assigns.source_type)
+
+            {:noreply,
+             socket
+             |> assign(:repo_url, url)
+             |> assign(:branch, branch)
+             |> assign(:errors, %{})
+             |> assign(:config_repo, config_repo)
+             |> assign(:discovered_files, discovered)
+             |> assign(:selected_paths, Enum.map(discovered, & &1.path))
+             |> assign(:step, 2)}
+
+          {:error, changeset} ->
+            url_error =
+              if changeset.errors[:url],
+                do: "URL already exists or is invalid",
+                else: "Failed to create config repo"
+
+            {:noreply, assign(socket, :errors, %{repo_url: url_error})}
+        end
       end
     else
       {:noreply, assign(socket, :errors, errors)}
@@ -139,6 +229,16 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
 
     config_repo = socket.assigns.config_repo
     file_configs = socket.assigns.file_configs
+
+    # If editing, delete old ConfigRepoFile records and their selections
+    if socket.assigns.editing do
+      old_files = Repo.all(from(f in ConfigRepoFile, where: f.config_repo_id == ^config_repo.id))
+      Enum.each(old_files, fn f ->
+        Repo.delete_all(from(s in ExGoCD.ConfigRepos.ConfigRepoFileSelection,
+          where: s.config_repo_file_id == ^f.id))
+      end)
+      Repo.delete_all(from(f in ConfigRepoFile, where: f.config_repo_id == ^config_repo.id))
+    end
 
     # Persist ConfigRepoFile + ConfigRepoFileSelection records
     Enum.each(file_configs, fn {path, cfg} ->
@@ -288,7 +388,7 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
         <div class="max-w-3xl mx-auto pt-6 px-4">
           <%!-- Header with cancel --%>
           <div class="flex items-center justify-between mb-4">
-            <h1 class="text-sm font-bold text-slate-700">Add Config Repository</h1>
+            <h1 class="text-sm font-bold text-slate-700">{if @editing, do: "Re-sync Config Repository", else: "Add Config Repository"}</h1>
             <button phx-click="cancel" class="text-xs text-slate-400 hover:text-red-500 transition-colors">
               Cancel
             </button>

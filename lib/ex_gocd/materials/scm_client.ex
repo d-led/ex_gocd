@@ -60,22 +60,18 @@ defmodule ExGoCD.Materials.ScmClient do
       require Logger
 
       def latest_revision(url, branch) do
-        case System.cmd("git", ["ls-remote", url, branch]) do
-          {output, 0} ->
-            case String.split(output) do
-              [sha, _ref | _] ->
-                {:ok, %{
-                  revision: sha,
-                  committer_name: "git",
-                  committer_email: "git@scm.local",
-                  comment: "git ls-remote #{branch}",
-                  modified_time: ExGoCD.Materials.ScmClient.now()
-                }}
-              _ -> {:error, "invalid git ls-remote output"}
-            end
+        case ExGoCD.Git.ls_remote(url, branch) do
+          {:ok, sha} ->
+            {:ok, %{
+              revision: sha,
+              committer_name: "git",
+              committer_email: "git@scm.local",
+              comment: "git ls-remote #{branch}",
+              modified_time: ExGoCD.Materials.ScmClient.now()
+            }}
 
-          {err, _} ->
-            Logger.error("git ls-remote failed: #{inspect(err)}")
+          {:error, reason} ->
+            Logger.error("git ls-remote failed: #{inspect(reason)}")
             {:error, :git_command_failed}
         end
       end

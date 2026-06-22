@@ -3,6 +3,12 @@ defmodule ExGoCDWeb.API.Admin.PipelineConfigController do
 
   alias ExGoCD.{Pipelines, Repo}
 
+  @doc "GET /api/admin/pipelines"
+  def index(conn, _params) do
+    pipelines = Pipelines.list_pipelines()
+    json(conn, Enum.map(pipelines, &pipeline_to_json/1))
+  end
+
   @doc "GET /api/admin/pipelines/:name"
   def show(conn, %{"name" => name}) do
     pipeline = Pipelines.get_pipeline_by_name(name)

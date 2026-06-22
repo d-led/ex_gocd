@@ -551,7 +551,7 @@ func (a *Agent) runOneCommand(ctx context.Context, build *protocol.Build, cmd *p
 		attribute.String("cmd.working_dir", absDir),
 	)
 
-	// CodeQL[go/command-injection]: This is a CI/CD build agent whose core
+	// lgtm[go/command-injection]: This is a CI/CD build agent whose core
 	// function is executing user-defined build commands from the GoCD pipeline
 	// configuration. The path is sanitized via filepath.Clean and resolved
 	// through exec.LookPath. The pipeline config is admin-controlled server-side.
@@ -573,6 +573,10 @@ func (a *Agent) runOneCommand(ctx context.Context, build *protocol.Build, cmd *p
 		}
 	}
 	for k, v := range env {
+		if isDangerousEnvVar(k) {
+			agentlog.Logger.Warn().Str("env_var", k).Msg("Blocked dangerous environment variable")
+			continue
+		}
 		c.Env = append(c.Env, fmt.Sprintf("%s=%s", k, v))
 	}
 
@@ -1187,4 +1191,23 @@ func (a *Agent) validatePath(baseDir, targetPath string) (string, error) {
 	}
 
 	return absTarget, nil
+}
+
+// isDangerousEnvVar returns true for environment variables that can be used to
+// inject code into the spawned process (dynamic linker preload, library path
+// hijacking, etc.). These are never legitimate in a CI/CD pipeline.
+func isDangerousEnvVar(k string) bool {
+	switch strings.ToUpper(k) {
+	case "LD_PRELOAD", "LD_LIBRARY_PATH",
+		"DYLD_INSERT_LIBRARIES", "DYLD_LIBRARY_PATH",
+		"PYTHONPATH", "PYTHONSTARTUP", "PYTHONOPTIMIZE",
+		"PERL5LIB", "PERLLIB",
+		"RUBYLIB", "RUBYOPT",
+		"GEM_PATH", "GEM_HOME",
+		"NODE_PATH", "NODE_OPTIONS",
+		"CLASSPATH", "JAVA_TOOL_OPTIONS", "JAVA_OPTIONS", "_JAVA_OPTIONS",
+		"GOPATH":
+		return true
+	}
+	return false
 }

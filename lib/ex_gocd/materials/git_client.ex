@@ -26,30 +26,19 @@ defmodule ExGoCD.Materials.GitClient do
       # For simplicity and robust local execution:
       # 1. git ls-remote <url> <branch> to find the commit SHA.
       # 2. Return a valid modification map.
-      case System.cmd("git", ["ls-remote", url, branch]) do
-        {output, 0} ->
-          case String.split(output) do
-            [sha, _ref | _] ->
-              # We got the commit SHA! Now we can return a default modification block
-              # with this SHA. Since git log requires a cloned repository,
-              # and cloning can be slow/expensive during polling,
-              # GoCD stores the SHA and later gets commit details.
-              # Let's populate fallback/default commit metadata.
-              {:ok,
-               %{
-                 revision: sha,
-                 committer_name: "SCM Poller",
-                 committer_email: "poller@ex-gocd.local",
-                 comment: "Auto-detected update via git ls-remote",
-                 modified_time: DateTime.utc_now() |> DateTime.truncate(:second)
-               }}
+      case ExGoCD.Git.ls_remote(url, branch) do
+        {:ok, sha} ->
+          {:ok,
+           %{
+             revision: sha,
+             committer_name: "SCM Poller",
+             committer_email: "poller@ex-gocd.local",
+             comment: "Auto-detected update via git ls-remote",
+             modified_time: DateTime.utc_now() |> DateTime.truncate(:second)
+           }}
 
-            _ ->
-              {:error, "invalid ls-remote output"}
-          end
-
-        {err, _exit_code} ->
-          Logger.error("Failed to execute git ls-remote: #{inspect(err)}")
+        {:error, reason} ->
+          Logger.error("Failed to execute git ls-remote: #{inspect(reason)}")
           {:error, :git_command_failed}
       end
     end

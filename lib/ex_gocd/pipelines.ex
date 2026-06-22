@@ -1110,7 +1110,8 @@ defmodule ExGoCD.Pipelines do
       paused: pipeline.paused,
       paused_by: pipeline.paused_by,
       pause_cause: pipeline.pause_cause,
-      paused_at: pipeline.paused_at
+      paused_at: pipeline.paused_at,
+      config_repo_id: pipeline.config_repo_id
     }
   end
 
@@ -1145,7 +1146,8 @@ defmodule ExGoCD.Pipelines do
       paused: pipeline.paused,
       paused_by: pipeline.paused_by,
       pause_cause: pipeline.pause_cause,
-      paused_at: pipeline.paused_at
+      paused_at: pipeline.paused_at,
+      config_repo_id: pipeline.config_repo_id
     }
   end
 

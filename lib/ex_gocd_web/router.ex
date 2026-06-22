@@ -103,7 +103,9 @@ defmodule ExGoCDWeb.Router do
 
       # External CI repo wizard
       live "/admin/config_repos/new", ExternalCIRepoWizardLive, :index
+      live "/admin/config_repos/:id/edit", ExternalCIRepoWizardLive, :edit
       live "/go/admin/config_repos/new", ExternalCIRepoWizardLive, :index
+      live "/go/admin/config_repos/:id/edit", ExternalCIRepoWizardLive, :edit
     end
   end
 
