@@ -76,7 +76,7 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
     pipeline_name = instance.pipeline_config.name
     materials =
       case instance.pipeline_config.materials || [] do
-        [] -> [%{type: "git", url: "https://github.com/gocd/gocd.git", branch: "master"}]
+        [] -> []
         list -> list
       end
     downstream_names = get_downstream_pipelines(pipeline_name)
@@ -503,12 +503,12 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
   end
 
   defp build_matching_or_generic_vsm(nil, material_fingerprint, revision) do
-    # Fallback to generic git material if fingerprint isn't found
+    # Fallback: unknown fingerprint — return basic git material placeholder
     generic_mat = %{
       type: "git",
-      url: "https://github.com/gocd/gocd.git",
-      branch: "master",
-      pipelines: ["demo"]
+      url: "https://github.com/d-led/ex_gocd.git",
+      branch: "main",
+      pipelines: []
     }
     build_material_vsm_data(generic_mat, material_fingerprint, revision)
   end
@@ -519,19 +519,13 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
 
   defp get_pipeline_stages(name) do
     if use_mock?(name) do
-      # mock stages
+      # mock stages — only used in mock mode
       [
         %{"name" => "build", "status" => "Passed", "duration" => 90, "locator" => "/pipelines/#{name}/1/build/1"}
       ]
     else
-      case fetch_db_instance(name, 1) do
-        nil ->
-          [
-            %{"name" => "build", "status" => "Passed", "duration" => 90, "locator" => "/pipelines/#{name}/1/build/1"}
-          ]
-        instance ->
-          map_instance_stages(instance, name)
-      end
+      # Use the DB instance stages (already fetched by build_db_pipeline_vsm)
+      []  # stages are rendered from the main VSM data, not via this helper
     end
   end
 

@@ -50,7 +50,7 @@ defmodule ExGoCDWeb.CompareLive do
       %{
         material_id: 1,
         type: "git",
-        url: "https://github.com/gocd/#{pipeline_name}.git",
+        url: "https://github.com/d-led/ex_gocd.git",
         branch: "master",
         from_revision: "a0f2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0",
         to_revision: "9f8e7d6c5b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e",
