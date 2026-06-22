@@ -90,6 +90,9 @@
           <div class="flex items-center justify-between mb-2 px-1">
             <span class="text-[10px] text-gray-400 uppercase tracking-wider font-bold">Console Output</span>
             <div class="flex items-center gap-3">
+              <input type="text" id="console-search" placeholder="Filter..." autocomplete="off"
+                     class="w-32 px-2 py-0.5 text-[10px] bg-gray-800 border border-gray-700 rounded text-gray-300 placeholder-gray-600 focus:outline-none focus:border-gray-500"
+                     oninput="const pre=this.closest('.p-6').querySelector('pre');const q=this.value.toLowerCase();if(!pre)return;const orig=pre.dataset.original||pre.textContent;pre.dataset.original=orig;pre.textContent=q?orig.split('\\n').filter(l=>l.toLowerCase().includes(q)).join('\\n'):orig">
               <button class="text-[10px] text-gray-400 hover:text-gray-200 font-bold uppercase tracking-wider"
                       onclick="navigator.clipboard.writeText(this.closest('.p-6').querySelector('pre').textContent);this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',1500)">
                 Copy

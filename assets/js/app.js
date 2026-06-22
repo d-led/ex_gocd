@@ -156,6 +156,8 @@ const VSMGraph = {
           path.setAttribute("stroke-linejoin", "round");
           path.setAttribute("marker-end", isHighlight ? "url(#arrow-current)" : "url(#arrow)");
           path.style.transition = "opacity 0.2s";
+          path.dataset.sourceId = sourceId;
+          path.dataset.targetId = depId;
 
           svg.appendChild(path);
 
@@ -188,16 +190,21 @@ const VSMGraph = {
   // ── interactive arrow highlight / dim ──────────────────────────
 
   _highlight(path, svg) {
+    // Dim all paths except the hovered one
     const all = svg.querySelectorAll(".vsm-path");
     all.forEach(p => {
       if (p === path) {
         p.style.opacity = "1";
         p.setAttribute("stroke-width", p.dataset.origWidth || p.getAttribute("stroke-width"));
       } else {
-        p.style.opacity = "0.18";
+        p.style.opacity = "0.15";
         if (!p.dataset.origWidth) p.dataset.origWidth = p.getAttribute("stroke-width");
       }
     });
+
+    // Highlight the source (trigger) and target (downstream) nodes
+    this._setNodeHighlight(path.dataset.sourceId, true);
+    this._setNodeHighlight(path.dataset.targetId, true);
   },
 
   _unhighlight(svg) {
@@ -210,6 +217,19 @@ const VSMGraph = {
       p.style.opacity = "1";
       p.setAttribute("stroke-width", p.dataset.origWidth || p.getAttribute("stroke-width"));
     });
+
+    // Remove all node highlights
+    const nodes = this.el.querySelectorAll(".vsm-node");
+    nodes.forEach(n => n.classList.remove("vsm-path-highlighted"));
+  },
+
+  _setNodeHighlight(nodeId, on) {
+    if (!nodeId) return;
+    const node = this.el.querySelector(`.vsm-node[data-id="${nodeId}"]`);
+    if (node) {
+      if (on) node.classList.add("vsm-path-highlighted");
+      else node.classList.remove("vsm-path-highlighted");
+    }
   },
 
   _togglePersistent(path, svg) {

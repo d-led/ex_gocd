@@ -63,7 +63,7 @@ defmodule ExGoCDWeb.JobDetailsLive do
         job_instance
       end
 
-    if connected?(socket) && run && Map.has_key?(run, :build_id) do
+    if connected?(socket) && run && Map.get(run, :build_id) do
       AgentJobRuns.subscribe_console(run.build_id)
     end
 

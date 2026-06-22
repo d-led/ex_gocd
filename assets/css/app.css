@@ -281,3 +281,10 @@ body {
     border-bottom: 2px solid #fff;
   }
 }
+
+/* VSM arrow-trace highlight: source & target nodes glow when their connecting arrow is hovered/tapped */
+.vsm-path-highlighted {
+  box-shadow: 0 0 0 3px rgba(148, 58, 158, 0.35), 0 0 12px rgba(148, 58, 158, 0.2);
+  border-color: #943a9e !important;
+  transition: box-shadow 0.2s, border-color 0.2s;
+}
