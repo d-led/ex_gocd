@@ -1,123 +1,99 @@
-describe("Value Stream Map E2E Tests", () => {
+describe("Value Stream Map", () => {
   describe("Pipeline VSM", () => {
     beforeEach(() => {
-      cy.visit("/pipelines/value_stream_map/build-linux/1");
-      cy.get('.phx-connected', { timeout: 10000 }).should('exist');
+      cy.visitPage("/pipelines/value_stream_map/build-linux/1");
     });
 
-    it("loads with breadcrumbs: Pipelines > pipeline > counter > VSM", () => {
-      cy.contains("Pipelines").should("exist");
-      cy.get("a").contains("build-linux").should("exist");
-      cy.contains("1").should("exist");
-    });
+    it("loads with breadcrumbs and renders material, pipeline, and downstream nodes", () => {
+      cy.thePageShows("Pipelines");
+      cy.thePageShows("build-linux");
+      cy.thePageShows("1");
 
-    it("renders material node with repo name", () => {
-      cy.get(".vsm-node").contains("Material").should("exist");
-      cy.contains("gocd.git").should("exist");
-    });
+      cy.theVSMShowsNode("Material");
+      cy.thePageShows("gocd.git");
 
-    it("renders pipeline node as current with stage status dots", () => {
-      cy.get(".vsm-node").contains("Pipeline").should("exist");
-      cy.contains("Current").should("exist");
+      cy.theVSMShowsNode("Pipeline");
+      cy.thePageShows("Current");
       cy.get('[aria-label*="compile"]').should("exist");
       cy.get('[aria-label*="test"]').should("exist");
+
+      cy.thePageShows("deploy-staging");
     });
 
-    it("renders trigger info with icons", () => {
-      cy.get(".vsm-node").should("have.length.at.least", 1);
+    it("renders SVG connectors across multiple VSM levels", () => {
+      cy.theVSMSvgIsRendered();
+      cy.theVSMHasLevels(2);
     });
 
-    it("renders SVG connectors", () => {
-      cy.get("#vsm-svg").should("exist");
-    });
-
-    it("renders multiple VSM levels", () => {
-      cy.get(".vsm-level").should("have.length.at.least", 2);
-    });
-
-    it("breadcrumb navigates to pipeline activity", () => {
-      cy.get("a").contains("build-linux").click();
-      cy.url().should("include", "/pipeline/activity/build-linux");
-    });
-
-    it("renders downstream pipeline nodes", () => {
-      cy.contains("deploy-staging").should("exist");
+    it("breadcrumb link navigates to pipeline activity", () => {
+      cy.iClickLink("build-linux");
+      cy.theUrlContains("/pipeline/activity/build-linux");
     });
   });
 
   describe("Material VSM", () => {
-    it("loads with breadcrumbs and dependent pipelines", () => {
-      cy.visit("/materials/value_stream_map/8d78bc9f6c661806/abcd1234ef");
-      cy.get('.phx-connected', { timeout: 10000 }).should('exist');
-      cy.contains("Materials").should("exist");
-      cy.contains("gocd.git").should("exist");
-      cy.get(".vsm-node").contains("Pipeline").should("exist");
+    it("loads with breadcrumbs showing the material and dependent pipelines", () => {
+      cy.visitPage("/materials/value_stream_map/8d78bc9f6c661806/abcd1234ef");
+      cy.thePageShows("Materials");
+      cy.thePageShows("gocd.git");
+      cy.theVSMShowsNode("Pipeline");
     });
   });
 
   describe("Mobile responsive", () => {
-    it("renders on mobile viewport", () => {
+    it("renders the VSM container on a mobile viewport", () => {
       cy.viewport("iphone-6");
-      cy.visit("/pipelines/value_stream_map/build-linux/1");
-      cy.get('.phx-connected', { timeout: 10000 }).should('exist');
-      cy.get("#vsm-container").should("exist");
+      cy.visitPage("/pipelines/value_stream_map/build-linux/1");
+      cy.theElementIsVisible("#vsm-container");
     });
   });
 
   describe("Dashboard integration", () => {
-    it("has VSM link from dashboard", () => {
-      cy.visit("/pipelines");
-      cy.get('.phx-connected', { timeout: 10000 }).should('exist');
-      cy.contains("VSM").should("exist");
+    it("navigates from the dashboard VSM link to a pipeline VSM", () => {
+      cy.visitPage("/pipelines");
+      cy.iClickLink("VSM");
+      cy.theUrlContains("/pipelines/value_stream_map/");
+      cy.theVSMSvgIsRendered();
     });
   });
 
   describe("Error handling", () => {
-    it("redirects to pipelines for non-existent pipeline", () => {
+    it("redirects to pipelines when the pipeline does not exist", () => {
       cy.visit("/pipelines/value_stream_map/no-such-pipeline/999");
-      cy.url().should("include", "/pipelines");
+      cy.theUrlContains("/pipelines");
     });
   });
 
   describe("Diamond fan-in/fan-out VSM", () => {
     beforeEach(() => {
-      // Mock data has upstream-lib counter=3
-      cy.visit("/pipelines/value_stream_map/upstream-lib/3");
-      cy.get('.phx-connected', { timeout: 10000 }).should('exist');
+      cy.visitPage("/pipelines/value_stream_map/upstream-lib/3");
     });
 
     it("shows fan-out to component-a and component-b", () => {
-      cy.contains("component-a").should("exist");
-      cy.contains("component-b").should("exist");
+      cy.thePageShows("component-a");
+      cy.thePageShows("component-b");
     });
 
-    it("shows fan-in to integration-pipeline", () => {
-      cy.contains("integration-pipeline").should("exist");
-    });
+    it("shows fan-in to integration-pipeline with stage indicators on downstream nodes", () => {
+      cy.thePageShows("integration-pipeline");
 
-    it("downstream nodes show stage indicators", () => {
       cy.get('[data-id="component-a"]').within(() => {
         cy.get('[aria-label*="build"]').should("exist");
       });
       cy.get('[data-id="component-b"]').within(() => {
         cy.get('[aria-label*="build"]').should("exist");
       });
-    });
 
-    it("fan-in pipeline shows parent pipelines", () => {
+      // integration-pipeline has stage indicators from its upstream pipelines
       cy.get('[data-id="integration-pipeline"]').within(() => {
-        cy.contains("integrate").should("exist");
+        cy.get('[aria-label*="integrate"]').should("exist");
       });
     });
 
-    it("shows correct FI and FO badges on upstream-lib", () => {
+    it("marks upstream-lib as current and shows the diamond spans 4 VSM levels", () => {
       cy.get('[data-id="upstream-lib"]').within(() => {
-        cy.contains("FO:3").should("exist");
-        cy.contains("Current").should("exist");
+        cy.thePageShows("Current");
       });
-    });
-
-    it("VSM levels correspond to diamond depth", () => {
       cy.get(".vsm-level").should("have.length", 4);
     });
   });

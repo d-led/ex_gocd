@@ -62,12 +62,15 @@ const VSMGraph = {
     window.removeEventListener("resize", this.handleResize);
   },
   drawLines() {
-    requestAnimationFrame(() => {
+    // Defer to next tick so DOM layout is settled (nodes have final positions).
+    // setTimeout is more reliable than requestAnimationFrame across all browsers
+    // and doesn't get throttled into non-existence in background tabs.
+    setTimeout(() => {
       const svg = this.el.querySelector("#vsm-svg");
       if (!svg) return;
 
-      // Clear existing paths & hit areas; reset persistent highlight on redraw
-      const oldPaths = svg.querySelectorAll(".vsm-path, .vsm-hit");
+      // Clear existing paths; reset persistent highlight on redraw
+      const oldPaths = svg.querySelectorAll(".vsm-path");
       oldPaths.forEach(p => p.remove());
       this._persistentHighlight = null;
 
@@ -156,35 +159,23 @@ const VSMGraph = {
           path.setAttribute("stroke-linejoin", "round");
           path.setAttribute("marker-end", isHighlight ? "url(#arrow-current)" : "url(#arrow)");
           path.style.transition = "opacity 0.2s";
+          path.style.cursor = "pointer";
+          path.style.pointerEvents = "stroke";
           path.dataset.sourceId = sourceId;
           path.dataset.targetId = depId;
 
-          svg.appendChild(path);
-
-          // Invisible wide hit area for touch / hover on mobile & desktop
-          const hit = document.createElementNS("http://www.w3.org/2000/svg", "path");
-          hit.setAttribute("d", pathD);
-          hit.setAttribute("class", "vsm-hit");
-          hit.setAttribute("stroke", "transparent");
-          hit.setAttribute("stroke-width", "24");
-          hit.setAttribute("fill", "none");
-          hit.setAttribute("stroke-linecap", "round");
-          hit.setAttribute("stroke-linejoin", "round");
-          hit.style.pointerEvents = "stroke";
-          hit.style.cursor = "pointer";
-
           const self = this;
-          hit.addEventListener("mouseenter", () => self._highlight(path, svg));
-          hit.addEventListener("mouseleave", () => self._unhighlight(svg));
-          hit.addEventListener("click", (e) => {
+          path.addEventListener("mouseenter", () => self._highlight(path, svg));
+          path.addEventListener("mouseleave", () => self._unhighlight(svg));
+          path.addEventListener("click", (e) => {
             e.stopPropagation();
             self._togglePersistent(path, svg);
           });
 
-          svg.appendChild(hit);
+          svg.appendChild(path);
         });
       });
-    });
+    }, 0);
   },
 
   // ── interactive arrow highlight / dim ──────────────────────────

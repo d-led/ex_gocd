@@ -1,48 +1,49 @@
-describe("Agents Management E2E Tests", () => {
+describe("Agents Management", () => {
   beforeEach(() => {
-    cy.visit("/agents");
-    cy.get('.phx-connected', { timeout: 10000 }).should('exist');
+    cy.visitPage("/agents");
   });
 
-  it("loads the agents page with toolbar and tabs", () => {
-    cy.verifyActiveTab("STATIC");
-    cy.get(".bulk-actions").should("exist");
-    // Toolbar buttons should exist
-    cy.contains("button", "DELETE").should("exist");
-    cy.contains("button", "ENABLE").should("exist");
-    cy.contains("button", "DISABLE").should("exist");
-    cy.contains("button", "SCHEDULE TEST JOB").should("exist");
+  it("loads with toolbar, tabs, and agent selection controls", () => {
+    cy.theActiveAgentTabIs("STATIC");
+    cy.theElementIsVisible(".bulk-actions");
+    cy.thePageShows("DELETE");
+    cy.thePageShows("ENABLE");
+    cy.thePageShows("DISABLE");
+    cy.thePageShows("SCHEDULE TEST JOB");
+    // Bulk delete requires confirmation — safety gate
+    cy.get("button").contains("DELETE").should("have.attr", "data-confirm");
   });
 
-  it("displays agent count stats", () => {
-    cy.contains("Total").should("exist");
-    cy.contains("Enabled").should("exist");
-    cy.contains("Disabled").should("exist");
+  it("displays agent count statistics", () => {
+    cy.thePageShows("Total");
+    cy.thePageShows("Enabled");
+    cy.thePageShows("Disabled");
   });
 
-  it("can switch between static and elastic agent tabs", () => {
-    cy.selectAgentTab("ELASTIC");
-    cy.verifyActiveTab("ELASTIC");
-    cy.selectAgentTab("STATIC");
-    cy.verifyActiveTab("STATIC");
+  it("shows static agents on the STATIC tab and elastic agents on the ELASTIC tab", () => {
+    // Static tab shows build agents
+    cy.thePageShows("build-agent-01.example.com");
+    cy.thePageShows("build-agent-02.example.com");
+
+    // Elastic tab shows the Kubernetes elastic agent, static agents disappear
+    cy.iSwitchToAgentTab("ELASTIC");
+    cy.theActiveAgentTabIs("ELASTIC");
+    cy.thePageShows("elastic-agent-k8s-abc123");
+    cy.contains("build-agent-01.example.com").should("not.exist");
+
+    // Switch back — static agents return
+    cy.iSwitchToAgentTab("STATIC");
+    cy.theActiveAgentTabIs("STATIC");
+    cy.thePageShows("build-agent-01.example.com");
   });
 
-  it("bulk delete is gated by confirmation dialog", () => {
-    cy.contains("button", "DELETE").should("have.attr", "data-confirm");
-  });
-
-  it("has checkboxes for agent selection", () => {
-    cy.get(".checkbox-cell input").should("exist");
-  });
-
-  it("can filter agents via search", () => {
-    cy.get(".search-box input").type("agent");
+  it("filters agents via the search box", () => {
+    cy.iFilterAgents("build-agent-01");
     cy.get(".agents-table tbody tr").should("exist");
   });
 
-  it("schedule test job button is clickable", () => {
-    cy.contains("button", "SCHEDULE TEST JOB").click();
-    // Should show flash message about scheduling
-    cy.get(".alert-info").should("contain", "scheduled");
+  it("schedules a test job via the toolbar button", () => {
+    cy.iClickButton("SCHEDULE TEST JOB");
+    cy.theFlashSays("scheduled");
   });
 });

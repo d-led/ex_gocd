@@ -458,16 +458,17 @@ defmodule ExGoCDWeb.DashboardLive do
   end
 
   defp grouping_data(all_pipelines, "environment", true) do
-    # Environments not yet implemented — group by group with "Default" label for now
-    # TODO: implement real environment grouping when environments are added
-    Enum.group_by(all_pipelines, fn _ -> "Default" end)
-    |> Map.new()
-  end
-
-  defp grouping_data(all_pipelines, _scheme, true) do
-    Enum.group_by(all_pipelines, fn p -> Map.get(p, :group, "Default") end)
+    # Group by environment. Pipelines without an environment go under "Default".
+    # When environments are implemented, this will use the actual environment assignment.
+    env_map = Enum.group_by(all_pipelines, fn p ->
+      env = Map.get(p, :environment) || p[:environment]
+      if is_binary(env) and env != "", do: env, else: "Default"
+    end)
     |> Enum.sort_by(fn {k, _} -> k end)
     |> Map.new()
+
+    # Ensure there's always at least a "Default" key for consistent rendering
+    Map.put_new(env_map, "Default", [])
   end
 
   defp group_pipelines(filtered_pipelines, grouped_data) when is_map(grouped_data) do

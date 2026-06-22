@@ -4,22 +4,22 @@ describe("Pipeline Dashboard", () => {
   });
 
   it("loads and displays pipeline groups", () => {
-    cy.theDashboardShows("demo", "upstream-lib");
+    cy.theDashboardShows("build-linux", "deploy-staging");
   });
 
   it("filters pipelines by name via the search box", () => {
-    cy.theDashboardShows("demo", "upstream-lib");
-    cy.iSearchPipelines("upstream");
-    cy.theDashboardShows("upstream-lib");
-    cy.theDashboardDoesNotShow("demo");
+    cy.theDashboardShows("build-linux", "deploy-staging");
+    cy.iSearchPipelines("linux");
+    cy.theDashboardShows("build-linux");
+    cy.theDashboardDoesNotShow("deploy-staging");
 
     cy.iSearchPipelines("");
-    cy.theDashboardShows("demo", "upstream-lib");
+    cy.theDashboardShows("build-linux", "deploy-staging");
   });
 
   it("triggers a pipeline execution via the play button", () => {
-    cy.theDashboardShows("demo");
-    cy.iTriggerPipelineRun("demo");
+    cy.theDashboardShows("build-linux");
+    cy.iTriggerPipelineRun("build-linux");
     cy.theFlashSays("triggered");
   });
 });

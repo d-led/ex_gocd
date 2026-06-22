@@ -693,3 +693,20 @@ GoCD parity requires ALL data flows to come from the database, not hardcoded moc
 ---
 
 *Plan updated 2026-06-22.*
+
+---
+
+## Part T: Dashboard Group By Selector 🟡
+
+*User reported: "group by selector doesn't seem to do anything"*
+
+### T.1 Root Cause
+Both "Pipeline Group" and "Environment" called the same catch-all clause, producing identical output.
+
+### T.2 Fix
+| # | Item | Status |
+|---|------|--------|
+| T.2.1 | "Pipeline Group" groups by `p.group` field | ✅ |
+| T.2.2 | "Environment" uses `p.environment` field, fallback "Default" | ✅ |
+| T.2.3 | Proper environment-based grouping | 🔴 needs Part B |
+| T.2.4 | ExUnit tests (3 new: PG sections, Env, distinct output) | ✅ |
