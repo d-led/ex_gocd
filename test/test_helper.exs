@@ -1,3 +1,5 @@
+ExUnit.configure(max_cases: max(1, div(System.schedulers_online(), 2)))
+
 if System.get_env("CI") do
   ExUnit.configure(
     formatters: [ExUnit.CLIFormatter, JUnitFormatter],
@@ -5,7 +7,6 @@ if System.get_env("CI") do
   )
 end
 
-ExUnit.configure(max_cases: max(1, div(System.schedulers_online(), 2)))
 ExUnit.start()
 
 
