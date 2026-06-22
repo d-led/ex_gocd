@@ -431,4 +431,56 @@ GoCD has two separate flows:
 
 ---
 
+## Part P: Pipeline Config Change Detection & Diff 🔴
+
+GoCD detects config changes between pipeline runs and shows them in the pipeline history. Users can click "Config Changes" to see a diff between the current and previous pipeline configuration.
+
+### P.1 GoCD behavior
+- Pipeline history page shows a "Config" column indicating whether config changed
+- Clicking "Config" shows a diff between the run's config and the previous run's config
+- Diff is rendered as a side-by-side or unified diff
+
+### P.2 Implementation approach
+- Store a snapshot of the pipeline config (serialized as map) in `PipelineInstance.build_cause` or a new `config_snapshot` field
+- On each trigger, compare current config with the previous run's snapshot
+- If different, mark the run as "config changed" and store the diff
+- Use `map_diff` (`{:map_diff, "~> 1.3"}` from hex.pm, 117k downloads) for structured nested map diffing
+- Render diff in Compare view and pipeline history
+
+### P.3 Tasks
+| # | Item | Effort |
+|---|------|--------|
+| P.3.1 | Store `config_snapshot` in PipelineInstance.build_cause on trigger | S |
+| P.3.2 | Add `{:map_diff, "~> 1.3"}` to mix.exs deps | S |
+| P.3.3 | Diff pipeline config against previous run | M |
+| P.3.4 | Show "Config Changed" badge in pipeline activity/history | S |
+| P.3.5 | Diff viewer UI (collapsible, side-by-side) | M |
+
+**Priority**: P1. Core GoCD feature for auditing config changes.
+
+---
+
+## Part Q: Downstream Pipeline Trigger (Fan-in/Fan-out) 🔴
+
+### Q.1 Current state
+- `trigger_completed_downstreams/1` exists in `Pipelines` — triggers pipelines with `material.type == "dependency"` matching the completed pipeline name
+- Diamond seeds fixed to use `type: "dependency", url: "upstream-pipeline-name"`
+- Material schema supports `type: "dependency"` with `url: "pipeline-name"`
+
+### Q.2 Gap
+- **VSM doesn't show downstream pipelines**: When upstream-lib completes, component-a and component-b should appear as fan-out in the VSM. Currently VSM only shows direct upstream/downstream if pipeline materials are configured.
+- **Fan-in resolution**: When integration-pipeline has 2 dependencies (component-a, component-b), it should only trigger when BOTH complete with the same ancestor version.
+
+### Q.3 Tasks
+| # | Item | Effort |
+|---|------|--------|
+| Q.3.1 | Verify `trigger_completed_downstreams` fires after pipeline completion | S |
+| Q.3.2 | Fix VSM to show downstream fan-out pipelines | M |
+| Q.3.3 | Implement fan-in gate: wait for all dependencies before triggering | M |
+| Q.3.4 | Show fan-in/fan-out edges in VSM for diamond config | M |
+
+**Priority**: P1. Core GoCD workflow pattern.
+
+---
+
 *Plan updated 2026-06-22.*

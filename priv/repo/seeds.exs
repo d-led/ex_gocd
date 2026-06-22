@@ -193,7 +193,7 @@ unless Repo.get_by(Pipeline, name: "component-a") do
   up = Repo.get_by!(Pipeline, name: "upstream-lib")
   Seeds.FanInOut.create_pipeline("component-a", "demo", "build", "test",
     "tested component-a with lib",
-    [%{type: "pipeline", pipeline_name: "upstream-lib", stage_name: "build"}])
+    [%{type: "dependency", url: "upstream-lib", stage_name: "build"}])
   IO.puts("Seeded: component-a (C2 — fan-out from upstream-lib)")
 else
   IO.puts("Pipeline 'component-a' already exists")
@@ -204,7 +204,7 @@ unless Repo.get_by(Pipeline, name: "component-b") do
   up = Repo.get_by!(Pipeline, name: "upstream-lib")
   Seeds.FanInOut.create_pipeline("component-b", "demo", "build", "test",
     "tested component-b with lib",
-    [%{type: "pipeline", pipeline_name: "upstream-lib", stage_name: "build"}])
+    [%{type: "dependency", url: "upstream-lib", stage_name: "build"}])
   IO.puts("Seeded: component-b (C3 — fan-out from upstream-lib)")
 else
   IO.puts("Pipeline 'component-b' already exists")
@@ -215,8 +215,8 @@ unless Repo.get_by(Pipeline, name: "integration-pipeline") do
   Seeds.FanInOut.create_pipeline("integration-pipeline", "demo", "integrate", "package",
     "packaged integration with all components",
     [
-      %{type: "pipeline", pipeline_name: "component-a", stage_name: "build"},
-      %{type: "pipeline", pipeline_name: "component-b", stage_name: "build"}
+      %{type: "dependency", url: "component-a", stage_name: "build"},
+      %{type: "dependency", url: "component-b", stage_name: "build"}
     ])
   IO.puts("Seeded: integration-pipeline (fan-in gate — depends on component-a + component-b)")
 else
@@ -228,7 +228,7 @@ unless Repo.get_by(Pipeline, name: "downstream-app") do
   up = Repo.get_by!(Pipeline, name: "upstream-lib")
   Seeds.FanInOut.create_pipeline("downstream-app", "demo", "package", "bundle",
     "packaged app with upstream lib",
-    [%{type: "pipeline", pipeline_name: "upstream-lib", stage_name: "build"}])
+    [%{type: "dependency", url: "upstream-lib", stage_name: "build"}])
   IO.puts("Seeded: downstream-app (legacy chain)")
 else
   IO.puts("Pipeline 'downstream-app' already exists")
