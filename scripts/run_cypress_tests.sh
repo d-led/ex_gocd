@@ -47,7 +47,10 @@ echo "===================================================="
 
 # Run Cypress with the base URL override and select spec list (excluding agent daemon E2E specs)
 exit_code=0
-CYPRESS_BASE_URL=http://localhost:4001 npm run cypress:run -- --spec "cypress/e2e/agents.cy.js,cypress/e2e/dashboard.cy.js,cypress/e2e/history.cy.js,cypress/e2e/materials.cy.js,cypress/e2e/pipeline_config.cy.js" ${CYPRESS_OPTS:-} || exit_code=$?
+# Default spec pattern: exclude screenshot-focused test files + tests needing DB/mock fixes
+CYPRESS_SPECS="${CYPRESS_SPECS:-cypress/e2e/dashboard.cy.js,cypress/e2e/history.cy.js,cypress/e2e/materials.cy.js,cypress/e2e/navigation.cy.js,cypress/e2e/pipeline_config.cy.js,cypress/e2e/agents.cy.js}"
+
+CYPRESS_BASE_URL=http://localhost:4001 npm run cypress:run -- --spec "$CYPRESS_SPECS" || exit_code=$?
 
 
 if [ $exit_code -ne 0 ]; then

@@ -5,7 +5,7 @@
   "private": true,
   "scripts": {
     "cypress:open": "cypress open",
-    "cypress:run": "cypress run --browser chrome --spec 'cypress/e2e/!(screenshot|screenshot-dashboards).cy.js'",
+    "cypress:run": "cypress run --browser chrome",
     "screenshots": "cypress run --browser chrome --spec cypress/e2e/screenshot.cy.js",
     "screenshots:dashboards": "cypress run --browser chrome --spec cypress/e2e/screenshot-dashboards.cy.js"
   },

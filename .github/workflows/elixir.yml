@@ -65,7 +65,7 @@ jobs:
         go test ./...
 
     - name: Publish Elixir Test Results
-      uses: dorny/test-reporter@v1
+      uses: dorny/test-reporter@v2
       if: always()
       with:
         name: Elixir Unit Tests
@@ -180,9 +180,9 @@ jobs:
           otp-version: '29.0'
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install Elixir and Node dependencies
@@ -192,12 +192,14 @@ jobs:
 
       - name: Run Cypress tests
         run: |
+          mkdir -p cypress/results
           bash scripts/run_cypress_tests.sh
         env:
-          CYPRESS_OPTS: "--reporter junit --reporter-options mochaFile=cypress/results/results-[hash].xml"
+          CYPRESS_REPORTER: junit
+          CYPRESS_REPORTER_OPTIONS: "mochaFile=cypress/results/results-[hash].xml"
 
       - name: Publish Cypress Test Results
-        uses: dorny/test-reporter@v1
+        uses: dorny/test-reporter@v2
         if: always()
         with:
           name: Cypress E2E Tests
