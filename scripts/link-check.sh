@@ -1,31 +1,32 @@
 #!/usr/bin/env bash
 # Link checker quality gate — checks only localhost internal links.
-# Uses muffet (Go-based, fast, detects loops).
-# Skips external links (--exclude '^(?!http://localhost)')
+# Uses lychee (Rust-based, fast, low memory).
+# Skips external links.
 set -euo pipefail
 
 BASE_URL="${1:-http://localhost:4000}"
-MUFFET="$(go env GOPATH)/bin/muffet"
+LYCHEE="$(which lychee 2>/dev/null || echo '')"
 
-if ! command -v "$MUFFET" &>/dev/null; then
-  echo "[SKIP] muffet not installed (run: go install github.com/raviqqe/muffet/v2@latest)"
+if [ -z "$LYCHEE" ]; then
+  echo "[SKIP] lychee not installed (run: brew install lychee)"
   exit 0
 fi
 
-echo "=== Link Checker (muffet) ==="
+echo "=== Link Checker (lychee) ==="
 
-# Run muffet: check only localhost links, max 1 connection, follow redirects, detect loops
-"$MUFFET" \
-  --buffer-size 4096 \
-  --max-connections-per-host 4 \
-  --max-redirections 5 \
+# lychee: check only localhost links, exclude external, low concurrency
+"$LYCHEE" \
+  --max-concurrency 2 \
+  --max-redirects 5 \
   --timeout 10 \
+  --accept 200,301,302,304 \
   --exclude 'https://github\.com/.*' \
   --exclude 'https://www\.mozilla\.org/.*' \
   --exclude 'mailto:' \
   --exclude '/assets/app\.css' \
   --exclude '/favicon.*\.png' \
   --exclude '^#' \
+  --no-progress \
   "$BASE_URL" 2>&1
 
 if [ $? -eq 0 ]; then

@@ -4,6 +4,7 @@ defmodule ExGoCDWeb.ApiSpec do
 
   Auto-generates paths from the Phoenix router routes.
   Uses route metadata (controller, action) to produce basic operation entries.
+  Only API controllers are included; UI/auth routes are excluded.
   Served at /api/openapi (JSON) and /swaggerui (Swagger UI).
   """
   @behaviour OpenApiSpex.OpenApi
@@ -12,6 +13,47 @@ defmodule ExGoCDWeb.ApiSpec do
   alias ExGoCDWeb.{Endpoint, Router}
 
   @valid_methods MapSet.new(~w(get put post delete options head patch trace)a)
+
+  # ── controllers whose routes appear in the spec ──────────────────────
+
+  @api_controllers %{
+    # namespace ExGoCDWeb.API
+    ExGoCDWeb.API.AgentController => "Agents",
+    ExGoCDWeb.API.PipelineOperationsController => "Pipeline Operations",
+    ExGoCDWeb.API.PipelineInstanceController => "Pipeline Instances",
+    ExGoCDWeb.API.StageController => "Stages",
+    ExGoCDWeb.API.JobController => "Jobs",
+    ExGoCDWeb.API.BuildConsoleController => "Builds",
+    ExGoCDWeb.API.UserController => "Users",
+    ExGoCDWeb.API.WebhookController => "Webhooks",
+    ExGoCDWeb.API.DashboardController => "Dashboard",
+    ExGoCDWeb.API.VersionController => "Version",
+    ExGoCDWeb.API.StatsController => "Stats",
+    ExGoCDWeb.API.AnalyticsController => "Analytics",
+    ExGoCDWeb.API.ConfigRepoController => "Config Repos",
+    ExGoCDWeb.API.PersonalAccessTokenController => "Access Tokens",
+    ExGoCDWeb.API.TestController => "Test Helpers",
+    # namespace ExGoCDWeb.API.Admin
+    ExGoCDWeb.API.Admin.PipelineConfigController => "Pipeline Config",
+    ExGoCDWeb.API.Admin.TemplateController => "Templates",
+    ExGoCDWeb.API.Admin.EnvironmentController => "Environments",
+    ExGoCDWeb.API.Admin.MaintenanceModeController => "Maintenance Mode",
+    ExGoCDWeb.API.Admin.BackupController => "Backup",
+    # non-API-namespaced controllers that serve data (not UI)
+    ExGoCDWeb.AdminAgentController => "Agents",
+    ExGoCDWeb.AgentRemotingController => "Agent Remoting",
+    ExGoCDWeb.ArtifactsController => "Artifacts",
+    ExGoCDWeb.ValueStreamMapController => "Value Stream Map",
+    ExGoCDWeb.CCTrayController => "CCTray",
+  }
+
+  # ── tags derived from controller map (sorted by name) ───────────────
+
+  @tags @api_controllers
+        |> Map.values()
+        |> Enum.uniq()
+        |> Enum.sort()
+        |> Enum.map(&%Tag{name: &1})
 
   @impl OpenApi
   def spec do
@@ -28,23 +70,7 @@ defmodule ExGoCDWeb.ApiSpec do
         """
       },
       paths: build_paths(),
-      tags: [
-        %Tag{name: "Agents", description: "Agent registration and management"},
-        %Tag{name: "Pipelines", description: "Pipeline triggers, pause, unlock, schedule"},
-        %Tag{name: "Materials", description: "Material polling and notifications"},
-        %Tag{name: "Stages", description: "Stage instances and operations"},
-        %Tag{name: "Jobs", description: "Job history and console logs"},
-        %Tag{name: "Version", description: "Server version information"},
-        %Tag{name: "Admin", description: "Administrative operations"},
-        %Tag{name: "Config Repos", description: "Config repository management"},
-        %Tag{name: "Users", description: "User and permission management"},
-        %Tag{name: "Dashboard", description: "Pipeline dashboard"},
-        %Tag{name: "CCTray", description: "CCTray XML feed"},
-        %Tag{name: "Stats", description: "Server statistics"},
-        %Tag{name: "Webhooks", description: "SCM webhook receivers"},
-        %Tag{name: "Backup", description: "Server backup operations"},
-        %Tag{name: "Artifacts", description: "Artifact download and cleanup"},
-      ]
+      tags: @tags
     }
     |> OpenApiSpex.resolve_schema_modules()
   end
@@ -60,27 +86,30 @@ defmodule ExGoCDWeb.ApiSpec do
 
   defp build_paths do
     Router.__routes__()
-    |> Enum.filter(fn route -> MapSet.member?(@valid_methods, route.verb) end)
+    |> Enum.filter(&api_route?/1)
     |> Enum.group_by(&route_path/1)
     |> Enum.map(fn {path, routes} ->
       ops =
         routes
         |> Enum.map(&build_operation/1)
-        |> Enum.reduce(%{}, fn {method, op}, acc ->
-          Map.put(acc, method, op)
-        end)
+        |> Enum.reduce(%{}, fn {method, op}, acc -> Map.put(acc, method, op) end)
 
       {path, struct!(PathItem, ops)}
     end)
     |> Enum.into(%{})
   end
 
+  defp api_route?(route) do
+    MapSet.member?(@valid_methods, route.verb) and
+      Map.has_key?(@api_controllers, route.plug)
+  end
+
   defp route_path(route), do: route.path
 
   defp build_operation(route) do
     method = route.verb
-    tag = route_tag(route)
-    summary = "#{method |> to_string() |> String.upcase()} #{tag}"
+    tag = Map.fetch!(@api_controllers, route.plug)
+    summary = summary(method, tag, route)
 
     {method,
      %Operation{
@@ -95,6 +124,16 @@ defmodule ExGoCDWeb.ApiSpec do
      }}
   end
 
+  defp summary(method, tag, route) do
+    action =
+      case Map.get(route, :plug_opts) || Map.get(route, :opts) do
+        action when is_atom(action) -> " · #{action}"
+        _ -> ""
+      end
+
+    "#{method |> to_string() |> String.upcase()} #{tag}#{action}"
+  end
+
   defp operation_id(route) do
     opts =
       case Map.get(route, :plug_opts) || Map.get(route, :opts) do
@@ -103,30 +142,5 @@ defmodule ExGoCDWeb.ApiSpec do
       end
 
     "#{route.plug}#{opts}"
-  end
-
-  @tag_patterns [
-    {"/agents", "Agents"},
-    {"/pipelines", "Pipelines"},
-    {"/materials", "Materials"},
-    {"/stage", "Stages"},
-    {"/job", "Jobs"},
-    {"/version", "Version"},
-    {"/admin", "Admin"},
-    {"/config_repo", "Config Repos"},
-    {"/users", "Users"},
-    {"/dashboard", "Dashboard"},
-    {"/cctray", "CCTray"},
-    {"/stats", "Stats"},
-    {"/webhooks", "Webhooks"},
-    {"/backup", "Backup"},
-    {"/artifacts", "Artifacts"},
-  ]
-
-  defp route_tag(route) do
-    path = route_path(route)
-    Enum.find_value(@tag_patterns, "General", fn {pattern, tag} ->
-      if String.contains?(path, pattern), do: tag
-    end)
   end
 end
