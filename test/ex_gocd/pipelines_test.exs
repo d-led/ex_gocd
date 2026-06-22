@@ -307,6 +307,79 @@ defmodule ExGoCD.PipelinesTest do
     {pipeline, %{template: template |> Repo.preload(stages: [jobs: :tasks]), stage: stage, jobs: jobs}}
   end
 
+  describe "downstream triggering (fan-in/fan-out)" do
+    test "last stage completion triggers downstream pipeline with dependency material" do
+      # Create upstream pipeline
+      up = Repo.insert!(%Pipeline{} |> Pipeline.changeset(%{name: "upstream-fanout", group: "test"}))
+      up_stage = Repo.insert!(%Stage{} |> Stage.changeset(%{name: "build", pipeline_id: up.id, approval_type: "success"}))
+      up_job = Repo.insert!(%Job{} |> Job.changeset(%{name: "compile", stage_id: up_stage.id, resources: []}))
+      Repo.insert!(%Task{} |> Task.changeset(%{type: "exec", command: "echo", arguments: ["ok"], job_id: up_job.id}))
+
+      # Create downstream pipeline with dependency material
+      down = Repo.insert!(%Pipeline{} |> Pipeline.changeset(%{name: "downstream-fanout-recv", group: "test"}))
+      Repo.insert!(%Stage{} |> Stage.changeset(%{name: "package", pipeline_id: down.id, approval_type: "success"}))
+      mat = Repo.insert!(%ExGoCD.Pipelines.Material{} |> ExGoCD.Pipelines.Material.changeset(%{
+        type: "dependency", url: "upstream-fanout"
+      }))
+      # Link material to pipeline via many_to_many
+      down = Repo.preload(down, :materials)
+      down
+      |> Ecto.Changeset.change()
+      |> Ecto.Changeset.put_assoc(:materials, [mat | down.materials])
+      |> Repo.update!()
+
+      # Trigger and complete upstream pipeline
+      {:ok, instance} = Pipelines.trigger_pipeline("upstream-fanout")
+      [si] = from(StageInstance, where: [pipeline_instance_id: ^instance.id]) |> Repo.all()
+      [ji] = from(JobInstance, where: [stage_instance_id: ^si.id]) |> Repo.all()
+
+      # Complete the job → this triggers stage completion → downstream trigger
+      Pipelines.complete_job_instance(ji.id, "Passed")
+
+      # Verify downstream was triggered
+      down_instance = Repo.one(from(pi in ExGoCD.Pipelines.PipelineInstance,
+        join: p in assoc(pi, :pipeline), where: p.name == "downstream-fanout-recv", order_by: [desc: pi.id], limit: 1))
+      assert down_instance != nil
+      assert down_instance.counter == 1
+    end
+
+    test "fan-out: one upstream triggers two downstream pipelines" do
+      # Create upstream
+      up = Repo.insert!(%Pipeline{} |> Pipeline.changeset(%{name: "fanout-source", group: "test"}))
+      up_stage = Repo.insert!(%Stage{} |> Stage.changeset(%{name: "build", pipeline_id: up.id, approval_type: "success"}))
+      up_job = Repo.insert!(%Job{} |> Job.changeset(%{name: "compile", stage_id: up_stage.id, resources: []}))
+      Repo.insert!(%Task{} |> Task.changeset(%{type: "exec", command: "echo", arguments: ["ok"], job_id: up_job.id}))
+
+      # Create two downstreams with dependency materials
+      for suffix <- ["a", "b"] do
+        down = Repo.insert!(%Pipeline{} |> Pipeline.changeset(%{name: "fanout-down-#{suffix}", group: "test"}))
+        Repo.insert!(%Stage{} |> Stage.changeset(%{name: "pack", pipeline_id: down.id, approval_type: "success"}))
+        mat = Repo.insert!(%ExGoCD.Pipelines.Material{} |> ExGoCD.Pipelines.Material.changeset(%{
+          type: "dependency", url: "fanout-source"
+        }))
+        down = Repo.preload(down, :materials)
+        down
+        |> Ecto.Changeset.change()
+        |> Ecto.Changeset.put_assoc(:materials, [mat | down.materials])
+        |> Repo.update!()
+      end
+
+      # Trigger and complete upstream
+      {:ok, instance} = Pipelines.trigger_pipeline("fanout-source")
+      [si] = from(StageInstance, where: [pipeline_instance_id: ^instance.id]) |> Repo.all()
+      [ji] = from(JobInstance, where: [stage_instance_id: ^si.id]) |> Repo.all()
+      Pipelines.complete_job_instance(ji.id, "Passed")
+
+      # Both downstreams triggered
+      for suffix <- ["a", "b"] do
+        name = "fanout-down-#{suffix}"
+        inst = Repo.one(from(pi in ExGoCD.Pipelines.PipelineInstance,
+          join: p in assoc(pi, :pipeline), where: p.name == ^name, order_by: [desc: pi.id], limit: 1))
+        assert inst != nil, "downstream #{suffix} should be triggered"
+      end
+    end
+  end
+
   defp insert_pipeline_with_jobs(name, job_count) when job_count >= 1 do
     pipeline = Repo.insert!(%Pipeline{} |> Pipeline.changeset(%{name: name, group: "test"}))
     stage = Repo.insert!(%Stage{} |> Stage.changeset(%{name: "build", pipeline_id: pipeline.id, approval_type: "success"}))
