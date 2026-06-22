@@ -48,6 +48,7 @@ const AgentsUpdates = {
 
 const VSMGraph = {
   mounted() {
+    console.log("[VSM] mounted");
     this._persistentHighlight = null;
     this.drawLines();
     this.resizeObserver = new ResizeObserver(() => this.drawLines());
@@ -55,6 +56,7 @@ const VSMGraph = {
     window.addEventListener("resize", this.handleResize = () => this.drawLines());
   },
   updated() {
+    console.log("[VSM] updated");
     this.drawLines();
   },
   destroyed() {
@@ -182,10 +184,17 @@ const VSMGraph = {
           path.dataset.targetId = depId;
 
           const self = this;
-          hit.addEventListener("mouseenter", () => self._highlight(hit, svg));
-          hit.addEventListener("mouseleave", () => self._unhighlight(svg));
+          hit.addEventListener("mouseenter", () => {
+            console.log("[VSM] mouseenter", { src: sourceId, tgt: depId });
+            self._highlight(hit, svg);
+          });
+          hit.addEventListener("mouseleave", () => {
+            console.log("[VSM] mouseleave", { src: sourceId, tgt: depId });
+            self._unhighlight(svg);
+          });
           hit.addEventListener("click", (e) => {
             e.stopPropagation();
+            console.log("[VSM] click", { src: sourceId, tgt: depId, persistent: self._persistentHighlight !== null });
             self._togglePersistent(hit, svg);
           });
 
@@ -193,6 +202,7 @@ const VSMGraph = {
           svg.appendChild(path);
         });
       });
+      console.log("[VSM] drawLines done", { narrow, pathCount: svg.querySelectorAll(".vsm-path").length });
     }, 0);
   },
 
@@ -201,6 +211,7 @@ const VSMGraph = {
   _highlight(path, svg) {
     const src = path.dataset.sourceId;
     const tgt = path.dataset.targetId;
+    console.log("[VSM] _highlight", { src, tgt });
     const all = svg.querySelectorAll(".vsm-path");
     all.forEach(p => {
       const isHovered = p.dataset.sourceId === src && p.dataset.targetId === tgt;
@@ -208,13 +219,13 @@ const VSMGraph = {
       if (isHit) {
         p.style.opacity = "1";
       } else if (isHovered) {
-        p.setAttribute("stroke", "#e53e3e");
-        p.setAttribute("stroke-width", "4");
+        p.setAttribute("stroke", "#000000");
+        p.setAttribute("stroke-width", "5");
         p.style.opacity = "1";
       } else {
-        p.setAttribute("stroke", "#cbd5e0");
+        p.setAttribute("stroke", "#ff00ff");
         p.setAttribute("stroke-width", "1");
-        p.style.opacity = "0.3";
+        p.style.opacity = "0.5";
       }
     });
 
