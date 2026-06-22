@@ -166,3 +166,110 @@ See [vsm_parity_plan.md](vsm_parity_plan.md) for full details. All 5 phases comp
 - Phase 3: UI with FI/FO badges, trigger panel, clickable nodes
 - Phase 4: breadcrumbs, dashboard/activity/stage VSM links
 - Phase 5: mobile responsive, aria-labels, Cypress E2E
+
+---
+
+## Part F: Analytics — Parity with gocd-analytics-plugin 🔴
+
+Reference implementation: `../gocd-analytics-plugin/`
+
+GoCD Analytics provides 4 dashboard types. Our `/analytics/global` page needs parity:
+
+### F.1 VSM Analytics
+- Pipeline lead time distribution (histogram)
+- Material to pipeline completion time
+- Bottleneck detection across pipeline chains
+
+### F.2 Pipeline Analytics  
+- Pipeline run frequency over time
+- Pass/fail ratio charts
+- Build duration trends
+- Stage/job duration breakdowns
+
+### F.3 Agent Analytics
+- Agent utilization over time
+- Idle vs building ratio
+- Per-agent work distribution charts
+
+### F.4 Global Analytics
+- Cross-pipeline overview metrics
+- System-wide throughput
+- Aggregate success rates
+
+**Status**: `/analytics/global` renders basic stats. Charts and time-series missing.
+**Priority**: P2. Depends on agent utilization snapshots and pipeline metric collection.
+
+---
+
+## Part G: Pipeline Fan-In / Fan-Out (Material Chaining) 🔴
+
+GoCD supports upstream pipeline outputs as downstream pipeline materials:
+- Pipeline A produces artifacts → Pipeline B consumes them as material
+- Automatic trigger when upstream completes
+- VSM shows cross-pipeline dependencies
+
+### G.1 Do we have this?
+- `PipelineMaterialRevision` schema exists for pipeline-type materials
+- Fan-in resolver (`FanInResolver`) validates consistency
+- NOT demonstrated in demo/seed pipelines
+
+### G.2 Needed
+- Seed demo pipelines showing fan-in/fan-out chain
+- UI: pipeline material type in config editor
+- VSM: cross-pipeline dependency edges
+- Dashboard: show downstream pipelines triggered by material
+
+**Priority**: P1. Core GoCD feature, needs demo.
+
+---
+
+## Part H: Config Repositories 🔴
+
+### H.1 Design clarification
+Config repos DO NOT require checkout to disk. They represent pipeline-as-code definitions stored in git. The server pulls YAML/JSON pipeline definitions and upserts them into the DB. There is no workspace checkout.
+
+### H.2 Current state
+- `ConfigRepo` schema: url, branch, material_type, source_type
+- `ConfigRepos` context: CRUD, list
+- Admin UI: `/admin/config_repos` — lists repos, sync button
+- External CI wizard: `/admin/config_repos/new` — manual entry, no guided wizard
+
+### H.3 Gaps
+- **Wizard persistence**: when re-syncing, forgets previously configured details. Must remember on re-sync.
+- **Dashboard visibility**: config repos with `source_type: "gocd_pipeline"` should show which pipelines they created on the dashboard (config_repo_id FK on pipelines)
+- **Pipeline group/label from config repo**: auto-assign pipeline group based on config repo metadata
+- **Error reporting**: if a config repo fails to parse, show error on admin page
+- **Auto-polling**: periodic git pull of config repos (existing Poller infrastructure can be reused)
+
+**Priority**: P1. Dogfooding blocked until wizard works with persistence.
+
+---
+
+## Part I: Console Log Viewer 🔴
+
+GoCD console log features we need parity with:
+- Toggle timestamps on/off in log view
+- Clickable links to individual log lines (anchors)
+- Collapsible log sections (fold/unfold ANSI regions)
+- Live log following (auto-scroll to bottom)
+- Log search/highlight within a job
+
+**Status**: Basic console log display exists. None of the above implemented.
+**Priority**: P2. High user impact for debugging.
+
+---
+
+## Part J: Quick Win Sprint (this week)
+
+| # | Item | Effort |
+|---|------|--------|
+| J.1 | Pipeline config admin `index` action | S — route exists, 1 missing handler |
+| J.2 | Artifact MD5 verify on downstream fetch | S — checksums already computed |
+| J.3 | Job comment API | S — 1 new controller action |
+| J.4 | Config repo wizard persistence | M — store previous config in session/params |
+| J.5 | Fan-in/fan-out demo seeds | S — seed 2 chained pipelines |
+| J.6 | Config repo → pipeline dashboard mapping | S — show config_repo_id on pipeline cards |
+
+---
+
+*Plan updated 2026-06-22. Next: execute Part J Sprint.*

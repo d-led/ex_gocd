@@ -144,6 +144,69 @@ else
   IO.puts("Config repo already seeded, skipping")
 end
 
+# ── Fan-in / Fan-out demo: chained pipelines ────────────────────────────
+# upstream-pipeline produces artifacts → downstream-pipeline consumes them
+alias ExGoCD.Pipelines.Material
+
+# Upstream: builds a library
+unless Repo.get_by(Pipeline, name: "upstream-lib") do
+  up = %Pipeline{}
+    |> Pipeline.changeset(%{name: "upstream-lib", group: "demo"})
+    |> Repo.insert!()
+
+  up_stage = %Stage{}
+    |> Stage.changeset(%{name: "build", pipeline_id: up.id, approval_type: "success"})
+    |> Repo.insert!()
+
+  up_job = %Job{}
+    |> Job.changeset(%{name: "compile", stage_id: up_stage.id, resources: ["elixir"]})
+    |> Repo.insert!()
+
+  %Task{}
+    |> Task.changeset(%{type: "exec", command: "echo", arguments: ["built lib v1.0"], job_id: up_job.id})
+    |> Repo.insert!()
+
+  # Add git material to upstream
+  Repo.insert!(%Material{} |> Material.changeset(%{
+    type: "git", url: "https://github.com/d-led/ex_gocd.git",
+    branch: "main", pipeline_id: up.id
+  }))
+
+  IO.puts("Seeded: upstream-lib pipeline (fan-out source)")
+else
+  IO.puts("Pipeline 'upstream-lib' already exists")
+end
+
+# Downstream: depends on upstream-lib output
+unless Repo.get_by(Pipeline, name: "downstream-app") do
+  down = %Pipeline{}
+    |> Pipeline.changeset(%{name: "downstream-app", group: "demo"})
+    |> Repo.insert!()
+
+  down_stage = %Stage{}
+    |> Stage.changeset(%{name: "package", pipeline_id: down.id, approval_type: "success"})
+    |> Repo.insert!()
+
+  down_job = %Job{}
+    |> Job.changeset(%{name: "bundle", stage_id: down_stage.id, resources: ["elixir"]})
+    |> Repo.insert!()
+
+  %Task{}
+    |> Task.changeset(%{type: "exec", command: "echo", arguments: ["packaged app with upstream lib"], job_id: down_job.id})
+    |> Repo.insert!()
+
+  # Add pipeline material: depends on upstream-lib
+  up = Repo.get_by!(Pipeline, name: "upstream-lib")
+  Repo.insert!(%Material{} |> Material.changeset(%{
+    type: "pipeline", pipeline_name: "upstream-lib", stage_name: "build",
+    pipeline_id: down.id
+  }))
+
+  IO.puts("Seeded: downstream-app pipeline (fan-in: depends on upstream-lib)")
+else
+  IO.puts("Pipeline 'downstream-app' already exists")
+end
+
 alias ExGoCD.AgentJobRuns.AgentJobRun
 
 unless Repo.get_by(AgentJobRun, build_id: "demo-build-1") do
