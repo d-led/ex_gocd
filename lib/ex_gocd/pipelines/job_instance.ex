@@ -40,9 +40,9 @@ defmodule ExGoCD.Pipelines.JobInstance do
     field :state, :string, default: "Scheduled"
     field :result, :string, default: "Unknown"
     field :agent_uuid, :string
-    field :scheduled_at, :naive_datetime
-    field :assigned_at, :naive_datetime
-    field :completed_at, :naive_datetime
+    field :scheduled_at, :utc_datetime_usec
+    field :assigned_at, :utc_datetime_usec
+    field :completed_at, :utc_datetime_usec
     field :run_on_all_agents, :boolean, default: false
     field :run_multiple_instance, :boolean, default: false
     field :ignored, :boolean, default: false

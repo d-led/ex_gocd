@@ -4,15 +4,31 @@ defmodule ExGoCDWeb.AdminSchedulingLiveTest do
   import Phoenix.LiveViewTest
   import ExGoCD.PipelinesFixtures
 
-  alias ExGoCD.{Agents, Repo}
-  alias ExGoCD.Pipelines.{Job, JobInstance, Pipeline, Stage, StageInstance, Task}
-  alias ExGoCD.PipelinesFixtures
+  alias ExGoCD.{Accounts, Agents, Repo}
+  alias ExGoCD.Pipelines.{Job, Stage, Task}
 
   @agent_a_uuid "550e8400-e29b-41d4-a716-446655440001"
   @agent_b_uuid "550e8400-e29b-41d4-a716-446655440002"
   @agent_c_uuid "550e8400-e29b-41d4-a716-446655440003"
 
   setup do
+    # Create admin user so admin_configured? returns true
+    {:ok, _} =
+      Accounts.create_user(%{
+        username: "admin",
+        display_name: "System Administrator",
+        roles: ["admin"],
+        status: "Active"
+      })
+
+    {:ok, _} =
+      Accounts.create_user(%{
+        username: "viewer",
+        display_name: "Guest",
+        roles: [],
+        status: "Active"
+      })
+
     # Register agents with different capabilities
     {:ok, _} =
       Agents.register_agent(%{
@@ -89,45 +105,11 @@ defmodule ExGoCDWeb.AdminSchedulingLiveTest do
         type: "exec", command: "echo", arguments: ["hello"], job_id: job.id
       }))
 
-      now = DateTime.utc_now()
+      now = DateTime.utc_now() |> DateTime.truncate(:second)
+      pi = insert_pipeline_instance(pipeline.id, 1)
+      si = insert_stage_instance(pi.id, "build", state: "Building", result: "Unknown")
 
-      pi =
-        Repo.insert!(%ExGoCD.Pipelines.PipelineInstance{
-          pipeline_id: pipeline.id,
-          counter: 1,
-          label: "1",
-          natural_order: 1.0,
-          build_cause: %{},
-          inserted_at: now,
-          updated_at: now
-        })
-
-      si =
-        Repo.insert!(%StageInstance{
-          pipeline_instance_id: pi.id,
-          stage_id: stage.id,
-          name: "build",
-          counter: 1,
-          order_id: 0,
-          state: "Building",
-          result: "Unknown",
-          approval_type: "success",
-          created_time: now,
-          inserted_at: now,
-          updated_at: now
-        })
-
-      Repo.insert!(%JobInstance{
-        stage_instance_id: si.id,
-        job_id: job.id,
-        name: "compile",
-        state: "Scheduled",
-        result: "Unknown",
-        identifier: "test-pipe/1/build/1/compile",
-        scheduled_at: now,
-        inserted_at: DateTime.add(now, -120, :second),
-        updated_at: now
-      })
+      insert_job_instance_unassigned(si.id, "compile", now)
 
       {:ok, _view, html} = live(conn, ~p"/admin/scheduling")
 
@@ -150,51 +132,17 @@ defmodule ExGoCDWeb.AdminSchedulingLiveTest do
         type: "exec", command: "echo", arguments: ["test"], job_id: job.id
       }))
 
-      now = DateTime.utc_now()
+      now = DateTime.utc_now() |> DateTime.truncate(:second)
+      pi = insert_pipeline_instance(pipeline.id, 1)
+      si = insert_stage_instance(pi.id, "build", state: "Building", result: "Unknown")
 
-      pi =
-        Repo.insert!(%ExGoCD.Pipelines.PipelineInstance{
-          pipeline_id: pipeline.id,
-          counter: 1,
-          label: "1",
-          natural_order: 1.0,
-          build_cause: %{},
-          inserted_at: now,
-          updated_at: now
-        })
-
-      si =
-        Repo.insert!(%StageInstance{
-          pipeline_instance_id: pi.id,
-          stage_id: stage.id,
-          name: "build",
-          counter: 1,
-          order_id: 0,
-          state: "Building",
-          result: "Unknown",
-          approval_type: "success",
-          created_time: now,
-          inserted_at: now,
-          updated_at: now
-        })
-
-      Repo.insert!(%JobInstance{
-        stage_instance_id: si.id,
-        job_id: job.id,
-        name: "test",
-        state: "Scheduled",
-        result: "Unknown",
-        identifier: "match-test/1/build/1/test",
-        scheduled_at: now,
-        inserted_at: now,
-        updated_at: now
-      })
+      insert_job_instance_unassigned(si.id, "test", now)
 
       {:ok, _view, html} = live(conn, ~p"/admin/scheduling")
 
       # Agent-linux has "linux" resource and is Idle → should match
       assert html =~ "agent-linux"
-      # Agent-gpu also has "linux" but is Building → should still match but show Building
+      # Agent-gpu also has "linux" but is Building → should still appear as matching
       assert html =~ "agent-gpu"
       # Ready to assign since there's at least one Idle matching agent
       assert html =~ "Ready to assign"
@@ -213,45 +161,11 @@ defmodule ExGoCDWeb.AdminSchedulingLiveTest do
         type: "exec", command: "python", arguments: ["train.py"], job_id: job.id
       }))
 
-      now = DateTime.utc_now()
+      now = DateTime.utc_now() |> DateTime.truncate(:second)
+      pi = insert_pipeline_instance(pipeline.id, 1)
+      si = insert_stage_instance(pi.id, "build", state: "Building", result: "Unknown")
 
-      pi =
-        Repo.insert!(%ExGoCD.Pipelines.PipelineInstance{
-          pipeline_id: pipeline.id,
-          counter: 1,
-          label: "1",
-          natural_order: 1.0,
-          build_cause: %{},
-          inserted_at: now,
-          updated_at: now
-        })
-
-      si =
-        Repo.insert!(%StageInstance{
-          pipeline_instance_id: pi.id,
-          stage_id: stage.id,
-          name: "build",
-          counter: 1,
-          order_id: 0,
-          state: "Building",
-          result: "Unknown",
-          approval_type: "success",
-          created_time: now,
-          inserted_at: now,
-          updated_at: now
-        })
-
-      Repo.insert!(%JobInstance{
-        stage_instance_id: si.id,
-        job_id: job.id,
-        name: "ai-train",
-        state: "Scheduled",
-        result: "Unknown",
-        identifier: "stuck-test/1/build/1/ai-train",
-        scheduled_at: now,
-        inserted_at: now,
-        updated_at: now
-      })
+      insert_job_instance_unassigned(si.id, "ai-train", now)
 
       {:ok, _view, html} = live(conn, ~p"/admin/scheduling")
 

@@ -172,7 +172,6 @@ defmodule ExGoCD.Scheduler do
   end
 
   def handle_call(:get_queue_state, _from, state) do
-    db_jobs = load_db_job_plans_for_diagnostics()
     in_memory_snapshot = Enum.map(state.in_memory_queue, &redact_job_spec/1)
 
     {:reply,
@@ -180,8 +179,7 @@ defmodule ExGoCD.Scheduler do
        pending_count: length(state.in_memory_queue) + state.db_pending_count,
        in_memory_count: length(state.in_memory_queue),
        db_count: state.db_pending_count,
-       in_memory_jobs: in_memory_snapshot,
-       db_jobs: db_jobs
+       in_memory_jobs: in_memory_snapshot
      }, state}
   end
 
@@ -657,7 +655,8 @@ defmodule ExGoCD.Scheduler do
   defp ensure_non_empty_cmds(cmds), do: cmds
 
   # Helper to resolve environment name for a pipeline (using database or fallback)
-  defp get_pipeline_environments(pipeline_name) do
+  @doc false
+  def get_pipeline_environments(pipeline_name) do
     if mock_mode?() do
       get_mock_pipeline_environments(pipeline_name)
     else
@@ -946,44 +945,6 @@ defmodule ExGoCD.Scheduler do
     _ -> fallback
   catch
     _, _ -> fallback
-  end
-
-  # Loads scheduled JobInstances with full details for diagnostic display.
-  # Includes inserted_at for "how long has it been waiting" calculation.
-  defp load_db_job_plans_for_diagnostics do
-    safe_db(
-      fn ->
-        JobInstance
-        |> where(state: "Scheduled")
-        |> order_by(asc: :id)
-        |> Repo.all()
-        |> Repo.preload([:job, stage_instance: [pipeline_instance: :pipeline]])
-        |> Enum.map(fn ji ->
-          stage_instance = ji.stage_instance
-          pipeline_instance = stage_instance.pipeline_instance
-          pipeline = pipeline_instance.pipeline
-          job_config = ji.job
-
-          resources = (job_config && job_config.resources) || []
-          envs = get_pipeline_environments(pipeline.name)
-
-          %{
-            job_instance_id: ji.id,
-            pipeline_name: pipeline.name,
-            pipeline_counter: pipeline_instance.counter,
-            stage_name: stage_instance.name,
-            stage_counter: stage_instance.counter,
-            job_name: ji.name,
-            resources: resources,
-            environments: envs,
-            agent_uuid: ji.agent_uuid,
-            scheduled_at: ji.scheduled_at,
-            inserted_at: ji.inserted_at
-          }
-        end)
-      end,
-      []
-    )
   end
 
   # Redacts internal fields from an in-memory job spec for diagnostics display.

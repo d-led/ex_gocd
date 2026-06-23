@@ -591,7 +591,6 @@ defmodule ExGoCD.Pipelines do
     pipeline = stage_instance.pipeline_instance.pipeline
     pipeline_counter = stage_instance.pipeline_instance.counter
     now = DateTime.utc_now()
-    scheduled_at = DateTime.to_naive(now)
 
     result =
       Repo.transaction(fn ->
@@ -610,7 +609,7 @@ defmodule ExGoCD.Pipelines do
             pipeline.name,
             pipeline_counter,
             stage_config.name,
-            scheduled_at
+            now
           )
 
         {updated_si, job_instances}
@@ -875,8 +874,6 @@ defmodule ExGoCD.Pipelines do
           })
           |> Repo.insert!()
 
-        scheduled_at = DateTime.to_naive(now)
-
         job_instances =
           Enum.flat_map(first_stage.jobs, fn job ->
             count = instance_count_for_job(job, idle_count)
@@ -884,7 +881,7 @@ defmodule ExGoCD.Pipelines do
             run_multiple = job.run_instance_count not in [nil, ""]
 
             for i <- 1..count do
-              insert_job_instance(job, pipeline, stage_instance, first_stage, scheduled_at,
+              insert_job_instance(job, pipeline, stage_instance, first_stage, now,
                 run_on_all: run_on_all,
                 run_multiple: run_multiple,
                 count: count,
@@ -1391,8 +1388,6 @@ defmodule ExGoCD.Pipelines do
       })
       |> Repo.insert!()
 
-    scheduled_at = DateTime.to_naive(now)
-
     job_instances =
       Enum.map(jobs_to_run, fn job ->
         %JobInstance{}
@@ -1402,7 +1397,7 @@ defmodule ExGoCD.Pipelines do
           name: job.name,
           state: "Scheduled",
           result: "Unknown",
-          scheduled_at: scheduled_at,
+          scheduled_at: now,
           run_on_all_agents: job.run_on_all_agents || false,
           run_multiple_instance: false,
           identifier:
@@ -1768,7 +1763,6 @@ defmodule ExGoCD.Pipelines do
         new_stage_instance =
           insert_next_stage_instance(pipeline_instance.id, next_stage, current_idx, now)
 
-        scheduled_at = DateTime.to_naive(now)
         next_stage_config = Repo.preload(next_stage, jobs: :tasks)
 
         job_instances =
@@ -1778,7 +1772,7 @@ defmodule ExGoCD.Pipelines do
             pipeline.name,
             pipeline_instance.counter,
             next_stage.name,
-            scheduled_at
+            now
           )
 
         {new_stage_instance, next_stage_config, job_instances}

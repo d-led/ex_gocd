@@ -129,5 +129,107 @@ defmodule ExGoCDWeb.JobDetailsLiveTest do
       assert html_after =~ "border-[#2d6ca2]"
       assert html_after =~ "phx-value-tab=\"tests\""
     end
+
+    test "toggles line wrap", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/go/tab/build/detail/demo/1/build/1/default")
+
+      # Initially wrap is enabled (checkbox checked)
+      wrap_cb = element(view, "#toggle-wrap")
+      assert render(view) =~ "checked"
+
+      # Click toggle-wrap
+      view
+      |> element("#toggle-wrap")
+      |> render_click()
+
+      # Should now be unchecked
+      refute render(view) =~ ~s(id="toggle-wrap"[^>]*checked)
+    end
+  end
+
+  describe "fold parsing" do
+    setup do
+      {:ok, _run} =
+        %AgentJobRun{}
+        |> AgentJobRun.changeset(%{
+          build_id: "test-fold-001",
+          pipeline_name: "demo",
+          pipeline_counter: 2,
+          stage_name: "build",
+          stage_counter: 1,
+          job_name: "default",
+          state: "Completed",
+          result: "Passed",
+          agent_uuid: "550e8400-e29b-41d4-a716-446655440000",
+          console_log:
+            "##[fold]Setup\e[0m\ninstalling deps\n##[fold]Nested Section\nnested content\n##[endfold]\nmore setup\n##[endfold]\nfinal line\n"
+        })
+        |> Repo.insert()
+
+      :ok
+    end
+
+    test "renders fold-start headers with fold names", %{conn: conn} do
+      conn = get(conn, ~p"/go/tab/build/detail/demo/2/build/1/default")
+      html = html_response(conn, 200)
+
+      assert html =~ "Setup"
+      assert html =~ "Nested Section"
+    end
+
+    test "fold headers have fold-start class", %{conn: conn} do
+      conn = get(conn, ~p"/go/tab/build/detail/demo/2/build/1/default")
+      html = html_response(conn, 200)
+
+      assert html =~ "fold-start"
+    end
+
+    test "ANSI codes are stripped from fold names", %{conn: conn} do
+      conn = get(conn, ~p"/go/tab/build/detail/demo/2/build/1/default")
+      html = html_response(conn, 200)
+
+      refute html =~ ~r{\\e\[0m}
+    end
+  end
+
+  describe "stream limit" do
+    setup do
+      lines = for i <- 1..1200, do: "line #{i}"
+      log = Enum.join(lines, "\n")
+
+      {:ok, _run} =
+        %AgentJobRun{}
+        |> AgentJobRun.changeset(%{
+          build_id: "test-limit-001",
+          pipeline_name: "demo",
+          pipeline_counter: 3,
+          stage_name: "build",
+          stage_counter: 1,
+          job_name: "default",
+          state: "Completed",
+          result: "Passed",
+          agent_uuid: "550e8400-e29b-41d4-a716-446655440000",
+          console_log: log
+        })
+        |> Repo.insert()
+
+      :ok
+    end
+
+    test "shows truncation banner when line_count exceeds 1000", %{conn: conn} do
+      conn = get(conn, ~p"/go/tab/build/detail/demo/3/build/1/default")
+      html = html_response(conn, 200)
+
+      assert html =~ "Showing the last 1,000 lines"
+      assert html =~ "Download Full Log"
+    end
+
+    test "first lines are dropped, last lines are visible", %{conn: conn} do
+      conn = get(conn, ~p"/go/tab/build/detail/demo/3/build/1/default")
+      html = html_response(conn, 200)
+
+      refute html =~ "line 1\n"
+      assert html =~ "line 1200"
+    end
   end
 end

@@ -47,13 +47,13 @@ defmodule ExGoCD.Pipelines.StageInstance do
     field :order_id, :integer
     field :state, :string
     field :result, :string, default: "Unknown"
-    field :approval_type, :string
+    field :approval_type, :string, default: "success"
     field :approved_by, :string
     field :cancelled_by, :string
     field :created_time, :utc_datetime
     field :last_transitioned_time, :utc_datetime
-    field :scheduled_at, :naive_datetime
-    field :completed_at, :naive_datetime
+    field :scheduled_at, :utc_datetime_usec
+    field :completed_at, :utc_datetime_usec
     field :fetch_materials, :boolean, default: true
     field :clean_working_dir, :boolean, default: false
     field :identifier, :string
@@ -103,8 +103,6 @@ defmodule ExGoCD.Pipelines.StageInstance do
       :counter,
       :order_id,
       :state,
-      :approval_type,
-      :created_time,
       :pipeline_instance_id
     ])
     |> validate_number(:counter, greater_than: 0)

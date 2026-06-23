@@ -13,6 +13,10 @@ defmodule ExGoCDWeb.AdminSchedulingLive do
   use ExGoCDWeb, :live_view
 
   alias ExGoCD.{Agents, Scheduler}
+  alias ExGoCD.Pipelines.JobInstance
+  alias ExGoCD.Repo
+
+  import Ecto.Query
 
   @impl true
   def mount(_params, _session, socket) do
@@ -79,11 +83,43 @@ defmodule ExGoCDWeb.AdminSchedulingLive do
     |> Enum.reject(&(&1.deleted == true))
   end
 
+  defp fetch_scheduled_db_jobs do
+    JobInstance
+    |> where(state: "Scheduled")
+    |> order_by(asc: :id)
+    |> Repo.all()
+    |> Repo.preload([:job, stage_instance: [pipeline_instance: :pipeline]])
+    |> Enum.map(fn ji ->
+      stage_instance = ji.stage_instance
+      pipeline_instance = stage_instance.pipeline_instance
+      pipeline = pipeline_instance.pipeline
+      job_config = ji.job
+
+      resources = (job_config && job_config.resources) || []
+      envs = ExGoCD.Scheduler.get_pipeline_environments(pipeline.name)
+
+      %{
+        job_instance_id: ji.id,
+        pipeline_name: pipeline.name,
+        pipeline_counter: pipeline_instance.counter,
+        stage_name: stage_instance.name,
+        stage_counter: stage_instance.counter,
+        job_name: ji.name,
+        resources: resources,
+        environments: envs,
+        agent_uuid: ji.agent_uuid,
+        scheduled_at: ji.scheduled_at,
+        inserted_at: ji.inserted_at
+      }
+    end)
+  end
+
   defp assign_match_analysis(socket) do
     agents = socket.assigns.agents
     queue_state = socket.assigns.queue_state
 
-    all_jobs = (queue_state.in_memory_jobs || []) ++ (queue_state.db_jobs || [])
+    db_jobs = fetch_scheduled_db_jobs()
+    all_jobs = (queue_state.in_memory_jobs || []) ++ db_jobs
 
     job_matches =
       Enum.map(all_jobs, fn job ->
@@ -140,55 +176,10 @@ defmodule ExGoCDWeb.AdminSchedulingLive do
 
     cond do
       is_binary(pinned) and pinned != "" ->
-        pinned_agent = Enum.find(all_agents, &(&1.uuid == pinned))
-
-        cond do
-          is_nil(pinned_agent) ->
-            "Pinned to agent #{String.slice(pinned, 0, 8)}… which is not registered"
-
-          pinned_agent.disabled == true ->
-            "Pinned to agent #{pinned_agent.hostname} which is disabled"
-
-          pinned_agent.state == "LostContact" ->
-            "Pinned to agent #{pinned_agent.hostname} which has lost contact"
-
-          pinned_agent.state == "Building" ->
-            "Pinned to agent #{pinned_agent.hostname} which is currently building"
-
-          true ->
-            nil
-        end
+        pinned_agent_reason(pinned, all_agents)
 
       Enum.empty?(matching) ->
-        job_resources = job[:resources] || job.resources || []
-        job_envs = job[:environments] || job.environments || []
-
-        reasons = []
-
-        reasons =
-          if not Enum.empty?(job_resources) and
-               not Enum.any?(all_agents, &agent_has_all_resources?(&1, job_resources)) do
-            ["No agent has all required resources: #{Enum.join(job_resources, ", ")}" | reasons]
-          else
-            reasons
-          end
-
-        reasons =
-          if not Enum.empty?(job_envs) and
-               not Enum.any?(all_agents, &agent_in_matching_env?(&1, job_envs)) do
-            ["No agent is in a matching environment: #{Enum.join(job_envs, ", ")}" | reasons]
-          else
-            reasons
-          end
-
-        reasons =
-          if Enum.empty?(job_resources) and Enum.empty?(job_envs) do
-            ["No agents are registered and enabled" | reasons]
-          else
-            reasons
-          end
-
-        if Enum.empty?(reasons), do: nil, else: Enum.join(reasons, "; ")
+        no_matching_agent_reason(job, all_agents)
 
       Enum.all?(matching, &(&1.state != "Idle")) ->
         busy_names = matching |> Enum.map(& &1.hostname) |> Enum.join(", ")
@@ -202,6 +193,50 @@ defmodule ExGoCDWeb.AdminSchedulingLive do
     end
   end
 
+  defp pinned_agent_reason(pinned, all_agents) do
+    case Enum.find(all_agents, &(&1.uuid == pinned)) do
+      nil -> "Pinned to agent #{String.slice(pinned, 0, 8)}… which is not registered"
+      %{disabled: true, hostname: h} -> "Pinned to agent #{h} which is disabled"
+      %{state: "LostContact", hostname: h} -> "Pinned to agent #{h} which has lost contact"
+      %{state: "Building", hostname: h} -> "Pinned to agent #{h} which is currently building"
+      _ -> nil
+    end
+  end
+
+  defp no_matching_agent_reason(job, all_agents) do
+    job_resources = job[:resources] || job.resources || []
+    job_envs = job[:environments] || job.environments || []
+
+    reasons =
+      [
+        resource_reason(job_resources, all_agents),
+        environment_reason(job_envs, all_agents),
+        unconfigured_reason(job_resources, job_envs)
+      ]
+      |> Enum.reject(&is_nil/1)
+
+    if Enum.empty?(reasons), do: nil, else: Enum.join(reasons, "; ")
+  end
+
+  defp resource_reason([], _all_agents), do: nil
+
+  defp resource_reason(job_resources, all_agents) do
+    if Enum.any?(all_agents, &agent_has_all_resources?(&1, job_resources)),
+      do: nil,
+      else: "No agent has all required resources: #{Enum.join(job_resources, ", ")}"
+  end
+
+  defp environment_reason([], _all_agents), do: nil
+
+  defp environment_reason(job_envs, all_agents) do
+    if Enum.any?(all_agents, &agent_in_matching_env?(&1, job_envs)),
+      do: nil,
+      else: "No agent is in a matching environment: #{Enum.join(job_envs, ", ")}"
+  end
+
+  defp unconfigured_reason([], []), do: "No agents are registered and enabled"
+  defp unconfigured_reason(_, _), do: nil
+
   defp agent_has_all_resources?(agent, job_resources) do
     agent_resources = (agent.resources || []) |> Enum.map(&String.downcase/1) |> MapSet.new()
 
@@ -211,7 +246,7 @@ defmodule ExGoCDWeb.AdminSchedulingLive do
   end
 
   defp agent_in_matching_env?(agent, job_envs) do
-    agent_envs = (agent.environments || []) |> Enum.map(&String.downcase/1) |> MapSet.new()
+    agent_envs = downcase_set(agent.environments || [])
     job_envs_lower = Enum.map(job_envs, &String.downcase/1)
 
     if MapSet.equal?(agent_envs, MapSet.new()) do
@@ -221,24 +256,30 @@ defmodule ExGoCDWeb.AdminSchedulingLive do
     end
   end
 
+  defp downcase_set(list), do: list |> Enum.map(&String.downcase/1) |> MapSet.new()
+
   # -- helpers used in template -----------------------------------------------
 
   defp job_label(job) do
-    pipeline = job[:pipeline_name] || job[:pipeline] || job.pipeline || "?"
-    counter = job[:pipeline_counter] || job.pipeline_counter || 0
-    stage = job[:stage_name] || job[:stage] || job.stage || "?"
-    stage_counter = job[:stage_counter] || job.stage_counter || 0
-    job_name = job[:job_name] || job[:job] || job.job || "?"
+    p = job_field(job, :pipeline_name) || job_field(job, :pipeline) || "?"
+    c = job_field(job, :pipeline_counter) || 0
+    s = job_field(job, :stage_name) || job_field(job, :stage) || "?"
+    sc = job_field(job, :stage_counter) || 0
+    jn = job_field(job, :job_name) || job_field(job, :job) || "?"
 
-    "#{pipeline}/#{counter}/#{stage}/#{stage_counter}/#{job_name}"
+    "#{p}/#{c}/#{s}/#{sc}/#{jn}"
+  end
+
+  defp job_field(job, key) do
+    # Try Access first (works for maps with string keys and structs with atom keys)
+    case Access.fetch(job, key) do
+      {:ok, val} when not is_nil(val) -> val
+      _ -> nil
+    end
   end
 
   defp job_source(job) do
-    id = job[:id] || job.id || ""
-
-    if is_binary(id) and String.starts_with?(id, "db-"),
-      do: "DB",
-      else: "Memory"
+    if job_field(job, :job_instance_id), do: "DB", else: "Memory"
   end
 
   defp agent_status_class(agent) do
@@ -252,10 +293,7 @@ defmodule ExGoCDWeb.AdminSchedulingLive do
   end
 
   defp agent_state_label(agent) do
-    cond do
-      agent.disabled -> "Disabled"
-      true -> agent.state || "Unknown"
-    end
+    if agent.disabled, do: "Disabled", else: agent.state || "Unknown"
   end
 
   defp format_duration(inserted_at, now) do
