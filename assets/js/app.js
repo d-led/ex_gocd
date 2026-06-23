@@ -624,7 +624,8 @@ window.addEventListener("phx:page-loading-stop", (_info) => topbar.hide());
   });
 })();
 
-// --- Desktop admin dropdown: viewport-aware positioning ---
+// --- Desktop admin dropdown: simple CSS-driven with edge guard ---
+// CSS centers via left:50%;transform:translateX(-50%); JS only nudges if clipped.
 (function () {
   const dropDownLi = document.querySelector("li.is-drop-down");
   if (!dropDownLi) return;
@@ -632,65 +633,30 @@ window.addEventListener("phx:page-loading-stop", (_info) => topbar.hide());
   const subNav = dropDownLi.querySelector(".sub-navigation");
   if (!subNav) return;
 
-  function reposition() {
-    // Reset — let CSS defaults (left:0, position:absolute) apply
-    subNav.classList.remove("anchor-right");
-    subNav.style.left = "";
-    subNav.style.right = "";
-    subNav.style.position = "";
-
-    // Force layout so we measure the natural position
+  function clampPosition() {
+    subNav.style.marginLeft = "";
     subNav.offsetHeight;
-
     const rect = subNav.getBoundingClientRect();
     const vpW = window.innerWidth;
 
-    // If it fits naturally, we're done
-    if (rect.right <= vpW && rect.left >= 0) return;
-
-    // Try right-anchoring (right edge of dropdown = right edge of parent li)
-    subNav.classList.add("anchor-right");
-    subNav.offsetHeight;
-    const rectR = subNav.getBoundingClientRect();
-
-    if (rectR.left >= 0) {
-      // Right-anchored fits — done
-      return;
-    }
-
-    // Still overflows left → use fixed positioning pinned to viewport right
-    subNav.classList.remove("anchor-right");
-    subNav.style.position = "fixed";
-    subNav.style.top = rect.top + "px";
-    subNav.style.left = Math.max(0, vpW - rect.width - 16) + "px";
-
-    // Last resort: if still too wide, allow horizontal scroll
-    subNav.offsetHeight;
-    const rectF = subNav.getBoundingClientRect();
-    if (rectF.left < 0) {
-      subNav.style.left = "0px";
-      subNav.style.maxWidth = vpW + "px";
-      subNav.style.overflowX = "auto";
+    if (rect.right > vpW) {
+      // Nudge left so right edge fits with 8px margin
+      subNav.style.marginLeft = (vpW - rect.right - 8) + "px";
+    } else if (rect.left < 0) {
+      // Nudge right so left edge is at 8px
+      subNav.style.marginLeft = (8 - rect.left) + "px";
     }
   }
 
   function resetPosition() {
-    subNav.classList.remove("anchor-right");
-    subNav.style.left = "";
-    subNav.style.right = "";
-    subNav.style.position = "";
-    subNav.style.top = "";
-    subNav.style.maxWidth = "";
-    subNav.style.overflowX = "";
+    subNav.style.marginLeft = "";
   }
 
-  dropDownLi.addEventListener("mouseenter", reposition);
+  dropDownLi.addEventListener("mouseenter", clampPosition);
   dropDownLi.addEventListener("mouseleave", resetPosition);
 
-  // Recalculate on resize if visible
   window.addEventListener("resize", () => {
-    const display = getComputedStyle(subNav).display;
-    if (display === "flex") reposition();
+    if (getComputedStyle(subNav).display === "flex") clampPosition();
   });
 })();
 

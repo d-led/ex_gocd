@@ -92,6 +92,80 @@ defmodule ExGoCD.AuditLog.Events do
   end
 
   # ===========================================================================
+  # Agent Events
+  # ===========================================================================
+
+  @doc "An agent was enabled."
+  @spec agent_enabled(String.t(), String.t()) :: :ok
+  def agent_enabled(actor, agent_uuid) do
+    emit("agent.enabled", actor, "agent", agent_uuid, %{})
+  end
+
+  @doc "An agent was disabled."
+  @spec agent_disabled(String.t(), String.t()) :: :ok
+  def agent_disabled(actor, agent_uuid) do
+    emit("agent.disabled", actor, "agent", agent_uuid, %{})
+  end
+
+  @doc "An agent was deleted."
+  @spec agent_deleted(String.t(), String.t()) :: :ok
+  def agent_deleted(actor, agent_uuid) do
+    emit("agent.deleted", actor, "agent", agent_uuid, %{})
+  end
+
+  @doc "All disabled agents were cleaned (soft-deleted)."
+  @spec agents_cleaned_disabled(String.t(), integer()) :: :ok
+  def agents_cleaned_disabled(actor, count) do
+    emit("agent.clean_disabled", actor, nil, nil, %{count: count})
+  end
+
+  @doc "Agents were bulk-deleted."
+  @spec agents_bulk_deleted(String.t(), integer()) :: :ok
+  def agents_bulk_deleted(actor, count) do
+    emit("agent.bulk_deleted", actor, nil, nil, %{count: count})
+  end
+
+  # ===========================================================================
+  # Cancellation Events
+  # ===========================================================================
+
+  @doc "A stage was cancelled."
+  @spec stage_cancelled(String.t(), String.t(), integer(), String.t()) :: :ok
+  def stage_cancelled(actor, pipeline_name, pipeline_counter, stage_name) do
+    emit(
+      "stage.cancelled",
+      actor,
+      "stage",
+      "#{pipeline_name}/#{pipeline_counter}/#{stage_name}",
+      %{
+        pipeline_name: pipeline_name,
+        pipeline_counter: pipeline_counter,
+        stage_name: stage_name
+      }
+    )
+  end
+
+  # ===========================================================================
+  # Config Change Events
+  # ===========================================================================
+
+  @doc "Pipeline configuration was modified."
+  @spec config_changed(String.t(), String.t(), map()) :: :ok
+  def config_changed(actor, pipeline_name, diff) do
+    emit("config.changed", actor, "pipeline", pipeline_name, %{diff: diff})
+  end
+
+  # ===========================================================================
+  # Crash Events
+  # ===========================================================================
+
+  @doc "An unhandled server crash was captured."
+  @spec server_crash(String.t(), map()) :: :ok
+  def server_crash(source, details) do
+    emit("server.crash", "system", source, nil, details)
+  end
+
+  # ===========================================================================
   # Private — single point of emission
   # ===========================================================================
 

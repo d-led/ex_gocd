@@ -34,13 +34,25 @@ defmodule ExGoCD.CrashTelemetry do
   defp handle_exception(_event, _measurements, metadata, _config) do
     kind = metadata[:kind]
     reason = metadata[:reason]
-    _stacktrace = metadata[:stacktrace]
+    stacktrace = metadata[:stacktrace]
     conn = metadata[:conn]
 
     ctx = :otel_ctx.get_current()
     span_ctx = :otel_tracer.current_span_ctx(ctx)
 
-    # Only record if there's an active recording span
+    # Audit the crash
+    crash_details = %{
+      "exception.kind" => inspect(kind),
+      "exception.message" => exception_message(reason),
+      "stacktrace" => stacktrace && Exception.format_stacktrace(stacktrace),
+      "http.method" => conn && conn.method,
+      "http.url" => conn && conn.request_path
+    }
+
+    source = if conn, do: "#{conn.method} #{conn.request_path}", else: "background"
+    ExGoCD.AuditLog.Events.server_crash(source, crash_details)
+
+    # Only record OTel span event if there's an active recording span
     case span_ctx do
       {:span_ctx, _version, _trace_id, _span_id, _parent_id, _flags, _tracestate,
        true = _is_recording, true = _is_valid, _timestamp, _instrumentation_scope} ->

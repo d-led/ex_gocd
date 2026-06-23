@@ -113,6 +113,8 @@ defmodule ExGoCDWeb.Router do
            :show
 
       # Admin Panel routes
+      live "/admin/scheduling", AdminSchedulingLive, :index
+      live "/go/admin/scheduling", AdminSchedulingLive, :index
       live "/admin", AdminLive, :index
       live "/admin/:tab", AdminLive, :index
       live "/go/admin", AdminLive, :index

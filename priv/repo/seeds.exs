@@ -324,10 +324,11 @@ unless Repo.get_by(Pipeline, name: "release-pipeline") do
   stages =
     ["build", "test", "deploy"]
     |> Enum.with_index(1)
-    |> Enum.map(fn {name, order} ->
-      %Stage{}
-      |> Stage.changeset(%{name: name, pipeline_id: pipeline.id, approval_type: "success"})
-      |> Repo.insert!()
+    |> Enum.map(fn {name, _order} ->
+      stage =
+        %Stage{}
+        |> Stage.changeset(%{name: name, pipeline_id: pipeline.id, approval_type: "success"})
+        |> Repo.insert!()
 
       job =
         %Job{}
@@ -487,10 +488,11 @@ unless Repo.get_by(Pipeline, name: "build-linux") do
   stages =
     ["build", "test"]
     |> Enum.with_index(1)
-    |> Enum.map(fn {name, order} ->
-      %Stage{}
-      |> Stage.changeset(%{name: name, pipeline_id: pipeline.id, approval_type: "success"})
-      |> Repo.insert!()
+    |> Enum.map(fn {name, _order} ->
+      stage =
+        %Stage{}
+        |> Stage.changeset(%{name: name, pipeline_id: pipeline.id, approval_type: "success"})
+        |> Repo.insert!()
 
       job =
         %Job{}

@@ -84,6 +84,15 @@ defmodule ExGoCD.Scheduler do
     GenServer.call(__MODULE__, :clear_queue)
   end
 
+  @doc """
+  Returns full queue diagnostics for the admin scheduling view.
+  Includes pending count, in-memory queue snapshot, and DB scheduled jobs
+  with their resource/environment requirements.
+  """
+  def get_queue_state do
+    GenServer.call(__MODULE__, :get_queue_state)
+  end
+
   # Server
 
   @impl true
@@ -160,6 +169,20 @@ defmodule ExGoCD.Scheduler do
     # which rolls back all changes per test.
     broadcast_pending_count(0)
     {:reply, :ok, %{state | in_memory_queue: [], db_pending_count: 0}}
+  end
+
+  def handle_call(:get_queue_state, _from, state) do
+    db_jobs = load_db_job_plans_for_diagnostics()
+    in_memory_snapshot = Enum.map(state.in_memory_queue, &redact_job_spec/1)
+
+    {:reply,
+     %{
+       pending_count: length(state.in_memory_queue) + state.db_pending_count,
+       in_memory_count: length(state.in_memory_queue),
+       db_count: state.db_pending_count,
+       in_memory_jobs: in_memory_snapshot,
+       db_jobs: db_jobs
+     }, state}
   end
 
   # -- private helpers ---------------------------------------------------------
@@ -923,5 +946,59 @@ defmodule ExGoCD.Scheduler do
     _ -> fallback
   catch
     _, _ -> fallback
+  end
+
+  # Loads scheduled JobInstances with full details for diagnostic display.
+  # Includes inserted_at for "how long has it been waiting" calculation.
+  defp load_db_job_plans_for_diagnostics do
+    safe_db(
+      fn ->
+        JobInstance
+        |> where(state: "Scheduled")
+        |> order_by(asc: :id)
+        |> Repo.all()
+        |> Repo.preload([:job, stage_instance: [pipeline_instance: :pipeline]])
+        |> Enum.map(fn ji ->
+          stage_instance = ji.stage_instance
+          pipeline_instance = stage_instance.pipeline_instance
+          pipeline = pipeline_instance.pipeline
+          job_config = ji.job
+
+          resources = (job_config && job_config.resources) || []
+          envs = get_pipeline_environments(pipeline.name)
+
+          %{
+            job_instance_id: ji.id,
+            pipeline_name: pipeline.name,
+            pipeline_counter: pipeline_instance.counter,
+            stage_name: stage_instance.name,
+            stage_counter: stage_instance.counter,
+            job_name: ji.name,
+            resources: resources,
+            environments: envs,
+            agent_uuid: ji.agent_uuid,
+            scheduled_at: ji.scheduled_at,
+            inserted_at: ji.inserted_at
+          }
+        end)
+      end,
+      []
+    )
+  end
+
+  # Redacts internal fields from an in-memory job spec for diagnostics display.
+  defp redact_job_spec(spec) do
+    %{
+      id: spec[:id],
+      pipeline: spec[:pipeline],
+      pipeline_counter: spec[:pipeline_counter],
+      stage: spec[:stage],
+      stage_counter: spec[:stage_counter],
+      job: spec[:job],
+      resources: spec[:resources] || [],
+      environments: spec[:environments] || [],
+      agent_uuid: spec[:agent_uuid],
+      run_on_all_agents: spec[:run_on_all_agents] || false
+    }
   end
 end

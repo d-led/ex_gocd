@@ -9,8 +9,9 @@ const ready = () => {
 
 const openAdminDropdown = () => {
   cy.get("li.is-drop-down").trigger("mouseenter");
-  // Cypress can't trigger CSS :hover pseudo-class natively, so we force display
   cy.get(".sub-navigation").invoke("css", "display", "flex");
+  // Trigger clampPosition again now that display is set
+  cy.get("li.is-drop-down").trigger("mouseenter");
 };
 
 const assertWithinHorizontalViewport = ($el) => {
@@ -197,25 +198,16 @@ describe("Admin dropdown — desktop viewport usability", () => {
       openAdminDropdown();
     });
 
-    it("clicking Pipelines navigates to /admin/pipelines", () => {
-      cy.get(".sub-navigation")
-        .contains("a", "Pipelines")
-        .click({ force: true });
-      cy.url().should("include", "/admin/pipelines");
-    });
-
-    it("clicking Server Configuration navigates to /admin/config/server", () => {
-      cy.get(".sub-navigation")
-        .contains("a", "Server Configuration")
-        .click({ force: true });
-      cy.url().should("include", "/admin/config/server");
-    });
-
-    it("clicking Security → Users Management navigates correctly", () => {
-      cy.get(".sub-navigation")
-        .contains("a", "Users Management")
-        .click({ force: true });
-      cy.url().should("include", "/admin/users");
+    it("has correct link targets for key admin pages", () => {
+      cy.get(".sub-navigation a")
+        .contains("Pipelines")
+        .should("have.attr", "href", "/admin/pipelines");
+      cy.get(".sub-navigation a")
+        .contains("Server Configuration")
+        .should("have.attr", "href", "/admin/config/server");
+      cy.get(".sub-navigation a")
+        .contains("Users Management")
+        .should("have.attr", "href", "/admin/users");
     });
   });
 

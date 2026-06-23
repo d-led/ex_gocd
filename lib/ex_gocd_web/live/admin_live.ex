@@ -276,6 +276,7 @@ defmodule ExGoCDWeb.AdminLive do
           Security &amp; Users
         </.sub_tab_link>
         <.sub_tab_link active={@tab == "audit_log"} href="/admin/audit_log">Audit Log</.sub_tab_link>
+        <.sub_tab_link active={false} href="/admin/scheduling">⚡ Scheduling</.sub_tab_link>
       </div>
       
     <!-- Main Layout Body (Centered Content) -->

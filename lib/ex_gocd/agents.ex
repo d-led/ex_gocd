@@ -108,7 +108,9 @@ defmodule ExGoCD.Agents do
     else
       agents = Repo.all(from a in Agent, where: a.disabled == true and a.deleted == false)
       Enum.each(agents, fn a -> do_delete_agent(a) end)
-      length(agents)
+      count = length(agents)
+      ExGoCD.AuditLog.Events.agents_cleaned_disabled("admin", count)
+      count
     end
   end
 
@@ -328,10 +330,15 @@ defmodule ExGoCD.Agents do
           do: Map.put(attrs, :cookie, approval_cookie()),
           else: attrs
 
-      agent
-      |> Agent.changeset(attrs)
-      |> Repo.update()
-      |> broadcast(:agent_enabled)
+      result =
+        agent
+        |> Agent.changeset(attrs)
+        |> Repo.update()
+        |> broadcast(:agent_enabled)
+
+      audit_agent_action(result, agent.uuid, :enabled)
+
+      result
     end
   end
 
@@ -361,10 +368,15 @@ defmodule ExGoCD.Agents do
     if use_mock?() do
       Mock.disable_agent(agent.uuid)
     else
-      agent
-      |> Agent.changeset(%{disabled: true})
-      |> Repo.update()
-      |> broadcast(:agent_disabled)
+      result =
+        agent
+        |> Agent.changeset(%{disabled: true})
+        |> Repo.update()
+        |> broadcast(:agent_disabled)
+
+      audit_agent_action(result, agent.uuid, :disabled)
+
+      result
     end
   end
 
@@ -386,7 +398,9 @@ defmodule ExGoCD.Agents do
           {:ok, Agent.t()} | {:error, Ecto.Changeset.t() | :agent_not_disabled | :not_found}
   def delete_agent(%Agent{} = agent) do
     if agent.disabled do
-      do_delete_agent(agent)
+      result = do_delete_agent(agent)
+      audit_agent_action(result, agent.uuid, :deleted)
+      result
     else
       {:error, :agent_not_disabled}
     end
@@ -431,10 +445,21 @@ defmodule ExGoCD.Agents do
       else
         count = Enum.count(agents)
         Enum.each(agents, fn a -> do_delete_agent(a) end)
+        ExGoCD.AuditLog.Events.agents_bulk_deleted("admin", count)
         {:ok, count}
       end
     end
   end
+
+  defp audit_agent_action({:ok, _agent}, uuid, action) do
+    case action do
+      :enabled -> ExGoCD.AuditLog.Events.agent_enabled("admin", uuid)
+      :disabled -> ExGoCD.AuditLog.Events.agent_disabled("admin", uuid)
+      :deleted -> ExGoCD.AuditLog.Events.agent_deleted("admin", uuid)
+    end
+  end
+
+  defp audit_agent_action(_, _, _), do: :ok
 
   @doc """
   Bulk enable/disable agents by UUID.

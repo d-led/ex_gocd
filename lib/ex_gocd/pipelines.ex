@@ -658,6 +658,14 @@ defmodule ExGoCD.Pipelines do
       si ->
         cancel_stage_transaction(si)
         Phoenix.PubSub.broadcast(ExGoCD.PubSub, "pipelines:updates", :pipelines_updated)
+
+        ExGoCD.AuditLog.Events.stage_cancelled(
+          "admin",
+          pipeline_name,
+          pipeline_counter,
+          stage_name
+        )
+
         {:ok, si}
     end
   end
@@ -897,7 +905,11 @@ defmodule ExGoCD.Pipelines do
         end
 
         Phoenix.PubSub.broadcast(ExGoCD.PubSub, "pipelines:updates", :pipelines_updated)
-        Events.pipeline_triggered("anonymous", pipeline.name, counter)
+
+        unless Map.get(options, :auto_trigger) do
+          Events.pipeline_triggered("anonymous", pipeline.name, counter)
+        end
+
         {:ok, instance}
 
       {:error, reason} ->
