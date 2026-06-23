@@ -13,8 +13,7 @@ defmodule ExGoCDWeb.PipelineActivityLiveTest do
       assert html =~ "build-linux"
       assert html =~ "History"
 
-      # And it renders mock pipeline run instance details
-      assert html =~ "Instance"
+      # And it renders mock pipeline run counter labels
       assert html =~ "145"
       assert html =~ "144"
 
@@ -22,14 +21,10 @@ defmodule ExGoCDWeb.PipelineActivityLiveTest do
       assert html =~ "upgrade actions and fix compilation warnings"
       assert html =~ "add test suite support"
 
-      # And stage run detail grids are rendered
-      assert html =~ "Stages"
-      # First two letters of stage names like compile
-      assert html =~ "CO"
-      # test
-      assert html =~ "TE"
-      # package
-      assert html =~ "PA"
+      # And stage names are rendered
+      assert html =~ "compile"
+      assert html =~ "test"
+      assert html =~ "package"
     end
 
     test "redirects to pipelines dashboard on non-existent pipeline name", %{conn: conn} do

@@ -251,6 +251,11 @@ defmodule ExGoCDWeb.PipelineActivityLive do
     end
   end
 
+  defp run_status_dot("Passed"), do: "bg-[#5cb85c]"
+  defp run_status_dot("Failed"), do: "bg-[#d9534f]"
+  defp run_status_dot("Building"), do: "bg-[#5bc0de]"
+  defp run_status_dot(_), do: "bg-gray-300"
+
   @impl true
   def render(assigns) do
     ~H"""
@@ -269,103 +274,60 @@ defmodule ExGoCDWeb.PipelineActivityLive do
         </div>
       </div>
 
-      <div class="activity-container flex flex-col gap-4">
+      <div class="activity-container flex flex-col gap-2">
         <%= for run <- @runs do %>
-          <div class={"pipeline-run-row flex items-stretch bg-white border border-gray-200 rounded shadow-sm hover:shadow-md transition-shadow " <> run_status_border(run.status)}>
-            <!-- Left: instance label + actions -->
-            <div class="p-4 flex-shrink-0 w-28 border-r border-gray-100 flex flex-col justify-between">
-              <div>
-                <span class="text-[9px] uppercase font-bold text-gray-400 tracking-wider font-mono">
-                  Instance
+          <div class={"flex bg-white border border-gray-200 rounded shadow-sm hover:shadow-md transition-shadow " <> run_status_border(run.status)}>
+            <!-- Row: counter, VSM, revision, trigger, status, stages — all one line -->
+            <div class="flex-grow min-w-0 px-3 py-2 flex flex-col gap-1">
+              <!-- Top line: counter + VSM + revisions + trigger time + status -->
+              <div class="flex items-center gap-2 flex-wrap text-xs">
+                <span class="font-mono font-extrabold text-gray-900">#{run.label}</span>
+                <.link navigate={~p"/pipelines/value_stream_map/#{@pipeline.name}/#{run.counter}"}
+                       class="text-[#2d6ca2] hover:underline font-bold text-[10px]">VSM</.link>
+
+                <%= for mod <- run.modifications do %>
+                  <.link navigate={~p"/materials/value_stream_map/#{mod.fingerprint}/#{mod.revision}"}
+                         class="font-mono text-cyan-600 hover:underline">{String.slice(mod.revision, 0, 8)}</.link>
+                <% end %>
+
+                <span class="text-gray-400" title={format_local_time(run.last_run)}>
+                  {format_local_time(run.last_run)}
                 </span>
-                <div class="text-base font-mono font-extrabold text-gray-900 mt-0.5">#{run.label}</div>
-              </div>
-              <div class="mt-3 flex flex-col gap-1 text-[10px]">
-                <.link
-                  navigate={~p"/pipelines/value_stream_map/#{@pipeline.name}/#{run.counter}"}
-                  class="text-[#2d6ca2] hover:underline font-bold flex items-center gap-1"
-                >
-                  <i class="fa-solid fa-network-wired text-[9px]"></i> VSM
-                </.link>
-                <%= if run.counter > 1 do %>
-                  <a
-                    href={"/compare/#{@pipeline.name}/#{run.counter - 1}/with/#{run.counter}"}
-                    class="text-[#2d6ca2] hover:underline font-bold flex items-center gap-1"
-                  >
-                    <i class="fa-solid fa-right-left text-[9px]"></i> Compare
-                  </a>
+
+                <span class="text-gray-500">{run.triggered_by}</span>
+
+                <span class={"inline-block w-2 h-2 rounded-full shrink-0 " <> run_status_dot(run.status)} title={run.status}></span>
+                <span class="text-gray-500 font-medium">{run.status}</span>
+
+                <%= if Map.get(run, :config_changed) do %>
+                  <span class="text-purple-500" title="Config changed since previous run">
+                    <i class="fa fa-cog"></i>
+                  </span>
                 <% end %>
               </div>
-            </div>
 
-            <!-- Middle: trigger info + modifications -->
-            <div class="p-4 flex-grow min-w-0 flex flex-col justify-between">
-              <div>
-                <div class="flex items-center gap-2 flex-wrap">
-                  <span class={"text-[9px] font-extrabold px-1.5 py-0.5 rounded uppercase font-mono " <>
-                    case run.status do
-                      "Passed" -> "bg-green-100 text-green-700"
-                      "Failed" -> "bg-red-100 text-red-700"
-                      "Building" -> "bg-blue-100 text-blue-700"
-                      _ -> "bg-gray-100 text-gray-700"
-                    end}>
-                    {run.status}
-                  </span>
-                  <%= if Map.get(run, :config_changed) do %>
-                    <span
-                      class="text-[9px] font-bold px-1.5 py-0.5 rounded uppercase font-mono bg-purple-100 text-purple-700"
-                      title="Pipeline config changed since previous run"
-                    >
-                      Config
-                    </span>
-                  <% end %>
-                  <span class="text-xs text-gray-500 font-medium">
-                    <span class="font-bold text-gray-700">{run.triggered_by}</span>
-                    on {format_local_time(run.last_run)}
-                  </span>
-                </div>
-
-                <div class="mt-3">
-                  <span class="text-[9px] uppercase font-bold text-gray-400 tracking-wider font-mono">
-                    Trigger Revision Details
-                  </span>
+              <!-- Commit messages: every material, full text, no clipping -->
+              <%= if run.modifications != [] do %>
+                <div class="flex flex-col gap-0.5">
                   <%= for mod <- run.modifications do %>
-                    <div class="flex items-baseline gap-2 mt-1 text-xs text-gray-600">
-                      <.link
-                        navigate={~p"/materials/value_stream_map/#{mod.fingerprint}/#{mod.revision}"}
-                        class="font-mono text-cyan-600 hover:underline shrink-0"
-                      >
-                        {String.slice(mod.revision, 0, 8)}
-                      </.link>
-                      <span class="font-semibold text-gray-700 shrink-0 max-w-[10rem] truncate" title={mod.user}>{mod.user}:</span>
-                      <span class="italic text-gray-600 break-all" title={mod.comment}>"{mod.comment}"</span>
+                    <div class="text-[11px] text-gray-500 italic break-all leading-snug">
+                      {mod.comment}
                     </div>
                   <% end %>
                 </div>
-              </div>
+              <% end %>
             </div>
 
-            <!-- Right: stage circles -->
-            <div class="p-4 flex-shrink-0 w-40 border-l border-gray-100 flex flex-col justify-center">
-              <span class="text-[9px] uppercase font-bold text-gray-400 tracking-wider font-mono mb-2 block text-center">
-                Stages
-              </span>
-              <ul class="flex flex-wrap justify-center gap-1.5">
-                <%= for stage <- run.stages do %>
-                  <li class="relative">
-                    <.link
-                      navigate={
-                        ~p"/pipelines/#{@pipeline.name}/#{run.counter}/#{stage.name}/#{stage.counter}"
-                      }
-                      class={"w-8 h-8 flex items-center justify-center rounded text-white font-mono font-bold text-[10px] transition-transform hover:scale-105 shadow-sm " <> stage_status_class(stage.status)}
-                      title={"#{stage.name} (#{stage.status})"}
-                      aria-label={"#{stage.name} (#{stage.status})"}
-                    >
-                      {String.slice(stage.name, 0, 2) |> String.upcase()}
-                    </.link>
-                  </li>
-                <% end %>
-              </ul>
+            <!-- Stage pipeline: compact horizontal strip -->
+            <div class="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 border-l border-gray-100">
+              <%= for {stage, idx} <- Enum.with_index(run.stages) do %>
+                <%= if idx > 0 do %><span class="text-gray-300 text-xs">&rarr;</span><% end %>
+                <.link
+                  navigate={~p"/pipelines/#{@pipeline.name}/#{run.counter}/#{stage.name}/#{stage.counter}"}
+                  class={"px-2 py-1 rounded text-white font-mono font-bold text-[10px] hover:scale-105 transition-transform shadow-sm " <> stage_status_class(stage.status)}
+                  title={"#{stage.name} — #{stage.status}"}
+                >{stage.name}</.link>
+              <% end %>
             </div>
           </div>
         <% end %>
