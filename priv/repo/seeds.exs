@@ -81,7 +81,7 @@ unless Repo.get_by(Pipeline, name: "ci") do
 
   job_integration =
     %Job{}
-    |> Job.changeset(%{name: "integration", stage_id: stage.id, resources: ["linux", "docker"]})
+    |> Job.changeset(%{name: "integration", stage_id: stage.id, resources: ["docker"]})
     |> Repo.insert!()
 
   for {job, msg} <- [{job_unit, "unit tests"}, {job_integration, "integration tests"}] do
