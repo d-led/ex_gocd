@@ -15,7 +15,7 @@ defmodule ExGoCDWeb.LiveSession do
   alias ExGoCD.Accounts
   alias ExGoCD.Accounts.User
 
-  @doc "Assigns current_user and is_user_admin from session."
+  @doc "Assigns current_user, is_user_admin, and open_mode from session."
   def on_mount(:assign_current_user, _params, session, socket) do
     user = Accounts.get_current_user(session)
 
@@ -28,9 +28,12 @@ defmodule ExGoCDWeb.LiveSession do
         true -> false
       end
 
+    open_mode = not Accounts.admin_configured?()
+
     {:cont,
      socket
      |> assign_new(:current_user, fn -> user end)
-     |> assign(:is_user_admin, is_user_admin)}
+     |> assign(:is_user_admin, is_user_admin)
+     |> assign(:open_mode, open_mode)}
   end
 end

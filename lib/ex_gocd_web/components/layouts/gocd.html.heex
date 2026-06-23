@@ -3,6 +3,7 @@
   current_path={Map.get(assigns, :current_path, "/")}
   is_user_admin={Map.get(assigns, :is_user_admin, false)}
   current_user={Map.get(assigns, :current_user, nil)}
+  open_mode={Map.get(assigns, :open_mode, true)}
 />
 <main id="main-content" class="main-container" role="main">
   <.flash_group flash={@flash} />

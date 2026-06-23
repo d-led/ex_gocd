@@ -19,6 +19,7 @@ defmodule ExGoCDWeb.Layouts do
   attr :current_path, :string, default: "/"
   attr :is_user_admin, :boolean, default: false
   attr :current_user, :any, default: nil
+  attr :open_mode, :boolean, default: true
 
   def site_header(assigns) do
     ~H"""
@@ -147,9 +148,11 @@ defmodule ExGoCDWeb.Layouts do
                 </button>
               </form>
             <% else %>
-              <a href="/auth/login" style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);color:rgba(255,255,255,0.85);padding:3px 10px;border-radius:3px;font-size:11px;text-decoration:none" aria-label="Sign in">
-                Sign in
-              </a>
+              <%= if not @open_mode do %>
+                <a href="/auth/login" style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);color:rgba(255,255,255,0.85);padding:3px 10px;border-radius:3px;font-size:11px;text-decoration:none" aria-label="Sign in">
+                  Sign in
+                </a>
+              <% end %>
             <% end %>
           </div>
         </div>

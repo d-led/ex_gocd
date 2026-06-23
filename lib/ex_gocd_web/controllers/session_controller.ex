@@ -1,10 +1,11 @@
 defmodule ExGoCDWeb.SessionController do
   @moduledoc """
-  Simple session-based authentication controller.
-  Mimics GoCD's /go/auth/login form — users enter their username
-  (no password in the simplified demo mode) and get a session cookie.
-  When no admin is configured the login page still works but all pages
-  are already open.
+  Session-based authentication controller.
+
+  Mirrors GoCD's /go/auth/login flow. When no admin user is configured
+  (open mode), all pages are already accessible without signing in.
+  Once at least one admin user exists (security mode), users must sign
+  in to access admin functions.
   """
   use ExGoCDWeb, :controller
 
