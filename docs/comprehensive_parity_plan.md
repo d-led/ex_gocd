@@ -462,29 +462,6 @@ GoCD detects config changes between pipeline runs and shows them in the pipeline
 ## Part Q: Downstream Pipeline Trigger (Fan-in/Fan-out) 🔴
 
 ### Q.1 Current state
-- `trigger_completed_downstreams/1` exists in `Pipelines` — triggers pipelines with `material.type == "dependency"` matching the completed pipeline name
-- Diamond seeds fixed to use `type: "dependency", url: "upstream-pipeline-name"`
-- Material schema supports `type: "dependency"` with `url: "pipeline-name"`
-
-### Q.2 Gap
-- **VSM doesn't show downstream pipelines**: When upstream-lib completes, component-a and component-b should appear as fan-out in the VSM. Currently VSM only shows direct upstream/downstream if pipeline materials are configured.
-- **Fan-in resolution**: When integration-pipeline has 2 dependencies (component-a, component-b), it should only trigger when BOTH complete with the same ancestor version.
-
-### Q.3 Tasks
-| # | Item | Effort |
-|---|------|--------|
-| Q.3.1 | Verify `trigger_completed_downstreams` fires after pipeline completion | S |
-| Q.3.2 | Fix VSM to show downstream fan-out pipelines | M |
-| Q.3.3 | Implement fan-in gate: wait for all dependencies before triggering | M |
-| Q.3.4 | Show fan-in/fan-out edges in VSM for diamond config | M |
-
-**Priority**: P1. Core GoCD workflow pattern.
-
----
-
-## Part Q: Downstream Pipeline Trigger (Fan-in/Fan-out) 🔴
-
-### Q.1 Current state
 - `trigger_completed_downstreams/1` queries pipelines with `material.type == "dependency"` matching the completed pipeline name ✅
 - Diamond seeds: `upstream-lib` → (`component-a`, `component-b`) → `integration-pipeline` ✅
 - Test: single downstream trigger passes ✅
@@ -722,3 +699,149 @@ Both "Pipeline Group" and "Environment" called the same catch-all clause, produc
 | T.2.2 | "Environment" uses `p.environment` field, fallback "Default" | ✅ |
 | T.2.3 | Proper environment-based grouping | 🔴 needs Part B |
 | T.2.4 | ExUnit tests (3 new: PG sections, Env, distinct output) | ✅ |
+
+---
+
+## Part V: Built-in Enterprise Integrations (Zero-Plugin Architecture) 🔴
+
+Instead of recreating GoCD's complex OSGi plugin architecture (`go-plugin-api`), `ex_gocd` will bake the most popular and essential GoCD plugins directly into the core codebase. This eliminates plugin compatibility issues and simplifies operations.
+
+### V.1 Natively Incorporated Plugins
+| # | Legacy Plugin Equivalent | Effort | Implementation Strategy |
+|---|--------------------------|--------|-------------------------|
+| V.1.1 | `kubernetes-elastic-agents` | XL | See Part Z. Native orchestration directly with the K8s API. |
+| V.1.2 | `gocd-yaml-config-plugin` | L | Built-in YAML parser for Pipeline-as-Code via Config Repositories. |
+| V.1.3 | `gocd-github-oauth-login` / `ldap` | L | Native authentication backed by Ueberauth (GitHub) and `:eldap`. |
+| V.1.4 | HashiCorp Vault Secrets | L | Direct `ExGoCD.Vault` module integrating with Vault APIs. |
+| V.1.5 | `docker-registry-artifact-plugin` | M | Native artifact store adapter for Docker registries and S3/GCS. |
+| V.1.6 | `gocd-slack-notification-plugin` | M | Built-in Slack webhooks. |
+
+**Priority**: P2. Required for large enterprise adoption without the operational burden of managing plugins.
+
+---
+
+## Part W: Advanced Agent Infrastructure & Bootstrapping 🔴
+
+The original GoCD agent is a highly dynamic process, while `ex_gocd` uses a static Go binary.
+
+### W.1 Missing Agent Features
+| # | Item | Effort | Notes |
+|---|------|--------|-------|
+| W.1.1 | **Agent Bootstrapper** | M | Auto-update mechanism downloading `agent.jar` to keep agents synchronized with the server. |
+| W.1.2 | **Task Plugin Execution** | L | Agent-side capability to download and execute task-specific plugins natively. |
+| W.1.3 | **Elastic Agent Orchestration** | M | Agent lifecycle management (auto-terminate when idle based on server commands). |
+
+**Priority**: P3. Operational quality of life for managing large agent fleets.
+
+---
+
+## Part X: Scheduling Checker Pipeline (Parity Checks) 🔴
+
+GoCD's `SchedulingCheckerService` enforces a strict sequence of validation before any job triggers.
+
+### X.1 Missing Checkers
+| # | Item | Effort | Notes |
+|---|------|--------|-------|
+| X.1.1 | **AboutToBeTriggeredChecker** | M | ETS-based debounce to prevent double-triggering of the same pipeline. |
+| X.1.2 | **PipelineActiveChecker** | M | Blocks if pipeline has active stages (needed for rerun-stage correctness). |
+| X.1.3 | **StageLockChecker** | S | Prevents concurrent stage scheduling across pipeline instances. |
+| X.1.4 | **OutOfDiskSpaceChecker** | S | Wire `ExGoCD.DiskSpace` thresholds to block triggers system-wide. |
+| X.1.5 | **ManualPipelineChecker** | S | Blocks auto-trigger (timer/SCM) for manual-only pipelines. |
+
+**Priority**: P1. Critical for correct scheduling behavior and data integrity.
+
+---
+
+## Part Y: Documentation & External APIs 🔴
+
+GoCD is well known for its comprehensive documentation at `docs.go.cd`.
+
+### Y.1 Missing Documentation & Interfaces
+| # | Item | Effort | Notes |
+|---|------|--------|-------|
+| Y.1.1 | **CCTray XML API** | M | Endpoint for IDEs and menu bar monitors to track build status (`api-cctray`). |
+| Y.1.2 | **Server Health API** | S | `api-server-health-messages-v1` for surfacing global errors/warnings. |
+| Y.1.3 | **Feeds API** | M | ATOM feeds for pipeline/stage/job events (`api-feeds-api-v1`). |
+| Y.1.4 | **User Manuals & Concepts** | L | Port or rewrite core concepts documentation for Fan-in/out, VSM, and Pipeline as Code. |
+| Y.1.5 | **API Reference** | L | Public Slate-generated documentation for the new REST API. |
+
+**Priority**: P3. Important for adoption and third-party tooling integration.
+
+---
+
+## Part Z: Native Kubernetes Elastic Agents Architecture 🔴
+
+To replace the heavy Java OSGi plugin system from GoCD, `ex_gocd` will natively implement Kubernetes (K8s) Elastic Agents. This empowers the server to dynamically spawn our lightweight Go agent as K8s Pods to execute jobs, scaling to zero when idle.
+
+### Z.1 High-Level Design
+
+Instead of external plugins, the `ExGoCD.Scheduler` will natively interact with the Kubernetes API (`kube-apiserver`).
+1. **Job Scheduling**: When a job demands an elastic profile, the scheduler queries K8s to spawn a Pod running the `ex_gocd` Go agent.
+2. **Bootstrapping**: The Pod receives the Server WebSocket URL and an ephemeral registration token via Environment Variables or K8s Secrets.
+3. **Execution**: The agent registers, executes the assigned job, and gracefully terminates itself when the job finishes.
+4. **Reaping**: A background GenServer cleans up orphaned/failed Pods to prevent resource leaks.
+
+### Z.2 Server-Side (Elixir / Phoenix)
+
+**1. Database Schema (`ElasticProfiles`, `ClusterProfiles`)**
+*   Create a `cluster_profiles` table to store K8s connection details (though native in-cluster `ServiceAccount` tokens are preferred).
+*   Create an `elastic_profiles` table linked to a cluster profile. Fields: `id`, `name`, `plugin_id: "native-k8s"`, `properties` (JSONB containing `image`, `cpu_request`, `memory_limit`, `env_vars`, `privileged`).
+*   Jobs in pipeline configs specify `elastic_profile_id` instead of static `resources`.
+
+**2. Kubernetes Client Module (`ExGoCD.K8sClient`)**
+*   Use `Req` or an Elixir K8s library to communicate with the `kube-apiserver`.
+*   Support authentication via in-cluster `ServiceAccount` (`/var/run/secrets/kubernetes.io/serviceaccount/token`).
+
+**3. Scheduler Integration (`ExGoCD.Scheduler`)**
+*   When assigning a job, if it has an `elastic_profile_id`, the scheduler checks if an agent matching the `elastic_agent_id` is already pending or registered.
+*   If not, it generates a unique `agent_id` (UUID), stores a temporary pending state, and issues a `POST /api/v1/namespaces/{namespace}/pods` request.
+*   **Pod Manifest Injection**: The server injects the following into the Pod definition:
+    *   `GOCD_SERVER_WEB_SOCKET_URL`: e.g., `wss://gocd-server:4000/agents/socket`
+    *   `GOCD_AGENT_AUTO_REGISTER_KEY`: For auth bypassing manual approval.
+    *   `GOCD_ELASTIC_AGENT_ID`: The UUID matching the expected agent.
+    *   `GOCD_ELASTIC_PROFILE_ID`: The profile the agent belongs to.
+
+**4. Orphaned Pod Reaping (`ExGoCD.ElasticAgentReaper`)**
+*   A GenServer that runs periodically (e.g., every 2 mins).
+*   Queries K8s for pods with label `ex_gocd.elastic_agent=true`.
+*   If a Pod exists but the corresponding agent hasn't pinged the server in > 10 mins (and has no active job), the server issues a `DELETE` request to K8s to kill the Pod.
+
+### Z.3 Agent-Side (Go Agent)
+
+The existing Go agent (`agent/`) must be enhanced to be "elastic-aware".
+
+**1. Configuration Bootstrapping**
+*   The Go agent must load `GOCD_ELASTIC_AGENT_ID` and `GOCD_ELASTIC_PROFILE_ID` from the environment if present.
+*   If these variables are present, the agent enters **Elastic Mode**.
+
+**2. Registration Payload Modification**
+*   In `agent/internal/registration/registration.go`, the initial registration handshake must include the `ElasticAgentId` and `ElasticProfileId` in the JSON payload sent to the server.
+*   This allows the server to correctly identify this new WebSocket connection as the expected elastic agent, assigning the waiting job to it immediately.
+
+**3. Lifecycle & Graceful Termination**
+*   Unlike static agents that wait indefinitely for work, an Elastic Agent is ephemeral.
+*   **Idle Timeout**: If an elastic agent receives no job within `N` minutes of registration, it should exit with code `0`.
+*   **Job Completion**: Once an elastic agent completes a job (success or failure), it should send the final status to the server and immediately invoke `os.Exit(0)`. The server shouldn't assign multiple jobs sequentially to the same elastic agent unless specifically configured for reuse.
+*   By exiting, the K8s Pod reaches `Completed` state, freeing cluster resources.
+
+### Z.4 Sequence Diagram
+
+```mermaid
+sequenceDiagram
+    participant P as Pipeline
+    participant S as ExGoCD Scheduler
+    participant K as K8s API
+    participant A as Go Agent (Pod)
+    
+    P->>S: Job scheduled (elastic_profile: "golang-build")
+    S->>S: Generate ElasticAgentID
+    S->>K: Create Pod (env: SERVER_URL, ELASTIC_AGENT_ID)
+    K-->>A: Pod starts container
+    A->>S: WebSocket Connect & Register (includes ELASTIC_AGENT_ID)
+    S->>A: Assign Job
+    A->>A: Execute Job
+    A->>S: Report Completion (Success/Fail)
+    A->>A: os.Exit(0) (Pod Terminates)
+```
+
+**Priority**: P1. Unlocks modern cloud-native scalability, making `ex_gocd` a viable replacement for large legacy GoCD deployments.
