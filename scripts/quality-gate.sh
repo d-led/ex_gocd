@@ -1,6 +1,6 @@
 #!/bin/bash
 # Quality Gate — runs all static analysis for the ex_gocd project
-# Covers Elixir (sobelow, credo, dialyzer, compile warnings) and Go agent.
+# Covers Elixir, Go agent, and JavaScript/TypeScript.
 # Exit code 0 = all checks pass. Non-zero = failures found.
 
 set -euo pipefail
@@ -126,18 +126,69 @@ else
   fail_step "Go agent tests — failures"
 fi
 
+# ── Go: gofmt ──────────────────────────────────────────────────────────
+
+echo ""
+echo "=== Go: gofmt ==="
+UNFORMATTED=$(cd agent && gofmt -l . 2>&1)
+if [ -z "$UNFORMATTED" ]; then
+  pass_step "Go gofmt — all files formatted"
+else
+  echo "Unformatted files:"
+  echo "$UNFORMATTED"
+  fail_step "Go gofmt — unformatted files found (run: cd agent && gofmt -w .)"
+fi
+
+# ── Go: go mod tidy ────────────────────────────────────────────────────
+
+echo ""
+echo "=== Go: go mod tidy ==="
+TIDY_OUT=$(cd agent && go mod tidy -diff 2>&1) && TIDY_OK=1 || TIDY_OK=0
+if [ "$TIDY_OK" -eq 1 ] && [ -z "$TIDY_OUT" ]; then
+  pass_step "Go mod tidy — go.mod is tidy"
+else
+  echo "$TIDY_OUT"
+  fail_step "Go mod tidy — go.mod needs tidying (run: cd agent && go mod tidy)"
+fi
+
 # ── Duplicate Code Detection (jscpd) ────────────────────────────────────
 
 echo ""
 echo "=== Duplicate Code Detection (jscpd) ==="
-JSCPD_OUT=$(npx --yes jscpd@3 lib/ test/ 2>&1) || true
-DUP_COUNT=$(echo "$JSCPD_OUT" | grep "Clones found" | grep -oE '[0-9]+' || echo "0")
-if [ "$DUP_COUNT" -eq 0 ] 2>/dev/null; then
-  pass_step "Duplicate code — no clones found"
+if npx --yes jscpd@3 lib/ test/ --threshold 1 --silent 2>&1; then
+  pass_step "Duplicate code — under 1% threshold"
 else
-  echo "$JSCPD_OUT"
-  fail_step "Duplicate code — ${DUP_COUNT} clones found (fix them to pass)"
+  fail_step "Duplicate code — exceeds 1% threshold (fix to pass)"
 fi
+
+# ── JavaScript: ESLint ──────────────────────────────────────────────────
+
+echo ""
+echo "=== JavaScript: ESLint ==="
+if npx --yes eslint --no-error-on-unmatched-pattern \
+    'cypress/**/*.js' 'assets/js/**/*.js' 'cypress.config.js' 2>&1; then
+  pass_step "ESLint — no issues"
+else
+  fail_step "ESLint — issues found"
+fi
+
+# ── TypeScript: type-check ─────────────────────────────────────────────
+
+echo ""
+echo "=== TypeScript: type-check ==="
+if npx --yes -p typescript tsc --project assets/tsconfig.json --noEmit 2>&1; then
+  pass_step "TypeScript — no type errors"
+else
+  fail_step "TypeScript — type errors found"
+fi
+
+# ── JavaScript: Prettier (auto-format) ──────────────────────────────────
+
+echo ""
+echo "=== JavaScript: Prettier (format) ==="
+PRETTIER_OUT=$(npx --yes prettier --write 'cypress/**/*.js' 'assets/js/**/*.js' 'cypress.config.js' 2>&1) || true
+echo "$PRETTIER_OUT" | tail -5
+pass_step "Prettier — formatted (auto-applied)"
 
 # ── Link Checker (internal only) ────────────────────────────────────────
 

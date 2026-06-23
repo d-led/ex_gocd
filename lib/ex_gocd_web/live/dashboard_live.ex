@@ -28,9 +28,12 @@ defmodule ExGoCDWeb.DashboardLive do
   @impl true
   def handle_params(params, _uri, socket) do
     search_text = params["search"] || ""
+    group_by = params["group_by"] || "environment"
     {:noreply,
      socket
      |> assign(:search_text, search_text)
+     |> assign(:grouping_scheme, group_by)
+     |> assign(:grouping_text, scheme_text(group_by))
      |> load_pipelines()}
   end
 
@@ -54,18 +57,20 @@ defmodule ExGoCDWeb.DashboardLive do
 
   @impl true
   def handle_event("select_grouping", %{"scheme" => scheme}, socket) do
-    text =
-      case scheme do
-        "environment" -> "Environment"
-        "pipeline_group" -> "Pipeline Group"
-        _ -> "Environment"
+    params = %{"group_by" => scheme}
+    params =
+      if socket.assigns.search_text != "" do
+        Map.put(params, "search", socket.assigns.search_text)
+      else
+        params
       end
 
     {:noreply,
      socket
      |> assign(:grouping_scheme, scheme)
-     |> assign(:grouping_text, text)
+     |> assign(:grouping_text, scheme_text(scheme))
      |> assign(:dropdown_open, false)
+     |> push_patch(to: ~p"/pipelines?#{params}")
      |> load_pipelines()}
   end
 
@@ -424,6 +429,10 @@ defmodule ExGoCDWeb.DashboardLive do
     |> assign(:pipeline_groups, grouped)
     |> assign(:has_pipelines, filtered != [])
   end
+
+  defp scheme_text("environment"), do: "Environment"
+  defp scheme_text("pipeline_group"), do: "Pipeline Group"
+  defp scheme_text(_), do: "Environment"
 
   defp use_mock? do
     System.get_env("USE_MOCK_DATA") == "true"

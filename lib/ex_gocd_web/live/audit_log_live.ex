@@ -30,12 +30,7 @@ defmodule ExGoCDWeb.AuditLogLive do
     socket =
       socket
       |> assign(:page, String.to_integer(params["page"] || "1"))
-      |> assign(:actor, params["actor"] || "")
-      |> assign(:action, params["action"] || "")
-      |> assign(:resource_type, params["resource_type"] || "")
-      |> assign(:resource_name, params["resource_name"] || "")
-      |> assign(:date_from, params["date_from"] || "")
-      |> assign(:date_to, params["date_to"] || "")
+      |> assign_filter_params(params)
       |> load_entries()
 
     {:noreply, socket}
@@ -61,12 +56,7 @@ defmodule ExGoCDWeb.AuditLogLive do
     {:noreply,
      socket
      |> assign(:filters, filters)
-     |> assign(:actor, params["actor"] || "")
-     |> assign(:action, params["action"] || "")
-     |> assign(:resource_type, params["resource_type"] || "")
-     |> assign(:resource_name, params["resource_name"] || "")
-     |> assign(:date_from, params["date_from"] || "")
-     |> assign(:date_to, params["date_to"] || "")
+     |> assign_filter_params(params)
      |> assign(:page, 1)
      |> load_entries()}
   end
@@ -107,6 +97,16 @@ defmodule ExGoCDWeb.AuditLogLive do
 
   defp use_mock? do
     System.get_env("USE_MOCK_DATA") == "true"
+  end
+
+  defp assign_filter_params(socket, params) do
+    socket
+    |> assign(:actor, params["actor"] || "")
+    |> assign(:action, params["action"] || "")
+    |> assign(:resource_type, params["resource_type"] || "")
+    |> assign(:resource_name, params["resource_name"] || "")
+    |> assign(:date_from, params["date_from"] || "")
+    |> assign(:date_to, params["date_to"] || "")
   end
 
   defp put_if(map, _key, ""), do: map

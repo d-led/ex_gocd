@@ -85,7 +85,7 @@ func TestUnzipSecurelyZipSlipProtection(t *testing.T) {
 	defer tmpZip.Close()
 
 	zw := zip.NewWriter(tmpZip)
-	
+
 	// Create malicious entry
 	w, err := zw.Create("../escaped.txt")
 	require.NoError(t, err)

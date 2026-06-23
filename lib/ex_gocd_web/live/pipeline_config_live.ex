@@ -818,16 +818,9 @@ defmodule ExGoCDWeb.PipelineConfigLive do
     if task do
       {:ok, _} = Pipelines.delete_task(task)
     end
-    # Force reload of current job and pipeline
-    pipeline = Pipelines.get_pipeline_by_name!(socket.assigns.pipeline.name)
-    active_stage = Enum.find(pipeline.stages || [], & &1.name == socket.assigns.active_stage.name)
-    active_job = if active_stage, do: Enum.find(active_stage.jobs || [], & &1.name == socket.assigns.active_job.name)
-
     {:noreply,
      socket
-     |> assign(:pipeline, pipeline)
-     |> assign(:active_stage, active_stage)
-     |> assign(:active_job, active_job)
+     |> reload_pipeline_and_stage()
      |> assign(:flash_info, "Task deleted successfully.")}
   end
 
@@ -857,15 +850,9 @@ defmodule ExGoCDWeb.PipelineConfigLive do
       end)
     end
 
-    pipeline = Pipelines.get_pipeline_by_name!(socket.assigns.pipeline.name)
-    active_stage = Enum.find(pipeline.stages || [], & &1.name == socket.assigns.active_stage.name)
-    active_job = if active_stage, do: Enum.find(active_stage.jobs || [], & &1.name == socket.assigns.active_job.name)
-
     {:noreply,
      socket
-     |> assign(:pipeline, pipeline)
-     |> assign(:active_stage, active_stage)
-     |> assign(:active_job, active_job)
+     |> reload_pipeline_and_stage()
      |> assign(:flash_info, "Task reordered successfully.")}
   end
 
@@ -885,6 +872,17 @@ defmodule ExGoCDWeb.PipelineConfigLive do
       {:error, _reason} ->
         {:noreply, assign(socket, :flash_info, "Error saving configuration: invalid values provided.")}
     end
+  end
+
+  defp reload_pipeline_and_stage(socket) do
+    pipeline = Pipelines.get_pipeline_by_name!(socket.assigns.pipeline.name)
+    active_stage = Enum.find(pipeline.stages || [], & &1.name == socket.assigns.active_stage.name)
+    active_job = if active_stage, do: Enum.find(active_stage.jobs || [], & &1.name == socket.assigns.active_job.name)
+
+    socket
+    |> assign(:pipeline, pipeline)
+    |> assign(:active_stage, active_stage)
+    |> assign(:active_job, active_job)
   end
 
   defp save_modal_result(params, socket) do

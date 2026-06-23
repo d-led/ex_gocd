@@ -42,7 +42,9 @@ describe("Materials Page", () => {
     const fp = "8d78bc9f6c661806";
 
     cy.openModificationsModal(fp);
-    cy.theModificationsModalContains("upgrade actions and fix compilation warnings");
+    cy.theModificationsModalContains(
+      "upgrade actions and fix compilation warnings",
+    );
 
     cy.searchModificationsInModal("upgrade");
     cy.theModificationsModalContains("upgrade actions");

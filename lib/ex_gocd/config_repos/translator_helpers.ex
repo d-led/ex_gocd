@@ -22,4 +22,17 @@ defmodule ExGoCD.ConfigRepos.TranslatorHelpers do
   def filter_jobs(jobs, selected) when is_list(selected) do
     Enum.filter(jobs, fn {name, _} -> name in selected end)
   end
+
+  @doc """
+  Builds a skip-mode attributes map with only the pipeline name and empty stages/materials.
+  """
+  def skip_attrs(ir, selections) do
+    prefix = Map.get(selections, :pipeline_name_prefix, "")
+    %{
+      name: pipeline_name(ir, prefix),
+      group: prefix,
+      stages: [],
+      materials: []
+    }
+  end
 end

@@ -36,15 +36,7 @@ defmodule ExGoCD.ConfigRepos.GitHubActionsTranslator do
 
   # --- Skip mode ---
 
-  defp skip_attrs(ir, selections) do
-    prefix = Map.get(selections, :pipeline_name_prefix, "")
-    %{
-      name: TranslatorHelpers.pipeline_name(ir, prefix),
-      group: prefix,
-      stages: [],
-      materials: []
-    }
-  end
+  defp skip_attrs(ir, selections), do: TranslatorHelpers.skip_attrs(ir, selections)
 
   # --- Translate mode ---
 

@@ -34,6 +34,7 @@ defmodule ExGoCD.StageStatus do
   defguard is_cancelled(s) when s == @result_cancelled or s == @state_cancelled
   defguard is_awaiting(s) when s == @state_awaiting
   defguard is_not_yet_run(s) when s == @vsm_not_yet_run
+  defguard is_unknown(s) when s == @result_unknown
   defguard is_terminal(s) when s in @terminal_states
 
   # ── Public API ────────────────────────────────────────────────────────
@@ -50,6 +51,7 @@ defmodule ExGoCD.StageStatus do
   def stage_bg(@result_cancelled), do: "bg-[#f0ad4e]"
   def stage_bg(@state_awaiting), do: "bg-[#e7eef0] border border-[#b6cdd2]"
   def stage_bg(@vsm_not_yet_run), do: "bg-[#e7eef0] border border-dashed border-[#b6cdd2]"
+  def stage_bg(@result_unknown), do: "bg-[#e7eef0] border border-dashed border-[#b6cdd2]"
   def stage_bg(_), do: "bg-gray-300"
 
   @doc "Returns the CSS border class for a VSM pipeline node."
@@ -60,6 +62,7 @@ defmodule ExGoCD.StageStatus do
   def node_border(@result_cancelled), do: "border-[#f0ad4e] border-2"
   def node_border(@state_awaiting), do: "border-[#b6cdd2] border-2"
   def node_border(@vsm_not_yet_run), do: "border-[#b6cdd2] border-2"
+  def node_border(@result_unknown), do: "border-[#b6cdd2] border-2"
   def node_border(nil), do: "border-[#2fa8b6]"
   def node_border(_), do: "border-[#2fa8b6]"
 
@@ -71,6 +74,7 @@ defmodule ExGoCD.StageStatus do
   def node_badge(@result_cancelled), do: "bg-[#f0ad4e] text-white"
   def node_badge(@state_awaiting), do: "bg-[#e7eef0] text-gray-600"
   def node_badge(@vsm_not_yet_run), do: "bg-[#e7eef0] text-gray-600"
+  def node_badge(@result_unknown), do: "bg-[#e7eef0] text-gray-600"
   def node_badge(_), do: "bg-gray-300 text-gray-600"
 
   @doc """
@@ -86,7 +90,7 @@ defmodule ExGoCD.StageStatus do
       Enum.any?(statuses, &is_cancelled/1) -> @result_cancelled
       Enum.all?(statuses, &is_passed/1) -> @result_passed
       Enum.any?(statuses, &is_awaiting/1) -> @state_awaiting
-      Enum.all?(statuses, &is_not_yet_run/1) -> @vsm_not_yet_run
+      Enum.all?(statuses, &(is_not_yet_run(&1) or is_unknown(&1))) -> @vsm_not_yet_run
       true -> @result_unknown
     end
   end

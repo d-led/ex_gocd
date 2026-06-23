@@ -11,6 +11,8 @@ defmodule ExGoCD.TestAgentTest do
   alias ExGoCD.TestAgentSupervisor
   alias ExGoCDWeb.AgentPresence
 
+  import ExGoCD.TestHelpers
+
   setup do
     wait_for_scheduler()
     TestAgentSupervisor.stop_all_agents()
@@ -117,32 +119,4 @@ defmodule ExGoCD.TestAgentTest do
     TestAgentSupervisor.stop_all_agents()
   end
 
-  # Helper to poll condition periodically
-  defp assert_receive_or_retry(retries, func) do
-    if func.() do
-      true
-    else
-      if retries > 0 do
-        Process.sleep(50)
-        assert_receive_or_retry(retries - 1, func)
-      else
-        flunk("Assertion failed after retries")
-      end
-    end
-  end
-
-  defp wait_for_scheduler do
-    case Process.whereis(ExGoCD.Scheduler) do
-      nil ->
-        Process.sleep(10)
-        wait_for_scheduler()
-      pid ->
-        if Process.alive?(pid) do
-          :ok
-        else
-          Process.sleep(10)
-          wait_for_scheduler()
-        end
-    end
-  end
 end

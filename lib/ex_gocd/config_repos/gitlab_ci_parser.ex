@@ -11,7 +11,7 @@ defmodule ExGoCD.ConfigRepos.GitLabCIParser do
   - Excluded: extends (template merging), image/services, retry, interruptible, resource_group
   """
 
-  alias ExGoCD.ConfigRepos.ExternalPipelineIR
+  alias ExGoCD.ConfigRepos.{ExternalPipelineIR, ParserHelpers}
 
   @doc """
   Parses a GitLab CI YAML string into an ExternalPipelineIR.
@@ -45,15 +45,8 @@ defmodule ExGoCD.ConfigRepos.GitLabCIParser do
 
   # --- YAML parsing ---
 
-  defp parse_yaml(content) do
-    case YamlElixir.read_from_string(content) do
-      {:ok, parsed} -> {:ok, parsed}
-      {:error, reason} -> {:error, "YAML parse error: #{inspect(reason)}"}
-    end
-  end
-
-  defp ensure_map(data) when is_map(data), do: :ok
-  defp ensure_map(_), do: {:error, "GitLab CI YAML must parse to a mapping, not a list or scalar"}
+  defp parse_yaml(content), do: ParserHelpers.parse_yaml(content)
+  defp ensure_map(data), do: ParserHelpers.ensure_map(data, "GitLab CI YAML")
 
   defp pipeline_name(parsed, source_file) do
     case parsed["workflow"] do

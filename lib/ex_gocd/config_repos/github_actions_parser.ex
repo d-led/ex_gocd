@@ -12,7 +12,7 @@ defmodule ExGoCD.ConfigRepos.GitHubActionsParser do
   - Excluded: pull_request, workflow_call, services, container, permissions, concurrency
   """
 
-  alias ExGoCD.ConfigRepos.ExternalPipelineIR
+  alias ExGoCD.ConfigRepos.{ExternalPipelineIR, ParserHelpers}
 
   @doc """
   Parses a GitHub Actions workflow YAML string into an ExternalPipelineIR.
@@ -28,8 +28,8 @@ defmodule ExGoCD.ConfigRepos.GitHubActionsParser do
   """
   @spec parse_workflow(String.t(), String.t()) :: {:ok, ExternalPipelineIR.t()} | {:error, String.t()}
   def parse_workflow(yaml_string, source_file) when is_binary(yaml_string) and is_binary(source_file) do
-    with {:ok, parsed} <- parse_yaml(yaml_string),
-         :ok <- ensure_map(parsed) do
+    with {:ok, parsed} <- ParserHelpers.parse_yaml(yaml_string),
+         :ok <- ParserHelpers.ensure_map(parsed, "workflow YAML") do
       name = Map.get(parsed, "name", stem_from(source_file))
       triggers = extract_triggers(parsed["on"])
       env_vars = extract_env_vars(parsed["env"])
@@ -53,19 +53,7 @@ defmodule ExGoCD.ConfigRepos.GitHubActionsParser do
 
   # --- YAML parsing ---
 
-  defp parse_yaml(content) do
-    case YamlElixir.read_from_string(content) do
-      {:ok, parsed} -> {:ok, parsed}
-      {:error, reason} -> {:error, "YAML parse error: #{inspect(reason)}"}
-    end
-  end
-
-  defp ensure_map(data) when is_map(data), do: :ok
-  defp ensure_map(_), do: {:error, "workflow YAML must parse to a mapping, not a list or scalar"}
-
-  defp stem_from(file_path) do
-    file_path |> Path.basename() |> Path.rootname()
-  end
+  defp stem_from(file_path), do: ParserHelpers.stem_from(file_path)
 
   # --- Triggers ---
 

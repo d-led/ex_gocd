@@ -25,26 +25,12 @@ defmodule ExGoCD.PipelinesTest do
 
     test "trigger with single-job stage creates one instance and enqueues one job" do
       {pipeline, _stage, _job} = insert_pipeline_with_jobs("single", 1)
-
-      assert {:ok, instance} = Pipelines.trigger_pipeline(pipeline.name)
-      assert instance.counter == 1
-
-      [stage_instance] = from(s in ExGoCD.Pipelines.StageInstance, where: s.pipeline_instance_id == ^instance.id) |> Repo.all()
-      job_instances = from(j in JobInstance, where: j.stage_instance_id == ^stage_instance.id) |> Repo.all()
-      assert length(job_instances) == 1
-      assert Enum.all?(job_instances, &(&1.state == "Scheduled"))
+      assert_trigger_creates_jobs(pipeline, 1)
     end
 
     test "trigger with two-job stage creates two job instances and enqueues two jobs (for two agents)" do
       {pipeline, _stage, _jobs} = insert_pipeline_with_jobs("multi", 2)
-
-      assert {:ok, instance} = Pipelines.trigger_pipeline(pipeline.name)
-      assert instance.counter == 1
-
-      [stage_instance] = from(s in ExGoCD.Pipelines.StageInstance, where: s.pipeline_instance_id == ^instance.id) |> Repo.all()
-      job_instances = from(j in JobInstance, where: j.stage_instance_id == ^stage_instance.id) |> Repo.all()
-      assert length(job_instances) == 2, "expected 2 job instances for 2 jobs in stage"
-      assert Enum.all?(job_instances, &(&1.state == "Scheduled")), "expected all jobs enqueued (Scheduled state)"
+      assert_trigger_creates_jobs(pipeline, 2)
     end
 
     test "completing all jobs in first stage automatically schedules second stage" do
@@ -494,5 +480,17 @@ defmodule ExGoCD.PipelinesTest do
       si_reloaded = Repo.get!(StageInstance, si.id)
       assert si_reloaded.state == "Building"
     end
+  end
+
+  # ── Helpers ────────────────────────────────────────────────────────
+
+  defp assert_trigger_creates_jobs(pipeline, expected_count) do
+    assert {:ok, instance} = Pipelines.trigger_pipeline(pipeline.name)
+    assert instance.counter == 1
+
+    [stage_instance] = from(s in StageInstance, where: s.pipeline_instance_id == ^instance.id) |> Repo.all()
+    job_instances = from(j in JobInstance, where: j.stage_instance_id == ^stage_instance.id) |> Repo.all()
+    assert length(job_instances) == expected_count
+    assert Enum.all?(job_instances, &(&1.state == "Scheduled"))
   end
 end

@@ -117,14 +117,4 @@ defmodule ExGoCDWeb.API.JobController do
     })
   end
 
-  defp format_ts(nil), do: nil
-  defp format_ts(dt), do: Calendar.strftime(dt, "%Y-%m-%dT%H:%M:%SZ")
-
-  defp parse_offset(nil), do: 0
-  defp parse_offset(str) when is_binary(str) do
-    case Integer.parse(str) do
-      {n, _} -> n
-      :error -> 0
-    end
-  end
 end

@@ -257,7 +257,7 @@ defmodule ExGoCD.Pipelines.ValueStreamMapTest do
       assert "integration-pipeline" in names
     end
 
-    test "downstream nodes have stage indicators (mock or un-run)", %{upstream: upstream} do
+    test "downstream nodes that never ran show GoCD-parity un-run instances", %{upstream: upstream} do
       {:ok, vsm} = ValueStreamMap.get_pipeline_vsm(upstream.name, 5)
       [_mat, _pipe, downstream_level | _] = vsm["levels"]
 
@@ -265,12 +265,20 @@ defmodule ExGoCD.Pipelines.ValueStreamMapTest do
         [inst] = node["instances"]
         stages = inst["stages"]
 
-        # Downstreams should have at least one stage configured
-        refute Enum.empty?(stages), "downstream #{node["name"]} should have configured stages"
-        # Each stage must have a name and status
+        refute Enum.empty?(stages), "downstream '#{node["name"]}' should have configured stages"
+
+        # GoCD parity: un-run = EmptyPipelineIdentifier (counter=0, label="", locator="")
+        assert inst["counter"] == 0,
+          "un-run downstream '#{node["name"]}' should have counter=0, got #{inst["counter"]}"
+        assert inst["label"] == ""
+        assert inst["locator"] == ""
+
+        # GoCD parity: NullStage → status=Unknown, no locator
         for stage <- stages do
-          assert is_binary(stage["name"]), "stage must have a name"
-          assert is_binary(stage["status"]), "stage must have a status: #{inspect(stage)}"
+          assert stage["status"] == "Unknown",
+            "un-run stage '#{stage["name"]}' in '#{node["name"]}' should be Unknown, got: #{stage["status"]}"
+          assert stage["duration"] == 0
+          assert stage["locator"] == ""
         end
       end
     end
@@ -291,6 +299,144 @@ defmodule ExGoCD.Pipelines.ValueStreamMapTest do
       parents = integration_node["parents"]
       assert "component-a" in parents
       assert "component-b" in parents
+    end
+  end
+
+  # ── counter=0: GoCD EmptyPipelineIdentifier parity ───────────────────
+  # In GoCD, counter=0 means "never run" / indeterminate.
+  # hasCounter() returns counter > 0, locator is "" when counter==0,
+  # stages are NullStage (status=Unknown).
+  describe "counter=0 indeterminate VSM (GoCD EmptyPipelineIdentifier parity)" do
+    setup do
+      {:ok, pipeline} =
+        %ExGoCD.Pipelines.Pipeline{}
+        |> ExGoCD.Pipelines.Pipeline.changeset(%{name: "indeterminate-pipe", group: "default", label_template: "${COUNT}"})
+        |> ExGoCD.Repo.insert()
+
+      {:ok, mat} =
+        %ExGoCD.Pipelines.Material{}
+        |> ExGoCD.Pipelines.Material.changeset(%{type: "git", url: "https://github.com/exgocd/indeterminate.git", branch: "main"})
+        |> ExGoCD.Repo.insert()
+
+      ExGoCD.Repo.insert_all("pipelines_materials", [%{pipeline_id: pipeline.id, material_id: mat.id}])
+
+      # Configured stages (no instances — never run)
+      {:ok, _build_stage} =
+        %ExGoCD.Pipelines.Stage{}
+        |> ExGoCD.Pipelines.Stage.changeset(%{name: "build", pipeline_id: pipeline.id, order_id: 0})
+        |> ExGoCD.Repo.insert()
+
+      {:ok, _test_stage} =
+        %ExGoCD.Pipelines.Stage{}
+        |> ExGoCD.Pipelines.Stage.changeset(%{name: "test", pipeline_id: pipeline.id, order_id: 1})
+        |> ExGoCD.Repo.insert()
+
+      %{pipeline: pipeline}
+    end
+
+    test "returns indeterminate VSM when requesting counter=0 for an existing pipeline", %{pipeline: pipeline} do
+      # Given a pipeline that exists but has never run
+      # When we request its value stream map with counter=0
+      assert {:ok, vsm} = ValueStreamMap.get_pipeline_vsm(pipeline.name, 0)
+
+      # Then the current pipeline is set
+      assert vsm["current_pipeline"] == "indeterminate-pipe"
+
+      # And the pipeline node has the indeterminate instance
+      [_, pipe_level | _] = vsm["levels"]
+      [pipe_node] = pipe_level["nodes"]
+      [inst] = pipe_node["instances"]
+
+      # The instance is indeterminate: counter=0, empty label, no clickable locator
+      assert inst["counter"] == 0
+      assert inst["label"] == ""
+      assert inst["locator"] == ""
+
+      # All configured stages appear as Unknown (GoCD NullStage parity)
+      stage_names = inst["stages"] |> Enum.map(& &1["name"])
+      assert "build" in stage_names
+      assert "test" in stage_names
+
+      for stage <- inst["stages"] do
+        assert stage["status"] == "Unknown",
+          "stage '#{stage["name"]}' should be Unknown (un-run), got: #{stage["status"]}"
+        assert stage["duration"] == 0
+        assert stage["locator"] == ""
+      end
+    end
+
+    test "counter=0 for a pipeline that does not exist returns :not_found" do
+      # Given a pipeline name that doesn't exist
+      # When requesting its VSM with counter=0
+      # Then it returns :not_found — no indeterminate VSM for unknown pipelines
+      assert {:error, :not_found} = ValueStreamMap.get_pipeline_vsm("nonexistent-pipeline", 0)
+    end
+  end
+
+  describe "un-run downstream nodes (GoCD UnrunPipelineRevision parity)" do
+    setup do
+      # Given: upstream triggers downstream-a, but downstream-a has never run
+      {:ok, upstream} = create_pipeline_with_material("trigger-pipe", "git", "https://github.com/exgocd/trigger.git")
+
+      {:ok, downstream} = create_pipeline_with_material("never-ran", "dependency", "trigger-pipe")
+
+      # downstream also has a second stage configured
+      unless ExGoCD.Repo.get_by(ExGoCD.Pipelines.Stage, pipeline_id: downstream.id, name: "deploy") do
+        %ExGoCD.Pipelines.Stage{}
+        |> ExGoCD.Pipelines.Stage.changeset(%{name: "deploy", pipeline_id: downstream.id, order_id: 1})
+        |> ExGoCD.Repo.insert()
+      end
+
+      # Create an instance for upstream so the VSM renders
+      stage = ExGoCD.Repo.get_by!(ExGoCD.Pipelines.Stage, pipeline_id: upstream.id, name: "build")
+
+      completed_at = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+      created_time = DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.add(-120, :second)
+
+      {:ok, instance} =
+        %ExGoCD.Pipelines.PipelineInstance{}
+        |> ExGoCD.Pipelines.PipelineInstance.changeset(%{
+          pipeline_id: upstream.id, counter: 1, label: "1", natural_order: 1.0,
+          build_cause: %{"materialRevisions" => []}
+        })
+        |> ExGoCD.Repo.insert()
+
+      {:ok, _si} =
+        %ExGoCD.Pipelines.StageInstance{}
+        |> ExGoCD.Pipelines.StageInstance.changeset(%{
+          stage_id: stage.id, pipeline_instance_id: instance.id,
+          name: "build", counter: 1, order_id: 0, state: "Completed", result: "Passed",
+          approval_type: "success", created_time: created_time, completed_at: completed_at
+        })
+        |> ExGoCD.Repo.insert()
+
+      %{upstream: upstream, downstream: downstream}
+    end
+
+    test "downstream that never ran shows as indeterminate (counter=0, Unknown stages)", %{upstream: upstream, downstream: downstream} do
+      # When we view the VSM from the upstream pipeline
+      {:ok, vsm} = ValueStreamMap.get_pipeline_vsm(upstream.name, 1)
+
+      # Then the downstream level contains the never-run pipeline
+      [_mat, _pipe, downstream_level | _] = vsm["levels"]
+      downstream_node = Enum.find(downstream_level["nodes"], &(&1["name"] == downstream.name))
+      assert downstream_node, "expected downstream '#{downstream.name}' in VSM levels"
+
+      # And its instance is indeterminate — GoCD UnrunPipelineRevision parity
+      [inst] = downstream_node["instances"]
+      assert inst["counter"] == 0,
+        "un-run pipeline should have counter=0 (EmptyPipelineIdentifier), got #{inst["counter"]}"
+      assert inst["label"] == ""
+      assert inst["locator"] == ""
+
+      # And all configured stages show as Unknown (NullStage)
+      refute Enum.empty?(inst["stages"]), "un-run pipeline should have configured stages"
+      for stage <- inst["stages"] do
+        assert stage["status"] == "Unknown",
+          "un-run stage '#{stage["name"]}' should be Unknown, got: #{stage["status"]}"
+        assert stage["duration"] == 0
+        assert stage["locator"] == ""
+      end
     end
   end
 

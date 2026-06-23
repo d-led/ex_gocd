@@ -163,10 +163,10 @@ func runOnce(attempt int) (err error) {
 }
 
 // resolveAgentUUID determines the agent UUID:
-//   1. AGENT_NEW_UUID=1 → generate fresh, overwrite file
-//   2. AGENT_UUID env → use it if valid, persist to file
-//   3. Existing agent.uuid file → load it if valid
-//   4. None of the above (or invalid UUID found) → generate new
+//  1. AGENT_NEW_UUID=1 → generate fresh, overwrite file
+//  2. AGENT_UUID env → use it if valid, persist to file
+//  3. Existing agent.uuid file → load it if valid
+//  4. None of the above (or invalid UUID found) → generate new
 func resolveAgentUUID(uuidFile string) string {
 	// Force fresh UUID
 	if os.Getenv("AGENT_NEW_UUID") == "1" {

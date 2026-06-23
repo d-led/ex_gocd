@@ -246,7 +246,6 @@ func (r *Registrar) saveCertificates(reg protocol.Registration) error {
 	return nil
 }
 
-
 // registrationData prepares the form data for registration
 func (r *Registrar) registrationData() url.Values {
 	cfg := r.config

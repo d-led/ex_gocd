@@ -12,15 +12,8 @@ defmodule ExGoCDWeb.ArtifactsController do
     System.get_env("ARTIFACTS_DIR") || "artifacts"
   end
 
-  # POST /files/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/:job_name/*file_path
-  def create(conn, %{
-        "pipeline_name" => pipeline_name,
-        "pipeline_counter" => pipeline_counter_str,
-        "stage_name" => stage_name,
-        "stage_counter" => stage_counter_str,
-        "job_name" => job_name,
-        "file_path" => file_path
-      }) do
+  # Constructs job_dir and target_path from URL path params
+  defp build_job_paths(pipeline_name, pipeline_counter_str, stage_name, stage_counter_str, job_name, file_path) do
     pipeline_counter = parse_integer(pipeline_counter_str)
     stage_counter = parse_integer(stage_counter_str)
 
@@ -33,6 +26,21 @@ defmodule ExGoCDWeb.ArtifactsController do
       job_name
     ]))
     target_path = Path.expand(Path.join([job_dir | file_path]))
+
+    {pipeline_counter, stage_counter, job_dir, target_path}
+  end
+
+  # POST /files/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/:job_name/*file_path
+  def create(conn, %{
+        "pipeline_name" => pipeline_name,
+        "pipeline_counter" => pipeline_counter_str,
+        "stage_name" => stage_name,
+        "stage_counter" => stage_counter_str,
+        "job_name" => job_name,
+        "file_path" => file_path
+      }) do
+    {_pipeline_counter, _stage_counter, job_dir, target_path} =
+      build_job_paths(pipeline_name, pipeline_counter_str, stage_name, stage_counter_str, job_name, file_path)
 
     with :ok <- check_safe_segments(file_path),
          :ok <- check_boundary(target_path, job_dir),
@@ -145,18 +153,8 @@ defmodule ExGoCDWeb.ArtifactsController do
         "job_name" => job_name,
         "file_path" => file_path
       }) do
-    pipeline_counter = parse_integer(pipeline_counter_str)
-    stage_counter = parse_integer(stage_counter_str)
-
-    job_dir = Path.expand(Path.join([
-      artifacts_dir(),
-      pipeline_name,
-      to_string(pipeline_counter),
-      stage_name,
-      to_string(stage_counter),
-      job_name
-    ]))
-    target_path = Path.expand(Path.join([job_dir | file_path]))
+    {pipeline_counter, stage_counter, job_dir, target_path} =
+      build_job_paths(pipeline_name, pipeline_counter_str, stage_name, stage_counter_str, job_name, file_path)
 
     with :ok <- check_safe_segments(file_path),
          :ok <- check_boundary(target_path, job_dir) do
@@ -301,18 +299,8 @@ defmodule ExGoCDWeb.ArtifactsController do
         "job_name" => job_name,
         "file_path" => file_path
       }) do
-    pipeline_counter = parse_integer(pipeline_counter_str)
-    stage_counter = parse_integer(stage_counter_str)
-
-    job_dir = Path.expand(Path.join([
-      artifacts_dir(),
-      pipeline_name,
-      to_string(pipeline_counter),
-      stage_name,
-      to_string(stage_counter),
-      job_name
-    ]))
-    target_path = Path.expand(Path.join([job_dir | file_path]))
+    {pipeline_counter, stage_counter, job_dir, target_path} =
+      build_job_paths(pipeline_name, pipeline_counter_str, stage_name, stage_counter_str, job_name, file_path)
 
     with :ok <- check_safe_segments(file_path),
          :ok <- check_boundary(target_path, job_dir),

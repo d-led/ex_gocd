@@ -2,7 +2,7 @@ describe("Real Pipeline Execution E2E Test", () => {
   beforeEach(() => {
     // Go to dashboard (which shows real database pipelines in our test setup)
     cy.visit("/pipelines");
-    cy.get('.phx-connected', { timeout: 10000 }).should('exist');
+    cy.get(".phx-connected", { timeout: 10000 }).should("exist");
   });
 
   it("triggers the real demo pipeline and runs it on the local agent", () => {
@@ -31,9 +31,11 @@ describe("Real Pipeline Execution E2E Test", () => {
             const text = $label.text();
             const counter = text.match(/\d+/)[0];
             cy.visit(`/go/tab/build/detail/demo/${counter}/build/1/default`);
-            cy.get('.phx-connected', { timeout: 10000 }).should('exist');
-            cy.get("pre.whitespace-pre-wrap", { timeout: 10000 })
-              .should("contain", "git init");
+            cy.get(".phx-connected", { timeout: 10000 }).should("exist");
+            cy.get("pre.whitespace-pre-wrap", { timeout: 10000 }).should(
+              "contain",
+              "git init",
+            );
           });
       } else {
         // Mock mode: just verify dashboard loads

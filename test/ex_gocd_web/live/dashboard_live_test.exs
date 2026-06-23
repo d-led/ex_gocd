@@ -234,6 +234,45 @@ defmodule ExGoCDWeb.DashboardLiveTest do
       assert pg_html != env_html,
         "Pipeline Group and Environment grouping must produce distinct results"
     end
+
+    test "selecting grouping persists in URL via group_by param", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      view |> element(".c-dropdown-head") |> render_click()
+      view |> element(".c-dropdown-item", "Pipeline Group") |> render_click()
+
+      assert_patched(view, ~p"/pipelines?group_by=pipeline_group")
+    end
+
+    test "loading URL with group_by=pipeline_group sets correct grouping", %{conn: conn} do
+      {:ok, view, html} = live(conn, ~p"/pipelines?group_by=pipeline_group")
+
+      assert html =~ "Pipeline Group"
+      assert has_element?(view, "[aria-selected='true']", "Pipeline Group")
+    end
+
+    test "loading URL with group_by=environment shows environment grouping", %{conn: conn} do
+      {:ok, view, html} = live(conn, ~p"/pipelines?group_by=environment")
+
+      assert html =~ "Environment"
+      assert has_element?(view, "[aria-selected='true']", "Environment")
+    end
+
+    test "loading URL without group_by defaults to environment", %{conn: conn} do
+      {:ok, view, html} = live(conn, ~p"/pipelines")
+
+      assert html =~ "Environment"
+      assert has_element?(view, "[aria-selected='true']", "Environment")
+    end
+
+    test "switching grouping preserves search param in URL", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/pipelines?search=frontend")
+
+      view |> element(".c-dropdown-head") |> render_click()
+      view |> element(".c-dropdown-item", "Pipeline Group") |> render_click()
+
+      assert_patched(view, ~p"/pipelines?group_by=pipeline_group&search=frontend")
+    end
   end
 
   describe "accessibility" do

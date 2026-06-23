@@ -15,12 +15,16 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
   Generates VSM data for a pipeline name and counter.
   """
   def get_pipeline_vsm(pipeline_name, counter) do
-    if use_mock?(pipeline_name) do
-      get_mock_pipeline_vsm(pipeline_name, counter)
+    if counter == 0 do
+      build_indeterminate_vsm(pipeline_name)
     else
-      case fetch_db_instance(pipeline_name, counter) do
-        nil -> fallback_to_mock_or_not_found(pipeline_name, counter)
-        instance -> build_db_pipeline_vsm(instance)
+      if use_mock?(pipeline_name) do
+        get_mock_pipeline_vsm(pipeline_name, counter)
+      else
+        case fetch_db_instance(pipeline_name, counter) do
+          nil -> fallback_to_mock_or_not_found(pipeline_name, counter)
+          instance -> build_db_pipeline_vsm(instance)
+        end
       end
     end
   end
@@ -72,6 +76,106 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
     end
   end
 
+  # GoCD parity: counter=0 → EmptyPipelineIdentifier → "indeterminate" VSM
+  # Shows pipeline structure but all instances are un-run (counter=0, label="", locator="")
+  defp build_indeterminate_vsm(pipeline_name) do
+    if use_mock?(pipeline_name) do
+      build_mock_indeterminate_vsm(pipeline_name)
+    else
+      pipeline = Repo.get_by(Pipeline, name: pipeline_name) |> Repo.preload(:materials)
+      if is_nil(pipeline) do
+        {:error, :not_found}
+      else
+        build_db_indeterminate_vsm(pipeline)
+      end
+    end
+  end
+
+  defp build_db_indeterminate_vsm(pipeline) do
+    pipeline_name = pipeline.name
+    materials = pipeline.materials || []
+    downstream_names = get_downstream_pipelines(pipeline_name)
+
+    material_nodes = build_material_nodes_no_instance(materials, pipeline_name)
+    unrun_instance = build_unrun_instance(pipeline_name)
+    fan_in = count_fan_in(pipeline_name)
+
+    pipeline_node = %{
+      "id" => pipeline_name,
+      "name" => pipeline_name,
+      "node_type" => "PIPELINE",
+      "depth" => 1,
+      "parents" => Enum.map(material_nodes, & &1["id"]),
+      "dependents" => downstream_names,
+      "fan_in" => fan_in,
+      "fan_out" => length(downstream_names),
+      "locator" => "/go/pipeline/activity/#{pipeline_name}",
+      "can_edit" => true,
+      "edit_path" => "/go/admin/pipelines/#{pipeline_name}/edit/general",
+      "template_name" => pipeline.template_name,
+      "instances" => [unrun_instance]
+    }
+
+    downstream_nodes = build_all_downstream_nodes(downstream_names, [pipeline_name], 2)
+    levels = assemble_levels(material_nodes, pipeline_node, downstream_nodes)
+
+    {:ok, %{"current_pipeline" => pipeline_name, "levels" => levels}}
+  end
+
+  defp build_mock_indeterminate_vsm(pipeline_name) do
+    mock_pipeline = Enum.find(MockData.pipelines(), &(&1.name == pipeline_name))
+    if is_nil(mock_pipeline) do
+      {:error, :not_found}
+    else
+      materials = mock_pipeline.materials || []
+      downstream_names = get_downstream_pipelines(pipeline_name)
+
+      material_nodes =
+        materials
+        |> Enum.map(fn mat ->
+          modification = get_mock_modification(mat)
+          build_material_node(mat, modification, pipeline_name)
+        end)
+
+      unrun_instance = build_unrun_instance(pipeline_name)
+
+      pipeline_node = %{
+        "id" => pipeline_name,
+        "name" => pipeline_name,
+        "node_type" => "PIPELINE",
+        "depth" => 1,
+        "parents" => Enum.map(material_nodes, & &1["id"]),
+        "dependents" => downstream_names,
+        "locator" => "/go/pipeline/activity/#{pipeline_name}",
+        "can_edit" => true,
+        "edit_path" => "/go/admin/pipelines/#{pipeline_name}/edit/general",
+        "template_name" => nil,
+        "instances" => [unrun_instance]
+      }
+
+      downstream_nodes = build_all_downstream_nodes(downstream_names, [pipeline_name], 2)
+      downstream_levels =
+        downstream_nodes
+        |> Enum.group_by(& &1["depth"])
+        |> Enum.sort_by(fn {depth, _nodes} -> depth end)
+        |> Enum.map(fn {_depth, nodes} -> %{"nodes" => nodes} end)
+
+      levels = [
+        %{"nodes" => material_nodes},
+        %{"nodes" => [pipeline_node]}
+      ] ++ downstream_levels
+
+      {:ok, %{"current_pipeline" => pipeline_name, "levels" => levels}}
+    end
+  end
+
+  defp build_material_nodes_no_instance(materials, pipeline_name) do
+    Enum.map(materials, fn mat ->
+      modification = get_mock_modification(mat)
+      build_material_node(mat, modification, pipeline_name)
+    end)
+  end
+
   defp build_db_pipeline_vsm(instance) do
     pipeline_name = instance.pipeline_config.name
     materials = instance.pipeline_config.materials || []
@@ -93,6 +197,17 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
       modification = get_db_or_mock_modification(mat, instance)
       build_material_node(mat, modification, pipeline_name)
     end)
+  end
+
+  # GoCD parity: when result is nil/empty (stage still running), use "Unknown".
+  # `Map.get(si, :result) || si.state` leaks lifecycle state like "Building"
+  # into VSM display. GoCD uses StageResult.Unknown for non-terminal stages.
+  defp stage_status_for_vsm(si) do
+    case Map.get(si, :result) do
+      nil -> "Unknown"
+      "" -> "Unknown"
+      r -> r
+    end
   end
 
   defp build_stages_list(instance, pipeline_name) do
@@ -441,7 +556,7 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
       |> Enum.map(fn si ->
         %{
           "name" => si.name,
-          "status" => Map.get(si, :result) || si.state,
+          "status" => stage_status_for_vsm(si),
           "duration" => diff_time(si.completed_at, si.created_time),
           "locator" => "/pipelines/#{pipeline_name}/#{instance.counter}/#{si.name}/#{si.counter}"
         }
@@ -455,11 +570,13 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
     }
   end
 
+  # GoCD parity: EmptyPipelineIdentifier → counter=0, label=""
+  # UnrunPipelineRevision → counter=0 means "never run" / indeterminate
   defp build_unrun_instance(name) do
     %{
-      "label" => "1",
-      "counter" => 1,
-      "locator" => "/pipelines/value_stream_map/#{name}/1",
+      "label" => "",
+      "counter" => 0,
+      "locator" => "",
       "stages" => get_pipeline_stages(name)
     }
   end
@@ -592,30 +709,28 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
   end
 
   # Returns stages for a pipeline node in the VSM.
-  # For downstream nodes: returns configured stages as un-run (grey) indicators.
-  # For the current pipeline: actual stages come from build_db_pipeline_vsm directly.
+  # ONLY called from build_unrun_instance → always returns un-run stages.
+  # GoCD parity: UnrunStagesPopulator adds NullStage (status=Unknown) for each configured stage.
   defp get_pipeline_stages(name) do
     if use_mock?(name) do
       mock_pipeline = Enum.find(MockData.pipelines(), &(&1.name == name))
       if mock_pipeline && mock_pipeline.stages do
         Enum.map(mock_pipeline.stages, fn s ->
-          %{"name" => s.name, "status" => s.status, "duration" => s.duration || 90, "locator" => "/pipelines/#{name}/1/#{s.name}/1"}
+          %{"name" => s.name, "status" => "Unknown", "duration" => 0, "locator" => ""}
         end)
       else
-        [%{"name" => "build", "status" => "Passed", "duration" => 90, "locator" => "/pipelines/#{name}/1/build/1"}]
+        [%{"name" => "build", "status" => "Unknown", "duration" => 0, "locator" => ""}]
       end
     else
-      # Look up the actual pipeline config — return configured stages as "Not Yet Run"
-      # GoCD parity: UnrunStagesPopulator adds NullStage (grey) for each configured stage
       pipeline = Repo.get_by(Pipeline, name: name) |> Repo.preload(stages: [jobs: :tasks])
 
       if pipeline && pipeline.stages do
         Enum.map(pipeline.stages, fn stage ->
           %{
             "name" => stage.name,
-            "status" => "Not Yet Run",
+            "status" => "Unknown",
             "duration" => 0,
-            "locator" => "/pipelines/#{name}/1/#{stage.name}/1"
+            "locator" => ""
           }
         end)
       else

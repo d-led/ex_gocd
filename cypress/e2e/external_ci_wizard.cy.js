@@ -5,16 +5,20 @@ describe("External CI Repo Wizard E2E Tests", () => {
     cy.get("#session_username").type("admin");
     cy.get(".btn-login").click();
     cy.url().should("eq", Cypress.config().baseUrl + "/");
-    cy.get('.phx-connected', { timeout: 10000 }).should('exist');
+    cy.get(".phx-connected", { timeout: 10000 }).should("exist");
 
     cy.visit("/admin/config_repos/new");
-    cy.get('.phx-connected', { timeout: 10000 }).should('exist');
+    cy.get(".phx-connected", { timeout: 10000 }).should("exist");
   });
 
   afterEach(() => {
     // Clean up eci-test config repos created by this test run.
     // In mock mode the cleanup endpoint may not exist — ignore failures.
-    cy.request({ method: "DELETE", url: "/api/admin/config_repos/cleanup", failOnStatusCode: false });
+    cy.request({
+      method: "DELETE",
+      url: "/api/admin/config_repos/cleanup",
+      failOnStatusCode: false,
+    });
   });
 
   it("renders step 1 with source type selector", () => {
@@ -44,13 +48,11 @@ describe("External CI Repo Wizard E2E Tests", () => {
     cy.contains("label", "GitLab CI").click();
 
     // Verify GitLab CI is now selected (has orange ring)
-    cy.contains("label", "GitLab CI")
-      .should("have.class", "ring-1");
+    cy.contains("label", "GitLab CI").should("have.class", "ring-1");
 
     // Click back to GitHub Actions
     cy.contains("label", "GitHub Actions").click();
-    cy.contains("label", "GitHub Actions")
-      .should("have.class", "ring-1");
+    cy.contains("label", "GitHub Actions").should("have.class", "ring-1");
   });
 
   it("validates empty repo URL on submit", () => {
@@ -69,7 +71,8 @@ describe("External CI Repo Wizard E2E Tests", () => {
   });
 
   it("proceeds to step 2 with discovered files", () => {
-    const repoUrl = "https://github.com/eci-test/step2-test-" + Date.now() + ".git";
+    const repoUrl =
+      "https://github.com/eci-test/step2-test-" + Date.now() + ".git";
     cy.get('input[name="repo_url"]').clear().type(repoUrl);
     cy.contains("button", "Find workflow files").click();
 
@@ -82,10 +85,13 @@ describe("External CI Repo Wizard E2E Tests", () => {
   });
 
   it("proceeds from step 2 to step 3", () => {
-    const repoUrl = "https://github.com/eci-test/st3-test-" + Date.now() + ".git";
+    const repoUrl =
+      "https://github.com/eci-test/st3-test-" + Date.now() + ".git";
     cy.get('input[name="repo_url"]').clear().type(repoUrl);
     cy.contains("button", "Find workflow files").click();
-    cy.contains("h2", "Files found in this repository", { timeout: 10000 }).should("exist");
+    cy.contains("h2", "Files found in this repository", {
+      timeout: 10000,
+    }).should("exist");
 
     // Click continue (all files pre-selected)
     cy.contains("button", "Configure 3 files").click();
@@ -93,10 +99,13 @@ describe("External CI Repo Wizard E2E Tests", () => {
   });
 
   it("proceeds from step 3 to step 4", () => {
-    const repoUrl = "https://github.com/eci-test/st4-test-" + Date.now() + ".git";
+    const repoUrl =
+      "https://github.com/eci-test/st4-test-" + Date.now() + ".git";
     cy.get('input[name="repo_url"]').clear().type(repoUrl);
     cy.contains("button", "Find workflow files").click();
-    cy.contains("h2", "Files found in this repository", { timeout: 10000 }).should("exist");
+    cy.contains("h2", "Files found in this repository", {
+      timeout: 10000,
+    }).should("exist");
     cy.contains("button", "Configure 3 files").click();
 
     cy.contains("h2", "Configure Files", { timeout: 10000 }).should("exist");

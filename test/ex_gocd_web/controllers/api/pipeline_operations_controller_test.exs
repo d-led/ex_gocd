@@ -1,6 +1,8 @@
 defmodule ExGoCDWeb.API.PipelineOperationsControllerTest do
   use ExGoCDWeb.ConnCase, async: false
 
+  import Ecto.Query
+
   alias ExGoCD.Pipelines
   alias ExGoCD.Repo
 
@@ -168,13 +170,7 @@ defmodule ExGoCDWeb.API.PipelineOperationsControllerTest do
 
   describe "POST /api/pipelines/:pipeline_name/schedule" do
     test "schedules pipeline and triggers first stage", %{conn: conn} do
-      # Seed pipeline config
-      pipeline = Repo.insert!(%Pipelines.Pipeline{name: "test-api-schedule", group: "test"})
-      material = Repo.insert!(%Pipelines.Material{type: "git", url: "https://github.com/d-led/ex_gocd", branch: "master"})
-      Repo.insert_all("pipelines_materials", [%{pipeline_id: pipeline.id, material_id: material.id}])
-      stage = Repo.insert!(%Pipelines.Stage{name: "build", pipeline_id: pipeline.id})
-      job = Repo.insert!(%Pipelines.Job{name: "test", stage_id: stage.id})
-      Repo.insert!(%Pipelines.Task{type: "exec", command: "echo", arguments: ["1"], job_id: job.id})
+      pipeline = seed_pipeline_with_material("test-api-schedule")
 
       # Trigger via API
       conn = post(conn, ~p"/api/pipelines/#{pipeline.name}/schedule")
@@ -190,12 +186,8 @@ defmodule ExGoCDWeb.API.PipelineOperationsControllerTest do
     end
 
     test "schedules pipeline with environment variables and materials overrides", %{conn: conn} do
-      pipeline = Repo.insert!(%Pipelines.Pipeline{name: "test-api-schedule-overrides", group: "test"})
-      material = Repo.insert!(%Pipelines.Material{type: "git", url: "https://github.com/d-led/ex_gocd", branch: "master"})
-      Repo.insert_all("pipelines_materials", [%{pipeline_id: pipeline.id, material_id: material.id}])
-      stage = Repo.insert!(%Pipelines.Stage{name: "build", pipeline_id: pipeline.id})
-      job = Repo.insert!(%Pipelines.Job{name: "test", stage_id: stage.id})
-      Repo.insert!(%Pipelines.Task{type: "exec", command: "echo", arguments: ["1"], job_id: job.id})
+      pipeline = seed_pipeline_with_material("test-api-schedule-overrides")
+      material = Repo.one(from m in Pipelines.Material, join: pm in "pipelines_materials", on: pm.material_id == m.id and pm.pipeline_id == ^pipeline.id)
 
       fingerprint = Pipelines.material_fingerprint(material)
 
@@ -225,5 +217,17 @@ defmodule ExGoCDWeb.API.PipelineOperationsControllerTest do
       assert export_subcmd != nil
       assert List.last(export_subcmd["args"]) == "override_val"
     end
+  end
+
+  # ── Helpers ──────────────────────────────────────────────────────────
+
+  defp seed_pipeline_with_material(name) do
+    pipeline = Repo.insert!(%Pipelines.Pipeline{name: name, group: "test"})
+    material = Repo.insert!(%Pipelines.Material{type: "git", url: "https://github.com/d-led/ex_gocd", branch: "master"})
+    Repo.insert_all("pipelines_materials", [%{pipeline_id: pipeline.id, material_id: material.id}])
+    stage = Repo.insert!(%Pipelines.Stage{name: "build", pipeline_id: pipeline.id})
+    job = Repo.insert!(%Pipelines.Job{name: "test", stage_id: stage.id})
+    Repo.insert!(%Pipelines.Task{type: "exec", command: "echo", arguments: ["1"], job_id: job.id})
+    pipeline
   end
 end

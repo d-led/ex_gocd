@@ -43,6 +43,7 @@ defmodule ExGoCDWeb do
       use Gettext, backend: ExGoCDWeb.Gettext
 
       import Plug.Conn
+      import ExGoCDWeb.ControllerHelpers
 
       unquote(verified_routes())
     end

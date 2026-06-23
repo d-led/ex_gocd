@@ -25,73 +25,29 @@ defmodule ExGoCD.Pipelines.FanInResolverTest do
     end
 
     test "consistent when all fanned-in paths use the same SCM revision" do
-      # G is shared SCM material
-      git_mat = Repo.insert!(%Material{type: "git", url: "git-g"})
+      %{git_mat: git_mat, pipe_b: pipe_b, mod_g1: mod_g1, pi_a1: pi_a1, mat_a: mat_a, mat_b: mat_b} =
+        setup_fan_in_scenario()
 
-      # A depends on G
-      pipe_a = insert_pipeline("pipe-a")
-      _ = add_material_to_pipeline(pipe_a, git_mat)
-      mod_g1 = insert_modification(git_mat, "g-rev-1")
-
-      # Trigger A run 1
-      pi_a1 = insert_pipeline_instance(pipe_a, 1)
-      insert_pmr(pi_a1.id, git_mat.id, mod_g1.id, nil, "g-rev-1")
-
-      # B depends on G
-      pipe_b = insert_pipeline("pipe-b")
-      _ = add_material_to_pipeline(pipe_b, git_mat)
-
-      # Trigger B run 1 (resolves to same revision of G: g-rev-1)
+      # B run 1 resolves to same revision of G: g-rev-1
       pi_b1 = insert_pipeline_instance(pipe_b, 1)
       insert_pmr(pi_b1.id, git_mat.id, mod_g1.id, nil, "g-rev-1")
 
-      # C depends on A and B
-      pipe_c = insert_pipeline("pipe-c")
-      mat_a = insert_material(pipe_c, "dependency", "pipe-a")
-      mat_b = insert_material(pipe_c, "dependency", "pipe-b")
-
       # Propose triggering C using A/1 and B/1
-      proposed = %{
-        mat_a.id => {:pipeline, pi_a1.id},
-        mat_b.id => {:pipeline, pi_b1.id}
-      }
-
+      proposed = %{mat_a.id => {:pipeline, pi_a1.id}, mat_b.id => {:pipeline, pi_b1.id}}
       assert FanInResolver.verify_consistency(proposed) == :ok
     end
 
     test "inconsistent when fanned-in paths resolve to different SCM revisions" do
-      # G is shared SCM material
-      git_mat = Repo.insert!(%Material{type: "git", url: "git-g"})
+      %{git_mat: git_mat, pipe_b: pipe_b, pi_a1: pi_a1, mat_a: mat_a, mat_b: mat_b} =
+        setup_fan_in_scenario()
 
-      # A depends on G
-      pipe_a = insert_pipeline("pipe-a")
-      _ = add_material_to_pipeline(pipe_a, git_mat)
-      mod_g1 = insert_modification(git_mat, "g-rev-1")
-
-      # Trigger A run 1
-      pi_a1 = insert_pipeline_instance(pipe_a, 1)
-      insert_pmr(pi_a1.id, git_mat.id, mod_g1.id, nil, "g-rev-1")
-
-      # B depends on G
-      pipe_b = insert_pipeline("pipe-b")
-      _ = add_material_to_pipeline(pipe_b, git_mat)
+      # B run 1 resolves to a different revision of G: g-rev-2
       mod_g2 = insert_modification(git_mat, "g-rev-2")
-
-      # Trigger B run 1 (resolves to a different revision of G: g-rev-2)
       pi_b1 = insert_pipeline_instance(pipe_b, 1)
       insert_pmr(pi_b1.id, git_mat.id, mod_g2.id, nil, "g-rev-2")
 
-      # C depends on A and B
-      pipe_c = insert_pipeline("pipe-c")
-      mat_a = insert_material(pipe_c, "dependency", "pipe-a")
-      mat_b = insert_material(pipe_c, "dependency", "pipe-b")
-
       # Propose triggering C using A/1 and B/1
-      proposed = %{
-        mat_a.id => {:pipeline, pi_a1.id},
-        mat_b.id => {:pipeline, pi_b1.id}
-      }
-
+      proposed = %{mat_a.id => {:pipeline, pi_a1.id}, mat_b.id => {:pipeline, pi_b1.id}}
       assert {:error, {:fan_in_mismatch, matched_id, revs}} = FanInResolver.verify_consistency(proposed)
       assert matched_id == git_mat.id
       assert "g-rev-1" in revs
@@ -140,5 +96,24 @@ defmodule ExGoCD.Pipelines.FanInResolverTest do
     end
   end
 
-  # Helpers kept: add_material_to_pipeline/2 (shorthand, used in tests)
+  # ── Helpers ────────────────────────────────────────────────────────
+
+  defp setup_fan_in_scenario do
+    git_mat = Repo.insert!(%Material{type: "git", url: "git-g"})
+
+    pipe_a = insert_pipeline("pipe-a")
+    _ = add_material_to_pipeline(pipe_a, git_mat)
+    mod_g1 = insert_modification(git_mat, "g-rev-1")
+    pi_a1 = insert_pipeline_instance(pipe_a, 1)
+    insert_pmr(pi_a1.id, git_mat.id, mod_g1.id, nil, "g-rev-1")
+
+    pipe_b = insert_pipeline("pipe-b")
+    _ = add_material_to_pipeline(pipe_b, git_mat)
+
+    pipe_c = insert_pipeline("pipe-c")
+    mat_a = insert_material(pipe_c, "dependency", "pipe-a")
+    mat_b = insert_material(pipe_c, "dependency", "pipe-b")
+
+    %{git_mat: git_mat, pipe_b: pipe_b, mod_g1: mod_g1, pi_a1: pi_a1, mat_a: mat_a, mat_b: mat_b}
+  end
 end

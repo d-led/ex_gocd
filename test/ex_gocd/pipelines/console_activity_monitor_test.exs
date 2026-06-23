@@ -64,38 +64,11 @@ defmodule ExGoCD.Pipelines.ConsoleActivityMonitorTest do
 
   describe "custom job timeouts" do
     test "respected when numeric minutes are specified" do
-      # Insert pipeline, stage, job with a 1-minute timeout (60 seconds)
       pipeline = Repo.insert!(%Pipeline{name: "pipe-custom", group: "test"})
       stage = Repo.insert!(%Stage{name: "stage-custom", pipeline_id: pipeline.id, approval_type: "success"})
       job = Repo.insert!(%Job{name: "job-custom", stage_id: stage.id, timeout: "1"}) # 1 minute = 60s
 
-      pi = Repo.insert!(%PipelineInstance{
-        pipeline_id: pipeline.id,
-        counter: 1,
-        label: "pipe-custom/1",
-        natural_order: 1.0,
-        build_cause: %{}
-      })
-
-      si = Repo.insert!(%StageInstance{
-        pipeline_instance_id: pi.id,
-        name: stage.name,
-        counter: 1,
-        order_id: 1,
-        state: "Building",
-        approval_type: "success",
-        created_time: DateTime.utc_now() |> DateTime.truncate(:second)
-      })
-
-      ji = Repo.insert!(%JobInstance{
-        stage_instance_id: si.id,
-        job_id: job.id,
-        name: job.name,
-        state: "Scheduled",
-        scheduled_at: NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
-      })
-
-      {:ok, run} = AgentJobRuns.create_run(@agent_uuid, "build-custom", "pipe-custom", "stage-custom", "job-custom", job_instance_id: ji.id)
+      {:ok, run} = create_run_with_instances(pipeline, stage, job, @agent_uuid, "build-custom")
 
       # 1. Simulate 10s inactivity. Under 60s custom timeout, it should NOT be cancelled
       ten_seconds_ago = DateTime.utc_now() |> DateTime.add(-10, :second) |> DateTime.truncate(:second)
@@ -124,33 +97,7 @@ defmodule ExGoCD.Pipelines.ConsoleActivityMonitorTest do
       stage = Repo.insert!(%Stage{name: "stage-never", pipeline_id: pipeline.id, approval_type: "success"})
       job = Repo.insert!(%Job{name: "job-never", stage_id: stage.id, timeout: "never"})
 
-      pi = Repo.insert!(%PipelineInstance{
-        pipeline_id: pipeline.id,
-        counter: 1,
-        label: "pipe-never/1",
-        natural_order: 1.0,
-        build_cause: %{}
-      })
-
-      si = Repo.insert!(%StageInstance{
-        pipeline_instance_id: pi.id,
-        name: stage.name,
-        counter: 1,
-        order_id: 1,
-        state: "Building",
-        approval_type: "success",
-        created_time: DateTime.utc_now() |> DateTime.truncate(:second)
-      })
-
-      ji = Repo.insert!(%JobInstance{
-        stage_instance_id: si.id,
-        job_id: job.id,
-        name: job.name,
-        state: "Scheduled",
-        scheduled_at: NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
-      })
-
-      {:ok, run} = AgentJobRuns.create_run(@agent_uuid, "build-never", "pipe-never", "stage-never", "job-never", job_instance_id: ji.id)
+      {:ok, run} = create_run_with_instances(pipeline, stage, job, @agent_uuid, "build-never")
 
       # Simulate 1 hour inactivity. With 'never' timeout, it should NOT be cancelled
       one_hour_ago = DateTime.utc_now() |> DateTime.add(-3600, :second) |> DateTime.truncate(:second)
@@ -188,5 +135,37 @@ defmodule ExGoCD.Pipelines.ConsoleActivityMonitorTest do
       assert refetched.state == "Assigned"
       assert refetched.result == nil
     end
+  end
+
+  # ── Helpers ────────────────────────────────────────────────────────
+
+  defp create_run_with_instances(pipeline, stage, job, agent_uuid, build_name) do
+    pi = Repo.insert!(%PipelineInstance{
+      pipeline_id: pipeline.id,
+      counter: 1,
+      label: "#{pipeline.name}/1",
+      natural_order: 1.0,
+      build_cause: %{}
+    })
+
+    si = Repo.insert!(%StageInstance{
+      pipeline_instance_id: pi.id,
+      name: stage.name,
+      counter: 1,
+      order_id: 1,
+      state: "Building",
+      approval_type: "success",
+      created_time: DateTime.utc_now() |> DateTime.truncate(:second)
+    })
+
+    ji = Repo.insert!(%JobInstance{
+      stage_instance_id: si.id,
+      job_id: job.id,
+      name: job.name,
+      state: "Scheduled",
+      scheduled_at: NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+    })
+
+    AgentJobRuns.create_run(agent_uuid, build_name, pipeline.name, stage.name, job.name, job_instance_id: ji.id)
   end
 end

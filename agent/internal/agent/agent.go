@@ -42,8 +42,6 @@ import (
 // network blip, etc.). Callers should not count this against crash restart limits.
 var ErrServerUnavailable = errors.New("gocd server unavailable")
 
-
-
 // Agent represents the GoCD agent
 type Agent struct {
 	config    *config.Config
@@ -58,13 +56,13 @@ type Agent struct {
 
 	// Heartbeat tracking: lastAck is updated on phx_reply. If the server stops
 	// acknowledging pings, we log a warning (once per missed window).
-	lastAck        time.Time
+	lastAck         time.Time
 	missedAckLogged bool
 
 	// Current build cancellation: guarded by buildMu
 	buildMu       sync.Mutex
 	currentBuild  string             // buildId of running build, or ""
-	cancelBuildFn context.CancelFunc  // call to cancel current build
+	cancelBuildFn context.CancelFunc // call to cancel current build
 }
 
 // New creates a new Agent
@@ -1083,7 +1081,7 @@ func (a *Agent) postConsole(consoleURL, body string) error {
 		return err
 	}
 	req.Header.Set("Content-Type", "text/plain; charset=utf-8")
-	
+
 	client, err := a.httpClient()
 	var doer interface {
 		Do(*http.Request) (*http.Response, error)

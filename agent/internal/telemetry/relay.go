@@ -23,11 +23,11 @@ import (
 // to the real collector. Works cross-platform: Docker containers reach it
 // via the Docker host address; local child processes via 127.0.0.1.
 type Relay struct {
-	port         int              // bound port
-	localEP      string           // "127.0.0.1:<port>"
-	dockerHostEP string           // e.g. "172.17.0.1:<port>" or "host.docker.internal:<port>" or ""
+	port         int    // bound port
+	localEP      string // "127.0.0.1:<port>"
+	dockerHostEP string // e.g. "172.17.0.1:<port>" or "host.docker.internal:<port>" or ""
 	server       *http.Server
-	forwardTo    string           // collector host:port
+	forwardTo    string // collector host:port
 }
 
 // NewRelay creates a relay that forwards to the given collector endpoint.

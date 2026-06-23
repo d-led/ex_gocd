@@ -48,7 +48,8 @@ describe("Auto screenshot — dashboards", () => {
 
   it("jaeger trace detail", function () {
     // Use Jaeger API to find the richest pipeline.trigger trace
-    const api = "http://localhost:16686/api/traces?service=ex_gocd&limit=20&lookback=24h";
+    const api =
+      "http://localhost:16686/api/traces?service=ex_gocd&limit=20&lookback=24h";
     cy.request({ url: api, failOnStatusCode: false }).then((resp) => {
       if (resp.status !== 200 || !resp.body.data || !resp.body.data.length) {
         cy.log("** SKIP: Jaeger API returned no traces");
@@ -72,7 +73,9 @@ describe("Auto screenshot — dashboards", () => {
         return;
       }
       const ops = (best.spans || []).map((s) => s.operationName);
-      cy.log(`Trace: ${best.traceID} (${ops.length} spans: ${ops.slice(0, 8).join(", ")}...)`);
+      cy.log(
+        `Trace: ${best.traceID} (${ops.length} spans: ${ops.slice(0, 8).join(", ")}...)`,
+      );
       cy.visit(`http://localhost:16686/trace/${best.traceID}`);
       cy.get("header", READY);
       cy.wait(3000);
@@ -83,7 +86,8 @@ describe("Auto screenshot — dashboards", () => {
   // ── Jaeger: Agent trace (separate service) ──────────────────
 
   it("jaeger agent trace", function () {
-    const api = "http://localhost:16686/api/traces?service=gocd-agent&limit=5&lookback=24h";
+    const api =
+      "http://localhost:16686/api/traces?service=gocd-agent&limit=5&lookback=24h";
     cy.request({ url: api, failOnStatusCode: false }).then((resp) => {
       if (resp.status !== 200 || !resp.body.data || !resp.body.data.length) {
         cy.log("** SKIP: no agent traces found");
@@ -103,7 +107,9 @@ describe("Auto screenshot — dashboards", () => {
         return;
       }
       const ops = (best.spans || []).map((s) => s.operationName);
-      cy.log(`Agent trace: ${best.traceID} (${ops.length} spans: ${ops.join(", ")})`);
+      cy.log(
+        `Agent trace: ${best.traceID} (${ops.length} spans: ${ops.join(", ")})`,
+      );
       cy.visit(`http://localhost:16686/trace/${best.traceID}`);
       cy.get("header", READY);
       cy.wait(2000);
@@ -135,7 +141,9 @@ describe("Auto screenshot — dashboards", () => {
       failOnStatusCode: false,
     }).then((resp) => {
       if (resp.status !== 200) {
-        cy.log(`** SKIP: Grafana Service Overview not reachable (${resp.status})`);
+        cy.log(
+          `** SKIP: Grafana Service Overview not reachable (${resp.status})`,
+        );
         this.skip();
         return;
       }
