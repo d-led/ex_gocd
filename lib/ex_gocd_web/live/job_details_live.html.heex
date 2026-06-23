@@ -2,11 +2,28 @@
   <!-- Breadcrumb Header -->
   <div class="page-header border-b border-gray-200 pb-4 mb-6">
     <div class="flex items-center gap-2 text-xs text-gray-500 font-mono font-bold uppercase tracking-wider">
-      <.link navigate={~p"/pipeline/activity/#{@pipeline_name}"} class="text-[#2d6ca2] hover:underline">{@pipeline_name}</.link>
+      <.link
+        navigate={~p"/pipeline/activity/#{@pipeline_name}"}
+        class="text-[#2d6ca2] hover:underline"
+      >
+        {@pipeline_name}
+      </.link>
       <span>/</span>
-      <.link navigate={~p"/pipelines/value_stream_map/#{@pipeline_name}/#{@pipeline_counter}"} class="text-[#2d6ca2] hover:underline">{@pipeline_counter}</.link>
+      <.link
+        navigate={~p"/pipelines/value_stream_map/#{@pipeline_name}/#{@pipeline_counter}"}
+        class="text-[#2d6ca2] hover:underline"
+      >
+        {@pipeline_counter}
+      </.link>
       <span>/</span>
-      <.link navigate={~p"/pipelines/#{@pipeline_name}/#{@pipeline_counter}/#{@stage_name}/#{@stage_counter}"} class="text-[#2d6ca2] hover:underline">{@stage_name}</.link>
+      <.link
+        navigate={
+          ~p"/pipelines/#{@pipeline_name}/#{@pipeline_counter}/#{@stage_name}/#{@stage_counter}"
+        }
+        class="text-[#2d6ca2] hover:underline"
+      >
+        {@stage_name}
+      </.link>
       <span>/</span>
       <span>{@stage_counter}</span>
       <span>/</span>
@@ -20,12 +37,16 @@
           <span class="text-sm font-semibold text-gray-500">Job Run Details</span>
         </h1>
       </div>
-      
+
       <%= if @job_instance do %>
         <div class="flex items-center gap-3 bg-white px-4 py-2 border border-gray-200 rounded shadow-sm text-xs font-mono">
-          <span class="text-gray-400 font-bold uppercase tracking-wider text-[9px]">Job State</span>
+          <span class="text-gray-400 font-bold uppercase tracking-wider text-[9px]">
+            Job State
+          </span>
           <span class="font-bold text-gray-800">{@job_instance.state}</span>
-          <span class="text-gray-400 font-bold uppercase tracking-wider text-[9px] ml-2">Result</span>
+          <span class="text-gray-400 font-bold uppercase tracking-wider text-[9px] ml-2">
+            Result
+          </span>
           <span class={"font-bold px-1.5 py-0.5 rounded text-[10px] text-white " <>
             case @job_instance.result do
               "Passed" -> "bg-[#5cb85c]"
@@ -36,9 +57,14 @@
             {@job_instance.result || "Unknown"}
           </span>
           <%= if @agent do %>
-            <span class="text-gray-400 font-bold uppercase tracking-wider text-[9px] ml-2">Agent</span>
+            <span class="text-gray-400 font-bold uppercase tracking-wider text-[9px] ml-2">
+              Agent
+            </span>
             <.link navigate={~p"/agents"} class="font-bold text-[#2d6ca2] hover:underline">
-              {@agent.hostname} <span class="text-gray-400 font-normal">({String.slice(@agent.uuid, 0, 8)}...)</span>
+              {@agent.hostname}
+              <span class="text-gray-400 font-normal">
+                ({String.slice(@agent.uuid, 0, 8)}...)
+              </span>
             </.link>
           <% end %>
         </div>
@@ -82,152 +108,231 @@
         <i class="fa fa-code-branch mr-1.5 text-gray-400"></i> Materials
       </button>
     </nav>
-
-    <!-- Tab Contents -->
+    
+<!-- Tab Contents -->
     <div class="p-6">
-      <%= case @active_tab do %>
-        <% "console" -> %>
-          <div class="flex items-center justify-between mb-2 px-1">
-            <span class="text-[10px] text-gray-400 uppercase tracking-wider font-bold">Console Output</span>
-            <div class="flex items-center gap-3">
-              <input type="text" id="console-search" placeholder="Filter..." autocomplete="off"
-                     class="w-32 px-2 py-0.5 text-[10px] bg-gray-800 border border-gray-700 rounded text-gray-300 placeholder-gray-600 focus:outline-none focus:border-gray-500"
-                     oninput="var p=this.closest('.p-6').querySelector('pre');if(!p)return;var q=this.value.toLowerCase();var o=p.dataset.original||p.textContent;p.dataset.original=o;if(q){p.textContent=o.split('\\n').filter(function(l){return l.toLowerCase().indexOf(q)!==-1}).join('\\n')}else{p.textContent=o}">
-              <button class="text-[10px] text-gray-400 hover:text-gray-200 font-bold uppercase tracking-wider"
-                      onclick="navigator.clipboard.writeText(this.closest('.p-6').querySelector('pre').textContent);this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',1500)">
-                Copy
-              </button>
-              <label class="flex items-center gap-1 text-[10px] text-gray-400 cursor-pointer select-none">
-                <input type="checkbox" id="toggle-timestamps" class="w-3 h-3" onchange="this.closest('.p-6').querySelector('#console-container').classList.toggle('show-timestamps')">
-                Timestamps
-              </label>
-              <label class="flex items-center gap-1 text-[10px] text-gray-400 cursor-pointer select-none">
-                <input type="checkbox" id="toggle-follow" checked class="w-3 h-3" onchange="const c=this.closest('.p-6').querySelector('#console-container');c.dataset.follow=this.checked">
-                Follow
-              </label>
-            </div>
+      <!-- Console Tab -->
+      <div class={[@active_tab != "console" && "hidden"]}>
+        <div class="flex items-center justify-between mb-2 px-1">
+          <span class="text-[10px] text-gray-400 uppercase tracking-wider font-bold">
+            Console Output
+          </span>
+          <div class="flex items-center gap-3">
+            <input
+              type="text"
+              id="console-search"
+              placeholder="Filter..."
+              autocomplete="off"
+              class="w-32 px-2 py-0.5 text-[10px] bg-gray-800 border border-gray-700 rounded text-gray-300 placeholder-gray-600 focus:outline-none focus:border-gray-500"
+              oninput="var rows=this.closest('.p-6').querySelectorAll('.log-row'); var q=this.value.toLowerCase(); rows.forEach(function(row){ var msg=row.querySelector('.log-message').textContent.toLowerCase(); if(!q || msg.indexOf(q)!==-1){row.classList.remove('hidden')}else{row.classList.add('hidden')}})"
+            />
+            <button
+              class="text-[10px] text-gray-400 hover:text-gray-200 font-bold uppercase tracking-wider"
+              onclick="var txt='';this.closest('.p-6').querySelectorAll('.log-row:not(.hidden)').forEach(function(r){var msg=r.querySelector('.log-message').textContent;var ts=r.querySelector('.log-timestamp');if(ts && ts.offsetWidth>0){txt+='['+ts.textContent+'] '+msg+'\n'}else{txt+=msg+'\n'}});navigator.clipboard.writeText(txt);this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',1500)"
+            >
+              Copy
+            </button>
+            <label class="flex items-center gap-1 text-[10px] text-gray-400 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                id="toggle-timestamps"
+                class="w-3 h-3"
+                phx-click="toggle_timestamps"
+                checked={@show_timestamps}
+              /> Timestamps
+            </label>
+            <label class="flex items-center gap-1 text-[10px] text-gray-400 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                id="toggle-follow"
+                class="w-3 h-3"
+                phx-click="toggle_follow"
+                checked={@follow}
+              /> Follow
+            </label>
           </div>
-          <div class="bg-gray-950 rounded-lg p-6 font-mono text-gray-300 text-xs overflow-y-auto max-h-[600px] leading-relaxed shadow-inner border border-gray-900"
-               id="console-container"
-               phx-hook="ConsoleScroller"
-               data-follow="true">
-            <%= cond do %>
-              <% @run && is_map_key(@run, :console_log) && @run.console_log && @run.console_log != "" -> %>
-                <pre class="whitespace-pre-wrap select-text selection:bg-purple-900 selection:text-white"><%= console_with_links(@run.console_log) %></pre>
-              <% @run && @run.state in ["Scheduled", "Assigned", "Preparing"] -> %>
-                <div class="text-gray-500 italic py-8 text-center flex flex-col items-center justify-center gap-2">
-                  <i class="fa fa-spinner animate-spin text-xl text-gray-600"></i>
-                  <span>Job is {@run.state}. Waiting for agent to start...</span>
-                </div>
-              <% @run && @run.state == "Building" -> %>
-                <div class="text-gray-500 italic py-8 text-center flex flex-col items-center justify-center gap-2">
-                  <i class="fa fa-spinner animate-spin text-xl text-gray-600"></i>
-                  <span>Job is building. Console output will appear here...</span>
-                </div>
-              <% true -> %>
-                <%= if @job_instance && @job_instance.result == "Failed" do %>
-                  <div class="text-red-400 py-8 text-center flex flex-col items-center justify-center gap-3">
-                    <i class="fa fa-times-circle text-2xl text-red-500"></i>
-                    <span class="font-bold">Job Failed</span>
-                    <span class="text-gray-500 text-[11px] max-w-sm">
-                      <%= failure_reason(@job_instance) %>
-                    </span>
-                    <p class="text-gray-600 text-[10px] mt-1 max-w-md">
-                      No console output was captured. This could mean the job never started (no agent available, resource mismatch, or configuration error).
-                    </p>
-                  </div>
-                <% else %>
-                  <div class="text-gray-500 italic py-8 text-center flex flex-col items-center justify-center gap-2">
-                    <i class="fa fa-clock-o text-xl text-gray-600"></i>
-                    <span>No console output available for this job run.</span>
-                  </div>
-                <% end %>
-            <% end %>
-          </div>
+        </div>
 
-        <% "tests" -> %>
-          <div class="tests-container">
-            <%= if has_test_report?(@pipeline_name, @pipeline_counter, @stage_name, @stage_counter, @job_name) do %>
-              <iframe
-                src={test_report_url(@pipeline_name, @pipeline_counter, @stage_name, @stage_counter, @job_name)}
-                class="w-full min-h-[500px] border border-gray-200 rounded"
-                title="Test Report"
-              ></iframe>
-            <% else %>
-              <div class="text-gray-500 italic py-12 text-center flex flex-col items-center justify-center gap-2 border border-dashed border-gray-200 rounded-lg bg-gray-50/50">
-                <i class="fa fa-flask text-2xl text-gray-300"></i>
-                <span>No test reports found for this job run.</span>
-                <p class="text-xs text-gray-400 max-w-md mt-1">
-                  To generate test reports, configure your job to produce JUnit XML files
-                  and upload them as artifacts in a <code class="bg-gray-200 px-1 rounded">testoutput/</code> directory.
+        <div
+          class={[
+            "console-log bg-gray-950 rounded-lg p-6 font-mono text-gray-300 text-xs overflow-y-auto max-h-[600px] leading-relaxed shadow-inner border border-gray-900",
+            @show_timestamps && "show-timestamps"
+          ]}
+          id="console-container"
+          phx-hook=".ConsoleScroller"
+          data-follow={to_string(@follow)}
+        >
+          <pre
+            id="log-lines-stream"
+            phx-update="stream"
+            class="whitespace-pre-wrap select-text selection:bg-purple-900 selection:text-white"
+          >
+            <%= for {dom_id, line} <- @streams.log_lines do %>
+              <div id={dom_id} class="log-row flex items-start font-mono text-[11px] leading-5">
+                <%= if line.timestamp do %>
+                  <span class="log-timestamp text-gray-500 select-none mr-3 shrink-0"><%= line.timestamp %></span>
+                <% end %>
+                <span class="log-message text-gray-300 flex-1 whitespace-pre-wrap"><%= console_with_links(line.message) %></span>
+              </div>
+            <% end %>
+          </pre>
+
+          <%= cond do %>
+            <% is_nil(@run) || @run.state in ["Scheduled", "Assigned", "Preparing"] -> %>
+              <div class="text-gray-500 italic py-8 text-center flex flex-col items-center justify-center gap-2">
+                <i class="fa fa-spinner animate-spin text-xl text-gray-600"></i>
+                <span>
+                  Job is {(@run && @run.state) || "Scheduled"}. Waiting for agent to start...
+                </span>
+              </div>
+            <% @run.state == "Building" && @line_count == 0 -> %>
+              <div class="text-gray-500 italic py-8 text-center flex flex-col items-center justify-center gap-2">
+                <i class="fa fa-spinner animate-spin text-xl text-gray-600"></i>
+                <span>Job is building. Console output will appear here...</span>
+              </div>
+            <% @job_instance && @job_instance.result == "Failed" && @line_count == 0 -> %>
+              <div class="text-red-400 py-8 text-center flex flex-col items-center justify-center gap-3">
+                <i class="fa fa-times-circle text-2xl text-red-500"></i>
+                <span class="font-bold">Job Failed</span>
+                <span class="text-gray-500 text-[11px] max-w-sm">
+                  {failure_reason(@job_instance)}
+                </span>
+                <p class="text-gray-600 text-[10px] mt-1 max-w-md">
+                  No console output was captured. This could mean the job never started (no agent available, resource mismatch, or configuration error).
                 </p>
               </div>
-            <% end %>
-          </div>
-
-        <% "artifacts" -> %>
-          <div class="artifacts-container">
-            <%= if @job_instance && @job_instance.stage_instance && @job_instance.stage_instance.artifacts_deleted do %>
-              <div class="bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-md text-xs font-mono flex items-start gap-2.5">
-                <i class="fa fa-warning text-base mt-0.5 text-amber-500"></i>
-                <div>
-                  <h4 class="font-bold">Artifacts Purged</h4>
-                  <p class="mt-1">The artifacts for this stage run have been deleted by the artifact max storage cleanup policy to reclaim disk space.</p>
-                </div>
+            <% @line_count == 0 -> %>
+              <div class="text-gray-500 italic py-8 text-center flex flex-col items-center justify-center gap-2">
+                <i class="fa fa-clock-o text-xl text-gray-600"></i>
+                <span>No console output available for this job run.</span>
               </div>
-            <% else %>
-              <%= if Enum.empty?(@artifacts) do %>
-                <div class="text-gray-500 italic py-12 text-center flex flex-col items-center justify-center gap-2 border border-dashed border-gray-200 rounded-lg bg-gray-50/50">
-                  <i class="fa fa-folder text-2xl text-gray-300"></i>
-                  <span>No artifacts uploaded for this job run.</span>
-                </div>
-              <% else %>
-                <div class="border border-gray-200 rounded overflow-hidden">
-                  <%= for item <- @artifacts do %>
-                    <%= render_artifact_node(Map.put(item, :pipeline_name, @pipeline_name)
-                      |> Map.put(:pipeline_counter, @pipeline_counter)
-                      |> Map.put(:stage_name, @stage_name)
-                      |> Map.put(:stage_counter, @stage_counter)
-                      |> Map.put(:job_name, @job_name)) %>
-                  <% end %>
-                </div>
-              <% end %>
-            <% end %>
-          </div>
-
-        <% "materials" -> %>
-          <div class="materials-container">
-            <%= if Enum.empty?(@materials) do %>
+            <% true -> %>
+              <%!-- Hide empty status once lines are streaming --%>
+          <% end %>
+        </div>
+      </div>
+      
+<!-- Tests Tab -->
+      <div class={[@active_tab != "tests" && "hidden"]}>
+        <div class="tests-container">
+          <%= if has_test_report?(@pipeline_name, @pipeline_counter, @stage_name, @stage_counter, @job_name) do %>
+            <iframe
+              src={
+                test_report_url(
+                  @pipeline_name,
+                  @pipeline_counter,
+                  @stage_name,
+                  @stage_counter,
+                  @job_name
+                )
+              }
+              class="w-full min-h-[500px] border border-gray-200 rounded"
+              title="Test Report"
+            >
+            </iframe>
+          <% else %>
+            <div class="text-gray-500 italic py-12 text-center flex flex-col items-center justify-center gap-2 border border-dashed border-gray-200 rounded-lg bg-gray-50/50">
+              <i class="fa fa-flask text-2xl text-gray-300"></i>
+              <span>No test reports found for this job run.</span>
+              <p class="text-xs text-gray-400 max-w-md mt-1">
+                To generate test reports, configure your job to produce JUnit XML files
+                and upload them as artifacts in a
+                <code class="bg-gray-200 px-1 rounded">testoutput/</code>
+                directory.
+              </p>
+            </div>
+          <% end %>
+        </div>
+      </div>
+      
+<!-- Artifacts Tab -->
+      <div class={[@active_tab != "artifacts" && "hidden"]}>
+        <div class="artifacts-container">
+          <%= if @job_instance && @job_instance.stage_instance && @job_instance.stage_instance.artifacts_deleted do %>
+            <div class="bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-md text-xs font-mono flex items-start gap-2.5">
+              <i class="fa fa-warning text-base mt-0.5 text-amber-500"></i>
+              <div>
+                <h4 class="font-bold">Artifacts Purged</h4>
+                <p class="mt-1">
+                  The artifacts for this stage run have been deleted by the artifact max storage cleanup policy to reclaim disk space.
+                </p>
+              </div>
+            </div>
+          <% else %>
+            <%= if Enum.empty?(@artifacts) do %>
               <div class="text-gray-500 italic py-12 text-center flex flex-col items-center justify-center gap-2 border border-dashed border-gray-200 rounded-lg bg-gray-50/50">
-                <i class="fa fa-code-branch text-2xl text-gray-300"></i>
-                <span>No material revisions recorded for this job run.</span>
+                <i class="fa fa-folder text-2xl text-gray-300"></i>
+                <span>No artifacts uploaded for this job run.</span>
               </div>
             <% else %>
               <div class="border border-gray-200 rounded overflow-hidden">
-                <table class="min-w-full divide-y divide-gray-200 text-xs text-left">
-                  <thead>
-                    <tr class="bg-gray-50 text-[10px] uppercase font-bold text-gray-400 tracking-wider font-mono">
-                      <th class="px-6 py-3">Material</th>
-                      <th class="px-6 py-3">Type</th>
-                      <th class="px-6 py-3">Revision</th>
-                      <th class="px-6 py-3">Modified</th>
-                    </tr>
-                  </thead>
-                  <tbody class="divide-y divide-gray-100 font-mono text-gray-700">
-                    <%= for material <- @materials do %>
-                      <tr class="hover:bg-gray-50/50">
-                        <td class="px-6 py-3.5 font-bold text-gray-800">{material.name}</td>
-                        <td class="px-6 py-3.5 text-gray-500">{material.type}</td>
-                        <td class="px-6 py-3.5 text-[11px] text-gray-600 font-mono">{material.revision}</td>
-                        <td class="px-6 py-3.5 text-gray-500">{material.modified_at}</td>
-                      </tr>
-                    <% end %>
-                  </tbody>
-                </table>
+                <%= for item <- @artifacts do %>
+                  {render_artifact_node(
+                    Map.put(item, :pipeline_name, @pipeline_name)
+                    |> Map.put(:pipeline_counter, @pipeline_counter)
+                    |> Map.put(:stage_name, @stage_name)
+                    |> Map.put(:stage_counter, @stage_counter)
+                    |> Map.put(:job_name, @job_name)
+                  )}
+                <% end %>
               </div>
             <% end %>
-          </div>
-      <% end %>
+          <% end %>
+        </div>
+      </div>
+      
+<!-- Materials Tab -->
+      <div class={[@active_tab != "materials" && "hidden"]}>
+        <div class="materials-container">
+          <%= if Enum.empty?(@materials) do %>
+            <div class="text-gray-500 italic py-12 text-center flex flex-col items-center justify-center gap-2 border border-dashed border-gray-200 rounded-lg bg-gray-50/50">
+              <i class="fa fa-code-branch text-2xl text-gray-300"></i>
+              <span>No material revisions recorded for this job run.</span>
+            </div>
+          <% else %>
+            <div class="border border-gray-200 rounded overflow-hidden">
+              <table class="min-w-full divide-y divide-gray-200 text-xs text-left">
+                <thead>
+                  <tr class="bg-gray-50 text-[10px] uppercase font-bold text-gray-400 tracking-wider font-mono">
+                    <th class="px-6 py-3">Material</th>
+                    <th class="px-6 py-3">Type</th>
+                    <th class="px-6 py-3">Revision</th>
+                    <th class="px-6 py-3">Modified</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 font-mono text-gray-700">
+                  <%= for material <- @materials do %>
+                    <tr class="hover:bg-gray-50/50">
+                      <td class="px-6 py-3.5 font-bold text-gray-800">{material.name}</td>
+                      <td class="px-6 py-3.5 text-gray-500">{material.type}</td>
+                      <td class="px-6 py-3.5 text-[11px] text-gray-600 font-mono">
+                        {material.revision}
+                      </td>
+                      <td class="px-6 py-3.5 text-gray-500">{material.modified_at}</td>
+                    </tr>
+                  <% end %>
+                </tbody>
+              </table>
+            </div>
+          <% end %>
+        </div>
+      </div>
     </div>
   </div>
 </div>
+
+<script :type={Phoenix.LiveView.ColocatedHook} name=".ConsoleScroller">
+  export default {
+    mounted() {
+      this.scrollIfFollowing();
+    },
+    updated() {
+      this.scrollIfFollowing();
+    },
+    scrollIfFollowing() {
+      if (this.el.dataset.follow === "true") {
+        this.el.scrollTop = this.el.scrollHeight;
+      }
+    }
+  }
+</script>

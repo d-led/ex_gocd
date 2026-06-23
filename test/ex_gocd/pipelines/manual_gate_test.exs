@@ -42,12 +42,19 @@ defmodule ExGoCD.Pipelines.ManualGateTest do
       assert si1_updated.result == "Passed"
 
       # Stage 2 instance should be created but in state "Awaiting"
-      [si2] = Repo.all(from si in StageInstance, where: si.pipeline_instance_id == ^pi.id and si.name == ^stage2.name)
+      [si2] =
+        Repo.all(
+          from si in StageInstance,
+            where: si.pipeline_instance_id == ^pi.id and si.name == ^stage2.name
+        )
+
       assert si2.state == "Awaiting"
       assert si2.result == "Unknown"
 
       # Job instances for stage 2 should NOT be created yet
-      job_instances_stage2 = Repo.all(from ji in JobInstance, where: ji.stage_instance_id == ^si2.id)
+      job_instances_stage2 =
+        Repo.all(from ji in JobInstance, where: ji.stage_instance_id == ^si2.id)
+
       assert Enum.empty?(job_instances_stage2)
 
       # Pipeline has an active (Awaiting) stage, so triggering again fails with :stage_active

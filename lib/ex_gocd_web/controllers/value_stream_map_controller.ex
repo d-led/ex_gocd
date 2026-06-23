@@ -5,16 +5,19 @@ defmodule ExGoCDWeb.ValueStreamMapController do
 
   def show(conn, %{"pipeline_name" => name, "pipeline_counter" => counter_raw}) do
     counter_str = String.replace_suffix(counter_raw, ".json", "")
+
     case Integer.parse(counter_str) do
       {counter, ""} ->
         case ValueStreamMap.get_pipeline_vsm(name, counter) do
           {:ok, vsm} ->
             json(conn, vsm)
+
           {:error, _reason} ->
             conn
             |> put_status(:not_found)
             |> json(%{error: "Pipeline '#{name}' with counter '#{counter}' not found."})
         end
+
       _ ->
         conn
         |> put_status(:bad_request)

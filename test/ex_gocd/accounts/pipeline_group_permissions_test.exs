@@ -9,12 +9,14 @@ defmodule ExGoCD.Accounts.PipelineGroupPermissionsTest do
 
   setup do
     # Create a non-admin test user
-    {:ok, user} = Accounts.create_user(%{
-      username: "rbac_test_#{System.unique_integer([:positive])}",
-      display_name: "RBAC Test User",
-      roles: [],
-      status: "Active"
-    })
+    {:ok, user} =
+      Accounts.create_user(%{
+        username: "rbac_test_#{System.unique_integer([:positive])}",
+        display_name: "RBAC Test User",
+        roles: [],
+        status: "Active"
+      })
+
     {:ok, user: user}
   end
 
@@ -45,7 +47,9 @@ defmodule ExGoCD.Accounts.PipelineGroupPermissionsTest do
     end
 
     test "rejects invalid role", %{user: user} do
-      assert {:error, changeset} = Accounts.grant_pipeline_group_permission(user.id, "g", "superadmin")
+      assert {:error, changeset} =
+               Accounts.grant_pipeline_group_permission(user.id, "g", "superadmin")
+
       assert "is invalid" in errors_on(changeset).role
     end
   end
@@ -58,18 +62,21 @@ defmodule ExGoCD.Accounts.PipelineGroupPermissionsTest do
     end
 
     test "returns error for nonexistent permission", %{user: user} do
-      assert {:error, :not_found} = Accounts.revoke_pipeline_group_permission(user.id, "nonexistent")
+      assert {:error, :not_found} =
+               Accounts.revoke_pipeline_group_permission(user.id, "nonexistent")
     end
   end
 
   describe "can_access_pipeline_group?/3" do
     test "global admin can access any group" do
-      {:ok, admin} = Accounts.create_user(%{
-        username: "global_admin_#{System.unique_integer([:positive])}",
-        display_name: "Admin",
-        roles: ["admin"],
-        status: "Active"
-      })
+      {:ok, admin} =
+        Accounts.create_user(%{
+          username: "global_admin_#{System.unique_integer([:positive])}",
+          display_name: "Admin",
+          roles: ["admin"],
+          status: "Active"
+        })
+
       assert Accounts.can_access_pipeline_group?(admin, "any-group", "admin")
       assert Accounts.can_access_pipeline_group?(admin, "any-group", "operator")
       assert Accounts.can_access_pipeline_group?(admin, "any-group", "viewer")
@@ -101,7 +108,14 @@ defmodule ExGoCD.Accounts.PipelineGroupPermissionsTest do
     end
 
     test "guest (nil id) with no roles cannot access" do
-      guest = %User{id: nil, username: "guest", display_name: "Guest", roles: [], status: "Active"}
+      guest = %User{
+        id: nil,
+        username: "guest",
+        display_name: "Guest",
+        roles: [],
+        status: "Active"
+      }
+
       refute Accounts.can_access_pipeline_group?(guest, "any-group", "viewer")
     end
   end

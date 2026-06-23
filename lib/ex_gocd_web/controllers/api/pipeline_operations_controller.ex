@@ -12,6 +12,7 @@ defmodule ExGoCDWeb.API.PipelineOperationsController do
 
   def pause(conn, %{"pipeline_name" => name} = params) do
     user = get_current_user(conn)
+
     case ExGoCD.Policies.permit?(ExGoCD.Policies.EnvironmentPolicy, :trigger_pipeline, user) do
       true ->
         paused_by = user.username
@@ -43,6 +44,7 @@ defmodule ExGoCDWeb.API.PipelineOperationsController do
 
   def unpause(conn, %{"pipeline_name" => name}) do
     user = get_current_user(conn)
+
     case ExGoCD.Policies.permit?(ExGoCD.Policies.EnvironmentPolicy, :trigger_pipeline, user) do
       true ->
         case Pipelines.unpause_pipeline(name) do
@@ -69,11 +71,17 @@ defmodule ExGoCDWeb.API.PipelineOperationsController do
     end
   end
 
-  def approve_stage(conn, %{"pipeline_name" => pipeline_name, "counter" => counter_str, "stage_name" => stage_name}) do
+  def approve_stage(conn, %{
+        "pipeline_name" => pipeline_name,
+        "counter" => counter_str,
+        "stage_name" => stage_name
+      }) do
     user = get_current_user(conn)
+
     case ExGoCD.Policies.permit?(ExGoCD.Policies.EnvironmentPolicy, :trigger_pipeline, user) do
       true ->
         counter = String.to_integer(counter_str)
+
         case Pipelines.approve_stage(pipeline_name, counter, stage_name) do
           {:ok, _stage_instance} ->
             conn
@@ -105,6 +113,7 @@ defmodule ExGoCDWeb.API.PipelineOperationsController do
 
   def status(conn, %{"pipeline_name" => name}) do
     user = get_current_user(conn)
+
     case ExGoCD.Policies.permit?(ExGoCD.Policies.EnvironmentPolicy, :trigger_pipeline, user) do
       true ->
         case Pipelines.get_pipeline_by_name(name) do
@@ -115,6 +124,7 @@ defmodule ExGoCDWeb.API.PipelineOperationsController do
 
           pipeline ->
             locked = Pipelines.pipeline_locked?(pipeline)
+
             conn
             |> put_status(:ok)
             |> put_view(json: ExGoCDWeb.API.PipelineOperationsJSON)
@@ -136,9 +146,11 @@ defmodule ExGoCDWeb.API.PipelineOperationsController do
 
   def unlock(conn, %{"pipeline_name" => name}) do
     user = get_current_user(conn)
+
     case ExGoCD.Policies.permit?(ExGoCD.Policies.EnvironmentPolicy, :trigger_pipeline, user) do
       true ->
         confirm_header = get_req_header(conn, "x-gocd-confirm")
+
         if List.first(confirm_header) in ["true", "confirm"] do
           case Pipelines.unlock_pipeline(name) do
             {:ok, _pipeline} ->
@@ -172,6 +184,7 @@ defmodule ExGoCDWeb.API.PipelineOperationsController do
 
   def schedule(conn, %{"pipeline_name" => name} = params) do
     user = get_current_user(conn)
+
     case ExGoCD.Policies.permit?(ExGoCD.Policies.EnvironmentPolicy, :trigger_pipeline, user) do
       true ->
         case Pipelines.trigger_pipeline(name, params) do
@@ -212,6 +225,7 @@ defmodule ExGoCDWeb.API.PipelineOperationsController do
   @doc "POST /api/pipelines/:pipeline_name/:counter/comment"
   def comment(conn, %{"pipeline_name" => name, "counter" => counter_str, "comment" => comment}) do
     user = get_current_user(conn)
+
     case ExGoCD.Policies.permit?(ExGoCD.Policies.EnvironmentPolicy, :trigger_pipeline, user) do
       true ->
         counter = String.to_integer(counter_str)
@@ -219,8 +233,10 @@ defmodule ExGoCDWeb.API.PipelineOperationsController do
         case Pipelines.add_comment(name, counter, comment) do
           {:ok, _instance} ->
             ExGoCD.AuditLog.log(user.username, "pipeline_comment",
-              resource_type: "pipeline", resource_name: name,
-              details: %{counter: counter, comment: comment})
+              resource_type: "pipeline",
+              resource_name: name,
+              details: %{counter: counter, comment: comment}
+            )
 
             json(conn, %{message: "Comment added."})
 
@@ -228,10 +244,14 @@ defmodule ExGoCDWeb.API.PipelineOperationsController do
             conn |> put_status(:not_found) |> json(%{error: "Pipeline '#{name}' not found."})
 
           {:error, :instance_not_found} ->
-            conn |> put_status(:not_found) |> json(%{error: "Pipeline instance #{name}/#{counter} not found."})
+            conn
+            |> put_status(:not_found)
+            |> json(%{error: "Pipeline instance #{name}/#{counter} not found."})
 
           {:error, reason} ->
-            conn |> put_status(:unprocessable_entity) |> json(%{error: "Failed to add comment: #{inspect(reason)}"})
+            conn
+            |> put_status(:unprocessable_entity)
+            |> json(%{error: "Failed to add comment: #{inspect(reason)}"})
         end
 
       false ->

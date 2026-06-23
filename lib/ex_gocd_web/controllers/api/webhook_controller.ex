@@ -31,7 +31,8 @@ defmodule ExGoCDWeb.API.WebhookController do
           conn
           |> put_status(:accepted)
           |> json(%{
-            "message" => "The material is now scheduled for an update. Please check relevant pipeline(s) for status."
+            "message" =>
+              "The material is now scheduled for an update. Please check relevant pipeline(s) for status."
           })
 
         _ ->
@@ -114,7 +115,10 @@ defmodule ExGoCDWeb.API.WebhookController do
             if String.starts_with?(signature, "sha256=") do
               "sha256=" <> expected_sig = signature
               raw_body = conn.assigns[:raw_body] || ""
-              actual_sig = :crypto.mac(:hmac, :sha256, secret, raw_body) |> Base.encode16(case: :lower)
+
+              actual_sig =
+                :crypto.mac(:hmac, :sha256, secret, raw_body) |> Base.encode16(case: :lower)
+
               Plug.Crypto.secure_compare(actual_sig, expected_sig)
             else
               false

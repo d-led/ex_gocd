@@ -44,7 +44,7 @@ defmodule ExGoCD.ConfigRepos.ExternalPipelineIR do
 
     if struct.source_type not in @valid_source_types do
       raise ArgumentError,
-        "ExternalPipelineIR source_type must be one of #{inspect(@valid_source_types)}, got: #{inspect(struct.source_type)}"
+            "ExternalPipelineIR source_type must be one of #{inspect(@valid_source_types)}, got: #{inspect(struct.source_type)}"
     end
 
     struct

@@ -14,6 +14,7 @@ defmodule ExGoCDWeb.Plugs.TokenAuthPlug do
     case get_req_header(conn, "authorization") do
       ["Bearer " <> token] ->
         token = String.trim(token)
+
         case Accounts.verify_access_token(token) do
           {:ok, user} ->
             conn

@@ -127,44 +127,22 @@ All 7 previously identified gaps have been addressed. Summary:
 
 ---
 
-## Phase 8: Scheduling Checker Pipeline (Discovered 2026-06-23)
+## Phase 8: Scheduling Checker Pipeline ✅ DONE
 
-GoCD's `SchedulingCheckerService` runs a composite chain of checks before allowing any pipeline trigger, stage schedule, or rerun. ex_gocd has ad-hoc checks (`paused`, `locked`, `maintenance`) but lacks the structured checker pattern and several critical checks.
+GoCD's `SchedulingCheckerService` runs a composite chain of checks before allowing any pipeline trigger, stage schedule, or rerun. ex_gocd now has the structured checker pattern fully wired.
 
-### GoCD's full checker chain (from `SchedulingCheckerService.java`):
-
-| Checker | What It Does | Used In |
-|---|---|---|
-| `AboutToBeTriggeredChecker` | Debounce: in-memory `ConcurrentSkipListSet` prevents double-trigger of same pipeline | Timer, Manual, Auto |
-| `PipelinePauseChecker` | Blocks if pipeline is paused | Timer, Manual, Auto, Rerun |
-| `PipelineLockChecker` | Blocks if pipeline locked by another running instance | Timer, Manual, Auto |
-| `StageActiveChecker` | Blocks if ANY stage of this pipeline is already Building | Timer, Manual, Auto, Rerun |
-| `PipelineActiveChecker` | Blocks if pipeline has active stages (used for rerun-stage) | Rerun |
-| `StageLockChecker` | Stage-level lock — prevents scheduling stage if locked by another pipeline instance | Stage schedule |
-| `StageManualTriggerChecker` | Prevents manual stage trigger if stage already scheduled | Stage schedule |
-| `OutOfDiskSpaceChecker` | Blocks ALL scheduling when disk below threshold | ALL |
-| `StageAuthorizationChecker` | User permission check for the stage | Manual, Rerun |
-| `ManualPipelineChecker` | Blocks auto-trigger (timer/SCM) for manual-only pipelines | Auto (timer) |
-
-### Current ex_gocd status:
+### Checker status:
 
 | Checker | Status | Notes |
 |---|---|---|
-| `AboutToBeTriggeredChecker` | ❌ MISSING | Explains "triggered 5 times" — no debounce |
+| `AboutToBeTriggeredChecker` | ✅ Done | ETS-based `TriggerMonitor` debounce |
 | `PipelinePauseChecker` | ✅ Done | `pipeline.paused` in `trigger_pipeline/1` |
 | `PipelineLockChecker` | ✅ Done | `pipeline_locked?/1` with 3 lock behavior modes |
-| `StageActiveChecker` | ⚠️ Partial | `unlockWhenFinished` mode catches this; no explicit active-stage check |
-| `PipelineActiveChecker` | ❌ MISSING | Needed for rerun-stage correctness |
-| `StageLockChecker` | ❌ MISSING | Needed for concurrent stage scheduling |
-| `StageManualTriggerChecker` | ❌ MISSING | |
-| `OutOfDiskSpaceChecker` | ❌ MISSING | `DiskSpace` GenServer exists but not wired into trigger path |
+| `StageActiveChecker` | ✅ Done | `StageActive` composite checker |
+| `PipelineActiveChecker` | ✅ Done | `PipelineActive` checker on rerun-stage |
+| `StageLockChecker` | ✅ Done | `StageLock` concurrency checker |
+| `StageManualTriggerChecker` | ✅ Done | `StageManualTrigger` checker |
+| `OutOfDiskSpaceChecker` | ✅ Done | Wired via `DiskSpace` monitor |
 | `StageAuthorizationChecker` | ✅ Done | Via `ExGoCD.Policies` |
-| `ManualPipelineChecker` | ❌ MISSING | `approval_type: "manual"` on first stage should block auto-trigger |
+| `ManualPipelineChecker` | ✅ Done | Blocks auto-trigger on manual first stages |
 
-### Recommended implementation:
-
-1. **`ExGoCD.SchedulingChecker` behaviour** — `check/2` (pipeline_name, result) → `:ok \| {:error, reason}`
-2. **`ExGoCD.SchedulingChecker.Composite`** — runs all registered checkers, stops at first failure
-3. **`ExGoCD.SchedulingChecker.TriggerMonitor`** — ETS-based dedup set (like GoCD's `ConcurrentSkipListSet`)
-4. Wire into `Pipelines.trigger_pipeline/2` before the current ad-hoc checks
-5. Wire `ExGoCD.DiskSpace` threshold check into `OutOfDiskSpaceChecker`

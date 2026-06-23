@@ -37,16 +37,24 @@ defmodule ExGoCDWeb.AgentsLive do
 
   @impl true
   def handle_params(params, _uri, socket) do
-    agent_type = case params["type"] do
-      "elastic" -> :elastic
-      _ -> :static
-    end
+    agent_type =
+      case params["type"] do
+        "elastic" -> :elastic
+        _ -> :static
+      end
+
     {:noreply, assign(socket, agent_type: agent_type, selected_agents: MapSet.new())}
   end
 
   @impl true
   def handle_info({event, _agent}, socket)
-      when event in [:agent_registered, :agent_updated, :agent_enabled, :agent_disabled, :agent_deleted] do
+      when event in [
+             :agent_registered,
+             :agent_updated,
+             :agent_enabled,
+             :agent_disabled,
+             :agent_deleted
+           ] do
     {:noreply, update_agents_list(socket)}
   end
 
@@ -95,10 +103,12 @@ defmodule ExGoCDWeb.AgentsLive do
   def handle_event("clean_disabled", _params, socket) do
     if socket.assigns[:is_user_admin] do
       count = Agents.clean_disabled_agents()
+
       {:noreply,
        socket
        |> put_flash(:info, "Deleted #{count} disabled agent(s).")
-       |> assign(selected_agents: MapSet.new())}
+       |> assign(selected_agents: MapSet.new())
+       |> update_agents_list()}
     else
       return_forbidden(socket)
     end
@@ -199,15 +209,18 @@ defmodule ExGoCDWeb.AgentsLive do
 
   def handle_event("schedule_test_job", _params, socket) do
     if socket.assigns[:is_user_admin] do
-      result = Scheduler.schedule_job(%{
-        "pipeline" => "agent-test",
-        "stage" => "test",
-        "job" => "test-job",
-        "run_on_all_agents" => true,
-        "resources" => [],
-        "environments" => []
-      })
+      result =
+        Scheduler.schedule_job(%{
+          "pipeline" => "agent-test",
+          "stage" => "test",
+          "job" => "test-job",
+          "run_on_all_agents" => true,
+          "resources" => [],
+          "environments" => []
+        })
+
       count = elem(result, 1)
+
       {:noreply,
        socket
        |> put_flash(:info, "Test job scheduled on #{count} enabled agent(s).")
@@ -234,7 +247,7 @@ defmodule ExGoCDWeb.AgentsLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="agents-page" id="agents-page" phx-hook="AgentsUpdates">
+    <div class="agents-page" id="agents-page">
       <div class="page-header">
         <h1 class="page-header_title">
           <span>Agents</span>
@@ -243,7 +256,7 @@ defmodule ExGoCDWeb.AgentsLive do
           </span>
         </h1>
       </div>
-
+      
     <!-- Tabs -->
       <div class="agents-tabs">
         <button
@@ -263,11 +276,11 @@ defmodule ExGoCDWeb.AgentsLive do
           ELASTIC
         </button>
       </div>
-
+      
     <!-- Bulk Actions & Stats -->
       <div class="agents-controls">
         <%= if @is_user_admin do %>
-          <div class="bulk-actions">
+          <div class="bulk-actions" id="bulk-actions">
             <button
               type="button"
               class="btn-small btn-danger"
@@ -356,7 +369,7 @@ defmodule ExGoCDWeb.AgentsLive do
           </form>
         </div>
       </div>
-
+      
     <!-- Agents Table -->
       <div class="agents-table-container">
         <table class="agents-table">
@@ -367,36 +380,110 @@ defmodule ExGoCDWeb.AgentsLive do
                   <input
                     type="checkbox"
                     checked={
-                      (agents = displayed_agents(@agents, @agent_type, @filter, @sort_column, @sort_order)) != [] &&
+                      (agents =
+                         displayed_agents(@agents, @agent_type, @filter, @sort_column, @sort_order)) !=
+                        [] &&
                         MapSet.size(@selected_agents) == length(agents)
                     }
                     phx-click="toggle_select_all"
                   />
                 </th>
               <% end %>
-              <th class="sortable" phx-click="sort" phx-value-column="hostname" role="button" tabindex="0">
-                AGENT NAME <i class={sort_icon_class("hostname", @sort_column, @sort_order)} aria-hidden="true"></i>
+              <th
+                class="sortable"
+                phx-click="sort"
+                phx-value-column="hostname"
+                role="button"
+                tabindex="0"
+              >
+                AGENT NAME
+                <i class={sort_icon_class("hostname", @sort_column, @sort_order)} aria-hidden="true">
+                </i>
               </th>
-              <th class="sortable" phx-click="sort" phx-value-column="working_dir" role="button" tabindex="0">
-                SANDBOX <i class={sort_icon_class("working_dir", @sort_column, @sort_order)} aria-hidden="true"></i>
+              <th
+                class="sortable"
+                phx-click="sort"
+                phx-value-column="working_dir"
+                role="button"
+                tabindex="0"
+              >
+                SANDBOX
+                <i
+                  class={sort_icon_class("working_dir", @sort_column, @sort_order)}
+                  aria-hidden="true"
+                >
+                </i>
               </th>
-              <th class="sortable" phx-click="sort" phx-value-column="operating_system" role="button" tabindex="0">
-                OS <i class={sort_icon_class("operating_system", @sort_column, @sort_order)} aria-hidden="true"></i>
+              <th
+                class="sortable"
+                phx-click="sort"
+                phx-value-column="operating_system"
+                role="button"
+                tabindex="0"
+              >
+                OS
+                <i
+                  class={sort_icon_class("operating_system", @sort_column, @sort_order)}
+                  aria-hidden="true"
+                >
+                </i>
               </th>
-              <th class="sortable" phx-click="sort" phx-value-column="ipaddress" role="button" tabindex="0">
-                IP ADDRESS <i class={sort_icon_class("ipaddress", @sort_column, @sort_order)} aria-hidden="true"></i>
+              <th
+                class="sortable"
+                phx-click="sort"
+                phx-value-column="ipaddress"
+                role="button"
+                tabindex="0"
+              >
+                IP ADDRESS
+                <i class={sort_icon_class("ipaddress", @sort_column, @sort_order)} aria-hidden="true">
+                </i>
               </th>
-              <th class="sortable" phx-click="sort" phx-value-column="state" role="button" tabindex="0">
-                STATUS <i class={sort_icon_class("state", @sort_column, @sort_order)} aria-hidden="true"></i>
+              <th
+                class="sortable"
+                phx-click="sort"
+                phx-value-column="state"
+                role="button"
+                tabindex="0"
+              >
+                STATUS
+                <i class={sort_icon_class("state", @sort_column, @sort_order)} aria-hidden="true"></i>
               </th>
-              <th class="sortable" phx-click="sort" phx-value-column="free_space" role="button" tabindex="0">
-                FREE SPACE <i class={sort_icon_class("free_space", @sort_column, @sort_order)} aria-hidden="true"></i>
+              <th
+                class="sortable"
+                phx-click="sort"
+                phx-value-column="free_space"
+                role="button"
+                tabindex="0"
+              >
+                FREE SPACE
+                <i class={sort_icon_class("free_space", @sort_column, @sort_order)} aria-hidden="true">
+                </i>
               </th>
-              <th class="sortable" phx-click="sort" phx-value-column="resources" role="button" tabindex="0">
-                RESOURCES <i class={sort_icon_class("resources", @sort_column, @sort_order)} aria-hidden="true"></i>
+              <th
+                class="sortable"
+                phx-click="sort"
+                phx-value-column="resources"
+                role="button"
+                tabindex="0"
+              >
+                RESOURCES
+                <i class={sort_icon_class("resources", @sort_column, @sort_order)} aria-hidden="true">
+                </i>
               </th>
-              <th class="sortable" phx-click="sort" phx-value-column="environments" role="button" tabindex="0">
-                ENVIRONMENTS <i class={sort_icon_class("environments", @sort_column, @sort_order)} aria-hidden="true"></i>
+              <th
+                class="sortable"
+                phx-click="sort"
+                phx-value-column="environments"
+                role="button"
+                tabindex="0"
+              >
+                ENVIRONMENTS
+                <i
+                  class={sort_icon_class("environments", @sort_column, @sort_order)}
+                  aria-hidden="true"
+                >
+                </i>
               </th>
             </tr>
           </thead>
@@ -501,7 +588,9 @@ defmodule ExGoCDWeb.AgentsLive do
   defp sort_key(agent, "environments"), do: Enum.join(agent.environments || [], " ")
   defp sort_key(_agent, _), do: ""
 
-  defp sort_icon_class(column, current_column, _order) when column != current_column, do: "fa fa-sort"
+  defp sort_icon_class(column, current_column, _order) when column != current_column,
+    do: "fa fa-sort"
+
   defp sort_icon_class(_column, _current, :asc), do: "fa fa-sort-up"
   defp sort_icon_class(_column, _current, :desc), do: "fa fa-sort-down"
 
@@ -557,12 +646,17 @@ defmodule ExGoCDWeb.AgentsLive do
 
   defp update_agents_list(socket) do
     new_agents = fetch_agents()
+
     selected =
       if socket.assigns[:selected_agents] do
-        MapSet.intersection(socket.assigns.selected_agents, MapSet.new(Enum.map(new_agents, & &1.uuid)))
+        MapSet.intersection(
+          socket.assigns.selected_agents,
+          MapSet.new(Enum.map(new_agents, & &1.uuid))
+        )
       else
         MapSet.new()
       end
+
     assign(socket, agents: new_agents, selected_agents: selected)
   end
 end

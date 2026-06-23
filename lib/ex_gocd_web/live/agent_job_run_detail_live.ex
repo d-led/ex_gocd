@@ -56,8 +56,10 @@ defmodule ExGoCDWeb.AgentJobRunDetailLive do
   def handle_event("cancel_build", _params, socket) do
     run = socket.assigns.run
     agent = socket.assigns.agent
+
     if run_cancellable?(run) do
       AgentChannel.request_cancel_build(agent.uuid, run.build_id)
+
       {:noreply,
        socket
        |> put_flash(:info, "Cancel requested. Agent will stop the build and report back.")}
@@ -92,7 +94,11 @@ defmodule ExGoCDWeb.AgentJobRunDetailLive do
           <% end %>
         </div>
       </div>
-      <pre class="console-log max-h-[600px] overflow-y-auto" id="console-container" phx-hook="ConsoleScroller"><%= @run.console_log || "" %></pre>
+      <pre
+        class="console-log max-h-[600px] overflow-y-auto"
+        id="console-container"
+        phx-hook="ConsoleScroller"
+      ><%= ExGoCDWeb.ConsoleLogHelper.format_log(@run.console_log) %></pre>
     </div>
     """
   end

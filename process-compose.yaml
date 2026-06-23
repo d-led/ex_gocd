@@ -25,7 +25,7 @@ processes:
         host: localhost
         port: 4000
         path: /pipelines
-      initial_delay_seconds: 180
+      initial_delay_seconds: 2
       period_seconds: 5
       timeout_seconds: 30
     depends_on: {}

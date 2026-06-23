@@ -30,7 +30,9 @@ defmodule ExGoCD.Repo.Migrations.ExtendConfigReposForExternalCi do
 
     # 0.3 config_repo_file_selections
     create table(:config_repo_file_selections) do
-      add :config_repo_file_id, references(:config_repo_files, on_delete: :delete_all), null: false
+      add :config_repo_file_id, references(:config_repo_files, on_delete: :delete_all),
+        null: false
+
       add :mode, :string, default: "translate", null: false
       add :selected_jobs, :map
       add :selected_triggers, :map

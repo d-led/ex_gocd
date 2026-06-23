@@ -24,6 +24,7 @@ defmodule ExGoCD.Cipher do
   def decrypt(ciphertext_b64) when is_binary(ciphertext_b64) do
     <<iv::binary-@block_size, ciphertext::binary>> = Base.decode64!(ciphertext_b64)
     key = cipher_key()
+
     :crypto.crypto_one_time(:aes_256_cbc, key, iv, ciphertext, false)
     |> unpad()
   end
@@ -43,9 +44,11 @@ defmodule ExGoCD.Cipher do
         case Base.decode64(key) do
           {:ok, decoded} when byte_size(decoded) >= @key_bytes ->
             binary_part(decoded, 0, @key_bytes)
+
           _ ->
             derive_key(key)
         end
+
       _ ->
         derive_key(default_key())
     end

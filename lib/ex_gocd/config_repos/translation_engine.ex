@@ -26,7 +26,8 @@ defmodule ExGoCD.ConfigRepos.TranslationEngine do
 
   Returns `{:ok, pipeline_count}` or `{:error, reason}`.
   """
-  @spec translate_and_persist(ExternalPipelineIR.t(), map()) :: {:ok, integer()} | {:error, String.t()}
+  @spec translate_and_persist(ExternalPipelineIR.t(), map()) ::
+          {:ok, integer()} | {:error, String.t()}
   def translate_and_persist(ir, selections) do
     mode = Map.get(selections, :mode, "translate")
 
@@ -88,7 +89,17 @@ defmodule ExGoCD.ConfigRepos.TranslationEngine do
     Repo.transaction(fn ->
       {:ok, pipeline} =
         %Pipelines.Pipeline{}
-        |> Pipelines.Pipeline.changeset(Map.take(attrs, [:name, :group, :label_template, :environment_variables, :timer, :config_repo_id, :source_file_path]))
+        |> Pipelines.Pipeline.changeset(
+          Map.take(attrs, [
+            :name,
+            :group,
+            :label_template,
+            :environment_variables,
+            :timer,
+            :config_repo_id,
+            :source_file_path
+          ])
+        )
         |> Repo.insert()
 
       # Upsert materials
@@ -98,10 +109,12 @@ defmodule ExGoCD.ConfigRepos.TranslationEngine do
           |> Pipelines.Material.changeset(mat)
           |> Repo.insert()
 
-        Repo.insert_all("pipelines_materials", [%{
-          pipeline_id: pipeline.id,
-          material_id: material.id
-        }])
+        Repo.insert_all("pipelines_materials", [
+          %{
+            pipeline_id: pipeline.id,
+            material_id: material.id
+          }
+        ])
       end)
 
       # Create stages with jobs and tasks
@@ -122,7 +135,10 @@ defmodule ExGoCD.ConfigRepos.TranslationEngine do
     Enum.each(stage_attrs[:jobs] || [], fn job_attrs ->
       {:ok, job} =
         %Pipelines.Job{}
-        |> Pipelines.Job.changeset(Map.merge(job_attrs, %{stage_id: stage.id}) |> Map.drop([:tasks, :resources]))
+        |> Pipelines.Job.changeset(
+          Map.merge(job_attrs, %{stage_id: stage.id})
+          |> Map.drop([:tasks, :resources])
+        )
         |> Ecto.Changeset.put_change(:resources, job_attrs[:resources] || [])
         |> Repo.insert()
 
@@ -143,7 +159,9 @@ defmodule ExGoCD.ConfigRepos.TranslationEngine do
     # For now, just update basic attrs. Full upsert of stages/jobs is more complex.
     # The config repo parser does this in a simpler way.
     existing
-    |> Pipelines.Pipeline.changeset(Map.take(attrs, [:name, :group, :label_template, :environment_variables]))
+    |> Pipelines.Pipeline.changeset(
+      Map.take(attrs, [:name, :group, :label_template, :environment_variables])
+    )
     |> Repo.update()
   end
 
@@ -151,9 +169,9 @@ defmodule ExGoCD.ConfigRepos.TranslationEngine do
     files = Repo.all(from f in ConfigRepoFile, where: f.config_repo_id == ^config_repo_id)
 
     Enum.map(files, fn file ->
-      selection = Repo.one(
-        from s in ConfigRepoFileSelection, where: s.config_repo_file_id == ^file.id
-      )
+      selection =
+        Repo.one(from s in ConfigRepoFileSelection, where: s.config_repo_file_id == ^file.id)
+
       {file, selection}
     end)
   end
@@ -176,6 +194,7 @@ defmodule ExGoCD.ConfigRepos.TranslationEngine do
   end
 
   defp selection_to_map(nil), do: %{mode: "translate"}
+
   defp selection_to_map(selection) do
     %{
       mode: selection.mode || "translate",

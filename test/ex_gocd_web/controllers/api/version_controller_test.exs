@@ -9,10 +9,10 @@ defmodule ExGoCDWeb.API.VersionControllerTest do
       conn = get(conn, ~p"/api/version")
       assert response = json_response(conn, 200)
 
-    assert response["version"] == "0.1.0"
-    assert response["build_number"] == "0.1.0"
-    assert response["full_version"] =~ "0.1.0"
-    assert response["commit_url"] =~ "github.com/d-led/ex_gocd/commits"
+      assert response["version"] == "0.1.0"
+      assert response["build_number"] == "0.1.0"
+      assert response["full_version"] =~ "0.1.0"
+      assert response["commit_url"] =~ "github.com/d-led/ex_gocd/commits"
       assert response["_links"]["self"]["href"] == "/go/api/version"
     end
 

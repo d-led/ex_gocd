@@ -33,11 +33,26 @@ defmodule ExGoCDWeb.ArtifactsControllerTest do
 
       assert response(conn, 201) =~ "created successfully"
 
-      expected_path = Path.join([artifacts_dir, "test_pipeline", "1", "test_stage", "1", "test_job", "path", "to", "target.txt"])
+      expected_path =
+        Path.join([
+          artifacts_dir,
+          "test_pipeline",
+          "1",
+          "test_stage",
+          "1",
+          "test_job",
+          "path",
+          "to",
+          "target.txt"
+        ])
+
       assert File.read!(expected_path) == "file contents here"
     end
 
-    test "uploads a zipped directory and extracts it securely", %{conn: conn, artifacts_dir: artifacts_dir} do
+    test "uploads a zipped directory and extracts it securely", %{
+      conn: conn,
+      artifacts_dir: artifacts_dir
+    } do
       # 1. Create a temporary zip file
       temp_src = Path.join(System.tmp_dir!(), "zip_src_#{System.unique_integer([:positive])}")
       File.mkdir_p!(temp_src)
@@ -66,7 +81,17 @@ defmodule ExGoCDWeb.ArtifactsControllerTest do
       assert response(conn, 201) =~ "created successfully"
 
       # 3. Check extracted contents
-      extracted_dir = Path.join([artifacts_dir, "test_pipeline", "1", "test_stage", "1", "test_job", "extracted_folder"])
+      extracted_dir =
+        Path.join([
+          artifacts_dir,
+          "test_pipeline",
+          "1",
+          "test_stage",
+          "1",
+          "test_job",
+          "extracted_folder"
+        ])
+
       assert File.read!(Path.join(extracted_dir, "a.txt")) == "content a"
       assert File.read!(Path.join(extracted_dir, "b.txt")) == "content b"
 
@@ -96,14 +121,23 @@ defmodule ExGoCDWeb.ArtifactsControllerTest do
       File.rm(temp_file)
     end
 
-    test "blocks zip slip (directory traversal in zip entries)", %{conn: conn, artifacts_dir: artifacts_dir} do
+    test "blocks zip slip (directory traversal in zip entries)", %{
+      conn: conn,
+      artifacts_dir: artifacts_dir
+    } do
       # 1. Create a zip with malicious entry name `../outside.txt`
-      temp_src = Path.join(System.tmp_dir!(), "malicious_src_#{System.unique_integer([:positive])}")
+      temp_src =
+        Path.join(System.tmp_dir!(), "malicious_src_#{System.unique_integer([:positive])}")
+
       File.mkdir_p!(temp_src)
       File.write!(Path.join(temp_src, "malicious.txt"), "evil")
 
       temp_zip = Path.join(System.tmp_dir!(), "evil_#{System.unique_integer([:positive])}.zip")
-      files_char = [{to_charlist("../outside.txt"), File.read!(Path.join(temp_src, "malicious.txt"))}]
+
+      files_char = [
+        {to_charlist("../outside.txt"), File.read!(Path.join(temp_src, "malicious.txt"))}
+      ]
+
       {:ok, _} = :zip.create(to_charlist(temp_zip), files_char)
 
       upload = %Plug.Upload{
@@ -123,7 +157,9 @@ defmodule ExGoCDWeb.ArtifactsControllerTest do
       assert response(conn, 403) =~ "directory traversal"
 
       # 3. Verify it was not written outside the job directory
-      escaped_path = Path.join([artifacts_dir, "test_pipeline", "1", "test_stage", "1", "outside.txt"])
+      escaped_path =
+        Path.join([artifacts_dir, "test_pipeline", "1", "test_stage", "1", "outside.txt"])
+
       refute File.exists?(escaped_path)
 
       # Cleanup
@@ -143,7 +179,10 @@ defmodule ExGoCDWeb.ArtifactsControllerTest do
       assert get_resp_header(conn, "content-type") |> List.first() =~ "application/json"
     end
 
-    test "serves directory dynamically zipped when accept contains zip", %{conn: conn, artifacts_dir: artifacts_dir} do
+    test "serves directory dynamically zipped when accept contains zip", %{
+      conn: conn,
+      artifacts_dir: artifacts_dir
+    } do
       job_dir = Path.join([artifacts_dir, "test_pipeline", "1", "test_stage", "1", "test_job"])
       dir_to_zip = Path.join(job_dir, "to_zip")
       File.mkdir_p!(dir_to_zip)
@@ -200,7 +239,10 @@ defmodule ExGoCDWeb.ArtifactsControllerTest do
       conn =
         conn
         |> put_req_header("content-type", "text/plain")
-        |> put(~p"/files/test_pipeline/1/test_stage/1/test_job/cruise-output/console.log", "Appended line\n")
+        |> put(
+          ~p"/files/test_pipeline/1/test_stage/1/test_job/cruise-output/console.log",
+          "Appended line\n"
+        )
 
       assert response(conn, 200) =~ "appended successfully"
 

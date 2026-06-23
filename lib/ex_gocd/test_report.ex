@@ -86,12 +86,31 @@ defmodule ExGoCD.TestReport do
     case File.read(file_path) do
       {:ok, xml} ->
         case parse_xml_safe(xml, file_path) do
-          {:ok, suite} -> suite
-          :error -> %{name: Path.basename(file_path), tests: 0, failures: 0, errors: 0, skipped: 0, time: 0, cases: []}
+          {:ok, suite} ->
+            suite
+
+          :error ->
+            %{
+              name: Path.basename(file_path),
+              tests: 0,
+              failures: 0,
+              errors: 0,
+              skipped: 0,
+              time: 0,
+              cases: []
+            }
         end
 
       {:error, _} ->
-        %{name: Path.basename(file_path), tests: 0, failures: 0, errors: 0, skipped: 0, time: 0, cases: []}
+        %{
+          name: Path.basename(file_path),
+          tests: 0,
+          failures: 0,
+          errors: 0,
+          skipped: 0,
+          time: 0,
+          cases: []
+        }
     end
   end
 
@@ -107,8 +126,12 @@ defmodule ExGoCD.TestReport do
     end
   end
 
-  defp extract_suite({:xmlElement, :testsuite, :testsuite, _, _, _, _, attrs, children, _, _, _}, default_name) do
+  defp extract_suite(
+         {:xmlElement, :testsuite, :testsuite, _, _, _, _, attrs, children, _, _, _},
+         default_name
+       ) do
     cases = extract_testcases(children, [])
+
     %{
       name: get_xml_attr(attrs, :name, String.to_charlist(default_name)) |> List.to_string(),
       tests: get_xml_attr(attrs, :tests, ~c"0") |> List.to_string() |> parse_int(),
@@ -122,7 +145,10 @@ defmodule ExGoCD.TestReport do
 
   defp extract_testcases([], acc), do: acc
 
-  defp extract_testcases([{:xmlElement, :testcase, :testcase, _, _, _, _, attrs, children, _, _, _} | rest], acc) do
+  defp extract_testcases(
+         [{:xmlElement, :testcase, :testcase, _, _, _, _, attrs, children, _, _, _} | rest],
+         acc
+       ) do
     tc = %{
       name: get_xml_attr(attrs, :name, ~c"unknown") |> List.to_string(),
       classname: get_xml_attr(attrs, :classname, ~c"") |> List.to_string(),
@@ -131,6 +157,7 @@ defmodule ExGoCD.TestReport do
       message: extract_message(children),
       type: extract_failure_type(children)
     }
+
     extract_testcases(rest, [tc | acc])
   end
 
@@ -157,15 +184,18 @@ defmodule ExGoCD.TestReport do
   end
 
   defp extract_failure_type(children) do
-    child = Enum.find(children, fn
-      {:xmlElement, tag, _, _, _, _, _, _, _, _, _, _} when tag in [:failure, :error] -> true
-      _ -> false
-    end)
+    child =
+      Enum.find(children, fn
+        {:xmlElement, tag, _, _, _, _, _, _, _, _, _, _} when tag in [:failure, :error] -> true
+        _ -> false
+      end)
 
     case child do
       {:xmlElement, _, _, _, _, _, _, _, attrs, _, _, _} ->
         get_xml_attr(attrs, :type, nil) |> to_string_or_nil()
-      _ -> nil
+
+      _ ->
+        nil
     end
   end
 
@@ -180,16 +210,19 @@ defmodule ExGoCD.TestReport do
   defp to_string_or_nil(charlist) when is_list(charlist), do: List.to_string(charlist)
 
   defp find_child_text(children, tags) do
-    child = Enum.find(children, fn
-      {:xmlElement, tag, _, _, _, _, _, _, _} -> Enum.member?(tags, tag)
-      _ -> false
-    end)
+    child =
+      Enum.find(children, fn
+        {:xmlElement, tag, _, _, _, _, _, _, _} -> Enum.member?(tags, tag)
+        _ -> false
+      end)
 
     case child do
       {:xmlElement, _, _, _, _, _, _, _, sub_children, _, _, _} ->
         text = extract_text(sub_children)
         if text == "", do: nil, else: text
-      _ -> nil
+
+      _ ->
+        nil
     end
   end
 
@@ -238,25 +271,28 @@ defmodule ExGoCD.TestReport do
       if d > 0, do: Float.round(n * 1.0 / d * 100.0, 1), else: 0.0
     end
 
-    suite_rows = Enum.map(report.suites, fn suite ->
-      header = """
-      <tr class="suite-header"><td colspan="4">#{escape_html(suite.name)} &mdash; #{suite.tests} tests</td></tr>
-      """
+    suite_rows =
+      Enum.map(report.suites, fn suite ->
+        header = """
+        <tr class="suite-header"><td colspan="4">#{escape_html(suite.name)} &mdash; #{suite.tests} tests</td></tr>
+        """
 
-      cases = Enum.map(suite.cases, fn tc ->
-        result_class = "result-#{tc.result}"
-        """
-        <tr>
-          <td>#{escape_html(tc.name)}</td>
-          <td>#{escape_html(tc.classname)}</td>
-          <td class="#{result_class}">#{String.upcase(tc.result)}</td>
-          <td>#{Float.round(tc.time, 3)}s</td>
-        </tr>
-        """
+        cases =
+          Enum.map(suite.cases, fn tc ->
+            result_class = "result-#{tc.result}"
+
+            """
+            <tr>
+              <td>#{escape_html(tc.name)}</td>
+              <td>#{escape_html(tc.classname)}</td>
+              <td class="#{result_class}">#{String.upcase(tc.result)}</td>
+              <td>#{Float.round(tc.time, 3)}s</td>
+            </tr>
+            """
+          end)
+
+        header <> Enum.join(cases)
       end)
-
-      header <> Enum.join(cases)
-    end)
 
     """
     <!DOCTYPE html>

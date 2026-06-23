@@ -50,7 +50,9 @@ defmodule ExGoCD.ConfigReposTest do
 
   describe "config repo CRUD" do
     test "creates a config repo" do
-      assert {:ok, cr} = ConfigRepos.create_config_repo(%{url: "https://github.com/example/pipelines.git"})
+      assert {:ok, cr} =
+               ConfigRepos.create_config_repo(%{url: "https://github.com/example/pipelines.git"})
+
       assert cr.url == "https://github.com/example/pipelines.git"
       assert cr.branch == "main"
       assert cr.material_type == "git"
@@ -64,7 +66,9 @@ defmodule ExGoCD.ConfigReposTest do
     end
 
     test "deletes a config repo" do
-      {:ok, cr} = ConfigRepos.create_config_repo(%{url: "https://github.com/example/to-delete.git"})
+      {:ok, cr} =
+        ConfigRepos.create_config_repo(%{url: "https://github.com/example/to-delete.git"})
+
       assert {:ok, _} = ConfigRepos.delete_config_repo(cr)
       assert ConfigRepos.get_config_repo(cr.id) == nil
     end
@@ -76,13 +80,16 @@ defmodule ExGoCD.ConfigReposTest do
 
     test "enforces unique URL" do
       {:ok, _} = ConfigRepos.create_config_repo(%{url: "https://github.com/example/unique.git"})
-      assert {:error, _} = ConfigRepos.create_config_repo(%{url: "https://github.com/example/unique.git"})
+
+      assert {:error, _} =
+               ConfigRepos.create_config_repo(%{url: "https://github.com/example/unique.git"})
     end
   end
 
   describe "refresh_config_repo_with_content/2" do
     test "parses JSON and creates pipeline with stages and jobs" do
-      {:ok, cr} = ConfigRepos.create_config_repo(%{url: "https://github.com/example/parser-test.git"})
+      {:ok, cr} =
+        ConfigRepos.create_config_repo(%{url: "https://github.com/example/parser-test.git"})
 
       assert {:ok, 1} = ConfigRepos.refresh_config_repo_with_content(cr, @valid_pipeline_json)
 
@@ -101,14 +108,18 @@ defmodule ExGoCD.ConfigReposTest do
     end
 
     test "updates existing pipeline on re-parse" do
-      {:ok, cr} = ConfigRepos.create_config_repo(%{url: "https://github.com/example/reparse-test.git"})
+      {:ok, cr} =
+        ConfigRepos.create_config_repo(%{url: "https://github.com/example/reparse-test.git"})
+
       assert {:ok, 1} = ConfigRepos.refresh_config_repo_with_content(cr, @valid_pipeline_json)
 
       pipeline = Pipelines.get_pipeline_by_name("config-repo-pipe")
       assert pipeline.group == "test"
 
       # Re-parse with updated group
-      updated_json = String.replace(@valid_pipeline_json, ~s("group": "test"), ~s("group": "production"))
+      updated_json =
+        String.replace(@valid_pipeline_json, ~s("group": "test"), ~s("group": "production"))
+
       assert {:ok, 1} = ConfigRepos.refresh_config_repo_with_content(cr, updated_json)
 
       pipeline = Pipelines.get_pipeline_by_name("config-repo-pipe")
@@ -116,7 +127,9 @@ defmodule ExGoCD.ConfigReposTest do
     end
 
     test "updates last_parsed_at on success" do
-      {:ok, cr} = ConfigRepos.create_config_repo(%{url: "https://github.com/example/timestamp-test.git"})
+      {:ok, cr} =
+        ConfigRepos.create_config_repo(%{url: "https://github.com/example/timestamp-test.git"})
+
       assert {:ok, 1} = ConfigRepos.refresh_config_repo_with_content(cr, @valid_pipeline_json)
 
       cr = ConfigRepos.get_config_repo(cr.id)
@@ -125,7 +138,9 @@ defmodule ExGoCD.ConfigReposTest do
     end
 
     test "sets error_message on parse failure" do
-      {:ok, cr} = ConfigRepos.create_config_repo(%{url: "https://github.com/example/error-test.git"})
+      {:ok, cr} =
+        ConfigRepos.create_config_repo(%{url: "https://github.com/example/error-test.git"})
+
       assert {:error, _} = ConfigRepos.refresh_config_repo_with_content(cr, "not valid json {{{")
 
       cr = ConfigRepos.get_config_repo(cr.id)
@@ -133,7 +148,9 @@ defmodule ExGoCD.ConfigReposTest do
     end
 
     test "pipelines with no stages do not fail" do
-      {:ok, cr} = ConfigRepos.create_config_repo(%{url: "https://github.com/example/no-stages.git"})
+      {:ok, cr} =
+        ConfigRepos.create_config_repo(%{url: "https://github.com/example/no-stages.git"})
+
       json = ~s({"pipelines": [{"name": "no-stage-pipe", "group": "test"}]})
 
       assert {:ok, 1} = ConfigRepos.refresh_config_repo_with_content(cr, json)

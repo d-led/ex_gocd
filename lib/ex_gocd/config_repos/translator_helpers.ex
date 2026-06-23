@@ -8,6 +8,7 @@ defmodule ExGoCD.ConfigRepos.TranslatorHelpers do
   """
   def pipeline_name(ir, prefix) do
     name = ir.name |> String.replace(~r/[^a-zA-Z0-9_-]/, "-") |> String.trim("-")
+
     if prefix != "" and prefix != nil do
       "#{prefix}-#{name}"
     else
@@ -19,6 +20,7 @@ defmodule ExGoCD.ConfigRepos.TranslatorHelpers do
   Filters jobs by a selected list, or returns all if nil.
   """
   def filter_jobs(jobs, nil), do: jobs
+
   def filter_jobs(jobs, selected) when is_list(selected) do
     Enum.filter(jobs, fn {name, _} -> name in selected end)
   end
@@ -28,6 +30,7 @@ defmodule ExGoCD.ConfigRepos.TranslatorHelpers do
   """
   def skip_attrs(ir, selections) do
     prefix = Map.get(selections, :pipeline_name_prefix, "")
+
     %{
       name: pipeline_name(ir, prefix),
       group: prefix,

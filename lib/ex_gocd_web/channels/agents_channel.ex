@@ -14,7 +14,14 @@ defmodule ExGoCDWeb.AgentsChannel do
   end
 
   @impl true
-  def handle_info({event, _agent}, socket) when event in [:agent_registered, :agent_updated, :agent_enabled, :agent_disabled, :agent_deleted] do
+  def handle_info({event, _agent}, socket)
+      when event in [
+             :agent_registered,
+             :agent_updated,
+             :agent_enabled,
+             :agent_disabled,
+             :agent_deleted
+           ] do
     push(socket, "agents_updated", %{})
     {:noreply, socket}
   end

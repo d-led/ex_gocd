@@ -194,7 +194,10 @@ defmodule ExGoCDWeb.API.AgentControllerTest do
       assert response["uuid"] == @valid_uuid
       assert response["hostname"] == "agent-1"
       assert response["ip_address"] == "192.168.1.100"
-      assert [%{"name" => "production", "origin" => %{"type" => "gocd"}}] = response["environments"]
+
+      assert [%{"name" => "production", "origin" => %{"type" => "gocd"}}] =
+               response["environments"]
+
       assert response["resources"] == ["linux", "docker"]
       assert response["_links"]["self"]["href"]
       assert response["_links"]["doc"]["href"]
@@ -380,8 +383,12 @@ defmodule ExGoCDWeb.API.AgentControllerTest do
 
   describe "DELETE /api/agents (bulk)" do
     setup do
-      {:ok, _} = Agents.register_agent(%{uuid: @valid_uuid, hostname: "agent-a", ipaddress: "127.0.0.1"})
-      {:ok, _} = Agents.register_agent(%{uuid: @another_uuid, hostname: "agent-b", ipaddress: "127.0.0.2"})
+      {:ok, _} =
+        Agents.register_agent(%{uuid: @valid_uuid, hostname: "agent-a", ipaddress: "127.0.0.1"})
+
+      {:ok, _} =
+        Agents.register_agent(%{uuid: @another_uuid, hostname: "agent-b", ipaddress: "127.0.0.2"})
+
       # Disable both before deleting
       Agents.disable_agent(@valid_uuid)
       Agents.disable_agent(@another_uuid)
@@ -408,13 +415,22 @@ defmodule ExGoCDWeb.API.AgentControllerTest do
 
   describe "PATCH /api/agents (bulk update)" do
     setup do
-      {:ok, _} = Agents.register_agent(%{uuid: @valid_uuid, hostname: "agent-a", ipaddress: "127.0.0.1"})
-      {:ok, _} = Agents.register_agent(%{uuid: @another_uuid, hostname: "agent-b", ipaddress: "127.0.0.2"})
+      {:ok, _} =
+        Agents.register_agent(%{uuid: @valid_uuid, hostname: "agent-a", ipaddress: "127.0.0.1"})
+
+      {:ok, _} =
+        Agents.register_agent(%{uuid: @another_uuid, hostname: "agent-b", ipaddress: "127.0.0.2"})
+
       :ok
     end
 
     test "bulk disables agents", %{conn: conn} do
-      conn = patch(conn, ~p"/api/agents", %{uuids: [@valid_uuid, @another_uuid], agent_config_state: "Disabled"})
+      conn =
+        patch(conn, ~p"/api/agents", %{
+          uuids: [@valid_uuid, @another_uuid],
+          agent_config_state: "Disabled"
+        })
+
       assert %{"message" => msg} = json_response(conn, 200)
       assert msg =~ "Updated 2"
     end

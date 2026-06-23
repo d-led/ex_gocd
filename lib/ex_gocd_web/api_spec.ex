@@ -44,7 +44,7 @@ defmodule ExGoCDWeb.ApiSpec do
     ExGoCDWeb.AgentRemotingController => "Agent Remoting",
     ExGoCDWeb.ArtifactsController => "Artifacts",
     ExGoCDWeb.ValueStreamMapController => "Value Stream Map",
-    ExGoCDWeb.CCTrayController => "CCTray",
+    ExGoCDWeb.CCTrayController => "CCTray"
   }
 
   # ── tags derived from controller map (sorted by name) ───────────────

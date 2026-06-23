@@ -612,20 +612,25 @@ Cypress.Commands.add("whenPageHasAll", (texts, callback) => {
     const bodyText = $body.text();
     const allPresent = texts.every((t) => bodyText.includes(t));
     if (!allPresent) {
-      cy.log(`Skipping: page missing one of [${texts.join(", ")}] — likely mock mode`);
+      cy.log(
+        `Skipping: page missing one of [${texts.join(", ")}] — likely mock mode`,
+      );
     } else {
       callback();
     }
   });
 });
 
-Cypress.Commands.add("thePipelineStagePassed", (pipelineName, timeout = 20000) => {
-  cy.get(SELECTORS.pipeline)
-    .contains(SELECTORS.pipelineName, pipelineName)
-    .parents(SELECTORS.pipeline)
-    .find(`${SELECTORS.stageBlock}.passed`, { timeout })
-    .should("exist");
-});
+Cypress.Commands.add(
+  "thePipelineStagePassed",
+  (pipelineName, timeout = 20000) => {
+    cy.get(SELECTORS.pipeline)
+      .contains(SELECTORS.pipelineName, pipelineName)
+      .parents(SELECTORS.pipeline)
+      .find(`${SELECTORS.stageBlock}.passed`, { timeout })
+      .should("exist");
+  },
+);
 
 Cypress.Commands.add("goToDashboard", () => {
   cy.visitPage("/pipelines");

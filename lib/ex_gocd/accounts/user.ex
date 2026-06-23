@@ -33,5 +33,6 @@ defmodule ExGoCD.Accounts.User do
     role_str = to_string(role)
     Enum.any?(roles || [], &(to_string(&1) == role_str))
   end
+
   def has_role?(_, _), do: false
 end

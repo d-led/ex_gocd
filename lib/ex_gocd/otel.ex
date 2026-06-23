@@ -16,7 +16,9 @@ defmodule ExGoCD.Otel do
   def setup do
     # Ensure the SDK application is started (it's a dependency, but be safe)
     case Application.ensure_all_started(:opentelemetry) do
-      {:ok, _} -> :ok
+      {:ok, _} ->
+        :ok
+
       {:error, _} ->
         IO.puts("[OTel] SDK not available — traces disabled")
         :ok

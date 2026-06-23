@@ -19,7 +19,10 @@ defmodule ExGoCD.ParamsTest do
     end
 
     test "replaces multiple placeholders" do
-      assert Params.interpolate("\#{greeting} \#{target}", %{"greeting" => "hello", "target" => "world"}) == "hello world"
+      assert Params.interpolate("\#{greeting} \#{target}", %{
+               "greeting" => "hello",
+               "target" => "world"
+             }) == "hello world"
     end
 
     test "leaves unknown placeholders unchanged" do
@@ -37,7 +40,9 @@ defmodule ExGoCD.ParamsTest do
     end
 
     test "interpolates values in a map" do
-      assert Params.interpolate(%{"key" => "\#{val}"}, %{"val" => "replaced"}) == %{"key" => "replaced"}
+      assert Params.interpolate(%{"key" => "\#{val}"}, %{"val" => "replaced"}) == %{
+               "key" => "replaced"
+             }
     end
 
     test "handles deeply nested structures" do
@@ -45,11 +50,14 @@ defmodule ExGoCD.ParamsTest do
         "args" => ["--name", "\#{name}", "--env", "\#{env}"],
         "nested" => %{"key" => "\#{value}"}
       }
+
       params = %{"name" => "app", "env" => "prod", "value" => "nested_val"}
+
       expected = %{
         "args" => ["--name", "app", "--env", "prod"],
         "nested" => %{"key" => "nested_val"}
       }
+
       assert Params.interpolate(input, params) == expected
     end
 

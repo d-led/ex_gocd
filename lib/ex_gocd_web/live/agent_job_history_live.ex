@@ -16,14 +16,14 @@ defmodule ExGoCDWeb.AgentJobHistoryLive do
 
       {:ok,
        socket
-         |> assign(
-           agent: agent,
-           job_history: list_runs(uuid),
-           page: 1,
-           page_size: 50,
-           total_pages: 1,
-           page_title: "Agent Job Run History",
-           current_path: "/agents/#{uuid}/job_run_history"
+       |> assign(
+         agent: agent,
+         job_history: list_runs(uuid),
+         page: 1,
+         page_size: 50,
+         total_pages: 1,
+         page_title: "Agent Job Run History",
+         current_path: "/agents/#{uuid}/job_run_history"
        )}
     else
       {:ok,
@@ -64,7 +64,7 @@ defmodule ExGoCDWeb.AgentJobHistoryLive do
           <span class="agent-hostname">{@agent.hostname}</span>
         </div>
       </div>
-
+      
     <!-- Pagination Top -->
       <div class="pagination-controls">
         <button
@@ -84,7 +84,7 @@ defmodule ExGoCDWeb.AgentJobHistoryLive do
           Next
         </button>
       </div>
-
+      
     <!-- Job History Table -->
       <div class="job-history-table-container">
         <table class="job-history-table">
@@ -165,7 +165,7 @@ defmodule ExGoCDWeb.AgentJobHistoryLive do
           </tbody>
         </table>
       </div>
-
+      
     <!-- Pagination Bottom -->
       <div class="pagination-controls">
         <button
@@ -213,7 +213,9 @@ defmodule ExGoCDWeb.AgentJobHistoryLive do
 
   # Show "—" for pipeline/stage when it's an ad hoc test job (no pipeline in the system).
   defp display_pipeline(job) do
-    if job.pipeline_name in [nil, "", "unknown", "test-pipeline"], do: "—", else: job.pipeline_name
+    if job.pipeline_name in [nil, "", "unknown", "test-pipeline"],
+      do: "—",
+      else: job.pipeline_name
   end
 
   defp display_stage(job) do

@@ -42,7 +42,8 @@ defmodule ExGoCD.TestReportTest do
       assert html =~ "test_passes"
       assert html =~ "test_fails"
       assert html =~ "test_skipped"
-      assert html =~ "3" # total tests
+      # total tests
+      assert html =~ "3"
       assert html =~ "FAILED"
       assert html =~ "PASSED"
       assert html =~ "SKIPPED"

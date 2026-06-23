@@ -24,9 +24,12 @@ defmodule ExGoCDWeb.PipelineActivityLiveTest do
 
       # And stage run detail grids are rendered
       assert html =~ "Stages Run Details"
-      assert html =~ "CO" # First two letters of stage names like compile
-      assert html =~ "TE" # test
-      assert html =~ "PA" # package
+      # First two letters of stage names like compile
+      assert html =~ "CO"
+      # test
+      assert html =~ "TE"
+      # package
+      assert html =~ "PA"
     end
 
     test "redirects to pipelines dashboard on non-existent pipeline name", %{conn: conn} do

@@ -28,11 +28,12 @@ defmodule ExGoCDWeb.API.StatsController do
     # Count of active websocket connections
     active_connections = map_size(AgentPresence.list("agent"))
 
-    running_jobs = Repo.one(
-      from r in AgentJobRun,
-        where: r.state != "Completed" and r.state != "Cancelled",
-        select: count(r.id)
-    )
+    running_jobs =
+      Repo.one(
+        from r in AgentJobRun,
+          where: r.state != "Completed" and r.state != "Cancelled",
+          select: count(r.id)
+      )
 
     job_stats = %{
       pending: Scheduler.pending_count(),

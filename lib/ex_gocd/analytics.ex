@@ -12,26 +12,42 @@ defmodule ExGoCD.Analytics do
 
   def pipeline_analytics(pipeline_name, days \\ 30) do
     cutoff = DateTime.add(DateTime.utc_now(), -days * 86_400, :second)
+
     instances =
       from(pi in PipelineInstance,
-        join: p in Pipeline, on: pi.pipeline_id == p.id,
+        join: p in Pipeline,
+        on: pi.pipeline_id == p.id,
         where: p.name == ^pipeline_name and pi.inserted_at >= ^cutoff,
-        order_by: [desc: pi.counter])
+        order_by: [desc: pi.counter]
+      )
       |> Repo.all()
       |> Repo.preload(stage_instances: :job_instances)
 
     if instances == [] do
-      %{pipeline_name: pipeline_name, run_count: 0, pass_rate: nil, mttr_sec: nil,
-        avg_build_time_sec: nil, avg_wait_time_sec: nil, recent_runs: []}
+      %{
+        pipeline_name: pipeline_name,
+        run_count: 0,
+        pass_rate: nil,
+        mttr_sec: nil,
+        avg_build_time_sec: nil,
+        avg_wait_time_sec: nil,
+        recent_runs: []
+      }
     else
       run_count = length(instances)
       passed = Enum.count(instances, &pipeline_passed?/1)
       pass_rate = Float.round(passed / run_count * 100, 1)
       mttr = calc_mttr(instances)
-      %{pipeline_name: pipeline_name, run_count: run_count, pass_rate: pass_rate,
-        mttr_sec: mttr, avg_build_time_sec: calc_avg_build_time(instances),
+
+      %{
+        pipeline_name: pipeline_name,
+        run_count: run_count,
+        pass_rate: pass_rate,
+        mttr_sec: mttr,
+        avg_build_time_sec: calc_avg_build_time(instances),
         avg_wait_time_sec: calc_avg_wait_time(instances),
-        recent_runs: instances |> Enum.take(30) |> Enum.map(&run_summary/1)}
+        recent_runs: instances |> Enum.take(30) |> Enum.map(&run_summary/1)
+      }
     end
   end
 
@@ -75,7 +91,9 @@ defmodule ExGoCD.Analytics do
   def top_pipelines_by_wait_time(days \\ 7, limit \\ 10) do
     from(p in Pipeline, select: p.name)
     |> Repo.all()
-    |> Enum.map(fn name -> %{name: name, avg_wait_sec: pipeline_analytics(name, days).avg_wait_time_sec} end)
+    |> Enum.map(fn name ->
+      %{name: name, avg_wait_sec: pipeline_analytics(name, days).avg_wait_time_sec}
+    end)
     |> Enum.reject(&is_nil(&1.avg_wait_sec))
     |> Enum.sort_by(& &1.avg_wait_sec, :desc)
     |> Enum.take(limit)
@@ -83,11 +101,18 @@ defmodule ExGoCD.Analytics do
 
   def agent_analytics(days \\ 7) do
     cutoff = DateTime.add(DateTime.utc_now(), -days * 86_400, :second)
-    from(r in AgentJobRun, where: r.inserted_at >= ^cutoff, group_by: r.agent_uuid,
-      select: %{agent_uuid: r.agent_uuid, total_jobs: count(r.id),
+
+    from(r in AgentJobRun,
+      where: r.inserted_at >= ^cutoff,
+      group_by: r.agent_uuid,
+      select: %{
+        agent_uuid: r.agent_uuid,
+        total_jobs: count(r.id),
         completed: count(r.id) |> filter(r.state in ["Completed", "Passed"]),
         failed: count(r.id) |> filter(r.state == "Failed"),
-        cancelled: count(r.id) |> filter(r.state == "Cancelled")})
+        cancelled: count(r.id) |> filter(r.state == "Cancelled")
+      }
+    )
     |> Repo.all()
   end
 
@@ -97,22 +122,34 @@ defmodule ExGoCD.Analytics do
 
   def vsm_trends(pipeline_name, days \\ 30) do
     cutoff = DateTime.add(DateTime.utc_now(), -days * 86_400, :second)
-    from(pi in PipelineInstance, join: p in Pipeline, on: pi.pipeline_id == p.id,
+
+    from(pi in PipelineInstance,
+      join: p in Pipeline,
+      on: pi.pipeline_id == p.id,
       where: p.name == ^pipeline_name and pi.inserted_at >= ^cutoff,
-      order_by: [desc: pi.counter], limit: 30)
+      order_by: [desc: pi.counter],
+      limit: 30
+    )
     |> Repo.all()
     |> Repo.preload(stage_instances: :job_instances)
     |> Enum.map(&vsm_run_summary/1)
   end
 
-  defp pipeline_passed?(inst), do: (inst.stage_instances || []) != [] and Enum.all?(inst.stage_instances, &(&1.result == "Passed"))
+  defp pipeline_passed?(inst),
+    do:
+      (inst.stage_instances || []) != [] and
+        Enum.all?(inst.stage_instances, &(&1.result == "Passed"))
 
   defp calc_mttr(instances) do
     sorted = Enum.sort_by(instances, & &1.inserted_at, {:asc, DateTime})
-    {recoveries, _} = Enum.reduce(sorted, {[], nil}, fn inst, {recs, last_fail} ->
-      if pipeline_passed?(inst) && last_fail, do: {[DateTime.diff(inst.inserted_at, last_fail) | recs], nil},
-        else: {recs, if(!pipeline_passed?(inst), do: inst.inserted_at)}
-    end)
+
+    {recoveries, _} =
+      Enum.reduce(sorted, {[], nil}, fn inst, {recs, last_fail} ->
+        if pipeline_passed?(inst) && last_fail,
+          do: {[DateTime.diff(inst.inserted_at, last_fail) | recs], nil},
+          else: {recs, if(!pipeline_passed?(inst), do: inst.inserted_at)}
+      end)
+
     if recoveries == [], do: nil, else: Float.round(Enum.sum(recoveries) / length(recoveries), 1)
   end
 
@@ -156,34 +193,59 @@ defmodule ExGoCD.Analytics do
   defp run_summary(inst) do
     stages = inst.stage_instances || []
     passed = Enum.all?(stages, &(&1.result == "Passed"))
-    status = cond do
-      passed -> "Passed"
-      Enum.any?(stages, &(&1.result == "Failed")) -> "Failed"
-      Enum.any?(stages, &(&1.state == "Building")) -> "Building"
-      true -> "Unknown"
-    end
+
+    status =
+      cond do
+        passed -> "Passed"
+        Enum.any?(stages, &(&1.result == "Failed")) -> "Failed"
+        Enum.any?(stages, &(&1.state == "Building")) -> "Building"
+        true -> "Unknown"
+      end
+
     first = List.first(stages)
     completed = stages |> Enum.map(&to_dt(&1.completed_at)) |> Enum.reject(&is_nil/1)
     last = if completed != [], do: Enum.max(completed, DateTime)
-    %{counter: inst.counter, label: inst.label, status: status,
-      build_time_sec: (first && first.inserted_at && last && DateTime.diff(last, first.inserted_at)),
-      triggered_at: inst.inserted_at}
+
+    %{
+      counter: inst.counter,
+      label: inst.label,
+      status: status,
+      build_time_sec:
+        first && first.inserted_at && last && DateTime.diff(last, first.inserted_at),
+      triggered_at: inst.inserted_at
+    }
   end
 
   defp vsm_run_summary(inst) do
     stages = inst.stage_instances || []
-    ss = Enum.map(stages, fn si ->
-      completed_dt = to_dt(si.completed_at)
-      dur = if si.inserted_at && completed_dt, do: DateTime.diff(completed_dt, si.inserted_at)
-      %{name: si.name, state: si.state, result: si.result, duration_sec: dur, job_count: length(si.job_instances || [])}
-    end)
+
+    ss =
+      Enum.map(stages, fn si ->
+        completed_dt = to_dt(si.completed_at)
+        dur = if si.inserted_at && completed_dt, do: DateTime.diff(completed_dt, si.inserted_at)
+
+        %{
+          name: si.name,
+          state: si.state,
+          result: si.result,
+          duration_sec: dur,
+          job_count: length(si.job_instances || [])
+        }
+      end)
+
     first = List.first(stages)
     completed = stages |> Enum.map(&to_dt(&1.completed_at)) |> Enum.reject(&is_nil/1)
     last = if completed != [], do: Enum.max(completed, DateTime)
-    %{counter: inst.counter, label: inst.label, triggered_at: inst.inserted_at,
+
+    %{
+      counter: inst.counter,
+      label: inst.label,
+      triggered_at: inst.inserted_at,
       stage_count: length(stages),
-      total_duration_sec: (first && first.inserted_at && last && DateTime.diff(last, first.inserted_at)),
-      stages: ss}
+      total_duration_sec:
+        first && first.inserted_at && last && DateTime.diff(last, first.inserted_at),
+      stages: ss
+    }
   end
 
   # ── Agent State Transitions ───────────────────────────────────────

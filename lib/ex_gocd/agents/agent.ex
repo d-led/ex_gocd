@@ -123,12 +123,14 @@ defmodule ExGoCD.Agents.Agent do
   end
 
   defp check_ip_address(""), do: [ipaddress: "cannot be empty if present"]
+
   defp check_ip_address(ip) when is_binary(ip) do
     case :inet.parse_address(String.to_charlist(ip)) do
       {:ok, _} -> []
       {:error, _} -> [ipaddress: "is not a valid IP address"]
     end
   end
+
   defp check_ip_address(_), do: [ipaddress: "must be a string"]
 
   defp validate_resources(changeset) do

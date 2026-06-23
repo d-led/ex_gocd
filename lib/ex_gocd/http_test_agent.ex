@@ -58,14 +58,20 @@ defmodule ExGoCD.HTTPTestAgent do
     case register_agent(state) do
       {:ok, cookie} ->
         Logger.info("[HTTPTestAgent] Registration successful. Cookie: #{cookie}")
+
         case connect_websocket(state) do
           {:ok, socket} ->
             Logger.info("[HTTPTestAgent] TCP Socket connected. Sending WebSocket handshake...")
             send_handshake(socket, state)
-            {:noreply, %{state | cookie: cookie, socket: socket, buffer: <<>>, handshake_done: false}}
+
+            {:noreply,
+             %{state | cookie: cookie, socket: socket, buffer: <<>>, handshake_done: false}}
 
           {:error, reason} ->
-            Logger.error("[HTTPTestAgent] TCP Socket connection failed: #{inspect(reason)}. Retrying in 2s...")
+            Logger.error(
+              "[HTTPTestAgent] TCP Socket connection failed: #{inspect(reason)}. Retrying in 2s..."
+            )
+
             Process.send_after(self(), :register_and_connect, 2000)
             {:noreply, state}
         end
@@ -83,9 +89,10 @@ defmodule ExGoCD.HTTPTestAgent do
       new_buffer = state.buffer <> data
       {frames, remaining} = parse_frames(new_buffer, [])
 
-      new_state = Enum.reduce(frames, state, fn frame, acc ->
-        handle_websocket_frame(frame, acc)
-      end)
+      new_state =
+        Enum.reduce(frames, state, fn frame, acc ->
+          handle_websocket_frame(frame, acc)
+        end)
 
       {:noreply, %{new_state | buffer: remaining}}
     else
@@ -156,6 +163,7 @@ defmodule ExGoCD.HTTPTestAgent do
     # 1. GET Token
     host_str = host_to_string(state.host)
     token_url = "http://#{host_str}:#{state.port}/admin/agent/token?uuid=#{state.uuid}"
+
     case Req.get(token_url) do
       {:ok, %{status: 200, body: token}} ->
         # 2. POST registration
@@ -179,12 +187,14 @@ defmodule ExGoCD.HTTPTestAgent do
           agentAutoRegisterResources: Enum.join(state.resources || [], ","),
           agentAutoRegisterEnvironments: Enum.join(state.environments || [], ",")
         ]
+
         case Req.post(reg_url, form: form_data) do
           {:ok, %{status: 200}} -> {:ok, token}
           other -> {:error, {:registration_post_failed, other}}
         end
 
-      other -> {:error, {:token_request_failed, other}}
+      other ->
+        {:error, {:token_request_failed, other}}
     end
   end
 
@@ -194,19 +204,22 @@ defmodule ExGoCD.HTTPTestAgent do
         s when is_binary(s) -> String.to_charlist(s)
         other -> other
       end
+
     :gen_tcp.connect(host_tcp, state.port, [:binary, active: true, packet: :raw])
   end
 
   defp send_handshake(socket, state) do
     host_str = host_to_string(state.host)
+
     request =
       "GET /agent-websocket/websocket HTTP/1.1\r\n" <>
-      "Host: #{host_str}:#{state.port}\r\n" <>
-      "Upgrade: websocket\r\n" <>
-      "Connection: Upgrade\r\n" <>
-      "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n" <>
-      "Sec-WebSocket-Version: 13\r\n" <>
-      "User-Agent: HTTPTestAgent\r\n\r\n"
+        "Host: #{host_str}:#{state.port}\r\n" <>
+        "Upgrade: websocket\r\n" <>
+        "Connection: Upgrade\r\n" <>
+        "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n" <>
+        "Sec-WebSocket-Version: 13\r\n" <>
+        "User-Agent: HTTPTestAgent\r\n\r\n"
+
     :ok = :gen_tcp.send(socket, request)
   end
 
@@ -223,6 +236,7 @@ defmodule ExGoCD.HTTPTestAgent do
         }
       }
     }
+
     send_json(socket, msg)
   end
 
@@ -244,6 +258,7 @@ defmodule ExGoCD.HTTPTestAgent do
         }
       }
     }
+
     send_json(socket, msg)
   end
 
@@ -272,6 +287,7 @@ defmodule ExGoCD.HTTPTestAgent do
         }
       }
     }
+
     send_json(socket, msg)
   end
 
@@ -311,6 +327,7 @@ defmodule ExGoCD.HTTPTestAgent do
   # WebSocket Framing implementation
 
   defp parse_frames(<<>>, acc), do: {Enum.reverse(acc), <<>>}
+
   defp parse_frames(buffer, acc) do
     case parse_frame(buffer) do
       {:ok, frame, rest} -> parse_frames(rest, [frame | acc])
@@ -321,18 +338,23 @@ defmodule ExGoCD.HTTPTestAgent do
   defp parse_frame(<<129, len, payload::binary-size(len), rest::binary>>) when len <= 125 do
     {:ok, {:text, payload}, rest}
   end
+
   defp parse_frame(<<129, 126, len::16, payload::binary-size(len), rest::binary>>) do
     {:ok, {:text, payload}, rest}
   end
+
   defp parse_frame(<<129, 127, len::64, payload::binary-size(len), rest::binary>>) do
     {:ok, {:text, payload}, rest}
   end
+
   defp parse_frame(<<137, len, payload::binary-size(len), rest::binary>>) when len <= 125 do
     {:ok, {:ping, payload}, rest}
   end
+
   defp parse_frame(<<136, len, payload::binary-size(len), rest::binary>>) when len <= 125 do
     {:ok, {:close, payload}, rest}
   end
+
   defp parse_frame(buffer) do
     if byte_size(buffer) < 2 do
       :incomplete
@@ -350,6 +372,7 @@ defmodule ExGoCD.HTTPTestAgent do
       :incomplete
     else
       actual_len = frame_actual_len(buffer, len_field)
+
       if byte_size(buffer) >= needed + actual_len do
         header = binary_part(buffer, 0, needed)
         payload = binary_part(buffer, needed, actual_len)
@@ -370,10 +393,12 @@ defmodule ExGoCD.HTTPTestAgent do
     <<_, _, l::16, _::binary>> = buffer
     l
   end
+
   defp frame_actual_len(buffer, 127) do
     <<_, _, l::64, _::binary>> = buffer
     l
   end
+
   defp frame_actual_len(_buffer, len_field), do: len_field
 
   defp send_json(socket, map) do
@@ -391,8 +416,10 @@ defmodule ExGoCD.HTTPTestAgent do
       cond do
         len <= 125 ->
           <<129, 128 + len>>
+
         len <= 65_535 ->
           <<129, 254, len::16>>
+
         true ->
           <<129, 255, len::64>>
       end
@@ -402,6 +429,7 @@ defmodule ExGoCD.HTTPTestAgent do
   end
 
   defp mask_payload(<<>>, _, acc), do: acc
+
   defp mask_payload(<<b::8, rest::binary>>, <<m1, m2, m3, m4>>, acc) do
     mask_payload(rest, <<m2, m3, m4, m1>>, acc <> <<bxor(b, m1)>>)
   end

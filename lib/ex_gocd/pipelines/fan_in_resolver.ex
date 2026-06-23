@@ -34,6 +34,7 @@ defmodule ExGoCD.Pipelines.FanInResolver do
     mismatches =
       Enum.find_value(scm_resolutions, nil, fn {mat_id, revisions} ->
         unique_revisions = Enum.uniq(List.wrap(revisions))
+
         if length(unique_revisions) > 1 do
           {mat_id, unique_revisions}
         else
@@ -73,11 +74,17 @@ defmodule ExGoCD.Pipelines.FanInResolver do
   Recursively gets all leaf SCM revisions for a given pipeline instance run.
   """
   def get_leaf_scm_revisions(pipeline_instance_id) do
-    pmrs = Repo.all(from pmr in PipelineMaterialRevision, where: pmr.pipeline_instance_id == ^pipeline_instance_id)
+    pmrs =
+      Repo.all(
+        from pmr in PipelineMaterialRevision,
+          where: pmr.pipeline_instance_id == ^pipeline_instance_id
+      )
+
     Enum.reduce(pmrs, %{}, &accumulate_leaf_scm/2)
   end
 
-  defp accumulate_leaf_scm(%{parent_pipeline_instance_id: parent_id} = _pmr, acc) when not is_nil(parent_id) do
+  defp accumulate_leaf_scm(%{parent_pipeline_instance_id: parent_id} = _pmr, acc)
+       when not is_nil(parent_id) do
     upstream = get_leaf_scm_revisions(parent_id)
     Map.merge(acc, upstream, &merge_scm_revisions/3)
   end

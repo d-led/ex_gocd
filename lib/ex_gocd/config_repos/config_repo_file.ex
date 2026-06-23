@@ -45,7 +45,16 @@ defmodule ExGoCD.ConfigRepos.ConfigRepoFile do
   @spec changeset(t(), map()) :: Ecto.Changeset.t()
   def changeset(file, attrs) do
     file
-    |> cast(attrs, [:config_repo_id, :path, :source_type, :checksum, :last_seen_at, :status, :raw_content, :parsed_at])
+    |> cast(attrs, [
+      :config_repo_id,
+      :path,
+      :source_type,
+      :checksum,
+      :last_seen_at,
+      :status,
+      :raw_content,
+      :parsed_at
+    ])
     |> validate_required([:config_repo_id, :path, :source_type])
     |> validate_inclusion(:source_type, @valid_source_types)
     |> validate_inclusion(:status, @valid_statuses)

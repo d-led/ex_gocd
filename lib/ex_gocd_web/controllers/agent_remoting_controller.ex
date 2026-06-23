@@ -155,7 +155,9 @@ defmodule ExGoCDWeb.AgentRemotingController do
     else
       conn
       |> put_status(:forbidden)
-      |> json(%{error: "Agent UUID mismatch: header '#{header_uuid}' vs body '#{uuid_from_body}'"})
+      |> json(%{
+        error: "Agent UUID mismatch: header '#{header_uuid}' vs body '#{uuid_from_body}'"
+      })
       |> halt()
     end
   end

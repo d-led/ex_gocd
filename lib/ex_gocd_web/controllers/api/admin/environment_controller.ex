@@ -10,7 +10,9 @@ defmodule ExGoCDWeb.API.Admin.EnvironmentController do
   action_fallback ExGoCDWeb.FallbackController
 
   defp etag(%Environment{} = env) do
-    :crypto.hash(:sha256, env.name <> DateTime.to_string(env.updated_at)) |> Base.encode16() |> String.downcase()
+    :crypto.hash(:sha256, env.name <> DateTime.to_string(env.updated_at))
+    |> Base.encode16()
+    |> String.downcase()
   end
 
   defp get_current_user(conn) do
@@ -20,12 +22,15 @@ defmodule ExGoCDWeb.API.Admin.EnvironmentController do
 
   def index(conn, _params) do
     user = get_current_user(conn)
+
     case ExGoCD.Policies.permit?(ExGoCD.Policies.EnvironmentPolicy, :view_environments, user) do
       true ->
         environments = Environments.list_environments()
+
         conn
         |> put_resp_header("etag", ~s("#{index_etag(environments)}"))
         |> render(:index, environments: environments)
+
       false ->
         conn
         |> put_status(:forbidden)
@@ -40,7 +45,9 @@ defmodule ExGoCDWeb.API.Admin.EnvironmentController do
 
   def show(conn, %{"name" => name}) do
     user = get_current_user(conn)
-    with true <- ExGoCD.Policies.permit?(ExGoCD.Policies.EnvironmentPolicy, :view_environments, user),
+
+    with true <-
+           ExGoCD.Policies.permit?(ExGoCD.Policies.EnvironmentPolicy, :view_environments, user),
          %Environment{} = env <- Environments.get_environment_by_name(name) do
       conn
       |> put_resp_header("etag", ~s("#{etag(env)}"))
@@ -48,6 +55,7 @@ defmodule ExGoCDWeb.API.Admin.EnvironmentController do
     else
       false ->
         conn |> put_status(:forbidden) |> json(%{error: "Forbidden"})
+
       nil ->
         conn |> put_status(:not_found) |> json(%{error: "Environment not found"})
     end
@@ -55,11 +63,13 @@ defmodule ExGoCDWeb.API.Admin.EnvironmentController do
 
   def create(conn, params) do
     user = get_current_user(conn)
+
     case ExGoCD.Policies.permit?(ExGoCD.Policies.EnvironmentPolicy, :manage_environments, user) do
       true ->
         case Environments.create_environment(params) do
           {:ok, env} ->
             env = Repo.preload(env, :pipelines)
+
             conn
             |> put_status(:created)
             |> put_resp_header("etag", ~s("#{etag(env)}"))
@@ -78,12 +88,15 @@ defmodule ExGoCDWeb.API.Admin.EnvironmentController do
 
   def update(conn, %{"name" => name} = params) do
     user = get_current_user(conn)
-    with true <- ExGoCD.Policies.permit?(ExGoCD.Policies.EnvironmentPolicy, :manage_environments, user),
+
+    with true <-
+           ExGoCD.Policies.permit?(ExGoCD.Policies.EnvironmentPolicy, :manage_environments, user),
          %Environment{} = env <- Environments.get_environment_by_name(name) do
       perform_update(conn, env, etag(env), params)
     else
       false ->
         conn |> put_status(:forbidden) |> json(%{error: "Forbidden"})
+
       nil ->
         conn |> put_status(:not_found) |> json(%{error: "Environment not found"})
     end
@@ -107,9 +120,11 @@ defmodule ExGoCDWeb.API.Admin.EnvironmentController do
 
   defp do_update_environment(conn, env, params, _etag) do
     update_attrs = apply_patch(env, params)
+
     case Environments.update_environment(env, update_attrs) do
       {:ok, updated} ->
         updated = Repo.preload(updated, :pipelines)
+
         conn
         |> put_resp_header("etag", ~s("#{etag(updated)}"))
         |> render(:show, environment: updated)
@@ -123,7 +138,9 @@ defmodule ExGoCDWeb.API.Admin.EnvironmentController do
 
   def delete(conn, %{"name" => name}) do
     user = get_current_user(conn)
-    with true <- ExGoCD.Policies.permit?(ExGoCD.Policies.EnvironmentPolicy, :manage_environments, user),
+
+    with true <-
+           ExGoCD.Policies.permit?(ExGoCD.Policies.EnvironmentPolicy, :manage_environments, user),
          %Environment{} = env <- Environments.get_environment_by_name(name),
          {:ok, _} <- Environments.delete_environment(env) do
       conn
@@ -132,6 +149,7 @@ defmodule ExGoCDWeb.API.Admin.EnvironmentController do
     else
       false ->
         conn |> put_status(:forbidden) |> json(%{error: "Forbidden"})
+
       nil ->
         conn |> put_status(:not_found) |> json(%{error: "Environment not found"})
     end
@@ -177,10 +195,13 @@ defmodule ExGoCDWeb.API.Admin.EnvironmentController do
       %{} = ops ->
         to_add = Map.get(ops, "add", [])
         to_remove = Map.get(ops, "remove", [])
-        filtered = Enum.reject(env.environment_variables || [], fn var ->
-          n = Map.get(var, "name") || Map.get(var, :name)
-          n in to_remove
-        end)
+
+        filtered =
+          Enum.reject(env.environment_variables || [], fn var ->
+            n = Map.get(var, "name") || Map.get(var, :name)
+            n in to_remove
+          end)
+
         filtered ++ to_add
 
       list when is_list(list) ->

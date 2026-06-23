@@ -26,7 +26,10 @@ defmodule ExGoCD.ArtifactCleanup do
       limit_bytes = limit_mb * 1024 * 1024
 
       if current_size > limit_bytes do
-        Logger.info("Artifacts directory size (#{current_size} bytes) exceeds limit (#{limit_bytes} bytes). Starting cleanup...")
+        Logger.info(
+          "Artifacts directory size (#{current_size} bytes) exceeds limit (#{limit_bytes} bytes). Starting cleanup..."
+        )
+
         purge_old_artifacts(current_size - limit_bytes)
         :ok
       else
@@ -39,7 +42,9 @@ defmodule ExGoCD.ArtifactCleanup do
 
   defp get_limit_mb do
     case System.get_env("EX_GOCD_MAX_ARTIFACTS_SIZE_MB") do
-      nil -> Application.get_env(:ex_gocd, :max_artifact_storage_mb, @default_max_size_mb)
+      nil ->
+        Application.get_env(:ex_gocd, :max_artifact_storage_mb, @default_max_size_mb)
+
       val ->
         case Integer.parse(val) do
           {num, _} -> num
@@ -69,6 +74,7 @@ defmodule ExGoCD.ArtifactCleanup do
         Enum.reduce(names, 0, fn name, acc ->
           acc + get_dir_size(Path.join(path, name))
         end)
+
       _ ->
         0
     end
@@ -89,7 +95,7 @@ defmodule ExGoCD.ArtifactCleanup do
       |> where(state: "Completed", artifacts_deleted: false)
       |> order_by(asc: :completed_at)
       |> Repo.all()
-      |> Repo.preload([pipeline_instance: [pipeline: :stages]])
+      |> Repo.preload(pipeline_instance: [pipeline: :stages])
 
     # 2. Iterate and delete those that are not protected
     Enum.reduce_while(completed_stages, bytes_to_free, fn stage_instance, remaining_bytes ->
@@ -120,20 +126,25 @@ defmodule ExGoCD.ArtifactCleanup do
   end
 
   defp delete_stage_artifacts(stage_instance, pipeline, pipeline_instance, remaining_bytes) do
-    stage_dir = Path.expand(Path.join([
-      artifacts_dir(),
-      pipeline.name,
-      to_string(pipeline_instance.counter),
-      stage_instance.name,
-      to_string(stage_instance.counter)
-    ]))
+    stage_dir =
+      Path.expand(
+        Path.join([
+          artifacts_dir(),
+          pipeline.name,
+          to_string(pipeline_instance.counter),
+          stage_instance.name,
+          to_string(stage_instance.counter)
+        ])
+      )
 
     size = get_dir_size(stage_dir)
 
     # sobelow_skip ["Traversal.FileModule"]
     case File.rm_rf(stage_dir) do
       {:ok, _} ->
-        Logger.info("Cleaned up artifacts for stage: #{pipeline.name}/#{pipeline_instance.counter}/#{stage_instance.name}/#{stage_instance.counter} (freed #{size} bytes)")
+        Logger.info(
+          "Cleaned up artifacts for stage: #{pipeline.name}/#{pipeline_instance.counter}/#{stage_instance.name}/#{stage_instance.counter} (freed #{size} bytes)"
+        )
 
         # Mark as deleted in DB
         stage_instance
@@ -164,10 +175,13 @@ defmodule ExGoCD.ArtifactCleanup do
       # Check if a newer stage instance exists for this stage config name under this pipeline
       query =
         from si in StageInstance,
-          join: pi in PipelineInstance, on: si.pipeline_instance_id == pi.id,
-          where: pi.pipeline_id == ^pipeline_id and si.name == ^stage_name and
-            (pi.counter > ^stage_instance.pipeline_instance.counter or
-             (pi.counter == ^stage_instance.pipeline_instance.counter and si.counter > ^stage_instance.counter))
+          join: pi in PipelineInstance,
+          on: si.pipeline_instance_id == pi.id,
+          where:
+            pi.pipeline_id == ^pipeline_id and si.name == ^stage_name and
+              (pi.counter > ^stage_instance.pipeline_instance.counter or
+                 (pi.counter == ^stage_instance.pipeline_instance.counter and
+                    si.counter > ^stage_instance.counter))
 
       Repo.exists?(query) == false
     end

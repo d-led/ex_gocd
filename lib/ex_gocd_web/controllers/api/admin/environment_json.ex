@@ -41,6 +41,7 @@ defmodule ExGoCDWeb.API.Admin.EnvironmentJSON do
 
   defp render_variable(var) do
     secure = get_value(var, :secure) || false
+
     base = %{
       "name" => get_value(var, :name),
       "secure" => secure

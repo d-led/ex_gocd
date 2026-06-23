@@ -52,6 +52,7 @@ defmodule ExGoCDWeb.API.AgentJSON do
 
   defp agent_data(%Agent{} = agent) do
     build_state = build_state(agent)
+
     base = %{
       _links: %{
         self: %{href: "#{@api_prefix}/agents/#{agent.uuid}"},
@@ -88,7 +89,10 @@ defmodule ExGoCDWeb.API.AgentJSON do
 
   # agent_state: Idle | Building | LostContact | Missing | Unknown (runtime state). Never "Disabled".
   defp agent_state(%Agent{deleted: true}), do: "LostContact"
-  defp agent_state(%Agent{state: s}) when s in ["Idle", "Building", "LostContact", "Missing", "Unknown"], do: s
+
+  defp agent_state(%Agent{state: s})
+       when s in ["Idle", "Building", "LostContact", "Missing", "Unknown"], do: s
+
   defp agent_state(_), do: "Idle"
 
   # build_state: Idle | Building | Cancelled | Unknown.

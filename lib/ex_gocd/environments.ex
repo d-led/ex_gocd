@@ -34,6 +34,7 @@ defmodule ExGoCD.Environments do
     |> Repo.get_by(name: name)
     |> Repo.preload(:pipelines)
   end
+
   def get_environment_by_name(_), do: nil
 
   @doc """
@@ -86,19 +87,24 @@ defmodule ExGoCD.Environments do
 
     Repo.one(query)
   end
+
   def get_pipeline_environment(_), do: nil
 
   @doc """
   Adds a pipeline to an environment, removing it from any other environments.
   """
-  def add_pipeline_to_environment(env_name, pipeline_name) when is_binary(env_name) and is_binary(pipeline_name) do
+  def add_pipeline_to_environment(env_name, pipeline_name)
+      when is_binary(env_name) and is_binary(pipeline_name) do
     with %Environment{} = env <- get_environment_by_name(env_name),
          %Pipeline{} = pipeline <- ExGoCD.Pipelines.get_pipeline_by_name(pipeline_name) do
       # Remove from any existing environments first
       remove_pipeline_from_any_environments(pipeline.id)
 
       # Insert join row
-      Repo.insert_all("environment_pipelines", [%{environment_id: env.id, pipeline_id: pipeline.id}])
+      Repo.insert_all("environment_pipelines", [
+        %{environment_id: env.id, pipeline_id: pipeline.id}
+      ])
+
       {:ok, get_environment_by_name(env_name)}
     else
       nil -> {:error, :not_found}
@@ -108,7 +114,8 @@ defmodule ExGoCD.Environments do
   @doc """
   Removes a pipeline from an environment.
   """
-  def remove_pipeline_from_environment(env_name, pipeline_name) when is_binary(env_name) and is_binary(pipeline_name) do
+  def remove_pipeline_from_environment(env_name, pipeline_name)
+      when is_binary(env_name) and is_binary(pipeline_name) do
     with %Environment{} = env <- get_environment_by_name(env_name),
          %Pipeline{} = pipeline <- ExGoCD.Pipelines.get_pipeline_by_name(pipeline_name) do
       query =
@@ -131,7 +138,9 @@ defmodule ExGoCD.Environments do
   defp get_pipelines_from_attrs(attrs) do
     names =
       case Map.get(attrs, "pipelines") || Map.get(attrs, :pipelines) do
-        nil -> nil
+        nil ->
+          nil
+
         list when is_list(list) ->
           Enum.map(list, fn
             p when is_binary(p) -> p

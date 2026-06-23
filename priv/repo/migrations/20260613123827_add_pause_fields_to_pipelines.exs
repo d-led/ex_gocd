@@ -10,4 +10,3 @@ defmodule ExGoCD.Repo.Migrations.AddPauseFieldsToPipelines do
     end
   end
 end
-

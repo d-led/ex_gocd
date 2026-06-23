@@ -183,12 +183,15 @@ defmodule ExGoCDWeb.API.AgentController do
   """
   def bulk_update(conn, params) do
     uuids = params["uuids"]
+
     if is_list(uuids) do
       normalized = normalize_patch_params(params)
+
       case Map.fetch(normalized, "disabled") do
         {:ok, d} ->
           {:ok, count} = Agents.bulk_update_agents(uuids, d)
           json(conn, %{message: "Updated #{count} agent(s)."})
+
         :error ->
           conn |> put_status(:bad_request) |> json(%{error: "Missing agent_config_state"})
       end
@@ -214,11 +217,20 @@ defmodule ExGoCDWeb.API.AgentController do
 
   defp maybe_put_disabled_from_agent_config_state(params) do
     case params do
-      %{"agent_config_state" => "Enabled"} -> params |> Map.delete("agent_config_state") |> Map.put("disabled", false)
-      %{"agent_config_state" => "Disabled"} -> params |> Map.delete("agent_config_state") |> Map.put("disabled", true)
-      %{"agent_config_state" => "enabled"} -> params |> Map.delete("agent_config_state") |> Map.put("disabled", false)
-      %{"agent_config_state" => "disabled"} -> params |> Map.delete("agent_config_state") |> Map.put("disabled", true)
-      _ -> params
+      %{"agent_config_state" => "Enabled"} ->
+        params |> Map.delete("agent_config_state") |> Map.put("disabled", false)
+
+      %{"agent_config_state" => "Disabled"} ->
+        params |> Map.delete("agent_config_state") |> Map.put("disabled", true)
+
+      %{"agent_config_state" => "enabled"} ->
+        params |> Map.delete("agent_config_state") |> Map.put("disabled", false)
+
+      %{"agent_config_state" => "disabled"} ->
+        params |> Map.delete("agent_config_state") |> Map.put("disabled", true)
+
+      _ ->
+        params
     end
   end
 end

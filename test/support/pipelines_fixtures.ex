@@ -20,6 +20,7 @@ defmodule ExGoCD.PipelinesFixtures do
     Task,
     Template
   }
+
   alias ExGoCD.Repo
 
   # ═══════════════════════════════════════════════════════════════════
@@ -56,8 +57,23 @@ defmodule ExGoCD.PipelinesFixtures do
     jobs =
       for i <- 1..job_count do
         job_name = "job-#{i}"
-        job = Repo.insert!(%Job{} |> Job.changeset(%{name: job_name, stage_id: stage.id, resources: []}))
-        Repo.insert!(%Task{} |> Task.changeset(%{type: "exec", command: "echo", arguments: [job_name], job_id: job.id}))
+
+        job =
+          Repo.insert!(
+            %Job{}
+            |> Job.changeset(%{name: job_name, stage_id: stage.id, resources: []})
+          )
+
+        Repo.insert!(
+          %Task{}
+          |> Task.changeset(%{
+            type: "exec",
+            command: "echo",
+            arguments: [job_name],
+            job_id: job.id
+          })
+        )
+
         job
       end
 
@@ -72,19 +88,45 @@ defmodule ExGoCD.PipelinesFixtures do
   """
   def insert_pipeline_with_template(pipeline_name, template_name, job_count) do
     template = Repo.insert!(%Template{} |> Template.changeset(%{name: template_name}))
-    stage = Repo.insert!(%Stage{} |> Stage.changeset(%{name: "template-stage", template_id: template.id, approval_type: "success"}))
+
+    stage =
+      Repo.insert!(
+        %Stage{}
+        |> Stage.changeset(%{
+          name: "template-stage",
+          template_id: template.id,
+          approval_type: "success"
+        })
+      )
 
     jobs =
       for i <- 1..job_count do
         job_name = "tpl-job-#{i}"
-        job = Repo.insert!(%Job{} |> Job.changeset(%{name: job_name, stage_id: stage.id, resources: []}))
-        Repo.insert!(%Task{} |> Task.changeset(%{type: "exec", command: "echo", arguments: [job_name], job_id: job.id}))
+
+        job =
+          Repo.insert!(
+            %Job{}
+            |> Job.changeset(%{name: job_name, stage_id: stage.id, resources: []})
+          )
+
+        Repo.insert!(
+          %Task{}
+          |> Task.changeset(%{
+            type: "exec",
+            command: "echo",
+            arguments: [job_name],
+            job_id: job.id
+          })
+        )
+
         job
       end
 
     pipeline = insert_pipeline(pipeline_name, template_id: template.id)
     pipeline = Repo.preload(pipeline, [:materials, :template, stages: [jobs: :tasks]])
-    {pipeline, %{template: template |> Repo.preload(stages: [jobs: :tasks]), stage: stage, jobs: jobs}}
+
+    {pipeline,
+     %{template: template |> Repo.preload(stages: [jobs: :tasks]), stage: stage, jobs: jobs}}
   end
 
   @doc """
@@ -93,21 +135,58 @@ defmodule ExGoCD.PipelinesFixtures do
   Returns `{pipeline, stage1, stage2}`.
   """
   def insert_pipeline_with_two_stages(name, opts \\ []) do
-    material = Repo.insert!(%Material{} |> Material.changeset(%{
-      type: "git", url: "https://github.com/test/#{name}.git", branch: "main", name: "#{name}-mat"
-    }))
+    material =
+      Repo.insert!(
+        %Material{}
+        |> Material.changeset(%{
+          type: "git",
+          url: "https://github.com/test/#{name}.git",
+          branch: "main",
+          name: "#{name}-mat"
+        })
+      )
 
-    pipeline = insert_pipeline(name, lock_behavior: Keyword.get(opts, :lock_behavior, "lockOnFailure"))
+    pipeline =
+      insert_pipeline(name, lock_behavior: Keyword.get(opts, :lock_behavior, "lockOnFailure"))
+
     {:ok, _} = ExGoCD.Pipelines.add_material_to_pipeline(pipeline, material)
     pipeline = Repo.preload(pipeline, :materials)
 
-    stage1 = Repo.insert!(%Stage{} |> Stage.changeset(%{name: "stage1", pipeline_id: pipeline.id, approval_type: "success", order_id: 1}))
-    job1 = Repo.insert!(%Job{} |> Job.changeset(%{name: "job1", stage_id: stage1.id}))
-    Repo.insert!(%Task{} |> Task.changeset(%{type: "exec", command: "echo", arguments: ["1"], job_id: job1.id}))
+    stage1 =
+      Repo.insert!(
+        %Stage{}
+        |> Stage.changeset(%{
+          name: "stage1",
+          pipeline_id: pipeline.id,
+          approval_type: "success",
+          order_id: 1
+        })
+      )
 
-    stage2 = Repo.insert!(%Stage{} |> Stage.changeset(%{name: "stage2", pipeline_id: pipeline.id, approval_type: "manual", order_id: 2}))
+    job1 = Repo.insert!(%Job{} |> Job.changeset(%{name: "job1", stage_id: stage1.id}))
+
+    Repo.insert!(
+      %Task{}
+      |> Task.changeset(%{type: "exec", command: "echo", arguments: ["1"], job_id: job1.id})
+    )
+
+    stage2 =
+      Repo.insert!(
+        %Stage{}
+        |> Stage.changeset(%{
+          name: "stage2",
+          pipeline_id: pipeline.id,
+          approval_type: "manual",
+          order_id: 2
+        })
+      )
+
     job2 = Repo.insert!(%Job{} |> Job.changeset(%{name: "job2", stage_id: stage2.id}))
-    Repo.insert!(%Task{} |> Task.changeset(%{type: "exec", command: "echo", arguments: ["2"], job_id: job2.id}))
+
+    Repo.insert!(
+      %Task{}
+      |> Task.changeset(%{type: "exec", command: "echo", arguments: ["2"], job_id: job2.id})
+    )
 
     {pipeline, stage1, stage2}
   end
@@ -117,18 +196,35 @@ defmodule ExGoCD.PipelinesFixtures do
   Returns `{pipeline, stage, job}`.
   """
   def insert_pipeline_with_job_and_material(name) do
-    material = Repo.insert!(%Material{} |> Material.changeset(%{
-      type: "git", url: "https://github.com/test/#{name}.git", branch: "main", name: "#{name}-mat"
-    }))
+    material =
+      Repo.insert!(
+        %Material{}
+        |> Material.changeset(%{
+          type: "git",
+          url: "https://github.com/test/#{name}.git",
+          branch: "main",
+          name: "#{name}-mat"
+        })
+      )
 
     pipeline = insert_pipeline(name)
 
     {:ok, _} = ExGoCD.Pipelines.add_material_to_pipeline(pipeline, material)
     pipeline = Repo.preload(pipeline, :materials)
 
-    stage = Repo.insert!(%Stage{} |> Stage.changeset(%{name: "build", pipeline_id: pipeline.id, approval_type: "success"}))
-    job = Repo.insert!(%Job{} |> Job.changeset(%{name: "job-1", stage_id: stage.id, resources: []}))
-    Repo.insert!(%Task{} |> Task.changeset(%{type: "exec", command: "echo", arguments: ["hi"], job_id: job.id}))
+    stage =
+      Repo.insert!(
+        %Stage{}
+        |> Stage.changeset(%{name: "build", pipeline_id: pipeline.id, approval_type: "success"})
+      )
+
+    job =
+      Repo.insert!(%Job{} |> Job.changeset(%{name: "job-1", stage_id: stage.id, resources: []}))
+
+    Repo.insert!(
+      %Task{}
+      |> Task.changeset(%{type: "exec", command: "echo", arguments: ["hi"], job_id: job.id})
+    )
 
     {pipeline, stage, job}
   end
@@ -165,6 +261,7 @@ defmodule ExGoCD.PipelinesFixtures do
       end
 
     label = Keyword.get(opts, :label, to_string(counter))
+
     Repo.insert!(%PipelineInstance{
       pipeline_id: pipeline_or_id,
       counter: counter,
@@ -190,6 +287,7 @@ defmodule ExGoCD.PipelinesFixtures do
   """
   def insert_pipeline_instance_by_name(pipeline_name, counter, inserted_at) do
     pipeline = Repo.get_by!(Pipeline, name: pipeline_name)
+
     Repo.insert!(%PipelineInstance{
       counter: counter,
       label: to_string(counter),
@@ -220,7 +318,12 @@ defmodule ExGoCD.PipelinesFixtures do
     state = Keyword.get(opts, :state, "Building")
     result = Keyword.get(opts, :result, if(state == "Building", do: "Unknown", else: "Passed"))
     # Default completed_at: nil for Building, now for terminal states
-    completed = Keyword.get(opts, :completed_at, if(state != "Building", do: NaiveDateTime.truncate(now, :second)))
+    completed =
+      Keyword.get(
+        opts,
+        :completed_at,
+        if(state != "Building", do: NaiveDateTime.truncate(now, :second))
+      )
 
     Repo.insert!(%StageInstance{
       pipeline_instance_id: pipeline_instance_id,

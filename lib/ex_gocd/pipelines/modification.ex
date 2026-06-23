@@ -35,8 +35,17 @@ defmodule ExGoCD.Pipelines.Modification do
 
   def changeset(modification, attrs) do
     modification
-    |> cast(attrs, [:material_id, :revision, :committer_name, :committer_email, :comment, :modified_time])
+    |> cast(attrs, [
+      :material_id,
+      :revision,
+      :committer_name,
+      :committer_email,
+      :comment,
+      :modified_time
+    ])
     |> validate_required([:material_id, :revision, :modified_time])
-    |> unique_constraint([:material_id, :revision], name: :modifications_material_id_revision_index)
+    |> unique_constraint([:material_id, :revision],
+      name: :modifications_material_id_revision_index
+    )
   end
 end

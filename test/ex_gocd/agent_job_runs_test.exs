@@ -122,7 +122,10 @@ defmodule ExGoCD.AgentJobRunsTest do
     end
 
     test "no-op when buildId or jobState missing" do
-      assert :ok = AgentJobRuns.handle_agent_report(@agent_uuid, %{"agentRuntimeInfo" => %{"runtimeStatus" => "Idle"}})
+      assert :ok =
+               AgentJobRuns.handle_agent_report(@agent_uuid, %{
+                 "agentRuntimeInfo" => %{"runtimeStatus" => "Idle"}
+               })
     end
   end
 

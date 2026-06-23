@@ -90,34 +90,46 @@ defmodule ExGoCD.Scheduler do
   def init(_opts) do
     # Schedule initial reload if configured
     interval = Application.get_env(:ex_gocd, :scheduler_reload_interval, 5000)
+
     if interval && interval != :none do
       send(self(), :reload_jobs)
     end
+
     # Load pending count from DB so jobs that existed before restart are visible
     db_count = reload_db_pending_count()
     {:ok, %{in_memory_queue: [], db_pending_count: db_count, timer: nil}}
   end
 
   @impl true
-  def handle_call({:schedule_job, spec, parent_ctx}, _from, %{in_memory_queue: queue, db_pending_count: db_count} = state) do
+  def handle_call(
+        {:schedule_job, spec, parent_ctx},
+        _from,
+        %{in_memory_queue: queue, db_pending_count: db_count} = state
+      ) do
     VsmTracer.attach_ctx(parent_ctx)
     job_name = spec[:job] || spec["job"] || "default-job"
-    VsmTracer.trace("scheduler.enqueue", %{
-      "pipeline.name" => spec[:pipeline] || spec["pipeline"],
-      "pipeline.counter" => spec[:pipeline_counter] || spec["pipeline_counter"],
-      "stage.name" => spec[:stage] || spec["stage"],
-      "stage.counter" => spec[:stage_counter] || spec["stage_counter"],
-      "job.name" => job_name
-    }, fn ->
-      enqueue_ctx = VsmTracer.current_ctx()
-      result = do_enqueue(spec, job_name, enqueue_ctx, queue, db_count, state)
-      VsmTracer.set_status(:ok)
-      result
-    end)
+
+    VsmTracer.trace(
+      "scheduler.enqueue",
+      %{
+        "pipeline.name" => spec[:pipeline] || spec["pipeline"],
+        "pipeline.counter" => spec[:pipeline_counter] || spec["pipeline_counter"],
+        "stage.name" => spec[:stage] || spec["stage"],
+        "stage.counter" => spec[:stage_counter] || spec["stage_counter"],
+        "job.name" => job_name
+      },
+      fn ->
+        enqueue_ctx = VsmTracer.current_ctx()
+        result = do_enqueue(spec, job_name, enqueue_ctx, queue, db_count, state)
+        VsmTracer.set_status(:ok)
+        result
+      end
+    )
   end
 
   def handle_call({:try_assign_work, agent_uuid, parent_ctx}, _from, state) do
     VsmTracer.attach_ctx(parent_ctx)
+
     VsmTracer.trace("scheduler.assign_work", %{"agent.uuid" => agent_uuid}, fn ->
       result = try_assign_work_impl(agent_uuid, state, :simple)
       VsmTracer.set_status(:ok)
@@ -127,6 +139,7 @@ defmodule ExGoCD.Scheduler do
 
   def handle_call({:try_assign_work_with_spec, agent_uuid, parent_ctx}, _from, state) do
     VsmTracer.attach_ctx(parent_ctx)
+
     VsmTracer.trace("scheduler.assign_work", %{"agent.uuid" => agent_uuid}, fn ->
       result = try_assign_work_impl(agent_uuid, state, :with_spec)
       VsmTracer.set_status(:ok)
@@ -134,7 +147,11 @@ defmodule ExGoCD.Scheduler do
     end)
   end
 
-  def handle_call(:pending_count, _from, %{in_memory_queue: queue, db_pending_count: db_count} = state) do
+  def handle_call(
+        :pending_count,
+        _from,
+        %{in_memory_queue: queue, db_pending_count: db_count} = state
+      ) do
     {:reply, length(queue) + db_count, state}
   end
 
@@ -155,6 +172,7 @@ defmodule ExGoCD.Scheduler do
 
         agent ->
           {:reply, reply, new_state} = try_assign_to_idle_agent(agent_uuid, agent, state)
+
           case {mode, reply} do
             {:with_spec, {:assigned, spec}} -> {:reply, {:assigned, spec}, new_state}
             {:with_spec, other} -> {:reply, other, new_state}
@@ -183,20 +201,32 @@ defmodule ExGoCD.Scheduler do
   end
 
   defp enqueue_run_on_all(spec, job_name, enqueue_ctx, queue, db_count, state) do
-    matching = Agents.list_active_agents()
+    matching =
+      Agents.list_active_agents()
       |> Enum.filter(fn agent ->
-        resources_match?(spec[:resources] || [], MapSet.new(agent.resources |> Enum.map(&String.downcase/1))) and
-          envs_match?(spec[:environments] || [], MapSet.new(agent.environments |> Enum.map(&String.downcase/1)))
+        resources_match?(
+          spec[:resources] || [],
+          MapSet.new(agent.resources |> Enum.map(&String.downcase/1))
+        ) and
+          envs_match?(
+            spec[:environments] || [],
+            MapSet.new(agent.environments |> Enum.map(&String.downcase/1))
+          )
       end)
 
     count = length(matching)
-    ids = Enum.map(matching, fn agent ->
-      id = "sched-#{System.unique_integer([:positive])}"
-      Map.merge(spec, %{
-        id: id, enqueue_ctx: enqueue_ctx, agent_uuid: agent.uuid,
-        job: "#{job_name}-runonall-#{String.slice(agent.uuid, 0, 8)}"
-      })
-    end)
+
+    ids =
+      Enum.map(matching, fn agent ->
+        id = "sched-#{System.unique_integer([:positive])}"
+
+        Map.merge(spec, %{
+          id: id,
+          enqueue_ctx: enqueue_ctx,
+          agent_uuid: agent.uuid,
+          job: "#{job_name}-runonall-#{String.slice(agent.uuid, 0, 8)}"
+        })
+      end)
 
     new_queue = queue ++ ids
     broadcast_pending_count(length(new_queue) + db_count)
@@ -227,18 +257,21 @@ defmodule ExGoCD.Scheduler do
     trigger_assignment_for_idle_agents()
     broadcast_pending_count(length(state.in_memory_queue) + db_count)
     interval = Application.get_env(:ex_gocd, :scheduler_reload_interval, 5000)
+
     timer =
       if interval && interval != :none do
         Process.send_after(self(), :reload_jobs, interval)
       else
         nil
       end
+
     {:noreply, %{state | timer: timer, db_pending_count: db_count}}
   end
 
   @impl true
   def handle_info({:assign_work_to_agent, agent_uuid, parent_ctx}, state) do
     VsmTracer.attach_ctx(parent_ctx)
+
     new_state =
       if connected?(agent_uuid) do
         assign_work_if_exists(agent_uuid, state)
@@ -287,29 +320,43 @@ defmodule ExGoCD.Scheduler do
     end
   end
 
-  defp try_assign_to_idle_agent(agent_uuid, %{state: "Idle"} = agent, %{in_memory_queue: in_memory_queue} = state) do
+  defp try_assign_to_idle_agent(
+         agent_uuid,
+         %{state: "Idle"} = agent,
+         %{in_memory_queue: in_memory_queue} = state
+       ) do
     active_plans = in_memory_queue ++ load_db_job_plans()
     do_assign_matching_job(agent_uuid, agent, active_plans, state)
   end
+
   defp try_assign_to_idle_agent(_agent_uuid, _agent, state) do
     {:reply, :agent_busy, state}
   end
 
-  defp do_assign_matching_job(agent_uuid, agent, active_plans, %{in_memory_queue: queue, db_pending_count: db_count} = state) do
+  defp do_assign_matching_job(
+         agent_uuid,
+         agent,
+         active_plans,
+         %{in_memory_queue: queue, db_pending_count: db_count} = state
+       ) do
     case find_matching_job(agent, active_plans) do
       nil ->
         {:reply, :no_work, state}
 
       {job_spec, _rest} ->
         assign_and_send(agent_uuid, agent, job_spec)
+
         {new_queue, new_db_count} =
           if String.starts_with?(to_string(job_spec.id), "sched-") do
             {Enum.reject(queue, &(&1.id == job_spec.id)), db_count}
           else
             {queue, max(db_count - 1, 0)}
           end
+
         broadcast_pending_count(length(new_queue) + new_db_count)
-        {:reply, {:assigned, job_spec}, %{state | in_memory_queue: new_queue, db_pending_count: new_db_count}}
+
+        {:reply, {:assigned, job_spec},
+         %{state | in_memory_queue: new_queue, db_pending_count: new_db_count}}
     end
   end
 
@@ -383,36 +430,39 @@ defmodule ExGoCD.Scheduler do
 
   # Load scheduled JobInstances from database, preloading staging & pipeline details
   defp load_db_job_plans do
-    safe_db(fn ->
-      JobInstance
-      |> where(state: "Scheduled")
-      |> order_by(asc: :id)
-      |> Repo.all()
-      |> Repo.preload([:job, stage_instance: [pipeline_instance: :pipeline]])
-      |> Enum.map(fn ji ->
-        stage_instance = ji.stage_instance
-        pipeline_instance = stage_instance.pipeline_instance
-        pipeline = pipeline_instance.pipeline
-        job_config = ji.job
+    safe_db(
+      fn ->
+        JobInstance
+        |> where(state: "Scheduled")
+        |> order_by(asc: :id)
+        |> Repo.all()
+        |> Repo.preload([:job, stage_instance: [pipeline_instance: :pipeline]])
+        |> Enum.map(fn ji ->
+          stage_instance = ji.stage_instance
+          pipeline_instance = stage_instance.pipeline_instance
+          pipeline = pipeline_instance.pipeline
+          job_config = ji.job
 
-        resources = (job_config && job_config.resources) || []
-        envs = get_pipeline_environments(pipeline.name)
-        build_command = build_command_from_job_instance(ji)
+          resources = (job_config && job_config.resources) || []
+          envs = get_pipeline_environments(pipeline.name)
+          build_command = build_command_from_job_instance(ji)
 
-        %{
-          id: "db-#{ji.id}",
-          job_instance_id: ji.id,
-          pipeline: pipeline.name,
-          pipeline_counter: pipeline_instance.counter,
-          stage: stage_instance.name,
-          stage_counter: stage_instance.counter,
-          job: ji.name,
-          resources: resources,
-          environments: envs,
-          build_command: build_command
-        }
-      end)
-    end, [])
+          %{
+            id: "db-#{ji.id}",
+            job_instance_id: ji.id,
+            pipeline: pipeline.name,
+            pipeline_counter: pipeline_instance.counter,
+            stage: stage_instance.name,
+            stage_counter: stage_instance.counter,
+            job: ji.name,
+            resources: resources,
+            environments: envs,
+            build_command: build_command
+          }
+        end)
+      end,
+      []
+    )
   end
 
   @doc false
@@ -423,16 +473,19 @@ defmodule ExGoCD.Scheduler do
     job_config = ji.job
 
     env_vars = get_all_job_env_vars(pipeline, stage_instance, job_config, pipeline_instance)
-    export_cmds = Enum.map(env_vars, fn var ->
-      %{
-        "name" => "export",
-        "args" => [var["name"], var["value"]]
-      }
-    end)
+
+    export_cmds =
+      Enum.map(env_vars, fn var ->
+        %{
+          "name" => "export",
+          "args" => [var["name"], var["value"]]
+        }
+      end)
 
     checkout_cmds = build_checkout_commands(stage_instance, pipeline_instance)
 
     tasks = if job_config, do: Repo.preload(job_config, :tasks).tasks || [], else: []
+
     task_cmds =
       Enum.map(tasks, fn t ->
         if t.type == "fetch" do
@@ -463,9 +516,15 @@ defmodule ExGoCD.Scheduler do
 
     {src_pipeline_name, stage_name, job_name, src_file, dest_dir} =
       case args do
-        [p, s, j, src, dest] -> {p, s, j, src, dest}
-        [s, j, src, dest] -> {pipeline_instance.pipeline.name, s, j, src, dest}
-        _ -> {pipeline_instance.pipeline.name, "default_stage", "default_job", "artifact.txt", "dest"}
+        [p, s, j, src, dest] ->
+          {p, s, j, src, dest}
+
+        [s, j, src, dest] ->
+          {pipeline_instance.pipeline.name, s, j, src, dest}
+
+        _ ->
+          {pipeline_instance.pipeline.name, "default_stage", "default_job", "artifact.txt",
+           "dest"}
       end
 
     src_counter =
@@ -481,7 +540,9 @@ defmodule ExGoCD.Scheduler do
       end
 
     stage_counter = 1
-    src_path = "#{src_pipeline_name}/#{src_counter}/#{stage_name}/#{stage_counter}/#{job_name}/#{src_file}"
+
+    src_path =
+      "#{src_pipeline_name}/#{src_counter}/#{stage_name}/#{stage_counter}/#{job_name}/#{src_file}"
 
     %{
       "name" => "fetchArtifact",
@@ -516,6 +577,7 @@ defmodule ExGoCD.Scheduler do
   end
 
   defp build_upload_artifact_commands(nil), do: []
+
   defp build_upload_artifact_commands(job_config) do
     configs =
       case job_config.artifact_configs do
@@ -541,6 +603,7 @@ defmodule ExGoCD.Scheduler do
     material_revisions = build_cause["materialRevisions"] || []
     Enum.flat_map(material_revisions, &build_revision_checkout_cmds/1)
   end
+
   defp build_checkout_commands(_, _), do: []
 
   defp build_revision_checkout_cmds(rev) do
@@ -550,30 +613,24 @@ defmodule ExGoCD.Scheduler do
     revision = mod["revision"] || "HEAD"
 
     if mat["type"] == "git" do
-      build_git_checkout_cmds(mat["url"], mat["branch"] || "master", mat["destination"] || "", revision)
+      build_git_checkout_cmds(
+        mat["url"],
+        mat["branch"] || "master",
+        mat["destination"] || "",
+        revision
+      )
     else
       []
     end
   end
 
   defp build_git_checkout_cmds(url, branch, dest, revision) do
-    mkdir_cmd =
-      if dest != "" do
-        [%{"name" => "exec", "command" => "mkdir", "args" => ["-p", dest]}]
-      else
-        []
-      end
-
-    git_cmds = [
-      %{"name" => "exec", "command" => "git", "args" => ["init"], "workingDirectory" => dest},
-      %{"name" => "exec", "command" => "git", "args" => ["fetch", "--depth=1", url, branch], "workingDirectory" => dest},
-      %{"name" => "exec", "command" => "git", "args" => ["checkout", revision], "workingDirectory" => dest}
-    ]
-
-    mkdir_cmd ++ git_cmds
+    ExGoCD.Materials.CheckoutStrategy.build_checkout_commands(url, branch, dest, revision)
   end
 
-  defp ensure_non_empty_cmds([]), do: [%{"name" => "exec", "command" => "echo", "args" => ["No tasks configured"]}]
+  defp ensure_non_empty_cmds([]),
+    do: [%{"name" => "exec", "command" => "echo", "args" => ["No tasks configured"]}]
+
   defp ensure_non_empty_cmds(cmds), do: cmds
 
   # Helper to resolve environment name for a pipeline (using database or fallback)
@@ -586,7 +643,10 @@ defmodule ExGoCD.Scheduler do
   end
 
   defp get_mock_pipeline_environments(pipeline_name) do
-    case Enum.find(ExGoCD.MockData.pipelines_by_environment(), &pipeline_in_group?(&1, pipeline_name)) do
+    case Enum.find(
+           ExGoCD.MockData.pipelines_by_environment(),
+           &pipeline_in_group?(&1, pipeline_name)
+         ) do
       nil -> []
       {env, _} -> [env]
     end
@@ -625,7 +685,13 @@ defmodule ExGoCD.Scheduler do
           []
       end
 
-    merge_env_vars(env_vars, pipe_vars ++ pipe_secure, stage_vars, job_vars ++ job_secure, override_vars)
+    merge_env_vars(
+      env_vars,
+      pipe_vars ++ pipe_secure,
+      stage_vars,
+      job_vars ++ job_secure,
+      override_vars
+    )
   end
 
   defp get_env_level_vars(pipeline_name) do
@@ -639,7 +705,9 @@ defmodule ExGoCD.Scheduler do
     end
   end
 
-  defp get_stage_vars(pipeline_id, stage_name) when not is_integer(pipeline_id) or is_nil(stage_name), do: []
+  defp get_stage_vars(pipeline_id, stage_name)
+       when not is_integer(pipeline_id) or is_nil(stage_name), do: []
+
   defp get_stage_vars(pipeline_id, stage_name) do
     if mock_mode?() do
       []
@@ -652,10 +720,12 @@ defmodule ExGoCD.Scheduler do
   end
 
   defp mock_mode? do
-    Application.get_env(:ex_gocd, :use_mock_data) == "true" or System.get_env("USE_MOCK_DATA") == "true"
+    Application.get_env(:ex_gocd, :use_mock_data) == "true" or
+      System.get_env("USE_MOCK_DATA") == "true"
   end
 
   defp map_to_gocd_vars(nil), do: []
+
   defp map_to_gocd_vars(vars) when is_map(vars) do
     Enum.map(vars, fn {k, v} ->
       case v do
@@ -664,20 +734,25 @@ defmodule ExGoCD.Scheduler do
       end
     end)
   end
+
   defp map_to_gocd_vars(_), do: []
 
   # Decrypt secure variables map → list of %{"name" => _, "value" => _}
   defp decrypt_secure_vars(nil), do: []
+
   defp decrypt_secure_vars(secure) when is_map(secure) do
     Enum.map(secure, fn {name, encrypted} ->
-      value = ExGoCD.Cipher.safe_decrypt(encrypted)
-      |> case do
-        {:ok, plain} -> plain
-        :error -> "******"
-      end
+      value =
+        ExGoCD.Cipher.safe_decrypt(encrypted)
+        |> case do
+          {:ok, plain} -> plain
+          :error -> "******"
+        end
+
       %{"name" => to_string(name), "value" => value}
     end)
   end
+
   defp decrypt_secure_vars(_), do: []
 
   # Decrypt a single secure variable item from build_cause override
@@ -714,6 +789,7 @@ defmodule ExGoCD.Scheduler do
   defp list_to_var_map(list) do
     Enum.reduce(list || [], %{}, fn var, acc ->
       name = Map.get(var, "name") || Map.get(var, :name)
+
       if name do
         value = decrypt_variable(var)
         Map.put(acc, name, %{"name" => name, "value" => value})
@@ -729,9 +805,11 @@ defmodule ExGoCD.Scheduler do
   defp trigger_assignment_for_idle_agents do
     parent_ctx = VsmTracer.current_ctx()
     connected_agents = AgentPresence.list(@presence_topic)
+
     for {agent_uuid, _meta} <- connected_agents do
       send(self(), {:assign_work_to_agent, agent_uuid, parent_ctx})
     end
+
     :ok
   end
 
@@ -765,27 +843,36 @@ defmodule ExGoCD.Scheduler do
     build_locator = "#{pipeline}/#{pipeline_counter}/#{stage}/#{stage_counter}/#{job}/1"
 
     build_command =
-      (job_spec.build_command || %{"name" => "default", "command" => "echo", "args" => ["scheduled job ok"]})
+      (job_spec.build_command ||
+         %{"name" => "default", "command" => "echo", "args" => ["scheduled job ok"]})
       |> maybe_put_working_dir(agent)
 
     console_uri = ExGoCDWeb.Endpoint.url() <> "/api/builds/" <> build_id <> "/console"
-    artifact_upload_base_url = ExGoCDWeb.Endpoint.url() <> "/files/#{pipeline}/#{pipeline_counter}/#{stage}/#{stage_counter}/#{job}"
 
-    payload = %{
-      "buildId" => build_id,
-      "buildLocator" => build_locator,
-      "buildLocatorForDisplay" => build_locator,
-      "buildCommand" => build_command,
-      "consoleURI" => console_uri,
-      "artifactUploadBaseUrl" => artifact_upload_base_url
-    }
-    |> VsmTracer.inject_context()
+    artifact_upload_base_url =
+      ExGoCDWeb.Endpoint.url() <>
+        "/files/#{pipeline}/#{pipeline_counter}/#{stage}/#{stage_counter}/#{job}"
+
+    payload =
+      %{
+        "buildId" => build_id,
+        "buildLocator" => build_locator,
+        "buildLocatorForDisplay" => build_locator,
+        "buildCommand" => build_command,
+        "consoleURI" => console_uri,
+        "artifactUploadBaseUrl" => artifact_upload_base_url
+      }
+      |> VsmTracer.inject_context()
 
     # Debug: verify traceparent injection for Go agent cross-process tracing
     if payload["traceparent"] do
-      Logger.debug("[OTel] traceparent injected for build #{build_id}: #{String.slice(payload["traceparent"], 0, 55)}...")
+      Logger.debug(
+        "[OTel] traceparent injected for build #{build_id}: #{String.slice(payload["traceparent"], 0, 55)}..."
+      )
     else
-      Logger.warning("[OTel] No traceparent injected for build #{build_id} — agent spans will be orphaned")
+      Logger.warning(
+        "[OTel] No traceparent injected for build #{build_id} — agent spans will be orphaned"
+      )
     end
 
     opts = [
@@ -793,9 +880,12 @@ defmodule ExGoCD.Scheduler do
       pipeline_counter: pipeline_counter,
       stage_counter: stage_counter
     ]
+
     case AgentJobRuns.create_run(agent_uuid, build_id, pipeline, stage, job, opts) do
       {:ok, _} ->
-        if ji_id = job_spec[:job_instance_id], do: Pipelines.assign_job_instance(ji_id, agent_uuid)
+        if ji_id = job_spec[:job_instance_id],
+          do: Pipelines.assign_job_instance(ji_id, agent_uuid)
+
         Agents.update_agent_runtime_state(agent_uuid, "Building")
         topic = @agent_topic_prefix <> agent_uuid
         Phoenix.PubSub.broadcast(PubSub, topic, {:build, payload})
@@ -811,9 +901,12 @@ defmodule ExGoCD.Scheduler do
 
   # Counts Scheduled JobInstances in the DB to recover state after restart
   defp reload_db_pending_count do
-    safe_db(fn ->
-      Repo.aggregate(from(ji in JobInstance, where: ji.state == "Scheduled"), :count, :id)
-    end, 0)
+    safe_db(
+      fn ->
+        Repo.aggregate(from(ji in JobInstance, where: ji.state == "Scheduled"), :count, :id)
+      end,
+      0
+    )
   end
 
   defp maybe_put_working_dir(cmd, agent) when is_map(cmd) do

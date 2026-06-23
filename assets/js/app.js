@@ -24,7 +24,6 @@ import { Socket } from "phoenix";
 import { LiveSocket } from "phoenix_live_view";
 import { hooks as colocatedHooks } from "phoenix-colocated/ex_gocd";
 import topbar from "../vendor/topbar";
-import { ConsoleScroller } from "./hooks/console_scroller";
 
 const AgentsUpdates = {
   mounted() {
@@ -257,6 +256,21 @@ function detectNarrowLayout(nodes) {
   const avgWidth = nodes.reduce((s, n) => s + n.width, 0) / nodes.length;
   return span < avgWidth * 0.6;
 }
+
+const ConsoleScroller = {
+  mounted() {
+    this.scrollIfFollowing();
+  },
+  updated() {
+    this.scrollIfFollowing();
+  },
+  scrollIfFollowing() {
+    const follow = this.el.dataset.follow;
+    if (follow === undefined || follow === "true") {
+      this.el.scrollTop = this.el.scrollHeight;
+    }
+  }
+};
 
 const csrfToken = document
   .querySelector("meta[name='csrf-token']")

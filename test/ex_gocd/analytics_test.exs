@@ -4,8 +4,13 @@ defmodule ExGoCD.AnalyticsTest do
   alias ExGoCD.Analytics
 
   import ExGoCD.PipelinesFixtures,
-    only: [insert_pipeline_instance_by_name: 3, insert_stage_instance: 3,
-           insert_job_instance: 4, insert_job_instance_unassigned: 3, insert_pipeline_with_jobs: 2]
+    only: [
+      insert_pipeline_instance_by_name: 3,
+      insert_stage_instance: 3,
+      insert_job_instance: 4,
+      insert_job_instance_unassigned: 3,
+      insert_pipeline_with_jobs: 2
+    ]
 
   @now ~U[2026-06-21 10:00:00Z]
 
@@ -45,12 +50,21 @@ defmodule ExGoCD.AnalyticsTest do
 
       # Instance 2: wait 180s
       pi2 =
-        insert_pipeline_instance_by_name("wait-test-pipeline", 2, DateTime.add(@now, 300, :second))
+        insert_pipeline_instance_by_name(
+          "wait-test-pipeline",
+          2,
+          DateTime.add(@now, 300, :second)
+        )
 
       si2 =
         insert_stage_instance(pi2.id, "build", created_time: DateTime.add(@now, 300, :second))
 
-      insert_job_instance(si2.id, "compile", DateTime.add(@now, 300, :second), DateTime.add(@now, 480, :second))
+      insert_job_instance(
+        si2.id,
+        "compile",
+        DateTime.add(@now, 300, :second),
+        DateTime.add(@now, 480, :second)
+      )
 
       result = Analytics.pipeline_analytics("wait-test-pipeline", 30)
 

@@ -35,8 +35,11 @@ defmodule ExGoCDWeb.API.Admin.PipelineConfigController do
     case Pipelines.create_pipeline(attrs) do
       {:ok, pipeline} ->
         conn |> put_status(:created) |> json(pipeline_to_json(pipeline))
+
       {:error, changeset} ->
-        conn |> put_status(:unprocessable_entity) |> json(%{message: "Failed to create pipeline.", errors: format_errors(changeset)})
+        conn
+        |> put_status(:unprocessable_entity)
+        |> json(%{message: "Failed to create pipeline.", errors: format_errors(changeset)})
     end
   end
 
@@ -45,11 +48,22 @@ defmodule ExGoCDWeb.API.Admin.PipelineConfigController do
     case Pipelines.get_pipeline_by_name(name) do
       nil ->
         conn |> put_status(:not_found) |> json(%{message: "Pipeline '#{name}' not found."})
+
       pipeline ->
-        attrs = Map.take(params, ~w(group label_template lock_behavior paused timer timer_only_on_changes))
+        attrs =
+          Map.take(
+            params,
+            ~w(group label_template lock_behavior paused timer timer_only_on_changes)
+          )
+
         case Pipelines.update_pipeline(pipeline, attrs) do
-          {:ok, updated} -> json(conn, pipeline_to_json(updated))
-          {:error, changeset} -> conn |> put_status(:unprocessable_entity) |> json(%{message: "Update failed.", errors: format_errors(changeset)})
+          {:ok, updated} ->
+            json(conn, pipeline_to_json(updated))
+
+          {:error, changeset} ->
+            conn
+            |> put_status(:unprocessable_entity)
+            |> json(%{message: "Update failed.", errors: format_errors(changeset)})
         end
     end
   end
@@ -59,6 +73,7 @@ defmodule ExGoCDWeb.API.Admin.PipelineConfigController do
     case Pipelines.get_pipeline_by_name(name) do
       nil ->
         conn |> put_status(:not_found) |> json(%{message: "Pipeline '#{name}' not found."})
+
       pipeline ->
         Pipelines.delete_pipeline(pipeline)
         json(conn, %{message: "Pipeline '#{name}' deleted."})
@@ -76,36 +91,38 @@ defmodule ExGoCDWeb.API.Admin.PipelineConfigController do
       paused: pipeline.paused,
       timer: pipeline.timer,
       timer_only_on_changes: pipeline.timer_only_on_changes,
-      stages: Enum.map(pipeline.stages || [], fn stage ->
-        %{
-          name: stage.name,
-          approval_type: stage.approval_type || "success",
-          fetch_materials: stage.fetch_materials,
-          clean_working_dir: stage.clean_working_dir,
-          never_cleanup_artifacts: stage.never_cleanup_artifacts,
-          jobs: Enum.map(stage.jobs || [], fn job ->
-            %{
-              name: job.name,
-              run_instance_count: job.run_instance_count,
-              timeout: job.timeout,
-              run_on_all_agents: job.run_on_all_agents,
-              resources: job.resources || [],
-              environment_variables: job.environment_variables || %{},
-              elastic_profile_id: job.elastic_profile_id,
-              tasks: Enum.map(job.tasks || [], fn task ->
+      stages:
+        Enum.map(pipeline.stages || [], fn stage ->
+          %{
+            name: stage.name,
+            approval_type: stage.approval_type || "success",
+            fetch_materials: stage.fetch_materials,
+            clean_working_dir: stage.clean_working_dir,
+            never_cleanup_artifacts: stage.never_cleanup_artifacts,
+            jobs:
+              Enum.map(stage.jobs || [], fn job ->
                 %{
-                  type: task.type,
-                  command: task.command,
-                  args: task.args,
-                  working_dir: task.working_dir,
-                  run_if: task.run_if
+                  name: job.name,
+                  run_instance_count: job.run_instance_count,
+                  timeout: job.timeout,
+                  run_on_all_agents: job.run_on_all_agents,
+                  resources: job.resources || [],
+                  environment_variables: job.environment_variables || %{},
+                  elastic_profile_id: job.elastic_profile_id,
+                  tasks:
+                    Enum.map(job.tasks || [], fn task ->
+                      %{
+                        type: task.type,
+                        command: task.command,
+                        args: task.args,
+                        working_dir: task.working_dir,
+                        run_if: task.run_if
+                      }
+                    end)
                 }
               end)
-            }
-          end)
-        }
-      end)
+          }
+        end)
     }
   end
-
 end

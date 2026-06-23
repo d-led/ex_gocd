@@ -10,12 +10,14 @@ defmodule ExGoCDWeb.AgentsLiveTest do
   # Helper: creates a session map that get_current_user/1 will recognize as admin.
   defp admin_session do
     # Create a real admin user in DB so get_current_user finds it
-    {:ok, user} = Accounts.create_user(%{
-      username: "agents-test-admin",
-      display_name: "Test Admin",
-      password: "test123456",
-      roles: ["admin"]
-    })
+    {:ok, user} =
+      Accounts.create_user(%{
+        username: "agents-test-admin",
+        display_name: "Test Admin",
+        password: "test123456",
+        roles: ["admin"]
+      })
+
     %{"username" => user.username}
   end
 
@@ -35,9 +37,12 @@ defmodule ExGoCDWeb.AgentsLiveTest do
     end
 
     test "shows agent count summary", %{conn: conn} do
-      {:ok, _registered} = Agents.register_agent(%{
-        uuid: @valid_uuid, hostname: "test-agent", ipaddress: "127.0.0.1"
-      })
+      {:ok, _registered} =
+        Agents.register_agent(%{
+          uuid: @valid_uuid,
+          hostname: "test-agent",
+          ipaddress: "127.0.0.1"
+        })
 
       {:ok, _view, html} = live(conn, ~p"/agents")
 
@@ -48,9 +53,13 @@ defmodule ExGoCDWeb.AgentsLiveTest do
 
   describe "Schedule test job" do
     setup do
-      {:ok, _} = Agents.register_agent(%{
-        uuid: @valid_uuid, hostname: "test-agent", ipaddress: "127.0.0.1"
-      })
+      {:ok, _} =
+        Agents.register_agent(%{
+          uuid: @valid_uuid,
+          hostname: "test-agent",
+          ipaddress: "127.0.0.1"
+        })
+
       {:ok, agent_uuid: @valid_uuid}
     end
 
@@ -66,6 +75,54 @@ defmodule ExGoCDWeb.AgentsLiveTest do
 
       # Should show a flash message about scheduling
       assert html =~ "scheduled"
+    end
+  end
+
+  describe "clean disabled agents" do
+    setup do
+      {:ok, _} =
+        Agents.register_agent(%{
+          uuid: @valid_uuid,
+          hostname: "disabled-agent",
+          ipaddress: "10.0.0.1"
+        })
+
+      # Disable it
+      Agents.disable_agent(@valid_uuid)
+
+      {:ok, agent_uuid: @valid_uuid}
+    end
+
+    test "cleans disabled agents and shows count in flash", %{conn: conn} do
+      session = admin_session()
+      conn = Plug.Test.init_test_session(conn, session)
+
+      {:ok, view, _html} = live(conn, ~p"/agents")
+
+      # Verify the disabled agent appears
+      assert render(view) =~ "disabled-agent"
+
+      # Click CLEAN DISABLED
+      html = view |> element("button", "CLEAN DISABLED") |> render_click()
+
+      # Flash should show deletion count
+      assert html =~ ~r{Deleted \d+ disabled agent}
+
+      # The disabled agent should be gone from the table
+      refute html =~ "disabled-agent"
+    end
+
+    test "non-admin cannot clean disabled agents", %{conn: conn} do
+      # Create an admin user so admin_configured?() returns true,
+      # making default_user() a non-admin guest (GoCD open-mode behavior).
+      admin_session()
+
+      conn = Plug.Test.init_test_session(conn, %{})
+
+      {:ok, view, _html} = live(conn, ~p"/agents")
+
+      # Non-admin shouldn't see the CLEAN DISABLED button
+      refute render(view) =~ "CLEAN DISABLED"
     end
   end
 end

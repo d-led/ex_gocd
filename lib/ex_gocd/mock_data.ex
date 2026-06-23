@@ -299,6 +299,7 @@ defmodule ExGoCD.MockData do
     |> Enum.group_by(fn mat -> {mat.type, mat.url, Map.get(mat, :branch) || ""} end)
     |> Enum.map(fn {{type, url, branch}, mats} ->
       pipelines = Enum.map(mats, & &1.pipeline_name) |> Enum.uniq() |> Enum.sort()
+
       %{
         type: type,
         url: url,

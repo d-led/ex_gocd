@@ -43,6 +43,7 @@ defmodule ExGoCD.Pipelines.ConsoleActivityMonitor do
 
   defp schedule_check do
     interval = Application.get_env(:ex_gocd, :console_monitor_interval_ms, @check_interval_ms)
+
     if interval != :none do
       Process.send_after(self(), :check_activity, interval)
     end
@@ -77,7 +78,10 @@ defmodule ExGoCD.Pipelines.ConsoleActivityMonitor do
 
   defp maybe_cancel_run(run, elapsed_sec, timeout_sec) do
     if elapsed_sec > timeout_sec do
-      Logger.warning("Job run #{run.build_id} (agent #{run.agent_uuid}) is cancelled due to console inactivity of #{elapsed_sec} seconds (timeout: #{timeout_sec} seconds).")
+      Logger.warning(
+        "Job run #{run.build_id} (agent #{run.agent_uuid}) is cancelled due to console inactivity of #{elapsed_sec} seconds (timeout: #{timeout_sec} seconds)."
+      )
+
       _ = AgentChannel.request_cancel_build(run.agent_uuid, run.build_id)
       _ = AgentJobRuns.report_status(run.agent_uuid, run.build_id, "Completed", "Cancelled")
     end

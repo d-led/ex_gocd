@@ -72,14 +72,18 @@ defmodule ExGoCDWeb.AuditLogLive do
     entries =
       if use_mock?() do
         mock = ExGoCD.MockData.audit_log_entries()
+
         if socket.assigns.filters == %{} do
           mock
         else
           f = socket.assigns.filters
+
           Enum.filter(mock, fn e ->
-            (is_nil(f[:actor]) || f[:actor] == "" || String.contains?(String.downcase(e.actor), String.downcase(f[:actor]))) &&
-            (is_nil(f[:action]) || f[:action] == "" || String.contains?(e.action, f[:action])) &&
-            (is_nil(f[:resource_type]) || f[:resource_type] == "" || String.contains?(e.resource_type, f[:resource_type]))
+            (is_nil(f[:actor]) || f[:actor] == "" ||
+               String.contains?(String.downcase(e.actor), String.downcase(f[:actor]))) &&
+              (is_nil(f[:action]) || f[:action] == "" || String.contains?(e.action, f[:action])) &&
+              (is_nil(f[:resource_type]) || f[:resource_type] == "" ||
+                 String.contains?(e.resource_type, f[:resource_type]))
           end)
         end
       else
@@ -113,6 +117,7 @@ defmodule ExGoCDWeb.AuditLogLive do
   defp put_if(map, key, value), do: Map.put(map, key, value)
 
   defp parse_date(""), do: nil
+
   defp parse_date(str) do
     case Date.from_iso8601(str) do
       {:ok, date} -> date
@@ -126,17 +131,38 @@ defmodule ExGoCDWeb.AuditLogLive do
   defp format_time(%NaiveDateTime{} = ndt), do: Calendar.strftime(ndt, "%Y-%m-%d %H:%M:%S")
   defp format_time(_), do: "—"
 
-  defp action_badge("pipeline_trigger"), do: ~s|<span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-50 text-emerald-700">Trigger</span>|
-  defp action_badge("stage_approve"), do: ~s|<span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-50 text-blue-700">Approve</span>|
-  defp action_badge("pipeline_pause"), do: ~s|<span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700">Pause</span>|
-  defp action_badge("pipeline_unpause"), do: ~s|<span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-50 text-emerald-700">Unpause</span>|
-  defp action_badge("config_update"), do: ~s|<span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-purple-50 text-purple-700">Config</span>|
-  defp action_badge("pipeline_delete"), do: ~s|<span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-50 text-red-700">Delete</span>|
-  defp action_badge(other), do: ~s|<span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-100 text-slate-600">#{other}</span>|
+  defp action_badge("pipeline_trigger"),
+    do:
+      ~s|<span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-50 text-emerald-700">Trigger</span>|
+
+  defp action_badge("stage_approve"),
+    do:
+      ~s|<span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-50 text-blue-700">Approve</span>|
+
+  defp action_badge("pipeline_pause"),
+    do:
+      ~s|<span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700">Pause</span>|
+
+  defp action_badge("pipeline_unpause"),
+    do:
+      ~s|<span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-50 text-emerald-700">Unpause</span>|
+
+  defp action_badge("config_update"),
+    do:
+      ~s|<span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-purple-50 text-purple-700">Config</span>|
+
+  defp action_badge("pipeline_delete"),
+    do:
+      ~s|<span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-50 text-red-700">Delete</span>|
+
+  defp action_badge(other),
+    do:
+      ~s|<span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-100 text-slate-600">#{other}</span>|
 
   defp resource_link("pipeline", name) do
     ~s|<a href="/pipeline/activity/#{name}" class="text-[#943a9e] hover:underline text-xs">#{name}</a>|
   end
+
   defp resource_link("stage", name), do: ~s|<span class="text-xs text-slate-600">#{name}</span>|
   defp resource_link("agent", name), do: ~s|<span class="text-xs text-slate-600">#{name}</span>|
   defp resource_link(_, name), do: ~s|<span class="text-xs text-slate-600">#{name}</span>|
@@ -155,27 +181,65 @@ defmodule ExGoCDWeb.AuditLogLive do
           <form phx-change="search" class="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div>
               <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Actor</label>
-              <input type="text" name="actor" value={@actor} placeholder="username" class="w-full border border-[#d6e0e2] rounded px-2 py-1.5 text-xs" />
+              <input
+                type="text"
+                name="actor"
+                value={@actor}
+                placeholder="username"
+                class="w-full border border-[#d6e0e2] rounded px-2 py-1.5 text-xs"
+              />
             </div>
             <div>
               <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Action</label>
-              <input type="text" name="action" value={@action} placeholder="pipeline_trigger" class="w-full border border-[#d6e0e2] rounded px-2 py-1.5 text-xs" />
+              <input
+                type="text"
+                name="action"
+                value={@action}
+                placeholder="pipeline_trigger"
+                class="w-full border border-[#d6e0e2] rounded px-2 py-1.5 text-xs"
+              />
             </div>
             <div>
-              <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Resource Type</label>
-              <input type="text" name="resource_type" value={@resource_type} placeholder="pipeline" class="w-full border border-[#d6e0e2] rounded px-2 py-1.5 text-xs" />
+              <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">
+                Resource Type
+              </label>
+              <input
+                type="text"
+                name="resource_type"
+                value={@resource_type}
+                placeholder="pipeline"
+                class="w-full border border-[#d6e0e2] rounded px-2 py-1.5 text-xs"
+              />
             </div>
             <div>
-              <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Resource Name</label>
-              <input type="text" name="resource_name" value={@resource_name} placeholder="my-pipeline" class="w-full border border-[#d6e0e2] rounded px-2 py-1.5 text-xs" />
+              <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">
+                Resource Name
+              </label>
+              <input
+                type="text"
+                name="resource_name"
+                value={@resource_name}
+                placeholder="my-pipeline"
+                class="w-full border border-[#d6e0e2] rounded px-2 py-1.5 text-xs"
+              />
             </div>
             <div>
               <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">From</label>
-              <input type="date" name="date_from" value={@date_from} class="w-full border border-[#d6e0e2] rounded px-2 py-1.5 text-xs" />
+              <input
+                type="date"
+                name="date_from"
+                value={@date_from}
+                class="w-full border border-[#d6e0e2] rounded px-2 py-1.5 text-xs"
+              />
             </div>
             <div>
               <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">To</label>
-              <input type="date" name="date_to" value={@date_to} class="w-full border border-[#d6e0e2] rounded px-2 py-1.5 text-xs" />
+              <input
+                type="date"
+                name="date_to"
+                value={@date_to}
+                class="w-full border border-[#d6e0e2] rounded px-2 py-1.5 text-xs"
+              />
             </div>
           </form>
         </div>
@@ -191,11 +255,21 @@ defmodule ExGoCDWeb.AuditLogLive do
             <table class="w-full text-xs">
               <thead>
                 <tr class="bg-slate-50 border-b border-[#d6e0e2]">
-                  <th class="text-left px-4 py-2 font-bold text-slate-500 uppercase text-[10px]">Time</th>
-                  <th class="text-left px-4 py-2 font-bold text-slate-500 uppercase text-[10px]">Actor</th>
-                  <th class="text-left px-4 py-2 font-bold text-slate-500 uppercase text-[10px]">Action</th>
-                  <th class="text-left px-4 py-2 font-bold text-slate-500 uppercase text-[10px]">Resource</th>
-                  <th class="text-left px-4 py-2 font-bold text-slate-500 uppercase text-[10px]">Details</th>
+                  <th class="text-left px-4 py-2 font-bold text-slate-500 uppercase text-[10px]">
+                    Time
+                  </th>
+                  <th class="text-left px-4 py-2 font-bold text-slate-500 uppercase text-[10px]">
+                    Actor
+                  </th>
+                  <th class="text-left px-4 py-2 font-bold text-slate-500 uppercase text-[10px]">
+                    Action
+                  </th>
+                  <th class="text-left px-4 py-2 font-bold text-slate-500 uppercase text-[10px]">
+                    Resource
+                  </th>
+                  <th class="text-left px-4 py-2 font-bold text-slate-500 uppercase text-[10px]">
+                    Details
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -206,11 +280,11 @@ defmodule ExGoCDWeb.AuditLogLive do
                     </td>
                     <td class="px-4 py-2 text-slate-700 font-medium">{entry.actor}</td>
                     <td class="px-4 py-2">
-                      <%= Phoenix.HTML.raw(action_badge(entry.action)) %>
+                      {Phoenix.HTML.raw(action_badge(entry.action))}
                     </td>
                     <td class="px-4 py-2">
                       <%= if entry.resource_type && entry.resource_name do %>
-                        <%= Phoenix.HTML.raw(resource_link(entry.resource_type, entry.resource_name)) %>
+                        {Phoenix.HTML.raw(resource_link(entry.resource_type, entry.resource_name))}
                       <% else %>
                         <span class="text-slate-400">—</span>
                       <% end %>

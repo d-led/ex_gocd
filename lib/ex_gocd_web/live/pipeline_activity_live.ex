@@ -32,6 +32,7 @@ defmodule ExGoCDWeb.PipelineActivityLive do
        |> redirect(to: "/pipelines")}
     else
       runs = get_pipeline_runs(name)
+
       {:noreply,
        socket
        |> assign(:pipeline, pipeline)
@@ -87,8 +88,10 @@ defmodule ExGoCDWeb.PipelineActivityLive do
       status: pipeline_instance_status(pi),
       triggered_by: build_cause["triggerMessage"] || "Triggered manually",
       last_run: pi.inserted_at || pi.updated_at || DateTime.utc_now(),
-      stages: pi.stage_instances |> Enum.sort_by(& &1.order_id) |> Enum.map(&map_stage_instance/1),
-      modifications: build_cause["materialRevisions"] |> List.wrap() |> Enum.flat_map(&map_modifications/1),
+      stages:
+        pi.stage_instances |> Enum.sort_by(& &1.order_id) |> Enum.map(&map_stage_instance/1),
+      modifications:
+        build_cause["materialRevisions"] |> List.wrap() |> Enum.flat_map(&map_modifications/1),
       config_changed: Map.has_key?(build_cause, "configSnapshot")
     }
   end
@@ -152,7 +155,10 @@ defmodule ExGoCDWeb.PipelineActivityLive do
           if mock_pipeline do
             Enum.map(mock_pipeline.stages, &%{name: &1.name, status: &1.status, counter: 1})
           else
-            [%{name: "compile", status: "Passed", counter: 1}, %{name: "test", status: "Passed", counter: 1}]
+            [
+              %{name: "compile", status: "Passed", counter: 1},
+              %{name: "test", status: "Passed", counter: 1}
+            ]
           end,
         modifications: [
           %{
@@ -173,10 +179,17 @@ defmodule ExGoCDWeb.PipelineActivityLive do
           if mock_pipeline do
             Enum.map(
               mock_pipeline.stages,
-              &%{name: &1.name, status: if(&1.name == "test", do: "Failed", else: "Passed"), counter: 1}
+              &%{
+                name: &1.name,
+                status: if(&1.name == "test", do: "Failed", else: "Passed"),
+                counter: 1
+              }
             )
           else
-            [%{name: "compile", status: "Passed", counter: 1}, %{name: "test", status: "Failed", counter: 1}]
+            [
+              %{name: "compile", status: "Passed", counter: 1},
+              %{name: "test", status: "Failed", counter: 1}
+            ]
           end,
         modifications: [
           %{
@@ -197,7 +210,10 @@ defmodule ExGoCDWeb.PipelineActivityLive do
           if mock_pipeline do
             Enum.map(mock_pipeline.stages, &%{name: &1.name, status: "Passed", counter: 1})
           else
-            [%{name: "compile", status: "Passed", counter: 1}, %{name: "test", status: "Passed", counter: 1}]
+            [
+              %{name: "compile", status: "Passed", counter: 1},
+              %{name: "test", status: "Passed", counter: 1}
+            ]
           end,
         modifications: [
           %{
@@ -258,15 +274,23 @@ defmodule ExGoCDWeb.PipelineActivityLive do
           <div class={"pipeline-run-row flex items-stretch bg-white border border-gray-200 rounded shadow-sm hover:shadow-md transition-shadow " <> run_status_border(run.status)}>
             <div class="p-5 flex-shrink-0 w-44 border-r border-gray-100 flex flex-col justify-between">
               <div>
-                <span class="text-[10px] uppercase font-bold text-gray-400 tracking-wider font-mono">Instance</span>
+                <span class="text-[10px] uppercase font-bold text-gray-400 tracking-wider font-mono">
+                  Instance
+                </span>
                 <div class="text-lg font-mono font-extrabold text-gray-900 mt-0.5">#{run.label}</div>
               </div>
               <div class="mt-4 flex flex-col gap-1.5 text-xs">
-                <.link navigate={~p"/pipelines/value_stream_map/#{@pipeline.name}/#{run.counter}"} class="text-[#2d6ca2] hover:underline font-bold flex items-center gap-1">
+                <.link
+                  navigate={~p"/pipelines/value_stream_map/#{@pipeline.name}/#{run.counter}"}
+                  class="text-[#2d6ca2] hover:underline font-bold flex items-center gap-1"
+                >
                   <i class="fa-solid fa-network-wired text-[10px]"></i> VSM
                 </.link>
                 <%= if run.counter > 1 do %>
-                  <a href={"/compare/#{@pipeline.name}/#{run.counter - 1}/with/#{run.counter}"} class="text-[#2d6ca2] hover:underline font-bold flex items-center gap-1">
+                  <a
+                    href={"/compare/#{@pipeline.name}/#{run.counter - 1}/with/#{run.counter}"}
+                    class="text-[#2d6ca2] hover:underline font-bold flex items-center gap-1"
+                  >
                     <i class="fa-solid fa-right-left text-[10px]"></i> Compare
                   </a>
                 <% end %>
@@ -277,7 +301,8 @@ defmodule ExGoCDWeb.PipelineActivityLive do
               <div>
                 <div class="flex justify-between items-start gap-4">
                   <div class="text-xs text-gray-500 font-medium">
-                    <span class="font-bold text-gray-700">{run.triggered_by}</span> on {format_local_time(run.last_run)}
+                    <span class="font-bold text-gray-700">{run.triggered_by}</span>
+                    on {format_local_time(run.last_run)}
                   </div>
                   <span class={"text-[9px] font-extrabold px-1.5 py-0.5 rounded uppercase font-mono " <>
                     case run.status do
@@ -289,17 +314,25 @@ defmodule ExGoCDWeb.PipelineActivityLive do
                     {run.status}
                   </span>
                   <%= if Map.get(run, :config_changed) do %>
-                    <span class="text-[9px] font-bold px-1.5 py-0.5 rounded uppercase font-mono bg-purple-100 text-purple-700" title="Pipeline config changed since previous run">
+                    <span
+                      class="text-[9px] font-bold px-1.5 py-0.5 rounded uppercase font-mono bg-purple-100 text-purple-700"
+                      title="Pipeline config changed since previous run"
+                    >
                       Config
                     </span>
                   <% end %>
                 </div>
 
                 <div class="mt-3">
-                  <span class="text-[9px] uppercase font-bold text-gray-400 tracking-wider font-mono">Trigger Revision Details</span>
+                  <span class="text-[9px] uppercase font-bold text-gray-400 tracking-wider font-mono">
+                    Trigger Revision Details
+                  </span>
                   <%= for mod <- run.modifications do %>
                     <div class="flex items-baseline gap-2 mt-1 text-xs text-gray-600">
-                      <.link navigate={~p"/materials/value_stream_map/#{mod.fingerprint}/#{mod.revision}"} class="font-mono text-cyan-600 hover:underline">
+                      <.link
+                        navigate={~p"/materials/value_stream_map/#{mod.fingerprint}/#{mod.revision}"}
+                        class="font-mono text-cyan-600 hover:underline"
+                      >
                         {String.slice(mod.revision, 0, 8)}
                       </.link>
                       <span class="font-semibold text-gray-700 truncate w-32">{mod.user}:</span>
@@ -311,12 +344,16 @@ defmodule ExGoCDWeb.PipelineActivityLive do
             </div>
 
             <div class="p-5 flex-shrink-0 w-72 border-l border-gray-100 flex flex-col justify-center">
-              <span class="text-[9px] uppercase font-bold text-gray-400 tracking-wider font-mono mb-2 block text-center">Stages Run Details</span>
+              <span class="text-[9px] uppercase font-bold text-gray-400 tracking-wider font-mono mb-2 block text-center">
+                Stages Run Details
+              </span>
               <ul class="flex flex-wrap justify-center gap-1.5">
                 <%= for stage <- run.stages do %>
                   <li class="relative">
                     <.link
-                      navigate={~p"/pipelines/#{@pipeline.name}/#{run.counter}/#{stage.name}/#{stage.counter}"}
+                      navigate={
+                        ~p"/pipelines/#{@pipeline.name}/#{run.counter}/#{stage.name}/#{stage.counter}"
+                      }
                       class={"w-8 h-8 flex items-center justify-center rounded text-white font-mono font-bold text-[10px] transition-transform hover:scale-105 shadow-sm " <> stage_status_class(stage.status)}
                       title={"#{stage.name} (#{stage.status})"}
                       aria-label={"#{stage.name} (#{stage.status})"}

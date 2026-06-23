@@ -55,8 +55,11 @@ defmodule ExGoCD.ConfigRepos.Parser do
   # Parse JSON content. YAML support can be added later with yaml_elixir dep.
   defp parse_yaml(content) do
     case Jason.decode(content) do
-      {:ok, data} -> {:ok, data}
-      {:error, _} -> {:error, "unable to parse content as JSON (YAML support requires yaml_elixir dependency)"}
+      {:ok, data} ->
+        {:ok, data}
+
+      {:error, _} ->
+        {:error, "unable to parse content as JSON (YAML support requires yaml_elixir dependency)"}
     end
   end
 
@@ -146,6 +149,7 @@ defmodule ExGoCD.ConfigRepos.Parser do
 
     Enum.each(materials, fn mat ->
       mat_type = mat["type"] || "git"
+
       mat_attrs = %{
         type: mat_type,
         url: mat["url"],
@@ -177,18 +181,22 @@ defmodule ExGoCD.ConfigRepos.Parser do
       |> ExGoCD.Pipelines.Material.changeset(mat_attrs)
       |> Repo.insert()
 
-    Repo.insert_all("pipelines_materials", [%{
-      pipeline_id: pipeline_id,
-      material_id: material.id
-    }])
+    Repo.insert_all("pipelines_materials", [
+      %{
+        pipeline_id: pipeline_id,
+        material_id: material.id
+      }
+    ])
   end
 
   defp link_existing_material(material, existing_mats, pipeline_id) do
     unless Enum.any?(existing_mats, &(&1.id == material.id)) do
-      Repo.insert_all("pipelines_materials", [%{
-        pipeline_id: pipeline_id,
-        material_id: material.id
-      }])
+      Repo.insert_all("pipelines_materials", [
+        %{
+          pipeline_id: pipeline_id,
+          material_id: material.id
+        }
+      ])
     end
   end
 
@@ -203,6 +211,7 @@ defmodule ExGoCD.ConfigRepos.Parser do
 
   defp find_or_create_stage(stage_def, existing_stages, pipeline_id) do
     stage_name = stage_def["name"]
+
     stage_attrs = %{
       name: stage_name,
       pipeline_id: pipeline_id,
@@ -218,12 +227,14 @@ defmodule ExGoCD.ConfigRepos.Parser do
           %ExGoCD.Pipelines.Stage{}
           |> ExGoCD.Pipelines.Stage.changeset(stage_attrs)
           |> Repo.insert()
+
         new_stage
 
       existing ->
         existing
         |> ExGoCD.Pipelines.Stage.changeset(stage_attrs)
         |> Repo.update!()
+
         existing
     end
   end
@@ -239,6 +250,7 @@ defmodule ExGoCD.ConfigRepos.Parser do
 
   defp find_or_create_job(job_def, existing_jobs, stage_id) do
     job_name = job_def["name"]
+
     job_attrs = %{
       name: job_name,
       stage_id: stage_id,
@@ -255,12 +267,14 @@ defmodule ExGoCD.ConfigRepos.Parser do
           %ExGoCD.Pipelines.Job{}
           |> ExGoCD.Pipelines.Job.changeset(job_attrs)
           |> Repo.insert()
+
         new_job
 
       existing ->
         existing
         |> ExGoCD.Pipelines.Job.changeset(job_attrs)
         |> Repo.update!()
+
         existing
     end
   end
@@ -270,6 +284,7 @@ defmodule ExGoCD.ConfigRepos.Parser do
 
     Enum.each(task_defs, fn task_def ->
       _task_name = task_def["name"] || task_def["type"]
+
       task_attrs = %{
         type: task_def["type"] || "exec",
         command: task_def["command"],
@@ -278,7 +293,10 @@ defmodule ExGoCD.ConfigRepos.Parser do
         run_if: task_def["run_if"] || "passed"
       }
 
-      unless Enum.any?(existing_tasks, &(&1.type == task_attrs.type && &1.command == task_attrs.command)) do
+      unless Enum.any?(
+               existing_tasks,
+               &(&1.type == task_attrs.type && &1.command == task_attrs.command)
+             ) do
         %ExGoCD.Pipelines.Task{}
         |> ExGoCD.Pipelines.Task.changeset(Map.put(task_attrs, :job_id, job.id))
         |> Repo.insert()

@@ -32,7 +32,7 @@ defmodule ExGoCD.DataCase do
   setup tags do
     ExGoCD.DataCase.setup_sandbox(tags)
 
-    for name <- [ExGoCD.Scheduler, ExGoCD.Materials.TimerScheduler] do
+    for name <- [ExGoCD.Scheduler, ExGoCD.Materials.TimerScheduler, ExGoCD.Materials.Poller] do
       if pid = Process.whereis(name) do
         Ecto.Adapters.SQL.Sandbox.allow(ExGoCD.Repo, self(), pid)
       end
@@ -60,18 +60,25 @@ defmodule ExGoCD.DataCase do
   def wait_for_scheduler_queue do
     if pid = Process.whereis(ExGoCD.Scheduler) do
       # Phase 1: drain the GenServer mailbox (max ~1s)
-      _ = Enum.reduce_while(1..200, :waiting, fn _i, :waiting ->
-        case Process.info(pid, :message_queue_len) do
-          {:message_queue_len, 0} -> {:halt, :done}
-          {:message_queue_len, _} ->
-            Process.sleep(5)
-            {:cont, :waiting}
-          nil -> {:halt, :dead}
-        end
-      end)
+      _ =
+        Enum.reduce_while(1..200, :waiting, fn _i, :waiting ->
+          case Process.info(pid, :message_queue_len) do
+            {:message_queue_len, 0} ->
+              {:halt, :done}
+
+            {:message_queue_len, _} ->
+              Process.sleep(5)
+              {:cont, :waiting}
+
+            nil ->
+              {:halt, :dead}
+          end
+        end)
+
       # Phase 2: sync call ensures any in-flight handle_call completed
       if Process.alive?(pid), do: ExGoCD.Scheduler.pending_count()
     end
+
     :ok
   end
 
@@ -110,24 +117,94 @@ defmodule ExGoCD.DataCase do
     alias ExGoCD.Pipelines.{Pipeline, Stage, PipelineInstance, StageInstance}
     alias ExGoCD.Repo
 
-    {:ok, p} = Repo.insert(%Pipeline{} |> Pipeline.changeset(%{name: name, group: "default", label_template: "${COUNT}"}))
-    {:ok, stage} = Repo.insert(%Stage{} |> Stage.changeset(%{name: "build", pipeline_id: p.id, order_id: 0}))
+    {:ok, p} =
+      Repo.insert(
+        %Pipeline{}
+        |> Pipeline.changeset(%{name: name, group: "default", label_template: "${COUNT}"})
+      )
+
+    {:ok, stage} =
+      Repo.insert(%Stage{} |> Stage.changeset(%{name: "build", pipeline_id: p.id, order_id: 0}))
 
     completed_at = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
     created_time = DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.add(-300, :second)
 
-    {:ok, instance} = Repo.insert(%PipelineInstance{} |> PipelineInstance.changeset(%{
-      pipeline_id: p.id, counter: 1, label: "1", natural_order: 1.0,
-      build_cause: %{"materialRevisions" => []}
-    }))
+    {:ok, instance} =
+      Repo.insert(
+        %PipelineInstance{}
+        |> PipelineInstance.changeset(%{
+          pipeline_id: p.id,
+          counter: 1,
+          label: "1",
+          natural_order: 1.0,
+          build_cause: %{"materialRevisions" => []}
+        })
+      )
 
-    {:ok, si} = Repo.insert(%StageInstance{} |> StageInstance.changeset(%{
-      stage_id: stage.id, pipeline_instance_id: instance.id,
-      name: "build", counter: 1, order_id: 0,
-      state: stage_state, result: stage_result,
-      approval_type: "success", created_time: created_time, completed_at: completed_at
-    }))
+    {:ok, si} =
+      Repo.insert(
+        %StageInstance{}
+        |> StageInstance.changeset(%{
+          stage_id: stage.id,
+          pipeline_instance_id: instance.id,
+          name: "build",
+          counter: 1,
+          order_id: 0,
+          state: stage_state,
+          result: stage_result,
+          approval_type: "success",
+          created_time: created_time,
+          completed_at: completed_at
+        })
+      )
 
     {p, stage, instance, si}
+  end
+
+  @doc """
+  Helper to insert a pipeline instance with counter.
+  """
+  def insert_instance(pipeline, counter) do
+    alias ExGoCD.Pipelines.PipelineInstance
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    ExGoCD.Repo.insert!(%PipelineInstance{
+      pipeline_id: pipeline.id,
+      counter: counter,
+      label: "#{counter}",
+      natural_order: counter * 1.0,
+      build_cause: %{},
+      inserted_at: now,
+      updated_at: now
+    })
+  end
+
+  @doc """
+  Helper to insert a stage instance for a pipeline instance.
+  """
+  def insert_stage(pi, name, state, result) do
+    import Ecto.Query
+    alias ExGoCD.Pipelines.StageInstance
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    counter =
+      (ExGoCD.Repo.aggregate(
+         from(s in StageInstance, where: s.pipeline_instance_id == ^pi.id),
+         :count,
+         :id
+       ) || 0) + 1
+
+    ExGoCD.Repo.insert!(%StageInstance{
+      pipeline_instance_id: pi.id,
+      name: name,
+      counter: counter,
+      state: state,
+      result: result,
+      approval_type: "success",
+      order_id: counter,
+      created_time: now,
+      inserted_at: now,
+      updated_at: now
+    })
   end
 end

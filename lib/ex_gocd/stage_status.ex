@@ -83,6 +83,7 @@ defmodule ExGoCD.StageStatus do
   """
   @spec pipeline_status([String.t()]) :: String.t()
   def pipeline_status([]), do: @vsm_not_yet_run
+
   def pipeline_status(statuses) do
     cond do
       Enum.any?(statuses, &is_failed/1) -> @result_failed

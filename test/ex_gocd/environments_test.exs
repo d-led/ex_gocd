@@ -23,6 +23,7 @@ defmodule ExGoCD.EnvironmentsTest do
 
       assert {:ok, %Environment{} = env} = Environments.create_environment(attrs)
       assert env.name == "production"
+
       assert env.environment_variables == [
                %{"name" => "DB_HOST", "value" => "prod-db"},
                %{"name" => "PORT", "value" => "5432"}
@@ -58,7 +59,10 @@ defmodule ExGoCD.EnvironmentsTest do
       attrs = %{"name" => "duplicate-env"}
       assert {:ok, _} = Environments.create_environment(attrs)
       assert {:error, changeset} = Environments.create_environment(attrs)
-      assert {:name, {"has already been taken", [constraint: :unique, constraint_name: "environments_name_index"]}} in changeset.errors
+
+      assert {:name,
+              {"has already been taken",
+               [constraint: :unique, constraint_name: "environments_name_index"]}} in changeset.errors
     end
   end
 
@@ -79,9 +83,16 @@ defmodule ExGoCD.EnvironmentsTest do
     test "replaces associated pipelines" do
       p1 = insert_pipeline("pipeline-1")
       p2 = insert_pipeline("pipeline-2")
-      {:ok, env} = Environments.create_environment(%{"name" => "test-env", "pipelines" => [%{"name" => p1.name}]})
 
-      assert {:ok, %Environment{} = updated} = Environments.update_environment(env, %{"pipelines" => [%{"name" => p2.name}]})
+      {:ok, env} =
+        Environments.create_environment(%{
+          "name" => "test-env",
+          "pipelines" => [%{"name" => p1.name}]
+        })
+
+      assert {:ok, %Environment{} = updated} =
+               Environments.update_environment(env, %{"pipelines" => [%{"name" => p2.name}]})
+
       assert length(updated.pipelines) == 1
       assert hd(updated.pipelines).id == p2.id
     end
@@ -94,12 +105,16 @@ defmodule ExGoCD.EnvironmentsTest do
       {:ok, env_b} = Environments.create_environment(%{"name" => "env-b"})
 
       # Add to env-a
-      assert {:ok, %Environment{} = updated_a} = Environments.add_pipeline_to_environment(env_a.name, p1.name)
+      assert {:ok, %Environment{} = updated_a} =
+               Environments.add_pipeline_to_environment(env_a.name, p1.name)
+
       assert hd(updated_a.pipelines).id == p1.id
       assert Environments.get_pipeline_environment(p1.name).id == env_a.id
 
       # Add to env-b (must automatically remove from env-a)
-      assert {:ok, %Environment{} = updated_b} = Environments.add_pipeline_to_environment(env_b.name, p1.name)
+      assert {:ok, %Environment{} = updated_b} =
+               Environments.add_pipeline_to_environment(env_b.name, p1.name)
+
       assert hd(updated_b.pipelines).id == p1.id
       assert Environments.get_pipeline_environment(p1.name).id == env_b.id
 
@@ -110,9 +125,16 @@ defmodule ExGoCD.EnvironmentsTest do
 
     test "remove_pipeline_from_environment/2 unbinds a pipeline" do
       p1 = insert_pipeline("pipeline-1")
-      {:ok, env} = Environments.create_environment(%{"name" => "env-c", "pipelines" => [%{"name" => p1.name}]})
 
-      assert {:ok, %Environment{} = updated} = Environments.remove_pipeline_from_environment(env.name, p1.name)
+      {:ok, env} =
+        Environments.create_environment(%{
+          "name" => "env-c",
+          "pipelines" => [%{"name" => p1.name}]
+        })
+
+      assert {:ok, %Environment{} = updated} =
+               Environments.remove_pipeline_from_environment(env.name, p1.name)
+
       assert updated.pipelines == []
       assert Environments.get_pipeline_environment(p1.name) == nil
     end
@@ -121,7 +143,12 @@ defmodule ExGoCD.EnvironmentsTest do
   describe "delete_environment/1" do
     test "deletes the environment record but does not delete pipelines" do
       p1 = insert_pipeline("pipeline-1")
-      {:ok, env} = Environments.create_environment(%{"name" => "delete-me", "pipelines" => [%{"name" => p1.name}]})
+
+      {:ok, env} =
+        Environments.create_environment(%{
+          "name" => "delete-me",
+          "pipelines" => [%{"name" => p1.name}]
+        })
 
       assert {:ok, _} = Environments.delete_environment(env)
       assert Environments.get_environment_by_name("delete-me") == nil

@@ -20,14 +20,18 @@ defmodule ExGoCD.AuditLog do
   @doc "Records an audit entry. Returns :ok (never raises — audit failures must not crash callers)."
   def log(actor, action, opts \\ []) do
     %__MODULE__{}
-    |> Ecto.Changeset.cast(%{
-      actor: actor,
-      action: action,
-      resource_type: opts[:resource_type],
-      resource_name: opts[:resource_name],
-      details: opts[:details] || %{}
-    }, [:actor, :action, :resource_type, :resource_name, :details])
+    |> Ecto.Changeset.cast(
+      %{
+        actor: actor,
+        action: action,
+        resource_type: opts[:resource_type],
+        resource_name: opts[:resource_name],
+        details: opts[:details] || %{}
+      },
+      [:actor, :action, :resource_type, :resource_name, :details]
+    )
     |> Repo.insert!()
+
     :ok
   rescue
     e ->

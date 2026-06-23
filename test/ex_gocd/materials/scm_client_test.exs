@@ -15,6 +15,8 @@ defmodule ExGoCD.Materials.ScmClientTest do
 
     on_exit(fn ->
       Application.put_env(:ex_gocd, :scm_client, ScmClient.MockImpl)
+      Application.delete_env(:ex_gocd, :mock_scm_revision)
+      Application.delete_env(:ex_gocd, :mock_git_revision)
     end)
   end
 
@@ -37,7 +39,12 @@ defmodule ExGoCD.Materials.ScmClientTest do
     end
 
     test "returns custom map when mock_git_revision is {:ok, map}" do
-      Application.put_env(:ex_gocd, :mock_git_revision, {:ok, %{revision: "deadbeef", committer_name: "Custom"}})
+      Application.put_env(
+        :ex_gocd,
+        :mock_git_revision,
+        {:ok, %{revision: "deadbeef", committer_name: "Custom"}}
+      )
+
       assert {:ok, result} = ScmClient.latest_revision(build_material("git"))
       assert result.revision == "deadbeef"
       assert result.committer_name == "Custom"

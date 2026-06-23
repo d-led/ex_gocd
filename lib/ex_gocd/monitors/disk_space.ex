@@ -17,8 +17,10 @@ defmodule ExGoCD.Monitors.DiskSpace do
   @monitor_topic "monitors:disk"
 
   # Default thresholds (bytes)
-  @critical_threshold 500 * 1024 * 1024  # 500 MB
-  @warning_threshold 2 * 1024 * 1024 * 1024  # 2 GB
+  # 500 MB
+  @critical_threshold 500 * 1024 * 1024
+  # 2 GB
+  @warning_threshold 2 * 1024 * 1024 * 1024
 
   # ── Client API ──────────────────────────────────────────────────────────
 
@@ -69,7 +71,10 @@ defmodule ExGoCD.Monitors.DiskSpace do
     new_status = compute_status(free_bytes)
 
     if new_status != state.status do
-      Logger.warning("Disk monitor: #{state.status} → #{new_status} (free: #{format_bytes(free_bytes)})")
+      Logger.warning(
+        "Disk monitor: #{state.status} → #{new_status} (free: #{format_bytes(free_bytes)})"
+      )
+
       Phoenix.PubSub.broadcast(PubSub, @monitor_topic, {:disk_status, new_status, free_bytes})
     end
 
@@ -87,7 +92,8 @@ defmodule ExGoCD.Monitors.DiskSpace do
         _estimate_free(path)
 
       {:error, _} ->
-        10 * 1024 * 1024 * 1024  # Assume 10 GB available
+        # Assume 10 GB available
+        10 * 1024 * 1024 * 1024
     end
   end
 
@@ -97,6 +103,7 @@ defmodule ExGoCD.Monitors.DiskSpace do
     case System.cmd("df", [path], stderr_to_stdout: true) do
       {output, 0} ->
         parse_df_output(output)
+
       _ ->
         10 * 1024 * 1024 * 1024
     end
@@ -107,16 +114,21 @@ defmodule ExGoCD.Monitors.DiskSpace do
     |> String.split("\n")
     |> Enum.at(1)
     |> case do
-      nil -> nil
+      nil ->
+        nil
+
       line ->
         parts = String.split(line, ~r/\s+/, trim: true)
         # df output: Filesystem 1K-blocks Used Available ...
         # Available is typically column 4 (0-indexed: 3)
         case Enum.at(parts, 3) do
-          nil -> nil
+          nil ->
+            nil
+
           avail_str ->
             case Integer.parse(avail_str) do
-              {n, _} -> n * 1024  # Convert 1K blocks to bytes
+              # Convert 1K blocks to bytes
+              {n, _} -> n * 1024
               :error -> nil
             end
         end
@@ -129,6 +141,7 @@ defmodule ExGoCD.Monitors.DiskSpace do
   defp compute_status(_), do: :ok
 
   defp format_bytes(nil), do: "unknown"
+
   defp format_bytes(bytes) do
     cond do
       bytes >= 1024 * 1024 * 1024 -> "#{Float.round(bytes / (1024 * 1024 * 1024), 1)} GB"

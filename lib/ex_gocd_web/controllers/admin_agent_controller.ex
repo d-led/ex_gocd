@@ -103,7 +103,10 @@ defmodule ExGoCDWeb.AdminAgentController do
     token =
       case System.get_env("EX_GOCD_DEMO_COOKIE") do
         nil ->
-          if dev_env?(), do: "ex-gocd-demo-cookie", else: "agent-token-#{uuid}-#{:os.system_time(:millisecond)}"
+          if dev_env?(),
+            do: "ex-gocd-demo-cookie",
+            else: "agent-token-#{uuid}-#{:os.system_time(:millisecond)}"
+
         demo ->
           String.trim(demo)
       end

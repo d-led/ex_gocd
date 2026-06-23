@@ -67,14 +67,15 @@ defmodule ExGoCD.ConfigRepos.GitHubActionsTranslator do
       # Filter out action steps in translate mode
       run_steps = Enum.filter(job_data.steps, &(&1.type == "run"))
 
-      tasks = Enum.map(run_steps, fn step ->
-        %{
-          type: "exec",
-          command: step.command,
-          arguments: [],
-          run_if: "passed"
-        }
-      end)
+      tasks =
+        Enum.map(run_steps, fn step ->
+          %{
+            type: "exec",
+            command: step.command,
+            arguments: [],
+            run_if: "passed"
+          }
+        end)
 
       %{
         name: job_name,
@@ -97,23 +98,26 @@ defmodule ExGoCD.ConfigRepos.GitHubActionsTranslator do
     # Check if push trigger should be included
     triggers = ir.triggers
 
-    triggers = if selected_triggers do
-      Enum.filter(triggers, &(&1.type in selected_triggers))
-    else
-      triggers
-    end
+    triggers =
+      if selected_triggers do
+        Enum.filter(triggers, &(&1.type in selected_triggers))
+      else
+        triggers
+      end
 
     push_triggers = Enum.filter(triggers, &(&1.type == "push"))
 
     if push_triggers != [] do
       branches = push_triggers |> Enum.flat_map(&(Map.get(&1, :branches) || [])) |> Enum.uniq()
 
-      [%{
-        type: "git",
-        url: "",
-        branch: if(branches == [], do: "main", else: hd(branches)),
-        auto_update: true
-      }]
+      [
+        %{
+          type: "git",
+          url: "",
+          branch: if(branches == [], do: "main", else: hd(branches)),
+          auto_update: true
+        }
+      ]
     else
       # workflow_dispatch or schedule: no SCM material
       []
@@ -122,6 +126,7 @@ defmodule ExGoCD.ConfigRepos.GitHubActionsTranslator do
 
   defp build_timer(ir) do
     schedules = Enum.filter(ir.triggers, &(&1.type == "schedule"))
+
     if schedules != [] do
       hd(schedules).cron
     end

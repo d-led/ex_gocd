@@ -161,11 +161,14 @@ defmodule ExGoCD.Agents do
   Effective status for display: disabled, lost_contact (no recent ping), building, idle, or unknown.
   Uses updated_at vs now to derive LostContact when no heartbeat within opts[:lost_contact_seconds].
   """
-  @spec effective_status(Agent.t(), keyword()) :: :disabled | :lost_contact | :building | :idle | :unknown
+  @spec effective_status(Agent.t(), keyword()) ::
+          :disabled | :lost_contact | :building | :idle | :unknown
   def effective_status(agent, opts \\ [])
   def effective_status(%Agent{disabled: true}, _opts), do: :disabled
+
   def effective_status(agent, opts) do
     threshold_sec = Keyword.get(opts, :lost_contact_seconds, 90)
+
     if not use_mock?() and stale?(agent.updated_at, threshold_sec) do
       :lost_contact
     else
@@ -174,6 +177,7 @@ defmodule ExGoCD.Agents do
   end
 
   defp stale?(nil, _), do: false
+
   defp stale?(updated_at, threshold_sec) do
     seconds_ago = NaiveDateTime.diff(NaiveDateTime.utc_now(), updated_at, :second)
     seconds_ago > threshold_sec
@@ -229,6 +233,7 @@ defmodule ExGoCD.Agents do
 
   defp parse_usable_space(nil), do: nil
   defp parse_usable_space(n) when is_integer(n), do: n
+
   defp parse_usable_space(s) when is_binary(s) do
     case Integer.parse(s) do
       {n, _} -> n
@@ -261,6 +266,7 @@ defmodule ExGoCD.Agents do
 
   defp maybe_add_approval_cookie(agent, attrs) when is_map(attrs) do
     disabled = attrs["disabled"] || attrs[:disabled]
+
     if disabled == false and (is_nil(agent.cookie) or agent.cookie == "") do
       Map.put(attrs, :cookie, approval_cookie())
     else
@@ -276,8 +282,12 @@ defmodule ExGoCD.Agents do
   @spec mark_lost_contact(String.t()) :: :ok | {:error, :not_found}
   def mark_lost_contact(agent_uuid) when is_binary(agent_uuid) do
     case get_agent_by_uuid(agent_uuid) do
-      nil -> {:error, :not_found}
-      %{disabled: true} -> :ok
+      nil ->
+        {:error, :not_found}
+
+      %{disabled: true} ->
+        :ok
+
       agent ->
         _ = update_agent(agent, %{state: "LostContact"})
         :ok
@@ -289,14 +299,18 @@ defmodule ExGoCD.Agents do
   Use so the UI shows Building/Idle without waiting for the next ping.
   """
   @spec update_agent_runtime_state(String.t(), String.t()) :: :ok | {:error, :not_found}
-  def update_agent_runtime_state(agent_uuid, state) when is_binary(agent_uuid) and is_binary(state) do
+  def update_agent_runtime_state(agent_uuid, state)
+      when is_binary(agent_uuid) and is_binary(state) do
     case get_agent_by_uuid(agent_uuid) do
-      nil -> {:error, :not_found}
+      nil ->
+        {:error, :not_found}
+
       agent ->
         update_agent(agent, %{state: state})
         :ok
     end
   end
+
   def update_agent_runtime_state(_, _), do: :ok
 
   @doc """
@@ -308,7 +322,12 @@ defmodule ExGoCD.Agents do
       Mock.enable_agent(agent.uuid)
     else
       attrs = %{disabled: false}
-      attrs = if is_nil(agent.cookie) or agent.cookie == "", do: Map.put(attrs, :cookie, approval_cookie()), else: attrs
+
+      attrs =
+        if is_nil(agent.cookie) or agent.cookie == "",
+          do: Map.put(attrs, :cookie, approval_cookie()),
+          else: attrs
+
       agent
       |> Agent.changeset(attrs)
       |> Repo.update()
@@ -406,6 +425,7 @@ defmodule ExGoCD.Agents do
       agents = Repo.all(from a in Agent, where: a.uuid in ^uuids and a.deleted == false)
 
       enabled = Enum.filter(agents, &(not &1.disabled))
+
       if enabled != [] do
         {:error, "Cannot delete enabled agents: #{inspect(Enum.map(enabled, & &1.uuid))}"}
       else

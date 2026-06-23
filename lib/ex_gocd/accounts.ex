@@ -251,10 +251,15 @@ defmodule ExGoCD.Accounts do
   Grants a role on a pipeline group to a user.
   Valid roles: `"viewer"`, `"operator"`, `"admin"`.
   """
-  @spec grant_pipeline_group_permission(integer(), String.t(), String.t()) :: {:ok, PipelineGroupPermission.t()} | {:error, Ecto.Changeset.t()}
+  @spec grant_pipeline_group_permission(integer(), String.t(), String.t()) ::
+          {:ok, PipelineGroupPermission.t()} | {:error, Ecto.Changeset.t()}
   def grant_pipeline_group_permission(user_id, pipeline_group, role) do
     %PipelineGroupPermission{}
-    |> PipelineGroupPermission.changeset(%{user_id: user_id, pipeline_group: pipeline_group, role: role})
+    |> PipelineGroupPermission.changeset(%{
+      user_id: user_id,
+      pipeline_group: pipeline_group,
+      role: role
+    })
     |> Repo.insert(on_conflict: :replace_all, conflict_target: [:user_id, :pipeline_group])
   end
 
@@ -285,7 +290,9 @@ defmodule ExGoCD.Accounts do
   """
   @spec can_access_pipeline_group?(User.t(), String.t(), String.t()) :: boolean()
   def can_access_pipeline_group?(%User{} = user, pipeline_group, required_role \\ "viewer") do
-    if mock?(), do: User.has_role?(user, :admin), else: check_group_permission(user, pipeline_group, required_role)
+    if mock?(),
+      do: User.has_role?(user, :admin),
+      else: check_group_permission(user, pipeline_group, required_role)
   end
 
   defp check_group_permission(user, pipeline_group, required_role) do

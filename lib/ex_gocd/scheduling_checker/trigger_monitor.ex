@@ -25,6 +25,7 @@ defmodule ExGoCD.SchedulingChecker.TriggerMonitor do
   @spec already_triggered?(String.t()) :: boolean()
   def already_triggered?(pipeline_name) when is_binary(pipeline_name) do
     ensure_table!()
+
     case :ets.lookup(@table_name, pipeline_name) do
       [] -> false
       _ -> true
@@ -63,6 +64,7 @@ defmodule ExGoCD.SchedulingChecker.TriggerMonitor do
     if :ets.whereis(@table_name) == :undefined do
       :ets.new(@table_name, [:set, :public, :named_table, read_concurrency: true])
     end
+
     :ok
   end
 end

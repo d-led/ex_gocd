@@ -12,15 +12,16 @@ defmodule ExGoCDWeb.Plugs.AuthHeaderPlug do
   def call(conn, _opts) do
     username =
       get_header(conn, "x-forwarded-user") ||
-      get_header(conn, "x-auth-request-user") ||
-      get_header(conn, "x-auth-request-preferred-username")
+        get_header(conn, "x-auth-request-user") ||
+        get_header(conn, "x-auth-request-preferred-username")
 
     if username && String.trim(username) != "" do
       username = String.trim(username)
+
       display_name =
         get_header(conn, "x-auth-request-name") ||
-        get_header(conn, "x-auth-request-email") ||
-        username
+          get_header(conn, "x-auth-request-email") ||
+          username
 
       forwarded_roles = parse_roles_header(conn)
 
@@ -44,12 +45,13 @@ defmodule ExGoCDWeb.Plugs.AuthHeaderPlug do
       nil ->
         if auto_create_enabled?() do
           roles = resolve_roles(username, forwarded_roles)
+
           case Accounts.create_user(%{
-            username: username,
-            display_name: display_name,
-            roles: roles,
-            email: username
-          }) do
+                 username: username,
+                 display_name: display_name,
+                 roles: roles,
+                 email: username
+               }) do
             {:ok, user} -> user
             {:error, _} -> nil
           end
@@ -67,7 +69,10 @@ defmodule ExGoCDWeb.Plugs.AuthHeaderPlug do
   end
 
   defp resolve_roles(username, forwarded_roles) do
-    admin_users = System.get_env("EX_GOCD_ADMIN_USERS", "") |> String.split(",", trim: true) |> Enum.map(&String.trim/1)
+    admin_users =
+      System.get_env("EX_GOCD_ADMIN_USERS", "")
+      |> String.split(",", trim: true)
+      |> Enum.map(&String.trim/1)
 
     if username in admin_users do
       ["admin"] ++ (forwarded_roles -- ["admin"])
@@ -79,9 +84,9 @@ defmodule ExGoCDWeb.Plugs.AuthHeaderPlug do
   defp parse_roles_header(conn) do
     raw =
       get_header(conn, "x-forwarded-roles") ||
-      get_header(conn, "x-forwarded-groups") ||
-      get_header(conn, "x-auth-request-groups") ||
-      ""
+        get_header(conn, "x-forwarded-groups") ||
+        get_header(conn, "x-auth-request-groups") ||
+        ""
 
     raw |> String.split(",", trim: true) |> Enum.map(&String.trim/1)
   end

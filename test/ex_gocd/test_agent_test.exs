@@ -21,11 +21,12 @@ defmodule ExGoCD.TestAgentTest do
     uuid = UUID.uuid4()
 
     # Start the test agent
-    {:ok, pid} = TestAgentSupervisor.start_agent(
-      uuid: uuid,
-      ping_interval: 2000,
-      work_simulation_ms: 100
-    )
+    {:ok, pid} =
+      TestAgentSupervisor.start_agent(
+        uuid: uuid,
+        ping_interval: 2000,
+        work_simulation_ms: 100
+      )
 
     on_exit(fn ->
       TestAgentSupervisor.stop_all_agents()
@@ -54,12 +55,13 @@ defmodule ExGoCD.TestAgentTest do
     assert agent.state == "Idle"
 
     # Enqueue a job matching this agent
-    {:ok, _job_id} = Scheduler.schedule_job(%{
-      pipeline: "test-pipeline",
-      stage: "test-stage",
-      job: "test-job",
-      environments: ["test"]
-    })
+    {:ok, _job_id} =
+      Scheduler.schedule_job(%{
+        pipeline: "test-pipeline",
+        stage: "test-stage",
+        job: "test-job",
+        environments: ["test"]
+      })
 
     # Trigger try_assign_work manually or wait for ping heartbeat
     Scheduler.try_assign_work(uuid)
@@ -80,7 +82,9 @@ defmodule ExGoCD.TestAgentTest do
     assert_receive_or_retry(10, fn ->
       updated_agent = Agents.get_agent_by_uuid(uuid)
       latest_run = List.first(AgentJobRuns.list_runs_for_agent(uuid))
-      updated_agent.state == "Idle" and latest_run.state == "Completed" and latest_run.result == "Passed"
+
+      updated_agent.state == "Idle" and latest_run.state == "Completed" and
+        latest_run.result == "Passed"
     end)
 
     # Clean up synchronously
@@ -89,12 +93,13 @@ defmodule ExGoCD.TestAgentTest do
 
   test "agent handles job cancellation", %{uuid: uuid} do
     # Enqueue a job matching this agent
-    {:ok, _job_id} = Scheduler.schedule_job(%{
-      pipeline: "test-pipeline",
-      stage: "test-stage",
-      job: "test-job",
-      environments: ["test"]
-    })
+    {:ok, _job_id} =
+      Scheduler.schedule_job(%{
+        pipeline: "test-pipeline",
+        stage: "test-stage",
+        job: "test-job",
+        environments: ["test"]
+      })
 
     Scheduler.try_assign_work(uuid)
 
@@ -112,11 +117,12 @@ defmodule ExGoCD.TestAgentTest do
     assert_receive_or_retry(10, fn ->
       updated_agent = Agents.get_agent_by_uuid(uuid)
       latest_run = List.first(AgentJobRuns.list_runs_for_agent(uuid))
-      updated_agent.state == "Idle" and latest_run.state == "Completed" and latest_run.result == "Cancelled"
+
+      updated_agent.state == "Idle" and latest_run.state == "Completed" and
+        latest_run.result == "Cancelled"
     end)
 
     # Clean up synchronously
     TestAgentSupervisor.stop_all_agents()
   end
-
 end

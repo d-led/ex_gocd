@@ -18,10 +18,12 @@ defmodule ExGoCD.HTTPTestAgentTest do
 
     # 1. Enable server dynamically on port 4002
     orig_config = Application.get_env(:ex_gocd, ExGoCDWeb.Endpoint)
+
     new_config =
       orig_config
       |> Keyword.put(:server, true)
-      |> Keyword.put(:http, [ip: {127, 0, 0, 1}, port: 4002])
+      |> Keyword.put(:http, ip: {127, 0, 0, 1}, port: 4002)
+
     Application.put_env(:ex_gocd, ExGoCDWeb.Endpoint, new_config)
 
     # Restart endpoint
@@ -30,12 +32,14 @@ defmodule ExGoCD.HTTPTestAgentTest do
 
     # 2. Start the HTTP test agent pointing to port 4002
     uuid = UUID.uuid4()
-    {:ok, agent_pid} = TestAgentSupervisor.start_http_agent(
-      uuid: uuid,
-      port: 4002,
-      host: "127.0.0.1",
-      ping_interval: 1000
-    )
+
+    {:ok, agent_pid} =
+      TestAgentSupervisor.start_http_agent(
+        uuid: uuid,
+        port: 4002,
+        host: "127.0.0.1",
+        ping_interval: 1000
+      )
 
     on_exit(fn ->
       TestAgentSupervisor.stop_all_agents()
@@ -55,12 +59,13 @@ defmodule ExGoCD.HTTPTestAgentTest do
     end)
 
     # 2. Schedule a job
-    {:ok, _job_id} = Scheduler.schedule_job(%{
-      pipeline: "http-pipeline",
-      stage: "http-stage",
-      job: "http-job",
-      environments: []
-    })
+    {:ok, _job_id} =
+      Scheduler.schedule_job(%{
+        pipeline: "http-pipeline",
+        stage: "http-stage",
+        job: "http-job",
+        environments: []
+      })
 
     # Trigger job assignment
     Scheduler.try_assign_work(uuid)
@@ -81,7 +86,9 @@ defmodule ExGoCD.HTTPTestAgentTest do
     assert_receive_or_retry(40, fn ->
       updated_agent = Agents.get_agent_by_uuid(uuid)
       latest_run = List.first(AgentJobRuns.list_runs_for_agent(uuid))
-      updated_agent.state == "Idle" and latest_run.state == "Completed" and latest_run.result == "Passed"
+
+      updated_agent.state == "Idle" and latest_run.state == "Completed" and
+        latest_run.result == "Passed"
     end)
 
     # 5. Verify console logs uploaded by HTTPTestAgent
@@ -90,5 +97,4 @@ defmodule ExGoCD.HTTPTestAgentTest do
     assert latest_run.console_log =~ "Executing build task: mix test"
     assert latest_run.console_log =~ "Build completed successfully."
   end
-
 end

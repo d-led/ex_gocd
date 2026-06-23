@@ -27,11 +27,13 @@ defmodule ExGoCDWeb.API.Admin.EnvironmentControllerTest do
   describe "Open Mode (No admin configured)" do
     test "allows any unauthenticated request to perform CRUD", %{conn: conn, p1: p1} do
       # Create
-      create_conn = post(conn, ~p"/api/admin/environments", %{
-        "name" => "dev-env",
-        "pipelines" => [%{"name" => p1.name}],
-        "environment_variables" => @valid_vars
-      })
+      create_conn =
+        post(conn, ~p"/api/admin/environments", %{
+          "name" => "dev-env",
+          "pipelines" => [%{"name" => p1.name}],
+          "environment_variables" => @valid_vars
+        })
+
       assert json = json_response(create_conn, 201)
       assert json["name"] == "dev-env"
       assert length(json["pipelines"]) == 1
@@ -49,12 +51,14 @@ defmodule ExGoCDWeb.API.Admin.EnvironmentControllerTest do
 
       # Update
       etag = List.first(get_resp_header(show_conn, "etag"))
+
       update_conn =
         conn
         |> put_req_header("if-match", etag)
         |> put(~p"/api/admin/environments/dev-env", %{
           "pipelines" => %{"add" => [], "remove" => [p1.name]}
         })
+
       assert update_json = json_response(update_conn, 200)
       assert update_json["pipelines"] == []
 
@@ -68,20 +72,22 @@ defmodule ExGoCDWeb.API.Admin.EnvironmentControllerTest do
   describe "Security Mode (Admin configured)" do
     setup do
       # Insert an admin user to activate security mode
-      admin_user = Repo.insert!(%Accounts.User{
-        username: "admin-user",
-        display_name: "Admin User",
-        roles: ["admin"],
-        status: "Active"
-      })
+      admin_user =
+        Repo.insert!(%Accounts.User{
+          username: "admin-user",
+          display_name: "Admin User",
+          roles: ["admin"],
+          status: "Active"
+        })
 
       # Insert a viewer user
-      viewer_user = Repo.insert!(%Accounts.User{
-        username: "viewer-user",
-        display_name: "Viewer User",
-        roles: ["viewer"],
-        status: "Active"
-      })
+      viewer_user =
+        Repo.insert!(%Accounts.User{
+          username: "viewer-user",
+          display_name: "Viewer User",
+          roles: ["viewer"],
+          status: "Active"
+        })
 
       {:ok, admin: admin_user, viewer: viewer_user}
     end
@@ -91,22 +97,26 @@ defmodule ExGoCDWeb.API.Admin.EnvironmentControllerTest do
       conn = log_in_as(conn, admin.username)
 
       # Create
-      create_conn = post(conn, ~p"/api/admin/environments", %{
-        "name" => "prod-env",
-        "pipelines" => [%{"name" => p1.name}],
-        "environment_variables" => @valid_vars
-      })
+      create_conn =
+        post(conn, ~p"/api/admin/environments", %{
+          "name" => "prod-env",
+          "pipelines" => [%{"name" => p1.name}],
+          "environment_variables" => @valid_vars
+        })
+
       assert json_response(create_conn, 201)
 
       # Update
       show_conn = get(conn, ~p"/api/admin/environments/prod-env")
       etag = List.first(get_resp_header(show_conn, "etag"))
+
       update_conn =
         conn
         |> put_req_header("if-match", etag)
         |> put(~p"/api/admin/environments/prod-env", %{
           "pipelines" => []
         })
+
       assert json_response(update_conn, 200)
 
       # Delete
@@ -116,11 +126,12 @@ defmodule ExGoCDWeb.API.Admin.EnvironmentControllerTest do
 
     test "allows viewer to read but denies write actions", %{conn: conn, viewer: viewer, p1: p1} do
       # Create an environment first using backend context
-      {:ok, _env} = Environments.create_environment(%{
-        "name" => "stage-env",
-        "pipelines" => [%{"name" => p1.name}],
-        "environment_variables" => @valid_vars
-      })
+      {:ok, _env} =
+        Environments.create_environment(%{
+          "name" => "stage-env",
+          "pipelines" => [%{"name" => p1.name}],
+          "environment_variables" => @valid_vars
+        })
 
       # Log in as viewer
       conn = log_in_as(conn, viewer.username)
@@ -141,6 +152,7 @@ defmodule ExGoCDWeb.API.Admin.EnvironmentControllerTest do
         conn
         |> put_req_header("if-match", etag)
         |> put(~p"/api/admin/environments/stage-env", %{"pipelines" => []})
+
       assert json_response(update_conn, 403)
 
       delete_conn = delete(conn, ~p"/api/admin/environments/stage-env")
@@ -151,15 +163,18 @@ defmodule ExGoCDWeb.API.Admin.EnvironmentControllerTest do
       # Anonymous request (without log_in_as)
       assert get(conn, ~p"/api/admin/environments") |> json_response(403)
       assert get(conn, ~p"/api/admin/environments/stage-env") |> json_response(403)
-      assert post(conn, ~p"/api/admin/environments", %{"name" => "anon-env"}) |> json_response(403)
+
+      assert post(conn, ~p"/api/admin/environments", %{"name" => "anon-env"})
+             |> json_response(403)
     end
 
     test "returns 412 Precondition Failed on ETag mismatch", %{conn: conn, admin: admin, p1: p1} do
-      {:ok, _env} = Environments.create_environment(%{
-        "name" => "precondition-env",
-        "pipelines" => [%{"name" => p1.name}],
-        "environment_variables" => @valid_vars
-      })
+      {:ok, _env} =
+        Environments.create_environment(%{
+          "name" => "precondition-env",
+          "pipelines" => [%{"name" => p1.name}],
+          "environment_variables" => @valid_vars
+        })
 
       conn = log_in_as(conn, admin.username)
 

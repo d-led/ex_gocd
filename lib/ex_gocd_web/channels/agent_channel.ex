@@ -26,8 +26,14 @@ defmodule ExGoCDWeb.AgentChannel do
   the channel process for that agent will push cancelBuild to the WebSocket.
   Call from LiveView or API. Does not check if the build is actually running.
   """
-  def request_cancel_build(agent_uuid, build_id) when is_binary(agent_uuid) and is_binary(build_id) do
-    Phoenix.PubSub.broadcast(ExGoCD.PubSub, @agent_topic_prefix <> agent_uuid, {:cancel_build, build_id})
+  def request_cancel_build(agent_uuid, build_id)
+      when is_binary(agent_uuid) and is_binary(build_id) do
+    Phoenix.PubSub.broadcast(
+      ExGoCD.PubSub,
+      @agent_topic_prefix <> agent_uuid,
+      {:cancel_build, build_id}
+    )
+
     :ok
   end
 
@@ -37,52 +43,56 @@ defmodule ExGoCDWeb.AgentChannel do
     normalized = normalize_join_payload(payload)
     hostname = get_in(normalized, ["hostName"]) || "unknown"
 
-    VsmTracer.trace("agent.connect", %{
-      "agent.uuid" => uuid,
-      "agent.hostname" => hostname
-    }, fn ->
-      result =
-        case Agents.touch_agent_on_heartbeat(uuid, normalized) do
-          :ok ->
-            VsmTracer.set_attr("agent.auth_result", "ok")
-            VsmTracer.set_status(:ok)
-            socket = assign_agent_socket(socket, uuid)
-            socket = maybe_assign_cookie_to_send(socket, uuid)
-            send(self(), :after_join)
-            {:ok, socket}
+    VsmTracer.trace(
+      "agent.connect",
+      %{
+        "agent.uuid" => uuid,
+        "agent.hostname" => hostname
+      },
+      fn ->
+        result =
+          case Agents.touch_agent_on_heartbeat(uuid, normalized) do
+            :ok ->
+              VsmTracer.set_attr("agent.auth_result", "ok")
+              VsmTracer.set_status(:ok)
+              socket = assign_agent_socket(socket, uuid)
+              socket = maybe_assign_cookie_to_send(socket, uuid)
+              send(self(), :after_join)
+              {:ok, socket}
 
-          {:error, :cookie_mismatch} ->
-            VsmTracer.set_attr("agent.auth_result", "cookie_mismatch")
-            VsmTracer.set_status({:error, "cookie mismatch"})
-            # Allow join so we can push setCookie; agent will send cookie on next ping
-            socket = assign_agent_socket(socket, uuid)
-            socket = maybe_assign_cookie_to_send(socket, uuid)
-            send(self(), :after_join)
-            {:ok, socket}
+            {:error, :cookie_mismatch} ->
+              VsmTracer.set_attr("agent.auth_result", "cookie_mismatch")
+              VsmTracer.set_status({:error, "cookie mismatch"})
+              # Allow join so we can push setCookie; agent will send cookie on next ping
+              socket = assign_agent_socket(socket, uuid)
+              socket = maybe_assign_cookie_to_send(socket, uuid)
+              send(self(), :after_join)
+              {:ok, socket}
 
-          {:error, :not_found} ->
-            VsmTracer.set_attr("agent.auth_result", "not_found")
-            VsmTracer.set_status({:error, "agent not found"})
-            socket = assign_agent_socket(socket, uuid)
-            send(self(), :after_join)
-            {:ok, socket}
+            {:error, :not_found} ->
+              VsmTracer.set_attr("agent.auth_result", "not_found")
+              VsmTracer.set_status({:error, "agent not found"})
+              socket = assign_agent_socket(socket, uuid)
+              send(self(), :after_join)
+              {:ok, socket}
+          end
+
+        # Capture span ctx while the span is still active inside the trace block.
+        # The span ends when this block returns — we pre-compute the traceparent
+        # so the async after_join can use it.
+        ctx = VsmTracer.current_ctx()
+        Process.put(:agent_connect_ctx, ctx)
+
+        # All case branches return {:ok, socket}; extract the updated socket.
+        {:ok, socket} = result
+
+        if cookie = socket.assigns[:cookie_to_send] do
+          Process.put(:agent_cookie_payload, VsmTracer.inject_context(%{"cookie" => cookie}))
         end
 
-      # Capture span ctx while the span is still active inside the trace block.
-      # The span ends when this block returns — we pre-compute the traceparent
-      # so the async after_join can use it.
-      ctx = VsmTracer.current_ctx()
-      Process.put(:agent_connect_ctx, ctx)
-
-      # All case branches return {:ok, socket}; extract the updated socket.
-      {:ok, socket} = result
-
-      if cookie = socket.assigns[:cookie_to_send] do
-        Process.put(:agent_cookie_payload, VsmTracer.inject_context(%{"cookie" => cookie}))
+        result
       end
-
-      result
-    end)
+    )
   end
 
   @impl true
@@ -113,10 +123,12 @@ defmodule ExGoCDWeb.AgentChannel do
     |> assign(:agent_topic, @agent_topic_prefix <> uuid)
     |> then(fn s ->
       Phoenix.PubSub.subscribe(ExGoCD.PubSub, s.assigns.agent_topic)
+
       AgentPresence.track(self(), @presence_topic, uuid, %{
         pid: inspect(self()),
         joined_at: System.system_time(:second)
       })
+
       s
     end)
   end
@@ -138,16 +150,21 @@ defmodule ExGoCDWeb.AgentChannel do
   # Payload can be: top-level uuid; or full AgentRuntimeInfo with identifier.uuid (on join/ping).
   defp get_uuid(payload) when is_map(payload) do
     cond do
-      uuid = payload["uuid"] -> uuid
+      uuid = payload["uuid"] ->
+        uuid
+
       id = payload["identifier"] ->
         if is_map(id) do
           id["uuid"] || id["agent_uuid"] || nested_uuid(id["identifier"])
         else
           nil
         end
-      true -> nil
+
+      true ->
+        nil
     end || "unknown"
   end
+
   defp get_uuid(_), do: "unknown"
 
   defp nested_uuid(nil), do: nil
@@ -160,9 +177,11 @@ defmodule ExGoCDWeb.AgentChannel do
     runtime_info = payload["agentRuntimeInfo"] || payload["data"] || payload
     _ = Agents.touch_agent_on_heartbeat(socket.assigns.agent_uuid, runtime_info)
     # GoCD-style: when agent reports Idle, try to assign work from the scheduler queue.
-    if (runtime_info["runtimeStatus"] || get_in(payload, ["agentRuntimeInfo", "runtimeStatus"])) == "Idle" do
+    if (runtime_info["runtimeStatus"] || get_in(payload, ["agentRuntimeInfo", "runtimeStatus"])) ==
+         "Idle" do
       _ = Scheduler.try_assign_work(socket.assigns.agent_uuid)
     end
+
     {:reply, {:ok, %{}}, socket}
   end
 

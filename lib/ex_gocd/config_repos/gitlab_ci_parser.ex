@@ -18,8 +18,10 @@ defmodule ExGoCD.ConfigRepos.GitLabCIParser do
 
   Returns `{:ok, ir}` or `{:error, reason}`.
   """
-  @spec parse_gitlab_ci(String.t(), String.t()) :: {:ok, ExternalPipelineIR.t()} | {:error, String.t()}
-  def parse_gitlab_ci(yaml_string, source_file) when is_binary(yaml_string) and is_binary(source_file) do
+  @spec parse_gitlab_ci(String.t(), String.t()) ::
+          {:ok, ExternalPipelineIR.t()} | {:error, String.t()}
+  def parse_gitlab_ci(yaml_string, source_file)
+      when is_binary(yaml_string) and is_binary(source_file) do
     with {:ok, parsed} <- parse_yaml(yaml_string),
          :ok <- ensure_map(parsed) do
       name = pipeline_name(parsed, source_file)
@@ -28,16 +30,18 @@ defmodule ExGoCD.ConfigRepos.GitLabCIParser do
       includes = extract_includes(parsed["include"])
       jobs_map = extract_jobs(parsed, stages)
 
-      ir = ExternalPipelineIR.new(
-        source_type: "gitlab_ci",
-        source_file: source_file,
-        name: name,
-        triggers: [], # GitLab CI triggers via rules, not top-level on:
-        env_vars: env_vars,
-        stages: stages,
-        jobs: jobs_map,
-        includes: includes
-      )
+      ir =
+        ExternalPipelineIR.new(
+          source_type: "gitlab_ci",
+          source_file: source_file,
+          name: name,
+          # GitLab CI triggers via rules, not top-level on:
+          triggers: [],
+          env_vars: env_vars,
+          stages: stages,
+          jobs: jobs_map,
+          includes: includes
+        )
 
       {:ok, ir}
     end
@@ -50,7 +54,9 @@ defmodule ExGoCD.ConfigRepos.GitLabCIParser do
 
   defp pipeline_name(parsed, source_file) do
     case parsed["workflow"] do
-      %{"name" => name} when is_binary(name) -> name
+      %{"name" => name} when is_binary(name) ->
+        name
+
       _ ->
         source_file
         |> Path.basename()
@@ -68,6 +74,7 @@ defmodule ExGoCD.ConfigRepos.GitLabCIParser do
   # --- Env vars ---
 
   defp extract_env_vars(nil), do: %{}
+
   defp extract_env_vars(vars) when is_map(vars) do
     # GitLab variables can be string values or {value:, description:, options:} maps
     Map.new(vars, fn {k, v} ->
@@ -75,14 +82,17 @@ defmodule ExGoCD.ConfigRepos.GitLabCIParser do
       {k, val}
     end)
   end
+
   defp extract_env_vars(_), do: %{}
 
   # --- Includes ---
 
   defp extract_includes(nil), do: []
+
   defp extract_includes(includes) when is_list(includes) do
     Enum.flat_map(includes, &extract_single_include/1)
   end
+
   defp extract_includes(single) when is_map(single), do: extract_single_include(single)
   defp extract_includes(single) when is_binary(single), do: [single]
 
@@ -132,17 +142,20 @@ defmodule ExGoCD.ConfigRepos.GitLabCIParser do
       when: when_val
     }
   end
+
   defp extract_single_job(job_id, _job_data, _stages) do
     %{stage: job_id, needs: [], steps: [], tags: [], rules: [], when: nil}
   end
 
   defp extract_job_needs(nil), do: []
+
   defp extract_job_needs(needs) when is_list(needs) do
     Enum.map(needs, fn
       n when is_binary(n) -> n
       n when is_map(n) -> n["job"] || n["pipeline"]
     end)
   end
+
   defp extract_job_needs(needs) when is_binary(needs), do: [needs]
 
   defp extract_job_steps(job_data) when is_map(job_data) do
@@ -154,9 +167,11 @@ defmodule ExGoCD.ConfigRepos.GitLabCIParser do
   end
 
   defp extract_script_commands(nil, _type), do: []
+
   defp extract_script_commands(commands, type) when is_binary(commands) do
     [%{type: type, command: commands}]
   end
+
   defp extract_script_commands(commands, type) when is_list(commands) do
     Enum.map(commands, fn
       cmd when is_binary(cmd) -> %{type: type, command: cmd}
@@ -176,7 +191,9 @@ defmodule ExGoCD.ConfigRepos.GitLabCIParser do
         |> maybe_put(:changes, rule["changes"])
         |> maybe_put(:exists, rule["exists"])
         |> maybe_put(:allow_failure, rule["allow_failure"])
-      _ -> %{}
+
+      _ ->
+        %{}
     end)
   end
 

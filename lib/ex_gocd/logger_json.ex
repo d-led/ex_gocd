@@ -84,7 +84,17 @@ defmodule ExGoCD.LoggerJSON do
     # Build ISO8601 directly from Erlang timestamp to avoid NaiveDateTime API changes
     {y, mo, d} = date
     # us is microseconds, format with leading zeros to 6 digits
-    ts = :io_lib.format(~c"~4..0B-~2..0B-~2..0BT~2..0B:~2..0B:~2..0B.~6..0BZ", [y, mo, d, h, m, s, us])
+    ts =
+      :io_lib.format(~c"~4..0B-~2..0B-~2..0BT~2..0B:~2..0B:~2..0B.~6..0BZ", [
+        y,
+        mo,
+        d,
+        h,
+        m,
+        s,
+        us
+      ])
+
     IO.iodata_to_binary(ts)
   end
 
@@ -95,8 +105,8 @@ defmodule ExGoCD.LoggerJSON do
       ctx = :otel_ctx.get_current()
 
       case :otel_tracer.current_span_ctx(ctx) do
-        {:span_ctx, _version, trace_id, span_id, _parent_id, _flags, _tracestate,
-         _is_recording, true = _is_valid, _timestamp, _instrumentation_scope}
+        {:span_ctx, _version, trace_id, span_id, _parent_id, _flags, _tracestate, _is_recording,
+         true = _is_valid, _timestamp, _instrumentation_scope}
         when byte_size(trace_id) == 16 and byte_size(span_id) == 8 ->
           Map.merge(entry, %{
             "trace_id" => Base.encode16(trace_id, case: :lower),

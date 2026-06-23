@@ -6,6 +6,7 @@ defmodule ExGoCD.Repo.Migrations.CreateTemplatesAndParameterSupport do
       add :name, :string, null: false
       timestamps(type: :utc_datetime)
     end
+
     create unique_index(:templates, [:name])
 
     alter table(:stages) do

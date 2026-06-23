@@ -8,6 +8,7 @@ defmodule ExGoCD.Policies do
   """
   def permit?(policy_module, action, user, params \\ []) do
     params = if Keyword.keyword?(params), do: Map.new(params), else: params
+
     case policy_module.authorize(action, user, params) do
       :ok -> true
       _ -> false

@@ -26,7 +26,11 @@ defmodule ExGoCD.Pipelines.StageTest do
     test "requires name and pipeline_id" do
       changeset = Stage.changeset(%Stage{}, %{})
       errors = errors_on(changeset)
-      assert %{name: ["can't be blank"], pipeline_id: ["either pipeline_id or template_id must be present"]} = errors
+
+      assert %{
+               name: ["can't be blank"],
+               pipeline_id: ["either pipeline_id or template_id must be present"]
+             } = errors
     end
 
     test "validates approval_type inclusion" do

@@ -26,7 +26,9 @@ defmodule ExGoCDWeb.API.PersonalAccessTokenControllerTest do
       assert json_response(conn_show, 401) == %{"error" => "Unauthorized"}
 
       # POST create
-      conn_create = post(conn, ~p"/api/current_user/access_tokens", %{"description" => "Test token"})
+      conn_create =
+        post(conn, ~p"/api/current_user/access_tokens", %{"description" => "Test token"})
+
       assert json_response(conn_create, 401) == %{"error" => "Unauthorized"}
 
       # POST revoke
@@ -36,24 +38,28 @@ defmodule ExGoCDWeb.API.PersonalAccessTokenControllerTest do
 
     test "creates, lists, shows, and revokes tokens for authenticated user", %{conn: conn} do
       # 1. Create a user
-      {:ok, user} = Accounts.create_user(%{
-        username: "user_test",
-        display_name: "User Test",
-        roles: [],
-        status: "Active"
-      })
+      {:ok, user} =
+        Accounts.create_user(%{
+          username: "user_test",
+          display_name: "User Test",
+          roles: [],
+          status: "Active"
+        })
 
       conn = log_in_as(conn, user.username)
 
       # 2. POST create token
-      conn_create = post(conn, ~p"/api/current_user/access_tokens", %{"description" => "Token for CLI"})
+      conn_create =
+        post(conn, ~p"/api/current_user/access_tokens", %{"description" => "Token for CLI"})
+
       assert token_resp = json_response(conn_create, 201)
 
       assert token_resp["id"] != nil
       assert token_resp["description"] == "Token for CLI"
       assert token_resp["username"] == "user_test"
       assert token_resp["revoked"] == false
-      assert token_resp["token"] != nil # Plain text token returned
+      # Plain text token returned
+      assert token_resp["token"] != nil
       _raw_token = token_resp["token"]
       token_id = token_resp["id"]
 
@@ -64,17 +70,23 @@ defmodule ExGoCDWeb.API.PersonalAccessTokenControllerTest do
       [list_token] = list_resp
       assert list_token["id"] == token_id
       assert list_token["description"] == "Token for CLI"
-      assert list_token["token"] == nil # No plain text token
+      # No plain text token
+      assert list_token["token"] == nil
 
       # 4. GET show (details)
       conn_show = get(conn, ~p"/api/current_user/access_tokens/#{token_id}")
       assert show_resp = json_response(conn_show, 200)
       assert show_resp["id"] == token_id
       assert show_resp["description"] == "Token for CLI"
-      assert show_resp["token"] == nil # No plain text token
+      # No plain text token
+      assert show_resp["token"] == nil
 
       # 5. POST revoke
-      conn_rev = post(conn, ~p"/api/current_user/access_tokens/#{token_id}/revoke", %{"revoke_cause" => "token leak"})
+      conn_rev =
+        post(conn, ~p"/api/current_user/access_tokens/#{token_id}/revoke", %{
+          "revoke_cause" => "token leak"
+        })
+
       assert rev_resp = json_response(conn_rev, 200)
       assert rev_resp["id"] == token_id
       assert rev_resp["revoked"] == true
@@ -84,8 +96,11 @@ defmodule ExGoCDWeb.API.PersonalAccessTokenControllerTest do
     end
 
     test "does not let a user view or revoke another user's token", %{conn: conn} do
-      {:ok, user1} = Accounts.create_user(%{username: "user1", display_name: "U1", status: "Active"})
-      {:ok, user2} = Accounts.create_user(%{username: "user2", display_name: "U2", status: "Active"})
+      {:ok, user1} =
+        Accounts.create_user(%{username: "user1", display_name: "U1", status: "Active"})
+
+      {:ok, user2} =
+        Accounts.create_user(%{username: "user2", display_name: "U2", status: "Active"})
 
       # Create token for user1
       {:ok, token} = Accounts.create_user_token(user1.id, "User1 token")
@@ -105,22 +120,30 @@ defmodule ExGoCDWeb.API.PersonalAccessTokenControllerTest do
 
   describe "Bearer Token API Authentication" do
     test "authenticates requests with a valid Bearer token", %{conn: conn} do
-      {:ok, user} = Accounts.create_user(%{
-        username: "api_user",
-        display_name: "API User",
-        roles: ["admin"],
-        status: "Active"
-      })
+      {:ok, user} =
+        Accounts.create_user(%{
+          username: "api_user",
+          display_name: "API User",
+          roles: ["admin"],
+          status: "Active"
+        })
 
       {:ok, token} = Accounts.create_user_token(user.id, "API token")
 
       # Access version endpoint without token
       conn_no_auth = get(conn, ~p"/api/version")
-      assert json_response(conn_no_auth, 200) # Public endpoint, works without auth
+      # Public endpoint, works without auth
+      assert json_response(conn_no_auth, 200)
 
       # Access protected endpoint /api/admin/environments (requires admin/developer/viewer permissions)
       # Let's activate security by configuring another admin user in the system
-      {:ok, _} = Accounts.create_user(%{username: "system_admin", display_name: "Admin", roles: ["admin"], status: "Active"})
+      {:ok, _} =
+        Accounts.create_user(%{
+          username: "system_admin",
+          display_name: "Admin",
+          roles: ["admin"],
+          status: "Active"
+        })
 
       # No auth -> 403 Forbidden because they are guest viewer now
       conn_guest = get(conn, ~p"/api/admin/environments")
@@ -141,8 +164,16 @@ defmodule ExGoCDWeb.API.PersonalAccessTokenControllerTest do
 
     test "rejects requests with invalid or revoked Bearer token", %{conn: conn} do
       # Seed system admin to activate security mode
-      {:ok, _} = Accounts.create_user(%{username: "sys_admin", display_name: "Admin", roles: ["admin"], status: "Active"})
-      {:ok, user} = Accounts.create_user(%{username: "user_revoked", display_name: "U", status: "Active"})
+      {:ok, _} =
+        Accounts.create_user(%{
+          username: "sys_admin",
+          display_name: "Admin",
+          roles: ["admin"],
+          status: "Active"
+        })
+
+      {:ok, user} =
+        Accounts.create_user(%{username: "user_revoked", display_name: "U", status: "Active"})
 
       {:ok, token} = Accounts.create_user_token(user.id, "Revoked token")
       {:ok, _} = Accounts.revoke_token(token, "sys_admin")

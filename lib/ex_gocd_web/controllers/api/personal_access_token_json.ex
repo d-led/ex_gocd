@@ -35,6 +35,7 @@ defmodule ExGoCDWeb.API.PersonalAccessTokenJSON do
   end
 
   defp format_time(nil), do: nil
+
   defp format_time(dt) do
     DateTime.to_iso8601(dt)
   end

@@ -12,13 +12,21 @@ defmodule ExGoCDWeb.API.Admin.BackupController do
       File.mkdir_p!(backup_dir)
       backup_path = Path.join(backup_dir, "ex_gocd_backup_#{timestamp}.dump")
 
-      case System.cmd("pg_dump", [
-        "-Fc",
-        "-f", backup_path,
-        "-h", db_host(),
-        "-U", db_user(),
-        db_name()
-      ], env: [{"PGPASSWORD", db_password()}], stderr_to_stdout: true) do
+      case System.cmd(
+             "pg_dump",
+             [
+               "-Fc",
+               "-f",
+               backup_path,
+               "-h",
+               db_host(),
+               "-U",
+               db_user(),
+               db_name()
+             ],
+             env: [{"PGPASSWORD", db_password()}],
+             stderr_to_stdout: true
+           ) do
         {_, 0} ->
           Logger.info("Backup created: #{backup_path}")
 

@@ -18,12 +18,20 @@ defmodule ExGoCDWeb.API.WebhookControllerTest do
     # Clear mock configuration revision
     Application.delete_env(:ex_gocd, :mock_git_revision)
 
+    on_exit(fn ->
+      Application.delete_env(:ex_gocd, :mock_git_revision)
+    end)
+
     {:ok, conn: conn}
   end
 
   describe "POST /api/admin/materials/git/notify" do
     test "returns 400 when Confirm header is missing", %{conn: conn} do
-      conn = post(conn, ~p"/api/admin/materials/git/notify", %{"repository_url" => "https://github.com/d-led/ex_gocd"})
+      conn =
+        post(conn, ~p"/api/admin/materials/git/notify", %{
+          "repository_url" => "https://github.com/d-led/ex_gocd"
+        })
+
       assert json_response(conn, 400) == %{"error" => "Missing required header 'Confirm: true'"}
     end
 
@@ -46,10 +54,14 @@ defmodule ExGoCDWeb.API.WebhookControllerTest do
       conn =
         conn
         |> put_req_header("confirm", "true")
-        |> post(~p"/api/admin/materials/git/notify", %{"repository_url" => "https://github.com/d-led/ex_gocd"})
+        |> post(~p"/api/admin/materials/git/notify", %{
+          "repository_url" => "https://github.com/d-led/ex_gocd"
+        })
 
       assert response = json_response(conn, 202)
-      assert response["message"] == "The material is now scheduled for an update. Please check relevant pipeline(s) for status."
+
+      assert response["message"] ==
+               "The material is now scheduled for an update. Please check relevant pipeline(s) for status."
 
       # Polling is synchronous in test mode — DB is already updated
       assert Repo.exists?(from m in Modification, where: m.revision == ^sha)
@@ -88,6 +100,7 @@ defmodule ExGoCDWeb.API.WebhookControllerTest do
           "clone_url" => "https://github.com/d-led/ex_gocd.git"
         }
       }
+
       body = Phoenix.json_library().encode!(payload)
 
       # 1. Request with invalid signature
@@ -172,13 +185,16 @@ defmodule ExGoCDWeb.API.WebhookControllerTest do
   # Helper functions
 
   defp seed_pipeline_with_stages(url, name) do
-    material = Repo.insert!(%Material{
-      type: "git",
-      url: url,
-      branch: "master",
-      auto_update: true
-    })
+    material =
+      Repo.insert!(%Material{
+        type: "git",
+        url: url,
+        branch: "master",
+        auto_update: true
+      })
+
     pipeline = Repo.insert!(%Pipeline{name: name, group: "default"})
+
     Repo.insert_all("pipelines_materials", [%{pipeline_id: pipeline.id, material_id: material.id}])
 
     # Add stage and job configurations

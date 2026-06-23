@@ -41,7 +41,16 @@ defmodule ExGoCD.ConfigRepos.ConfigRepo do
   @spec changeset(t(), map()) :: Ecto.Changeset.t()
   def changeset(config_repo, attrs) do
     config_repo
-    |> cast(attrs, [:url, :branch, :material_type, :source_type, :plugin_id, :configuration, :last_parsed_at, :error_message])
+    |> cast(attrs, [
+      :url,
+      :branch,
+      :material_type,
+      :source_type,
+      :plugin_id,
+      :configuration,
+      :last_parsed_at,
+      :error_message
+    ])
     |> validate_required([:url])
     |> validate_format(:url, ~r{^https?://|^git@}, message: "must be a valid git URL")
     |> validate_inclusion(:material_type, ["git"])

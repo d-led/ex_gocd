@@ -8,9 +8,24 @@ defmodule ExGoCDWeb.AdminLiveTest do
     alias ExGoCD.Repo
 
     # Clean sandbox insert
-    Repo.insert!(%Pipeline{name: "build-linux", group: "defaultGroup", label_template: "${COUNT}"})
-    Repo.insert!(%Pipeline{name: "deploy-staging", group: "defaultGroup", label_template: "${COUNT}"})
-    Repo.insert!(%Pipeline{name: "deploy-production", group: "defaultGroup", label_template: "${COUNT}"})
+    Repo.insert!(%Pipeline{
+      name: "build-linux",
+      group: "defaultGroup",
+      label_template: "${COUNT}"
+    })
+
+    Repo.insert!(%Pipeline{
+      name: "deploy-staging",
+      group: "defaultGroup",
+      label_template: "${COUNT}"
+    })
+
+    Repo.insert!(%Pipeline{
+      name: "deploy-production",
+      group: "defaultGroup",
+      label_template: "${COUNT}"
+    })
+
     Repo.insert!(%Pipeline{name: "demo-app", group: "testGroup", label_template: "${COUNT}"})
     Repo.insert!(%Pipeline{name: "e2e-tests", group: "testGroup", label_template: "${COUNT}"})
 
@@ -19,9 +34,29 @@ defmodule ExGoCDWeb.AdminLiveTest do
     {:ok, _} = ExGoCD.Environments.create_environment(%{"name" => "production"})
 
     # Seed default users — GoCD security mode requires at least one admin to enforce RBAC
-    {:ok, _} = ExGoCD.Accounts.create_user(%{username: "admin", display_name: "System Administrator", roles: ["admin", "developer"], status: "Active"})
-    {:ok, _} = ExGoCD.Accounts.create_user(%{username: "developer", display_name: "Lead Developer", roles: ["developer"], status: "Active"})
-    {:ok, _} = ExGoCD.Accounts.create_user(%{username: "viewer", display_name: "Guest Viewer", roles: [], status: "Active"})
+    {:ok, _} =
+      ExGoCD.Accounts.create_user(%{
+        username: "admin",
+        display_name: "System Administrator",
+        roles: ["admin", "developer"],
+        status: "Active"
+      })
+
+    {:ok, _} =
+      ExGoCD.Accounts.create_user(%{
+        username: "developer",
+        display_name: "Lead Developer",
+        roles: ["developer"],
+        status: "Active"
+      })
+
+    {:ok, _} =
+      ExGoCD.Accounts.create_user(%{
+        username: "viewer",
+        display_name: "Guest Viewer",
+        roles: [],
+        status: "Active"
+      })
 
     # Seed audit log entries for the audit log tab
     ExGoCD.AuditLog.Events.admin_cleanup_stuck_jobs("admin", 3)
@@ -249,7 +284,10 @@ defmodule ExGoCDWeb.AdminLiveTest do
 
       # Toggle user status (Disable johndoe)
       view
-      |> element("button[phx-click='toggle_user_status'][phx-value-id='#{johndoe.id}']", "Disable")
+      |> element(
+        "button[phx-click='toggle_user_status'][phx-value-id='#{johndoe.id}']",
+        "Disable"
+      )
       |> render_click()
 
       assert render(view) =~ "User status updated successfully"

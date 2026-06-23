@@ -20,7 +20,9 @@ defmodule ExGoCD.AccountsTest do
     test "changeset requires username and display_name" do
       changeset = User.changeset(%User{}, %{})
       refute changeset.valid?
-      assert %{username: ["can't be blank"], display_name: ["can't be blank"]} = errors_on(changeset)
+
+      assert %{username: ["can't be blank"], display_name: ["can't be blank"]} =
+               errors_on(changeset)
     end
 
     test "changeset validates status values" do
@@ -64,7 +66,9 @@ defmodule ExGoCD.AccountsTest do
     end
 
     test "create_user/1 with valid attributes creates a user" do
-      assert {:ok, %User{} = user} = Accounts.create_user(%{username: "alice", display_name: "Alice"})
+      assert {:ok, %User{} = user} =
+               Accounts.create_user(%{username: "alice", display_name: "Alice"})
+
       assert user.username == "alice"
       assert user.display_name == "Alice"
       assert user.roles == []
@@ -73,13 +77,19 @@ defmodule ExGoCD.AccountsTest do
 
     test "create_user/1 enforces username uniqueness constraint" do
       {:ok, _} = Accounts.create_user(%{username: "alice", display_name: "Alice"})
-      assert {:error, changeset} = Accounts.create_user(%{username: "alice", display_name: "Alice 2"})
+
+      assert {:error, changeset} =
+               Accounts.create_user(%{username: "alice", display_name: "Alice 2"})
+
       assert %{username: ["has already been taken"]} = errors_on(changeset)
     end
 
     test "update_user/2 updates fields" do
       {:ok, user} = Accounts.create_user(%{username: "alice", display_name: "Alice"})
-      assert {:ok, updated} = Accounts.update_user(user, %{display_name: "Alice Cooper", roles: ["admin"]})
+
+      assert {:ok, updated} =
+               Accounts.update_user(user, %{display_name: "Alice Cooper", roles: ["admin"]})
+
       assert updated.display_name == "Alice Cooper"
       assert updated.roles == ["admin"]
     end
@@ -100,14 +110,18 @@ defmodule ExGoCD.AccountsTest do
 
     test "unauthenticated guest is viewer when an admin-role user is configured" do
       # Seeding a user with the admin role activates GoCD security mode
-      {:ok, _} = Accounts.create_user(%{username: "admin", display_name: "Admin", roles: ["admin"]})
+      {:ok, _} =
+        Accounts.create_user(%{username: "admin", display_name: "Admin", roles: ["admin"]})
+
       user = Accounts.get_current_user(%{})
       assert user.username == "guest"
       refute User.has_role?(user, :admin)
     end
 
     test "session matches existing active user in DB" do
-      {:ok, db_user} = Accounts.create_user(%{username: "alice", display_name: "Alice", roles: ["developer"]})
+      {:ok, db_user} =
+        Accounts.create_user(%{username: "alice", display_name: "Alice", roles: ["developer"]})
+
       user = Accounts.get_current_user(%{"username" => "alice"})
       assert user.id == db_user.id
       assert user.username == "alice"
@@ -115,7 +129,14 @@ defmodule ExGoCD.AccountsTest do
     end
 
     test "session matches existing disabled user in DB clears all active roles" do
-      {:ok, db_user} = Accounts.create_user(%{username: "alice", display_name: "Alice", roles: ["developer"], status: "Disabled"})
+      {:ok, db_user} =
+        Accounts.create_user(%{
+          username: "alice",
+          display_name: "Alice",
+          roles: ["developer"],
+          status: "Disabled"
+        })
+
       user = Accounts.get_current_user(%{"username" => "alice"})
       assert user.id == db_user.id
       refute User.has_role?(user, :developer)

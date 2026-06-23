@@ -35,8 +35,9 @@ defmodule ExGoCDWeb.API.PipelineInstanceController do
   def show(conn, %{"pipeline_name" => name, "counter" => counter_str}) do
     counter = String.to_integer(counter_str)
 
-    instance = Pipelines.get_pipeline_instance(name, counter)
-    |> Repo.preload([:pipeline, stage_instances: [:stage, job_instances: :job]])
+    instance =
+      Pipelines.get_pipeline_instance(name, counter)
+      |> Repo.preload([:pipeline, stage_instances: [:stage, job_instances: :job]])
 
     if is_nil(instance) do
       conn |> put_status(:not_found) |> json(%{message: "Pipeline instance not found."})

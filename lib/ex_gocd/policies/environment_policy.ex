@@ -12,7 +12,8 @@ defmodule ExGoCD.Policies.EnvironmentPolicy do
   end
 
   def authorize(:view_environments, %User{} = user, _params) do
-    if User.has_role?(user, :admin) or User.has_role?(user, :developer) or User.has_role?(user, :viewer) do
+    if User.has_role?(user, :admin) or User.has_role?(user, :developer) or
+         User.has_role?(user, :viewer) do
       :ok
     else
       {:error, :forbidden}

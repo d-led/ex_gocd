@@ -17,6 +17,7 @@ defmodule ExGoCDWeb.API.BuildConsoleController do
     case read_body(conn) do
       {:ok, body, conn2} ->
         masked = mask_secrets(body)
+
         case AgentJobRuns.append_console(build_id, masked) do
           {:ok, _run} ->
             send_resp(conn2, 204, "")

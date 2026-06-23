@@ -8,16 +8,29 @@ defmodule ExGoCDWeb.PipelineConfigLiveTest do
 
   setup do
     # Create a full pipeline config hierarchy for testing updates
-    pipeline = Repo.insert!(%Pipeline{name: "test-pipeline", group: "default", label_template: "${COUNT}"})
-    material = Repo.insert!(%Material{type: "git", url: "git@github.com:test/repo.git", branch: "master"})
+    pipeline =
+      Repo.insert!(%Pipeline{name: "test-pipeline", group: "default", label_template: "${COUNT}"})
+
+    material =
+      Repo.insert!(%Material{type: "git", url: "git@github.com:test/repo.git", branch: "master"})
+
     {:ok, _} = Pipelines.add_material_to_pipeline(pipeline, material)
 
-    stage = Repo.insert!(%Stage{name: "build-stage", approval_type: "success", pipeline_id: pipeline.id})
+    stage =
+      Repo.insert!(%Stage{
+        name: "build-stage",
+        approval_type: "success",
+        pipeline_id: pipeline.id
+      })
+
     job = Repo.insert!(%Job{name: "build-job", resources: ["elixir"], stage_id: stage.id})
 
     # Insert two tasks to verify ordering/reordering
-    task1 = Repo.insert!(%Task{type: "exec", command: "echo", arguments: ["task1"], job_id: job.id})
-    task2 = Repo.insert!(%Task{type: "exec", command: "echo", arguments: ["task2"], job_id: job.id})
+    task1 =
+      Repo.insert!(%Task{type: "exec", command: "echo", arguments: ["task1"], job_id: job.id})
+
+    task2 =
+      Repo.insert!(%Task{type: "exec", command: "echo", arguments: ["task2"], job_id: job.id})
 
     # Preload pipeline properly
     pipeline = Pipelines.get_pipeline_by_name!("test-pipeline")
@@ -54,7 +67,11 @@ defmodule ExGoCDWeb.PipelineConfigLiveTest do
       assert updated.lock_behavior == "lockOnFailure"
     end
 
-    test "adds, edits, and removes materials configuration", %{conn: conn, pipeline: pipeline, material: material} do
+    test "adds, edits, and removes materials configuration", %{
+      conn: conn,
+      pipeline: pipeline,
+      material: material
+    } do
       {:ok, view, _html} = live(conn, ~p"/admin/pipelines/#{pipeline.name}/edit/materials")
 
       # Initially contains test/repo.git
@@ -86,9 +103,13 @@ defmodule ExGoCDWeb.PipelineConfigLiveTest do
       refute render(view) =~ "git@github.com:test/repo.git"
     end
 
-    test "validates and rejects circular or missing pipeline dependencies in materials UI", %{conn: conn, pipeline: pipeline} do
+    test "validates and rejects circular or missing pipeline dependencies in materials UI", %{
+      conn: conn,
+      pipeline: pipeline
+    } do
       # Create another pipeline so we can establish dependencies
-      _pipe_b = Repo.insert!(%Pipeline{name: "pipe-b", group: "default", label_template: "${COUNT}"})
+      _pipe_b =
+        Repo.insert!(%Pipeline{name: "pipe-b", group: "default", label_template: "${COUNT}"})
 
       {:ok, view, _html} = live(conn, ~p"/admin/pipelines/#{pipeline.name}/edit/materials")
 
@@ -104,7 +125,8 @@ defmodule ExGoCDWeb.PipelineConfigLiveTest do
       })
       |> render_submit()
 
-      assert render(view) =~ "Error: Referenced pipeline &#39;non-existent-pipeline&#39; does not exist"
+      assert render(view) =~
+               "Error: Referenced pipeline &#39;non-existent-pipeline&#39; does not exist"
 
       # 2. Attempt to introduce a circular dependency
       # Make test-pipeline depend on pipe-b first
@@ -129,8 +151,13 @@ defmodule ExGoCDWeb.PipelineConfigLiveTest do
       assert render(view_b) =~ "Error: Circular dependency detected"
     end
 
-    test "updates Stage settings and lists/creates/deletes jobs", %{conn: conn, pipeline: pipeline, stage: stage} do
-      {:ok, view, _html} = live(conn, ~p"/admin/pipelines/#{pipeline.name}/edit/stages/#{stage.name}/settings")
+    test "updates Stage settings and lists/creates/deletes jobs", %{
+      conn: conn,
+      pipeline: pipeline,
+      stage: stage
+    } do
+      {:ok, view, _html} =
+        live(conn, ~p"/admin/pipelines/#{pipeline.name}/edit/stages/#{stage.name}/settings")
 
       # Update stage settings
       view
@@ -143,7 +170,8 @@ defmodule ExGoCDWeb.PipelineConfigLiveTest do
       assert render(view) =~ "Stage updated successfully"
 
       # Navigate to Stage Jobs tab
-      {:ok, view, _html} = live(conn, ~p"/admin/pipelines/#{pipeline.name}/edit/stages/new-stage-name/jobs")
+      {:ok, view, _html} =
+        live(conn, ~p"/admin/pipelines/#{pipeline.name}/edit/stages/new-stage-name/jobs")
 
       assert render(view) =~ "build-job"
 
@@ -159,9 +187,20 @@ defmodule ExGoCDWeb.PipelineConfigLiveTest do
       assert render(view) =~ "test-job"
     end
 
-    test "updates Job settings and manages/reorders tasks", %{conn: conn, pipeline: pipeline, stage: stage, job: job, task1: task1, task2: _task2} do
+    test "updates Job settings and manages/reorders tasks", %{
+      conn: conn,
+      pipeline: pipeline,
+      stage: stage,
+      job: job,
+      task1: task1,
+      task2: _task2
+    } do
       # Edit Job Settings
-      {:ok, view, _html} = live(conn, ~p"/admin/pipelines/#{pipeline.name}/edit/stages/#{stage.name}/jobs/#{job.name}/settings")
+      {:ok, view, _html} =
+        live(
+          conn,
+          ~p"/admin/pipelines/#{pipeline.name}/edit/stages/#{stage.name}/jobs/#{job.name}/settings"
+        )
 
       view
       |> form("form", %{
@@ -174,7 +213,11 @@ defmodule ExGoCDWeb.PipelineConfigLiveTest do
       assert render(view) =~ "Job configuration updated successfully"
 
       # Go to job tasks
-      {:ok, view, _html} = live(conn, ~p"/admin/pipelines/#{pipeline.name}/edit/stages/#{stage.name}/jobs/renamed-job/tasks")
+      {:ok, view, _html} =
+        live(
+          conn,
+          ~p"/admin/pipelines/#{pipeline.name}/edit/stages/#{stage.name}/jobs/renamed-job/tasks"
+        )
 
       # Verify tasks present
       assert render(view) =~ "task1"
@@ -182,7 +225,9 @@ defmodule ExGoCDWeb.PipelineConfigLiveTest do
 
       # Click move_task "down" on task1 (first task) to swap order
       view
-      |> element("button[phx-click='move_task'][phx-value-id='#{task1.id}'][phx-value-dir='down']")
+      |> element(
+        "button[phx-click='move_task'][phx-value-id='#{task1.id}'][phx-value-dir='down']"
+      )
       |> render_click()
 
       assert render(view) =~ "Task reordered successfully"

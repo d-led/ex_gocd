@@ -28,7 +28,8 @@ defmodule ExGoCD.Materials.Poller do
   # Callbacks
   @impl true
   def init(opts) do
-    interval = Keyword.get(opts, :interval) || Application.get_env(:ex_gocd, :poller_interval, 60_000)
+    interval =
+      Keyword.get(opts, :interval) || Application.get_env(:ex_gocd, :poller_interval, 60_000)
 
     if is_integer(interval) do
       schedule_poll(interval)
@@ -40,9 +41,11 @@ defmodule ExGoCD.Materials.Poller do
   @impl true
   def handle_info(:poll, state) do
     do_poll()
+
     if is_integer(state.interval) do
       schedule_poll(state.interval)
     end
+
     {:noreply, state}
   end
 
@@ -68,7 +71,9 @@ defmodule ExGoCD.Materials.Poller do
     import Ecto.Query
 
     materials =
-      Repo.all(from m in Material, where: m.type in ["git", "svn", "hg", "p4"] and m.auto_update == true)
+      Repo.all(
+        from m in Material, where: m.type in ["git", "svn", "hg", "p4"] and m.auto_update == true
+      )
       |> Repo.preload(:pipelines)
 
     poll_materials(materials)
@@ -105,13 +110,18 @@ defmodule ExGoCD.Materials.Poller do
     latest_mod = Pipelines.get_latest_modification(material.id)
 
     if is_nil(latest_mod) or latest_mod.revision != commit_info.revision do
-      Logger.info("SCM Poller: new commit detected on #{material.url} [#{material.branch}]: #{commit_info.revision}")
+      Logger.info(
+        "SCM Poller: new commit detected on #{material.url} [#{material.branch}]: #{commit_info.revision}"
+      )
 
       # Insert modification
       attrs = Map.put(commit_info, :material_id, material.id)
+
       case Pipelines.create_modification(attrs) do
         {:ok, _mod} ->
-          triggered = Enum.map(material.pipelines, &trigger_associated_pipeline(&1, commit_info.revision))
+          triggered =
+            Enum.map(material.pipelines, &trigger_associated_pipeline(&1, commit_info.revision))
+
           {:new_commit, material.id, commit_info.revision, triggered}
 
         {:error, changeset} ->
@@ -125,13 +135,19 @@ defmodule ExGoCD.Materials.Poller do
   end
 
   defp trigger_associated_pipeline(pipeline, revision) do
-    case Pipelines.trigger_pipeline(pipeline.name) do
+    case Pipelines.trigger_pipeline(pipeline.name, %{auto_trigger: true}) do
       {:ok, instance} ->
-        Logger.info("SCM Poller: triggered pipeline #{pipeline.name} (run ##{instance.counter}) due to commit #{revision}")
+        Logger.info(
+          "SCM Poller: triggered pipeline #{pipeline.name} (run ##{instance.counter}) due to commit #{revision}"
+        )
+
         {pipeline.name, :triggered, instance.counter}
 
       {:error, reason} ->
-        Logger.warning("SCM Poller: failed to trigger pipeline #{pipeline.name}: #{inspect(reason)}")
+        Logger.warning(
+          "SCM Poller: failed to trigger pipeline #{pipeline.name}: #{inspect(reason)}"
+        )
+
         {pipeline.name, :error, reason}
     end
   end
@@ -148,5 +164,6 @@ defmodule ExGoCD.Materials.Poller do
     |> String.replace(~r/\.git$/, "")
     |> String.downcase()
   end
+
   def normalize_git_url(_), do: ""
 end

@@ -17,7 +17,7 @@ const assertWithinHorizontalViewport = ($el) => {
   const rect = $el[0].getBoundingClientRect();
   // Use clientWidth to account for potential vertical scrollbar taking up space
   const winW = $el[0].ownerDocument.documentElement.clientWidth;
-  
+
   expect(rect.left).to.be.at.least(
     -2, // 2px tolerance for subpixel rendering
     `dropdown left edge (${rect.left}px) overflows left off-screen`,

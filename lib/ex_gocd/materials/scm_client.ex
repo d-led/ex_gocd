@@ -62,13 +62,14 @@ defmodule ExGoCD.Materials.ScmClient do
       def latest_revision(url, branch) do
         case ExGoCD.Git.ls_remote(url, branch) do
           {:ok, sha} ->
-            {:ok, %{
-              revision: sha,
-              committer_name: "git",
-              committer_email: "git@scm.local",
-              comment: "git ls-remote #{branch}",
-              modified_time: ExGoCD.Materials.ScmClient.now()
-            }}
+            {:ok,
+             %{
+               revision: sha,
+               committer_name: "git",
+               committer_email: "git@scm.local",
+               comment: "git ls-remote #{branch}",
+               modified_time: ExGoCD.Materials.ScmClient.now()
+             }}
 
           {:error, reason} ->
             Logger.error("git ls-remote failed: #{inspect(reason)}")
@@ -85,13 +86,15 @@ defmodule ExGoCD.Materials.ScmClient do
         case System.cmd("svn", ["info", "--show-item", "revision", url]) do
           {output, 0} ->
             rev = String.trim(output)
-            {:ok, %{
-              revision: rev,
-              committer_name: "svn",
-              committer_email: "svn@scm.local",
-              comment: "svn revision #{rev}",
-              modified_time: ExGoCD.Materials.ScmClient.now()
-            }}
+
+            {:ok,
+             %{
+               revision: rev,
+               committer_name: "svn",
+               committer_email: "svn@scm.local",
+               comment: "svn revision #{rev}",
+               modified_time: ExGoCD.Materials.ScmClient.now()
+             }}
 
           {err, _} ->
             Logger.error("svn info failed: #{inspect(err)}")
@@ -106,16 +109,19 @@ defmodule ExGoCD.Materials.ScmClient do
 
       def latest_revision(url, branch) do
         args = ["identify", url, "-r", branch]
+
         case System.cmd("hg", args) do
           {output, 0} ->
             rev = String.trim(output) |> String.replace(~r/\s+.*/, "")
-            {:ok, %{
-              revision: rev,
-              committer_name: "hg",
-              committer_email: "hg@scm.local",
-              comment: "hg identify #{branch}",
-              modified_time: ExGoCD.Materials.ScmClient.now()
-            }}
+
+            {:ok,
+             %{
+               revision: rev,
+               committer_name: "hg",
+               committer_email: "hg@scm.local",
+               comment: "hg identify #{branch}",
+               modified_time: ExGoCD.Materials.ScmClient.now()
+             }}
 
           {err, _} ->
             Logger.error("hg identify failed: #{inspect(err)}")
@@ -132,13 +138,15 @@ defmodule ExGoCD.Materials.ScmClient do
         case System.cmd("p4", ["-p", url, "changes", "-m", "1", url]) do
           {output, 0} ->
             rev = parse_p4_change(output)
-            {:ok, %{
-              revision: rev,
-              committer_name: "p4",
-              committer_email: "p4@scm.local",
-              comment: "p4 change #{rev}",
-              modified_time: ExGoCD.Materials.ScmClient.now()
-            }}
+
+            {:ok,
+             %{
+               revision: rev,
+               committer_name: "p4",
+               committer_email: "p4@scm.local",
+               comment: "p4 change #{rev}",
+               modified_time: ExGoCD.Materials.ScmClient.now()
+             }}
 
           {err, _} ->
             Logger.error("p4 changes failed: #{inspect(err)}")
@@ -173,18 +181,20 @@ defmodule ExGoCD.Materials.ScmClient do
 
     @impl true
     def latest_revision(%Material{} = _mat) do
-      mock_value = Application.get_env(:ex_gocd, :mock_scm_revision) ||
-                   Application.get_env(:ex_gocd, :mock_git_revision)
+      mock_value =
+        Application.get_env(:ex_gocd, :mock_scm_revision) ||
+          Application.get_env(:ex_gocd, :mock_git_revision)
 
       case mock_value do
         nil ->
-          {:ok, %{
-            revision: "a1b2c3d4e5f67890123456789012345678901234",
-            committer_name: "Mock Committer",
-            committer_email: "mock@example.com",
-            comment: "Fix styling bugs",
-            modified_time: ~U[2026-06-13 12:00:00Z]
-          }}
+          {:ok,
+           %{
+             revision: "a1b2c3d4e5f67890123456789012345678901234",
+             committer_name: "Mock Committer",
+             committer_email: "mock@example.com",
+             comment: "Fix styling bugs",
+             modified_time: ~U[2026-06-13 12:00:00Z]
+           }}
 
         {:error, reason} ->
           {:error, reason}
@@ -193,13 +203,14 @@ defmodule ExGoCD.Materials.ScmClient do
           {:ok, map}
 
         sha when is_binary(sha) ->
-          {:ok, %{
-            revision: sha,
-            committer_name: "Mock Committer",
-            committer_email: "mock@example.com",
-            comment: "Fix styling bugs",
-            modified_time: ~U[2026-06-13 12:00:00Z]
-          }}
+          {:ok,
+           %{
+             revision: sha,
+             committer_name: "Mock Committer",
+             committer_email: "mock@example.com",
+             comment: "Fix styling bugs",
+             modified_time: ~U[2026-06-13 12:00:00Z]
+           }}
       end
     end
   end

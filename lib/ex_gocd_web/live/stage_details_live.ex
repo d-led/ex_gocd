@@ -28,7 +28,10 @@ defmodule ExGoCDWeb.StageDetailsLive do
      |> assign(:stage_name, stage_name)
      |> assign(:stage_counter, stage_counter)
      |> assign(:stage, stage)
-     |> assign(:page_title, "#{pipeline_name} / #{pipeline_counter} / #{stage_name} / #{stage_counter}")}
+     |> assign(
+       :page_title,
+       "#{pipeline_name} / #{pipeline_counter} / #{stage_name} / #{stage_counter}"
+     )}
   end
 
   @impl true
@@ -43,7 +46,9 @@ defmodule ExGoCDWeb.StageDetailsLive do
 
         case ExGoCD.Pipelines.approve_stage(pipeline_name, counter, stage_name) do
           {:ok, _stage_instance} ->
-            stage = get_stage_details(pipeline_name, counter, stage_name, socket.assigns.stage_counter)
+            stage =
+              get_stage_details(pipeline_name, counter, stage_name, socket.assigns.stage_counter)
+
             {:noreply,
              socket
              |> put_flash(:info, "Stage approved successfully.")
@@ -54,7 +59,8 @@ defmodule ExGoCDWeb.StageDetailsLive do
         end
 
       false ->
-        {:noreply, put_flash(socket, :error, "You do not have operate permissions for this pipeline.")}
+        {:noreply,
+         put_flash(socket, :error, "You do not have operate permissions for this pipeline.")}
     end
   end
 
@@ -82,8 +88,10 @@ defmodule ExGoCDWeb.StageDetailsLive do
 
       ExGoCD.Repo.one(
         from si in ExGoCD.Pipelines.StageInstance,
-          join: pi in ExGoCD.Pipelines.PipelineInstance, on: si.pipeline_instance_id == pi.id,
-          join: p in ExGoCD.Pipelines.Pipeline, on: pi.pipeline_id == p.id,
+          join: pi in ExGoCD.Pipelines.PipelineInstance,
+          on: si.pipeline_instance_id == pi.id,
+          join: p in ExGoCD.Pipelines.Pipeline,
+          on: pi.pipeline_id == p.id,
           where:
             p.name == ^pipeline_name and pi.counter == ^pipeline_counter and
               si.name == ^stage_name and si.counter == ^stage_counter,
@@ -197,6 +205,7 @@ defmodule ExGoCDWeb.StageDetailsLive do
     secs = rem(seconds, 60)
     "#{minutes}m #{secs}s"
   end
+
   defp format_duration(_), do: "—"
 
   defp status_bg_color(state, result) do
@@ -216,9 +225,19 @@ defmodule ExGoCDWeb.StageDetailsLive do
     <div class="stage-details-page px-8 py-8 bg-[#f4f8f9] min-h-screen">
       <div class="page-header border-b border-gray-200 pb-4 mb-6">
         <div class="flex items-center gap-2 text-xs text-gray-500 font-mono font-bold uppercase tracking-wider">
-          <.link navigate={~p"/pipeline/activity/#{@pipeline_name}"} class="text-[#2d6ca2] hover:underline">{@pipeline_name}</.link>
+          <.link
+            navigate={~p"/pipeline/activity/#{@pipeline_name}"}
+            class="text-[#2d6ca2] hover:underline"
+          >
+            {@pipeline_name}
+          </.link>
           <span>/</span>
-          <.link navigate={~p"/pipelines/value_stream_map/#{@pipeline_name}/#{@pipeline_counter}"} class="text-[#2d6ca2] hover:underline">{@pipeline_counter}</.link>
+          <.link
+            navigate={~p"/pipelines/value_stream_map/#{@pipeline_name}/#{@pipeline_counter}"}
+            class="text-[#2d6ca2] hover:underline"
+          >
+            {@pipeline_counter}
+          </.link>
           <span>/</span>
           <span>{@stage_name}</span>
           <span>/</span>
@@ -227,7 +246,8 @@ defmodule ExGoCDWeb.StageDetailsLive do
 
         <div class="flex items-center justify-between mt-2">
           <div class="flex items-center gap-4">
-            <span class={"w-3.5 h-3.5 rounded-full " <> status_bg_color(@stage.state, @stage.result)}></span>
+            <span class={"w-3.5 h-3.5 rounded-full " <> status_bg_color(@stage.state, @stage.result)}>
+            </span>
             <h1 class="text-2xl font-extrabold text-gray-950 font-mono flex items-baseline gap-2">
               {@stage_name}
               <span class="text-sm font-semibold text-gray-500">Run Details</span>
@@ -248,16 +268,28 @@ defmodule ExGoCDWeb.StageDetailsLive do
       <div class="flex flex-col gap-6">
         <div class="bg-white border border-gray-200 rounded shadow-sm p-6 flex flex-wrap justify-between items-center gap-6">
           <div class="flex flex-col gap-1.5">
-            <span class="text-[9px] uppercase font-bold text-gray-400 tracking-wider font-mono">Result</span>
-            <span class="text-sm font-semibold text-gray-800 font-mono">{@stage.result} (State: {@stage.state})</span>
+            <span class="text-[9px] uppercase font-bold text-gray-400 tracking-wider font-mono">
+              Result
+            </span>
+            <span class="text-sm font-semibold text-gray-800 font-mono">
+              {@stage.result} (State: {@stage.state})
+            </span>
           </div>
           <div class="flex flex-col gap-1.5">
-            <span class="text-[9px] uppercase font-bold text-gray-400 tracking-wider font-mono">Duration</span>
-            <span class="text-sm font-semibold text-gray-800 font-mono">{format_duration(@stage.duration)}</span>
+            <span class="text-[9px] uppercase font-bold text-gray-400 tracking-wider font-mono">
+              Duration
+            </span>
+            <span class="text-sm font-semibold text-gray-800 font-mono">
+              {format_duration(@stage.duration)}
+            </span>
           </div>
           <div class="flex flex-col gap-1.5">
-            <span class="text-[9px] uppercase font-bold text-gray-400 tracking-wider font-mono">Created Time</span>
-            <span class="text-sm font-semibold text-gray-800 font-mono">{Calendar.strftime(@stage.created_time, "%Y-%m-%d %H:%M:%S UTC")}</span>
+            <span class="text-[9px] uppercase font-bold text-gray-400 tracking-wider font-mono">
+              Created Time
+            </span>
+            <span class="text-sm font-semibold text-gray-800 font-mono">
+              {Calendar.strftime(@stage.created_time, "%Y-%m-%d %H:%M:%S UTC")}
+            </span>
           </div>
         </div>
 
@@ -304,7 +336,12 @@ defmodule ExGoCDWeb.StageDetailsLive do
                       <%= for job <- @stage.jobs do %>
                         <tr class="hover:bg-gray-50">
                           <td class="px-6 py-4 font-bold">
-                            <.link navigate={~p"/go/tab/build/detail/#{@pipeline_name}/#{@pipeline_counter}/#{@stage_name}/#{@stage_counter}/#{job.name}"} class="text-[#2d6ca2] hover:underline font-bold">
+                            <.link
+                              navigate={
+                                ~p"/go/tab/build/detail/#{@pipeline_name}/#{@pipeline_counter}/#{@stage_name}/#{@stage_counter}/#{job.name}"
+                              }
+                              class="text-[#2d6ca2] hover:underline font-bold"
+                            >
                               {job.name}
                             </.link>
                           </td>
@@ -329,40 +366,50 @@ defmodule ExGoCDWeb.StageDetailsLive do
                     </tbody>
                   </table>
                 </div>
-
               <% "config" -> %>
                 <div class="max-w-xl">
                   <table class="min-w-full text-xs font-mono text-gray-700">
                     <tbody class="divide-y divide-gray-100">
                       <tr>
-                        <td class="py-3 font-bold text-gray-400 uppercase tracking-wider text-[9px] w-48">Clean Working Directory</td>
+                        <td class="py-3 font-bold text-gray-400 uppercase tracking-wider text-[9px] w-48">
+                          Clean Working Directory
+                        </td>
                         <td class="py-3">{to_string(@stage.clean_working_dir)}</td>
                       </tr>
                       <tr>
-                        <td class="py-3 font-bold text-gray-400 uppercase tracking-wider text-[9px]">Fetch Materials</td>
+                        <td class="py-3 font-bold text-gray-400 uppercase tracking-wider text-[9px]">
+                          Fetch Materials
+                        </td>
                         <td class="py-3">{to_string(@stage.fetch_materials)}</td>
                       </tr>
                       <tr>
-                        <td class="py-3 font-bold text-gray-400 uppercase tracking-wider text-[9px]">Approval Type</td>
+                        <td class="py-3 font-bold text-gray-400 uppercase tracking-wider text-[9px]">
+                          Approval Type
+                        </td>
                         <td class="py-3 text-cyan-600 font-bold">{@stage.approval_type}</td>
                       </tr>
                     </tbody>
                   </table>
                 </div>
-
               <% "console" -> %>
                 <div class="bg-gray-900 rounded p-6 font-mono text-gray-300 text-xs overflow-y-auto max-h-[400px] leading-relaxed shadow-inner">
-                  <div class="text-yellow-500">[go] Start to build pipeline: {@pipeline_name} / {@pipeline_counter} ...</div>
+                  <div class="text-yellow-500">
+                    [go] Start to build pipeline: {@pipeline_name} / {@pipeline_counter} ...
+                  </div>
                   <div>[go] Fetching SCM materials from repository...</div>
                   <div class="text-green-500">[go] Material hash verification successful.</div>
                   <div>[go] Executing task command: mix compile</div>
-                  <div class="text-gray-500">  Compiling 12 files (.ex)</div>
-                  <div class="text-gray-500">  Generated ex_gocd app</div>
+                  <div class="text-gray-500">Compiling 12 files (.ex)</div>
+                  <div class="text-gray-500">Generated ex_gocd app</div>
                   <div>[go] Executing task command: mix test</div>
-                  <div class="text-gray-500">  Finished in 1.4 seconds</div>
-                  <div class="text-gray-500">  238 tests, 0 failures</div>
-                  <div class="text-green-500 font-bold">[go] Job 'build_job' completed successfully with result: {@stage.result}.</div>
-                  <div class="text-yellow-500">[go] Stage completed. Invalidation triggers cleared.</div>
+                  <div class="text-gray-500">Finished in 1.4 seconds</div>
+                  <div class="text-gray-500">238 tests, 0 failures</div>
+                  <div class="text-green-500 font-bold">
+                    [go] Job 'build_job' completed successfully with result: {@stage.result}.
+                  </div>
+                  <div class="text-yellow-500">
+                    [go] Stage completed. Invalidation triggers cleared.
+                  </div>
                 </div>
             <% end %>
           </div>

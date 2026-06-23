@@ -55,13 +55,15 @@ defmodule ExGoCDWeb.AdminLive do
        |> assign(:plugins, plugins)
        |> assign(:search_query, "")
        |> assign(:maintenance_mode, false)
-       |> assign(:backup_status, "Idle") # Idle, Running, Completed
+       # Idle, Running, Completed
+       |> assign(:backup_status, "Idle")
        |> assign(:backup_message, "")
        |> assign(:new_group_name, "")
        |> assign(:show_create_modal, false)
        # User modals assigns
        |> assign(:show_user_modal, false)
-       |> assign(:user_modal_type, nil) # :add_user, :edit_roles
+       # :add_user, :edit_roles
+       |> assign(:user_modal_type, nil)
        |> assign(:selected_user, nil)
        |> assign(:user_form, %{"username" => "", "display_name" => "", "roles" => []})
        |> assign(:user_errors, %{})
@@ -100,6 +102,7 @@ defmodule ExGoCDWeb.AdminLive do
       end)
 
     db_group_names = MapSet.new(db_groups, & &1.name)
+
     merged_empty =
       empty_groups
       |> Enum.reject(&MapSet.member?(db_group_names, &1))
@@ -148,14 +151,35 @@ defmodule ExGoCDWeb.AdminLive do
 
   defp map_tab(tab) do
     case tab do
-      t when t in ["pipelines", "templates", "package_repositories"] -> "pipelines"
-      t when t in ["environments", "elastic_agent_configurations"] -> "environments"
-      t when t in ["config_repos", "scms"] -> "config_repos"
-      t when t in ["server", "config_xml", "artifact_stores", "config", "maintenance_mode", "backup", "plugins"] ->
+      t when t in ["pipelines", "templates", "package_repositories"] ->
+        "pipelines"
+
+      t when t in ["environments", "elastic_agent_configurations"] ->
+        "environments"
+
+      t when t in ["config_repos", "scms"] ->
+        "config_repos"
+
+      t
+      when t in [
+             "server",
+             "config_xml",
+             "artifact_stores",
+             "config",
+             "maintenance_mode",
+             "backup",
+             "plugins"
+           ] ->
         "server"
-      t when t in ["security", "users", "secret_configs", "admin_access_tokens"] -> "security"
-      t when t in ["audit_log", "audit"] -> "audit_log"
-      _ -> "overview"
+
+      t when t in ["security", "users", "secret_configs", "admin_access_tokens"] ->
+        "security"
+
+      t when t in ["audit_log", "audit"] ->
+        "audit_log"
+
+      _ ->
+        "overview"
     end
   end
 
@@ -172,21 +196,33 @@ defmodule ExGoCDWeb.AdminLive do
         <div class="flex items-center gap-2">
           <h1 class="text-xl font-semibold text-[#333] uppercase tracking-wide">
             <%= case @tab do %>
-              <% "overview" -> %>Administration
-              <% "pipelines" -> %>Pipelines
-              <% "environments" -> %>Environments
-              <% "config_repos" -> %>Config Repositories
-              <% "server" -> %>Server Configuration
-              <% "security" -> %>Security
-              <% _ -> %>Admin
+              <% "overview" -> %>
+                Administration
+              <% "pipelines" -> %>
+                Pipelines
+              <% "environments" -> %>
+                Environments
+              <% "config_repos" -> %>
+                Config Repositories
+              <% "server" -> %>
+                Server Configuration
+              <% "security" -> %>
+                Security
+              <% _ -> %>
+                Admin
             <% end %>
           </h1>
-          <a href="https://github.com/d-led/ex_gocd" target="_blank" class="text-[#943a9e] text-base hover:text-purple-800" aria-label="Help">
+          <a
+            href="https://github.com/d-led/ex_gocd"
+            target="_blank"
+            class="text-[#943a9e] text-base hover:text-purple-800"
+            aria-label="Help"
+          >
             <i class="fa-solid fa-circle-question"></i>
           </a>
         </div>
-
-        <!-- Page Header Actions (Dynamic based on Tab) -->
+        
+    <!-- Page Header Actions (Dynamic based on Tab) -->
         <div class="flex flex-wrap items-center gap-4">
           <%= if @tab == "pipelines" do %>
             <div class="relative">
@@ -194,37 +230,61 @@ defmodule ExGoCDWeb.AdminLive do
                 <i class="fa fa-search"></i>
               </span>
               <form phx-change="search_pipelines">
-                <input type="text" name="query" value={@search_query} placeholder="Search for a pipeline name"
-                       class="pl-8 pr-3 py-1.5 w-64 rounded border border-[#d6e0e2] text-xs focus:outline-none focus:border-[#943a9e] bg-white text-[#333]" />
+                <input
+                  type="text"
+                  name="query"
+                  value={@search_query}
+                  placeholder="Search for a pipeline name"
+                  class="pl-8 pr-3 py-1.5 w-64 rounded border border-[#d6e0e2] text-xs focus:outline-none focus:border-[#943a9e] bg-white text-[#333]"
+                />
               </form>
             </div>
-            <button phx-click="toggle_create_modal" class="px-3 py-1.5 bg-white border border-[#943a9e] text-[#943a9e] rounded text-xs font-semibold hover:bg-purple-50 transition-all">
+            <button
+              phx-click="toggle_create_modal"
+              class="px-3 py-1.5 bg-white border border-[#943a9e] text-[#943a9e] rounded text-xs font-semibold hover:bg-purple-50 transition-all"
+            >
               <i class="fa fa-plus mr-1"></i> Create new pipeline group
             </button>
           <% end %>
           <%= if @tab == "security" do %>
-            <button phx-click="open_add_user_modal" class="px-3 py-1.5 bg-white border border-[#943a9e] text-[#943a9e] rounded text-xs font-semibold hover:bg-purple-50 transition-all">
+            <button
+              phx-click="open_add_user_modal"
+              class="px-3 py-1.5 bg-white border border-[#943a9e] text-[#943a9e] rounded text-xs font-semibold hover:bg-purple-50 transition-all"
+            >
               <i class="fa fa-plus mr-1"></i> Add User
             </button>
           <% end %>
         </div>
       </div>
-
-      <!-- Sub-Tab Navigation Bar -->
+      
+    <!-- Sub-Tab Navigation Bar -->
       <div class="bg-white border-b border-[#e9edef] px-6 py-2.5 flex flex-wrap gap-6 text-sm font-semibold shadow-sm">
         <.sub_tab_link active={@tab == "overview"} href="/admin/overview">Overview</.sub_tab_link>
-        <.sub_tab_link active={@tab == "pipelines"} href="/admin/pipelines">Pipelines &amp; Groups</.sub_tab_link>
-        <.sub_tab_link active={@tab == "environments"} href="/admin/environments">Environments</.sub_tab_link>
-        <.sub_tab_link active={@tab == "config_repos"} href="/admin/config_repos">Config Repositories</.sub_tab_link>
-        <.sub_tab_link active={@tab == "server"} href="/admin/server">Server Configuration</.sub_tab_link>
-        <.sub_tab_link active={@tab == "security"} href="/admin/security">Security &amp; Users</.sub_tab_link>
+        <.sub_tab_link active={@tab == "pipelines"} href="/admin/pipelines">
+          Pipelines &amp; Groups
+        </.sub_tab_link>
+        <.sub_tab_link active={@tab == "environments"} href="/admin/environments">
+          Environments
+        </.sub_tab_link>
+        <.sub_tab_link active={@tab == "config_repos"} href="/admin/config_repos">
+          Config Repositories
+        </.sub_tab_link>
+        <.sub_tab_link active={@tab == "server"} href="/admin/server">
+          Server Configuration
+        </.sub_tab_link>
+        <.sub_tab_link active={@tab == "security"} href="/admin/security">
+          Security &amp; Users
+        </.sub_tab_link>
         <.sub_tab_link active={@tab == "audit_log"} href="/admin/audit_log">Audit Log</.sub_tab_link>
       </div>
-
-      <!-- Main Layout Body (Centered Content) -->
+      
+    <!-- Main Layout Body (Centered Content) -->
       <div class="max-w-[1400px] mx-auto px-6 py-6">
         <%= if @flash_info do %>
-          <div class="mb-5 bg-[#dbf1d9] border border-[#a3d7a8] text-[#298a4c] px-4 py-3 rounded flex justify-between items-center text-sm shadow-sm" role="alert">
+          <div
+            class="mb-5 bg-[#dbf1d9] border border-[#a3d7a8] text-[#298a4c] px-4 py-3 rounded flex justify-between items-center text-sm shadow-sm"
+            role="alert"
+          >
             <span class="font-medium">{@flash_info}</span>
             <button phx-click="clear_flash" class="text-[#298a4c] hover:text-emerald-900">
               <i class="fa fa-times"></i>
@@ -277,7 +337,12 @@ defmodule ExGoCDWeb.AdminLive do
       </div>
 
       <%= if @show_user_modal do %>
-        <.user_modal_layer type={@user_modal_type} form={@user_form} errors={@user_errors} user={@selected_user} />
+        <.user_modal_layer
+          type={@user_modal_type}
+          form={@user_form}
+          errors={@user_errors}
+          user={@selected_user}
+        />
       <% end %>
 
       <%= if @show_env_modal do %>
@@ -298,9 +363,16 @@ defmodule ExGoCDWeb.AdminLive do
 
   defp sub_tab_link(assigns) do
     ~H"""
-    <a href={@href} class={["pb-2 border-b-2 transition-all font-semibold text-xs uppercase tracking-wide",
-                            if(@active, do: "border-[#943a9e] text-[#943a9e]",
-                                       else: "border-transparent text-slate-500 hover:text-[#333] hover:border-slate-350")]}>
+    <a
+      href={@href}
+      class={[
+        "pb-2 border-b-2 transition-all font-semibold text-xs uppercase tracking-wide",
+        if(@active,
+          do: "border-[#943a9e] text-[#943a9e]",
+          else: "border-transparent text-slate-500 hover:text-[#333] hover:border-slate-350"
+        )
+      ]}
+    >
       {render_slot(@inner_block)}
     </a>
     """
@@ -324,17 +396,41 @@ defmodule ExGoCDWeb.AdminLive do
   # --- Tab Renderings ---
 
   defp overview_tab(assigns) do
-    assigns = assigns
-      |> assign(:pipeline_count, Enum.reduce(assigns.pipeline_groups, 0, fn g, acc -> acc + length(g.pipelines) end))
+    assigns =
+      assigns
+      |> assign(
+        :pipeline_count,
+        Enum.reduce(assigns.pipeline_groups, 0, fn g, acc -> acc + length(g.pipelines) end)
+      )
       |> assign(:group_count, length(assigns.pipeline_groups))
 
     ~H"""
     <div class="space-y-6">
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        <.stat_card icon="fa-network-wired" title="Pipeline Groups" value={"#{@group_count}"} sub={"#{@pipeline_count} total pipelines"} />
-        <.stat_card icon="fa-earth-americas" title="Environments" value={"#{length(@environments)}"} sub="Assigned to agents" />
-        <.stat_card icon="fa-git-alt" title="Config Repos" value={"#{length(@config_repos)}"} sub="Pipelines-as-code repos" />
-        <.stat_card icon="fa-users" title="Active Users" value={"#{length(@users)}"} sub="Authorized administrators" />
+        <.stat_card
+          icon="fa-network-wired"
+          title="Pipeline Groups"
+          value={"#{@group_count}"}
+          sub={"#{@pipeline_count} total pipelines"}
+        />
+        <.stat_card
+          icon="fa-earth-americas"
+          title="Environments"
+          value={"#{length(@environments)}"}
+          sub="Assigned to agents"
+        />
+        <.stat_card
+          icon="fa-git-alt"
+          title="Config Repos"
+          value={"#{length(@config_repos)}"}
+          sub="Pipelines-as-code repos"
+        />
+        <.stat_card
+          icon="fa-users"
+          title="Active Users"
+          value={"#{length(@users)}"}
+          sub="Authorized administrators"
+        />
       </div>
 
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -350,7 +446,10 @@ defmodule ExGoCDWeb.AdminLive do
             </div>
             <div class="flex justify-between">
               <span>Maintenance Mode:</span>
-              <span class={["font-bold", if(@maintenance_mode, do: "text-amber-600", else: "text-slate-500")]}>
+              <span class={[
+                "font-bold",
+                if(@maintenance_mode, do: "text-amber-600", else: "text-slate-500")
+              ]}>
                 {if @maintenance_mode, do: "Enabled (Read-only)", else: "Disabled"}
               </span>
             </div>
@@ -364,8 +463,8 @@ defmodule ExGoCDWeb.AdminLive do
             </div>
           </div>
         </div>
-
-        <!-- Quick Actions -->
+        
+    <!-- Quick Actions -->
         <div class="bg-white rounded border border-[#d6e0e2] p-5 shadow-sm">
           <h3 class="text-sm font-bold border-b border-[#e9edef] pb-3 flex items-center gap-2 text-slate-700">
             <i class="fa fa-bolt text-amber-500"></i> Operations Control
@@ -374,12 +473,20 @@ defmodule ExGoCDWeb.AdminLive do
             <div class="flex items-center justify-between">
               <div>
                 <p class="text-xs font-bold text-slate-700">Maintenance Mode</p>
-                <p class="text-[11px] text-slate-400 mt-0.5">Pause all pipeline builds for system maintenance.</p>
+                <p class="text-[11px] text-slate-400 mt-0.5">
+                  Pause all pipeline builds for system maintenance.
+                </p>
               </div>
-              <button phx-click="toggle_maintenance_mode"
-                      class={["px-3 py-1.5 rounded text-xs font-semibold border transition-all",
-                              if(@maintenance_mode, do: "bg-amber-600 border-amber-500 text-white hover:bg-amber-500",
-                                         else: "bg-slate-100 border-slate-350 text-slate-700 hover:bg-slate-200")]}>
+              <button
+                phx-click="toggle_maintenance_mode"
+                class={[
+                  "px-3 py-1.5 rounded text-xs font-semibold border transition-all",
+                  if(@maintenance_mode,
+                    do: "bg-amber-600 border-amber-500 text-white hover:bg-amber-500",
+                    else: "bg-slate-100 border-slate-350 text-slate-700 hover:bg-slate-200"
+                  )
+                ]}
+              >
                 {if @maintenance_mode, do: "Disable", else: "Enable"}
               </button>
             </div>
@@ -387,9 +494,14 @@ defmodule ExGoCDWeb.AdminLive do
             <div class="flex items-center justify-between border-t border-[#e9edef] pt-4">
               <div>
                 <p class="text-xs font-bold text-slate-700">Config Backup</p>
-                <p class="text-[11px] text-slate-400 mt-0.5">Create a backup snapshot of GoCD server config database.</p>
+                <p class="text-[11px] text-slate-400 mt-0.5">
+                  Create a backup snapshot of GoCD server config database.
+                </p>
               </div>
-              <a href="/admin/server" class="px-3 py-1.5 rounded text-xs font-semibold bg-[#943a9e] hover:bg-purple-700 border border-purple-700 text-white text-center transition-all shadow-sm">
+              <a
+                href="/admin/server"
+                class="px-3 py-1.5 rounded text-xs font-semibold bg-[#943a9e] hover:bg-purple-700 border border-purple-700 text-white text-center transition-all shadow-sm"
+              >
                 Backup Server
               </a>
             </div>
@@ -397,10 +509,14 @@ defmodule ExGoCDWeb.AdminLive do
             <div class="flex items-center justify-between border-t border-[#e9edef] pt-4">
               <div>
                 <p class="text-xs font-bold text-slate-700">Cleanup Stuck Jobs</p>
-                <p class="text-[11px] text-slate-400 mt-0.5">Cancel all Scheduled/Building jobs that are stuck.</p>
+                <p class="text-[11px] text-slate-400 mt-0.5">
+                  Cancel all Scheduled/Building jobs that are stuck.
+                </p>
               </div>
-              <button phx-click="cleanup_stuck_jobs"
-                      class="px-3 py-1.5 rounded text-xs font-semibold bg-red-600 border border-red-500 text-white hover:bg-red-500 transition-all shadow-sm">
+              <button
+                phx-click="cleanup_stuck_jobs"
+                class="px-3 py-1.5 rounded text-xs font-semibold bg-red-600 border border-red-500 text-white hover:bg-red-500 transition-all shadow-sm"
+              >
                 Cleanup Now
               </button>
             </div>
@@ -416,24 +532,42 @@ defmodule ExGoCDWeb.AdminLive do
     <div class="space-y-6">
       <!-- Add group modal/form -->
       <%= if @show_create_modal do %>
-        <form phx-submit="create_pipeline_group" class="bg-white rounded border border-[#d6e0e2] p-5 shadow flex flex-col sm:flex-row gap-4 items-end max-w-2xl">
+        <form
+          phx-submit="create_pipeline_group"
+          class="bg-white rounded border border-[#d6e0e2] p-5 shadow flex flex-col sm:flex-row gap-4 items-end max-w-2xl"
+        >
           <div class="flex-grow">
-            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">New Pipeline Group Name</label>
-            <input type="text" name="name" value={@new_group_name} placeholder="e.g. stagingGroup" required
-                   class="w-full px-3 py-2 rounded bg-white border border-[#d6e0e2] text-xs text-slate-700 focus:outline-none focus:border-[#943a9e]" />
+            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+              New Pipeline Group Name
+            </label>
+            <input
+              type="text"
+              name="name"
+              value={@new_group_name}
+              placeholder="e.g. stagingGroup"
+              required
+              class="w-full px-3 py-2 rounded bg-white border border-[#d6e0e2] text-xs text-slate-700 focus:outline-none focus:border-[#943a9e]"
+            />
           </div>
           <div class="flex gap-2">
-            <button type="submit" class="px-4 py-2 rounded bg-[#943a9e] hover:bg-purple-700 text-white text-xs font-semibold border border-purple-700 shadow-sm transition-all">
+            <button
+              type="submit"
+              class="px-4 py-2 rounded bg-[#943a9e] hover:bg-purple-700 text-white text-xs font-semibold border border-purple-700 shadow-sm transition-all"
+            >
               <i class="fa fa-plus mr-1"></i> Add Group
             </button>
-            <button type="button" phx-click="toggle_create_modal" class="px-4 py-2 rounded bg-slate-100 border border-slate-350 text-slate-700 text-xs font-semibold hover:bg-slate-200">
+            <button
+              type="button"
+              phx-click="toggle_create_modal"
+              class="px-4 py-2 rounded bg-slate-100 border border-slate-350 text-slate-700 text-xs font-semibold hover:bg-slate-200"
+            >
               Cancel
             </button>
           </div>
         </form>
       <% end %>
-
-      <!-- Pipeline Group Cards -->
+      
+    <!-- Pipeline Group Cards -->
       <div class="space-y-6">
         <%= for group <- @filtered_groups do %>
           <div class="bg-white rounded border border-[#d6e0e2] overflow-hidden shadow-sm">
@@ -442,13 +576,25 @@ defmodule ExGoCDWeb.AdminLive do
                 Pipeline Group: <span class="font-bold text-slate-800">{group.name}</span>
               </div>
               <div class="flex items-center gap-2">
-                <button phx-click="add_pipeline_to_group" phx-value-group={group.name} class="px-3 py-1 bg-[#943a9e] text-white rounded text-[11px] font-bold hover:bg-purple-700 transition-all shadow-sm">
+                <button
+                  phx-click="add_pipeline_to_group"
+                  phx-value-group={group.name}
+                  class="px-3 py-1 bg-[#943a9e] text-white rounded text-[11px] font-bold hover:bg-purple-700 transition-all shadow-sm"
+                >
                   <i class="fa fa-plus mr-1"></i> Add new pipeline
                 </button>
-                <button class="p-1 w-7 h-7 border border-[#d6e0e2] bg-white text-slate-600 rounded hover:bg-slate-50 text-xs flex items-center justify-center" title="Edit Group">
+                <button
+                  class="p-1 w-7 h-7 border border-[#d6e0e2] bg-white text-slate-600 rounded hover:bg-slate-50 text-xs flex items-center justify-center"
+                  title="Edit Group"
+                >
                   <i class="fa fa-edit"></i>
                 </button>
-                <button phx-click="delete_pipeline_group" phx-value-name={group.name} class="p-1 w-7 h-7 border border-[#d6e0e2] bg-white text-rose-500 rounded hover:bg-slate-50 text-xs flex items-center justify-center" title="Delete Group">
+                <button
+                  phx-click="delete_pipeline_group"
+                  phx-value-name={group.name}
+                  class="p-1 w-7 h-7 border border-[#d6e0e2] bg-white text-rose-500 rounded hover:bg-slate-50 text-xs flex items-center justify-center"
+                  title="Delete Group"
+                >
                   <i class="fa fa-trash-can"></i>
                 </button>
               </div>
@@ -464,25 +610,51 @@ defmodule ExGoCDWeb.AdminLive do
                   <div class="px-5 py-3 flex justify-between items-center bg-white hover:bg-slate-50/30">
                     <span class="text-sm font-medium text-slate-700">{pipe.name}</span>
                     <div class="flex items-center gap-1.5">
-                      <a href={"/pipeline/activity/#{pipe.name}"} class="w-7 h-7 border border-[#d6e0e2] bg-white text-[#943a9e] rounded hover:bg-slate-50 flex items-center justify-center text-[13px]" title="Activity">
+                      <a
+                        href={"/pipeline/activity/#{pipe.name}"}
+                        class="w-7 h-7 border border-[#d6e0e2] bg-white text-[#943a9e] rounded hover:bg-slate-50 flex items-center justify-center text-[13px]"
+                        title="Activity"
+                      >
                         <i class="fa fa-chart-line"></i>
                       </a>
-                      <a href={"/go/admin/pipelines/#{pipe.name}/edit/general"} class="w-7 h-7 border border-[#d6e0e2] bg-white text-slate-500 rounded hover:bg-slate-50 flex items-center justify-center text-[13px]" title="Edit pipeline">
+                      <a
+                        href={"/go/admin/pipelines/#{pipe.name}/edit/general"}
+                        class="w-7 h-7 border border-[#d6e0e2] bg-white text-slate-500 rounded hover:bg-slate-50 flex items-center justify-center text-[13px]"
+                        title="Edit pipeline"
+                      >
                         <i class="fa fa-pencil"></i>
                       </a>
-                      <button class="w-7 h-7 border border-[#d6e0e2] bg-white text-slate-500 rounded hover:bg-slate-50 flex items-center justify-center text-[13px]" title="Move pipeline">
+                      <button
+                        class="w-7 h-7 border border-[#d6e0e2] bg-white text-slate-500 rounded hover:bg-slate-50 flex items-center justify-center text-[13px]"
+                        title="Move pipeline"
+                      >
                         <i class="fa fa-arrow-right"></i>
                       </button>
-                      <button class="w-7 h-7 border border-[#d6e0e2] bg-white text-slate-500 rounded hover:bg-slate-50 flex items-center justify-center text-[13px]" title="Download configuration">
+                      <button
+                        class="w-7 h-7 border border-[#d6e0e2] bg-white text-slate-500 rounded hover:bg-slate-50 flex items-center justify-center text-[13px]"
+                        title="Download configuration"
+                      >
                         <i class="fa fa-download"></i>
                       </button>
-                      <button class="w-7 h-7 border border-[#d6e0e2] bg-white text-slate-500 rounded hover:bg-slate-50 flex items-center justify-center text-[13px]" title="Clone pipeline">
+                      <button
+                        class="w-7 h-7 border border-[#d6e0e2] bg-white text-slate-500 rounded hover:bg-slate-50 flex items-center justify-center text-[13px]"
+                        title="Clone pipeline"
+                      >
                         <i class="fa fa-clone"></i>
                       </button>
-                      <button phx-click="delete_pipeline" phx-value-name={pipe.name} data-confirm="Are you sure you want to delete this pipeline?" class="w-7 h-7 border border-[#d6e0e2] bg-white text-rose-500 rounded hover:bg-slate-50 flex items-center justify-center text-[13px]" title="Delete pipeline">
+                      <button
+                        phx-click="delete_pipeline"
+                        phx-value-name={pipe.name}
+                        data-confirm="Are you sure you want to delete this pipeline?"
+                        class="w-7 h-7 border border-[#d6e0e2] bg-white text-rose-500 rounded hover:bg-slate-50 flex items-center justify-center text-[13px]"
+                        title="Delete pipeline"
+                      >
                         <i class="fa fa-trash-can"></i>
                       </button>
-                      <button class="w-7 h-7 border border-[#d6e0e2] bg-white text-slate-500 rounded hover:bg-slate-50 flex items-center justify-center text-[13px]" title="Extract template">
+                      <button
+                        class="w-7 h-7 border border-[#d6e0e2] bg-white text-slate-500 rounded hover:bg-slate-50 flex items-center justify-center text-[13px]"
+                        title="Extract template"
+                      >
                         <i class="fa fa-plus"></i>
                       </button>
                     </div>
@@ -502,7 +674,10 @@ defmodule ExGoCDWeb.AdminLive do
     <div class="space-y-6">
       <div class="flex justify-between items-center mb-2">
         <h2 class="text-sm font-bold text-slate-700">Environment Configuration</h2>
-        <button phx-click="open_add_env_modal" class="px-2.5 py-1 bg-[#943a9e] hover:bg-purple-700 text-white text-[11px] font-bold rounded shadow-sm">
+        <button
+          phx-click="open_add_env_modal"
+          class="px-2.5 py-1 bg-[#943a9e] hover:bg-purple-700 text-white text-[11px] font-bold rounded shadow-sm"
+        >
           <i class="fa fa-plus mr-1"></i> Add Environment
         </button>
       </div>
@@ -518,14 +693,22 @@ defmodule ExGoCDWeb.AdminLive do
                 <span class="text-[10px] bg-slate-200 px-2 py-0.5 rounded font-bold text-slate-600">
                   {env.agents} Active Agents
                 </span>
-                <button phx-click="delete_environment_ui" phx-value-name={env.name} data-confirm="Are you sure you want to delete this environment?" class="text-rose-500 hover:text-rose-700 text-xs cursor-pointer border-0 bg-transparent" title="Delete Environment">
+                <button
+                  phx-click="delete_environment_ui"
+                  phx-value-name={env.name}
+                  data-confirm="Are you sure you want to delete this environment?"
+                  class="text-rose-500 hover:text-rose-700 text-xs cursor-pointer border-0 bg-transparent"
+                  title="Delete Environment"
+                >
                   <i class="fa fa-trash-can"></i>
                 </button>
               </div>
             </div>
 
             <div class="p-5 space-y-3">
-              <span class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Assigned Pipelines</span>
+              <span class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                Assigned Pipelines
+              </span>
               <div class="flex flex-wrap gap-2">
                 <%= for pipe <- env.pipelines do %>
                   <span class="text-xs bg-slate-50 border border-[#e9edef] px-2 py-1 rounded text-slate-600 font-medium">
@@ -538,7 +721,11 @@ defmodule ExGoCDWeb.AdminLive do
               </div>
 
               <div class="flex justify-end gap-3 pt-3 border-t border-[#e9edef]">
-                <button phx-click="open_edit_env_modal" phx-value-name={env.name} class="text-xs text-[#943a9e] hover:text-purple-800 font-bold border-0 bg-transparent cursor-pointer">
+                <button
+                  phx-click="open_edit_env_modal"
+                  phx-value-name={env.name}
+                  class="text-xs text-[#943a9e] hover:text-purple-800 font-bold border-0 bg-transparent cursor-pointer"
+                >
                   Configure Environment
                 </button>
               </div>
@@ -562,7 +749,10 @@ defmodule ExGoCDWeb.AdminLive do
         <span class="text-sm font-bold text-slate-700">
           <i class="fa fa-code-fork mr-2 text-[#943a9e]"></i>Config Repositories
         </span>
-        <a href="/admin/config_repos/new" class="px-3 py-1.5 rounded bg-[#943a9e] hover:bg-purple-700 text-xs font-bold text-white shadow-sm transition-all">
+        <a
+          href="/admin/config_repos/new"
+          class="px-3 py-1.5 rounded bg-[#943a9e] hover:bg-purple-700 text-xs font-bold text-white shadow-sm transition-all"
+        >
           <i class="fa fa-plus mr-1"></i> Add Config Repo
         </a>
       </div>
@@ -588,29 +778,49 @@ defmodule ExGoCDWeb.AdminLive do
             <% end %>
             <%= for repo <- @config_repos do %>
               <tr class="hover:bg-slate-50/50">
-                <td class="px-5 py-4 font-mono text-[11px] text-slate-500 max-w-xs truncate" title={repo.url}>
+                <td
+                  class="px-5 py-4 font-mono text-[11px] text-slate-500 max-w-xs truncate"
+                  title={repo.url}
+                >
                   {repo.url}
                 </td>
                 <td class="px-5 py-4">
-                  <span class={["inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold", source_type_badge_class(repo.source_type)]}>
+                  <span class={[
+                    "inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold",
+                    source_type_badge_class(repo.source_type)
+                  ]}>
                     {source_type_label(repo.source_type)}
                   </span>
                 </td>
                 <td class="px-5 py-4 text-slate-600">{repo.branch}</td>
                 <td class="px-5 py-4">
-                  <span class={["inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold", status_class(repo)]}>
+                  <span class={[
+                    "inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold",
+                    status_class(repo)
+                  ]}>
                     <span class={["w-1.5 h-1.5 rounded-full", status_dot_class(repo)]}></span>
                     {status_label(repo)}
                   </span>
                 </td>
                 <td class="px-5 py-4 text-slate-500">
-                  {if repo.last_parsed_at, do: Calendar.strftime(repo.last_parsed_at, "%Y-%m-%d %H:%M"), else: "—"}
+                  {if repo.last_parsed_at,
+                    do: Calendar.strftime(repo.last_parsed_at, "%Y-%m-%d %H:%M"),
+                    else: "—"}
                 </td>
                 <td class="px-5 py-4 text-right">
-                  <button phx-click="sync_config_repo" phx-value-id={repo.id} class="text-xs text-[#943a9e] hover:text-purple-800 font-bold mr-3">
+                  <button
+                    phx-click="sync_config_repo"
+                    phx-value-id={repo.id}
+                    class="text-xs text-[#943a9e] hover:text-purple-800 font-bold mr-3"
+                  >
                     <i class="fa fa-sync mr-1"></i> Sync
                   </button>
-                  <button phx-click="delete_config_repo" phx-value-id={repo.id} class="text-xs text-slate-500 hover:text-red-600" data-confirm="Delete this config repo? Pipelines will not be deleted.">
+                  <button
+                    phx-click="delete_config_repo"
+                    phx-value-id={repo.id}
+                    class="text-xs text-slate-500 hover:text-red-600"
+                    data-confirm="Delete this config repo? Pipelines will not be deleted."
+                  >
                     Delete
                   </button>
                 </td>
@@ -627,16 +837,24 @@ defmodule ExGoCDWeb.AdminLive do
   defp source_type_label("gitlab_ci"), do: "GitLab CI"
   defp source_type_label(_), do: "GoCD Pipeline"
 
-  defp source_type_badge_class("github_actions"), do: "bg-purple-50 text-purple-700 border border-purple-200"
-  defp source_type_badge_class("gitlab_ci"), do: "bg-orange-50 text-orange-700 border border-orange-200"
+  defp source_type_badge_class("github_actions"),
+    do: "bg-purple-50 text-purple-700 border border-purple-200"
+
+  defp source_type_badge_class("gitlab_ci"),
+    do: "bg-orange-50 text-orange-700 border border-orange-200"
+
   defp source_type_badge_class(_), do: "bg-emerald-50 text-emerald-700 border border-emerald-200"
 
   defp status_label(%{error_message: err}) when is_binary(err) and err != "", do: "Error"
   defp status_label(%{last_parsed_at: nil}), do: "Never Synced"
   defp status_label(_), do: "Good"
 
-  defp status_class(%{error_message: err}) when is_binary(err) and err != "", do: "bg-red-50 text-red-600 border border-red-200"
-  defp status_class(%{last_parsed_at: nil}), do: "bg-yellow-50 text-yellow-600 border border-yellow-200"
+  defp status_class(%{error_message: err}) when is_binary(err) and err != "",
+    do: "bg-red-50 text-red-600 border border-red-200"
+
+  defp status_class(%{last_parsed_at: nil}),
+    do: "bg-yellow-50 text-yellow-600 border border-yellow-200"
+
   defp status_class(_), do: "bg-emerald-50 text-emerald-600 border border-emerald-200"
 
   defp status_dot_class(%{error_message: err}) when is_binary(err) and err != "", do: "bg-red-500"
@@ -658,12 +876,14 @@ defmodule ExGoCDWeb.AdminLive do
         <div class="bg-slate-50 p-4 rounded border border-[#e9edef] space-y-2 text-xs">
           <div class="flex justify-between">
             <span class="text-slate-500 font-medium">Backup Status:</span>
-            <span class={["font-bold",
-                          case @backup_status do
-                            "Running" -> "text-amber-600"
-                            "Completed" -> "text-emerald-600"
-                            _ -> "text-slate-500"
-                          end]}>
+            <span class={[
+              "font-bold",
+              case @backup_status do
+                "Running" -> "text-amber-600"
+                "Completed" -> "text-emerald-600"
+                _ -> "text-slate-500"
+              end
+            ]}>
               {@backup_status}
             </span>
           </div>
@@ -674,8 +894,11 @@ defmodule ExGoCDWeb.AdminLive do
           <% end %>
         </div>
 
-        <button phx-click="trigger_backup" disabled={@backup_status == "Running"}
-                class="w-full py-2 rounded bg-[#943a9e] hover:bg-purple-700 disabled:bg-slate-200 text-xs font-semibold text-white border border-purple-700 disabled:border-slate-300 disabled:text-slate-400 shadow-sm transition-all flex items-center justify-center gap-2">
+        <button
+          phx-click="trigger_backup"
+          disabled={@backup_status == "Running"}
+          class="w-full py-2 rounded bg-[#943a9e] hover:bg-purple-700 disabled:bg-slate-200 text-xs font-semibold text-white border border-purple-700 disabled:border-slate-300 disabled:text-slate-400 shadow-sm transition-all flex items-center justify-center gap-2"
+        >
           <%= if @backup_status == "Running" do %>
             <i class="fa fa-spinner animate-spin"></i> Running Backup...
           <% else %>
@@ -683,8 +906,8 @@ defmodule ExGoCDWeb.AdminLive do
           <% end %>
         </button>
       </div>
-
-      <!-- Plugins -->
+      
+    <!-- Plugins -->
       <div class="bg-white rounded border border-[#d6e0e2] p-5 shadow-sm space-y-4">
         <h3 class="text-sm font-bold text-slate-700 border-b border-[#e9edef] pb-3 flex items-center gap-2">
           <i class="fa fa-cubes text-[#943a9e]"></i> Active Plugins
@@ -720,9 +943,13 @@ defmodule ExGoCDWeb.AdminLive do
       <div class="bg-white rounded border border-[#d6e0e2] shadow-xl w-full max-w-md overflow-hidden">
         <div class="bg-[#e7eef0] border-b border-[#d6e0e2] px-5 py-3 flex justify-between items-center">
           <h3 class="text-xs font-bold uppercase tracking-wider text-slate-700">
-            <%= if @type == :add_user, do: "Add New User", else: "Manage User Roles" %>
+            {if @type == :add_user, do: "Add New User", else: "Manage User Roles"}
           </h3>
-          <button type="button" phx-click="close_user_modal" class="text-slate-400 hover:text-slate-600">
+          <button
+            type="button"
+            phx-click="close_user_modal"
+            class="text-slate-400 hover:text-slate-600"
+          >
             <i class="fa fa-times"></i>
           </button>
         </div>
@@ -730,9 +957,16 @@ defmodule ExGoCDWeb.AdminLive do
         <form phx-submit="save_user" class="p-6 space-y-4 text-xs">
           <%= if @type == :add_user do %>
             <div>
-              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Username</label>
-              <input type="text" name="username" value={@form["username"]} required
-                     class="w-full px-3 py-2 rounded bg-white border border-[#d6e0e2] text-xs text-[#333] focus:outline-none focus:border-[#943a9e]" />
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                Username
+              </label>
+              <input
+                type="text"
+                name="username"
+                value={@form["username"]}
+                required
+                class="w-full px-3 py-2 rounded bg-white border border-[#d6e0e2] text-xs text-[#333] focus:outline-none focus:border-[#943a9e]"
+              />
               <%= if error = Map.get(@errors, :username) do %>
                 <p class="text-rose-500 mt-1 text-[11px] font-semibold">{error}</p>
               <% end %>
@@ -740,40 +974,71 @@ defmodule ExGoCDWeb.AdminLive do
           <% end %>
 
           <div>
-            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Display Name</label>
-            <input type="text" name="display_name" value={@form["display_name"]} required
-                   class="w-full px-3 py-2 rounded bg-white border border-[#d6e0e2] text-xs text-[#333] focus:outline-none focus:border-[#943a9e]" />
+            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+              Display Name
+            </label>
+            <input
+              type="text"
+              name="display_name"
+              value={@form["display_name"]}
+              required
+              class="w-full px-3 py-2 rounded bg-white border border-[#d6e0e2] text-xs text-[#333] focus:outline-none focus:border-[#943a9e]"
+            />
             <%= if error = Map.get(@errors, :display_name) do %>
               <p class="text-rose-500 mt-1 text-[11px] font-semibold">{error}</p>
             <% end %>
           </div>
 
           <div>
-            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Assign Roles</label>
+            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+              Assign Roles
+            </label>
             <div class="space-y-2.5 mt-2 bg-slate-50 p-4 rounded border border-[#e9edef]">
               <label class="flex items-center gap-2.5 font-medium text-slate-700 cursor-pointer">
-                <input type="checkbox" name="roles[]" value="admin" checked={"admin" in (@form["roles"] || [])}
-                       class="rounded border-[#d6e0e2] text-[#943a9e] focus:ring-[#943a9e]" />
+                <input
+                  type="checkbox"
+                  name="roles[]"
+                  value="admin"
+                  checked={"admin" in (@form["roles"] || [])}
+                  class="rounded border-[#d6e0e2] text-[#943a9e] focus:ring-[#943a9e]"
+                />
                 <span>Administrator (Full admin access)</span>
               </label>
               <label class="flex items-center gap-2.5 font-medium text-slate-700 cursor-pointer">
-                <input type="checkbox" name="roles[]" value="developer" checked={"developer" in (@form["roles"] || [])}
-                       class="rounded border-[#d6e0e2] text-[#943a9e] focus:ring-[#943a9e]" />
+                <input
+                  type="checkbox"
+                  name="roles[]"
+                  value="developer"
+                  checked={"developer" in (@form["roles"] || [])}
+                  class="rounded border-[#d6e0e2] text-[#943a9e] focus:ring-[#943a9e]"
+                />
                 <span>Developer (Pipeline configuration and execution)</span>
               </label>
               <label class="flex items-center gap-2.5 font-medium text-slate-700 cursor-pointer">
-                <input type="checkbox" name="roles[]" value="viewer" checked={"viewer" in (@form["roles"] || [])}
-                       class="rounded border-[#d6e0e2] text-[#943a9e] focus:ring-[#943a9e]" />
+                <input
+                  type="checkbox"
+                  name="roles[]"
+                  value="viewer"
+                  checked={"viewer" in (@form["roles"] || [])}
+                  class="rounded border-[#d6e0e2] text-[#943a9e] focus:ring-[#943a9e]"
+                />
                 <span>Viewer (Read-only observation)</span>
               </label>
             </div>
           </div>
 
           <div class="flex justify-end gap-3 pt-4 border-t border-[#e9edef]">
-            <button type="submit" class="px-4 py-2 bg-[#943a9e] hover:bg-purple-700 text-white font-bold rounded shadow-sm">
+            <button
+              type="submit"
+              class="px-4 py-2 bg-[#943a9e] hover:bg-purple-700 text-white font-bold rounded shadow-sm"
+            >
               Save User
             </button>
-            <button type="button" phx-click="close_user_modal" class="px-4 py-2 bg-white border border-slate-350 text-slate-700 rounded hover:bg-slate-50 font-semibold">
+            <button
+              type="button"
+              phx-click="close_user_modal"
+              class="px-4 py-2 bg-white border border-slate-350 text-slate-700 rounded hover:bg-slate-50 font-semibold"
+            >
               Cancel
             </button>
           </div>
@@ -816,24 +1081,41 @@ defmodule ExGoCDWeb.AdminLive do
                 <td class="px-5 py-4">
                   <%= if user.status == "Active" do %>
                     <span class="inline-flex items-center gap-1 bg-emerald-50 text-emerald-600 border border-emerald-200 px-2 py-0.5 rounded text-[10px] font-bold">
-                      <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>
-                      Active
+                      <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span> Active
                     </span>
                   <% else %>
                     <span class="inline-flex items-center gap-1 bg-rose-50 text-rose-600 border border-rose-200 px-2 py-0.5 rounded text-[10px] font-bold">
-                      <span class="w-1.5 h-1.5 bg-rose-500 rounded-full"></span>
-                      Disabled
+                      <span class="w-1.5 h-1.5 bg-rose-500 rounded-full"></span> Disabled
                     </span>
                   <% end %>
                 </td>
                 <td class="px-5 py-4 text-right">
-                  <button phx-click="open_edit_user_roles_modal" phx-value-id={user.id} class="text-xs text-[#943a9e] hover:text-purple-800 font-bold mr-3">
+                  <button
+                    phx-click="open_edit_user_roles_modal"
+                    phx-value-id={user.id}
+                    class="text-xs text-[#943a9e] hover:text-purple-800 font-bold mr-3"
+                  >
                     Manage Roles
                   </button>
-                  <button phx-click="toggle_user_status" phx-value-id={user.id} class={["text-xs mr-3 font-semibold", if(user.status == "Active", do: "text-slate-500 hover:text-slate-800", else: "text-emerald-500 hover:text-emerald-700")]}>
+                  <button
+                    phx-click="toggle_user_status"
+                    phx-value-id={user.id}
+                    class={[
+                      "text-xs mr-3 font-semibold",
+                      if(user.status == "Active",
+                        do: "text-slate-500 hover:text-slate-800",
+                        else: "text-emerald-500 hover:text-emerald-700"
+                      )
+                    ]}
+                  >
                     {if user.status == "Active", do: "Disable", else: "Enable"}
                   </button>
-                  <button phx-click="delete_user" phx-value-id={user.id} data-confirm="Are you sure you want to delete this user?" class="text-xs text-rose-500 hover:text-rose-700">
+                  <button
+                    phx-click="delete_user"
+                    phx-value-id={user.id}
+                    data-confirm="Are you sure you want to delete this user?"
+                    class="text-xs text-rose-500 hover:text-rose-700"
+                  >
                     Delete
                   </button>
                 </td>
@@ -851,13 +1133,18 @@ defmodule ExGoCDWeb.AdminLive do
   @impl true
   def handle_event("sync_config_repo", %{"id" => id}, socket) do
     id = String.to_integer(id)
+
     case ConfigRepos.get_config_repo(id) do
       nil ->
         {:noreply, put_flash(socket, :error, "Config repo not found.")}
+
       repo ->
         # Trigger a re-sync (in future: open wizard)
-        {:ok, updated} = ConfigRepos.update_config_repo(repo, %{last_parsed_at: DateTime.utc_now()})
+        {:ok, updated} =
+          ConfigRepos.update_config_repo(repo, %{last_parsed_at: DateTime.utc_now()})
+
         repos = ConfigRepos.list_config_repos()
+
         {:noreply,
          socket
          |> assign(:config_repos, repos)
@@ -868,12 +1155,15 @@ defmodule ExGoCDWeb.AdminLive do
   @impl true
   def handle_event("delete_config_repo", %{"id" => id}, socket) do
     id = String.to_integer(id)
+
     case ConfigRepos.get_config_repo(id) do
       nil ->
         {:noreply, put_flash(socket, :error, "Config repo not found.")}
+
       repo ->
         {:ok, _} = ConfigRepos.delete_config_repo(repo)
         repos = ConfigRepos.list_config_repos()
+
         {:noreply,
          socket
          |> assign(:config_repos, repos)
@@ -889,7 +1179,10 @@ defmodule ExGoCDWeb.AdminLive do
   @impl true
   def handle_event("toggle_maintenance_mode", _params, socket) do
     new_state = !socket.assigns.maintenance_mode
-    message = if new_state, do: "Server entered maintenance mode.", else: "Server left maintenance mode."
+
+    message =
+      if new_state, do: "Server entered maintenance mode.", else: "Server left maintenance mode."
+
     {:noreply,
      socket
      |> assign(:maintenance_mode, new_state)
@@ -900,15 +1193,20 @@ defmodule ExGoCDWeb.AdminLive do
   def handle_event("trigger_backup", _params, socket) do
     # Simulate backup start
     Process.send_after(self(), :backup_complete, 1500)
+
     {:noreply,
      socket
      |> assign(:backup_status, "Running")
-     |> assign(:backup_message, "Config backup started at #{DateTime.utc_now() |> DateTime.to_string()}...")}
+     |> assign(
+       :backup_message,
+       "Config backup started at #{DateTime.utc_now() |> DateTime.to_string()}..."
+     )}
   end
 
   @impl true
   def handle_event("search_pipelines", %{"query" => query}, socket) do
     cleaned = String.trim(query)
+
     filtered =
       if cleaned == "" do
         socket.assigns.pipeline_groups
@@ -978,11 +1276,13 @@ defmodule ExGoCDWeb.AdminLive do
     case Pipelines.delete_pipeline_by_name(name) do
       {:ok, _} ->
         groups = fetch_pipeline_groups(socket.assigns.empty_groups)
+
         {:noreply,
          socket
          |> assign(:pipeline_groups, groups)
          |> assign(:filtered_groups, groups)
          |> assign(:flash_info, "Pipeline '#{name}' was deleted.")}
+
       {:error, _reason} ->
         {:noreply, assign(socket, :flash_info, "Failed to delete pipeline '#{name}'.")}
     end
@@ -1007,6 +1307,7 @@ defmodule ExGoCDWeb.AdminLive do
   @impl true
   def handle_event("open_edit_user_roles_modal", %{"id" => id}, socket) do
     user = Accounts.get_user!(id)
+
     {:noreply,
      socket
      |> assign(:show_user_modal, true)
@@ -1044,13 +1345,16 @@ defmodule ExGoCDWeb.AdminLive do
   def handle_event("toggle_user_status", %{"id" => id}, socket) do
     user = Accounts.get_user!(id)
     new_status = if user.status == "Active", do: "Disabled", else: "Active"
+
     case Accounts.update_user(user, %{status: new_status}) do
       {:ok, _} ->
         users = Accounts.list_users()
+
         {:noreply,
          socket
          |> assign(:users, users)
          |> assign(:flash_info, "User status updated successfully.")}
+
       {:error, _} ->
         {:noreply, assign(socket, :flash_info, "Failed to update user status.")}
     end
@@ -1059,13 +1363,16 @@ defmodule ExGoCDWeb.AdminLive do
   @impl true
   def handle_event("delete_user", %{"id" => id}, socket) do
     user = Accounts.get_user!(id)
+
     case Accounts.delete_user(user) do
       {:ok, _} ->
         users = Accounts.list_users()
+
         {:noreply,
          socket
          |> assign(:users, users)
          |> assign(:flash_info, "User deleted successfully.")}
+
       {:error, _} ->
         {:noreply, assign(socket, :flash_info, "Failed to delete user.")}
     end
@@ -1076,6 +1383,7 @@ defmodule ExGoCDWeb.AdminLive do
   @impl true
   def handle_event("open_add_env_modal", _params, socket) do
     available = load_available_pipelines()
+
     {:noreply,
      socket
      |> assign(:show_env_modal, true)
@@ -1121,7 +1429,9 @@ defmodule ExGoCDWeb.AdminLive do
 
   @impl true
   def handle_event("add_env_var_row", _params, socket) do
-    vars = socket.assigns.env_form_variables ++ [%{"name" => "", "value" => "", "secure" => false}]
+    vars =
+      socket.assigns.env_form_variables ++ [%{"name" => "", "value" => "", "secure" => false}]
+
     {:noreply, assign(socket, :env_form_variables, vars)}
   end
 
@@ -1135,11 +1445,13 @@ defmodule ExGoCDWeb.AdminLive do
   @impl true
   def handle_event("toggle_var_secure", %{"index" => idx_str}, socket) do
     idx = String.to_integer(idx_str)
+
     vars =
       List.update_at(socket.assigns.env_form_variables, idx, fn var ->
         sec = Map.get(var, "secure") || Map.get(var, :secure) || false
         Map.put(var, "secure", !sec)
       end)
+
     {:noreply, assign(socket, :env_form_variables, vars)}
   end
 
@@ -1147,6 +1459,7 @@ defmodule ExGoCDWeb.AdminLive do
   def handle_event("delete_environment_ui", %{"name" => name}, socket) do
     if System.get_env("USE_MOCK_DATA") == "true" do
       envs = Enum.reject(socket.assigns.environments, &(&1.name == name))
+
       {:noreply,
        socket
        |> assign(:environments, envs)
@@ -1155,9 +1468,11 @@ defmodule ExGoCDWeb.AdminLive do
       case ExGoCD.Environments.get_environment_by_name(name) do
         nil ->
           {:noreply, put_flash(socket, :error, "Environment not found.")}
+
         env ->
           {:ok, _} = ExGoCD.Environments.delete_environment(env)
           envs = fetch_environments_ui()
+
           {:noreply,
            socket
            |> assign(:environments, envs)
@@ -1191,6 +1506,7 @@ defmodule ExGoCDWeb.AdminLive do
       {:ok, _} ->
         Events.admin_reset_pipeline(socket.assigns.current_user.username, name)
         {:noreply, socket |> put_flash(:info, "Pipeline #{name} reset.")}
+
       {:error, _} ->
         {:noreply, socket |> put_flash(:error, "Pipeline #{name} not found.")}
     end
@@ -1199,7 +1515,18 @@ defmodule ExGoCDWeb.AdminLive do
   # --- Audit Log handlers ---
 
   @impl true
-  def handle_event("search_audit_log", %{"actor" => actor, "action" => action, "resource_type" => resource_type, "resource_name" => resource_name, "date_from" => date_from, "date_to" => date_to}, socket) do
+  def handle_event(
+        "search_audit_log",
+        %{
+          "actor" => actor,
+          "action" => action,
+          "resource_type" => resource_type,
+          "resource_name" => resource_name,
+          "date_from" => date_from,
+          "date_to" => date_to
+        },
+        socket
+      ) do
     filters = build_audit_filters(actor, action, resource_type, resource_name, date_from, date_to)
     {:noreply, load_audit_log(socket, filters)}
   end
@@ -1213,13 +1540,17 @@ defmodule ExGoCDWeb.AdminLive do
     entries =
       if use_mock?() do
         mock = ExGoCD.MockData.audit_log_entries()
+
         if filters == %{} do
           mock
         else
           Enum.filter(mock, fn e ->
-            (is_nil(filters[:actor]) || filters[:actor] == "" || String.contains?(String.downcase(e.actor), String.downcase(filters[:actor]))) &&
-            (is_nil(filters[:action]) || filters[:action] == "" || String.contains?(e.action, filters[:action])) &&
-            (is_nil(filters[:resource_type]) || filters[:resource_type] == "" || String.contains?(e.resource_type, filters[:resource_type]))
+            (is_nil(filters[:actor]) || filters[:actor] == "" ||
+               String.contains?(String.downcase(e.actor), String.downcase(filters[:actor]))) &&
+              (is_nil(filters[:action]) || filters[:action] == "" ||
+                 String.contains?(e.action, filters[:action])) &&
+              (is_nil(filters[:resource_type]) || filters[:resource_type] == "" ||
+                 String.contains?(e.resource_type, filters[:resource_type]))
           end)
         end
       else
@@ -1231,7 +1562,14 @@ defmodule ExGoCDWeb.AdminLive do
     |> assign(:audit_log_filters, filters)
   end
 
-  defp build_audit_filters(actor, action, resource_type, resource_name, date_from_str, date_to_str) do
+  defp build_audit_filters(
+         actor,
+         action,
+         resource_type,
+         resource_name,
+         date_from_str,
+         date_to_str
+       ) do
     %{}
     |> put_if_present(:actor, actor)
     |> put_if_present(:action, action)
@@ -1247,6 +1585,7 @@ defmodule ExGoCDWeb.AdminLive do
 
   defp parse_date(nil), do: nil
   defp parse_date(""), do: nil
+
   defp parse_date(str) when is_binary(str) do
     case Date.from_iso8601(str) do
       {:ok, date} -> date
@@ -1258,11 +1597,16 @@ defmodule ExGoCDWeb.AdminLive do
 
   @impl true
   def handle_info(:backup_complete, socket) do
-    backup_path = "/var/lib/go-server/db/backups/backup_config_xml_#{System.unique_integer([:positive])}.zip"
+    backup_path =
+      "/var/lib/go-server/db/backups/backup_config_xml_#{System.unique_integer([:positive])}.zip"
+
     {:noreply,
      socket
      |> assign(:backup_status, "Completed")
-     |> assign(:backup_message, "Backup saved to: #{backup_path} successfully at #{DateTime.utc_now() |> DateTime.to_string()}")
+     |> assign(
+       :backup_message,
+       "Backup saved to: #{backup_path} successfully at #{DateTime.utc_now() |> DateTime.to_string()}"
+     )
      |> assign(:flash_info, "Database config backup completed successfully.")}
   end
 
@@ -1342,10 +1686,12 @@ defmodule ExGoCDWeb.AdminLive do
     |> Enum.reject(fn var -> String.trim(var["name"]) == "" end)
     |> Enum.map(fn var ->
       sec = var["secure"] == "true"
+
       base = %{
         "name" => var["name"],
         "secure" => sec
       }
+
       if sec do
         Map.put(base, "encrypted_value", Base.encode64(var["value"]))
       else
@@ -1356,13 +1702,17 @@ defmodule ExGoCDWeb.AdminLive do
 
   defp save_mock_environment_ui(params, selected_pipelines, variables, socket) do
     name = params["name"] || socket.assigns.env_form_name
+
     new_env = %{
-      id: socket.assigns.selected_env && socket.assigns.selected_env.id || System.unique_integer([:positive]),
+      id:
+        (socket.assigns.selected_env && socket.assigns.selected_env.id) ||
+          System.unique_integer([:positive]),
       name: name,
       pipelines: selected_pipelines,
       agents: 0,
       environment_variables: variables
     }
+
     envs =
       if socket.assigns.env_modal_type == :create do
         socket.assigns.environments ++ [new_env]
@@ -1401,6 +1751,7 @@ defmodule ExGoCDWeb.AdminLive do
     case res do
       {:ok, _env} ->
         envs = fetch_environments_ui()
+
         {:noreply,
          socket
          |> assign(:environments, envs)
@@ -1465,32 +1816,56 @@ defmodule ExGoCDWeb.AdminLive do
       <div class="bg-white rounded border border-[#d6e0e2] shadow-xl w-full max-w-lg overflow-hidden">
         <div class="bg-[#e7eef0] border-b border-[#d6e0e2] px-5 py-3 flex justify-between items-center">
           <h3 class="text-xs font-bold uppercase tracking-wider text-slate-700">
-            <%= if @type == :create, do: "Create New Environment", else: "Configure Environment: #{@name}" %>
+            {if @type == :create,
+              do: "Create New Environment",
+              else: "Configure Environment: #{@name}"}
           </h3>
-          <button type="button" phx-click="close_env_modal" class="text-slate-400 hover:text-slate-600 border-0 bg-transparent cursor-pointer">
+          <button
+            type="button"
+            phx-click="close_env_modal"
+            class="text-slate-400 hover:text-slate-600 border-0 bg-transparent cursor-pointer"
+          >
             <i class="fa fa-times"></i>
           </button>
         </div>
 
-        <form phx-submit="save_environment_ui" class="p-6 space-y-4 text-xs max-h-[80vh] overflow-y-auto">
+        <form
+          phx-submit="save_environment_ui"
+          class="p-6 space-y-4 text-xs max-h-[80vh] overflow-y-auto"
+        >
           <%= if @type == :create do %>
             <div>
-              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Environment Name</label>
-              <input type="text" name="name" value={@name} required placeholder="e.g. production"
-                     class="w-full px-3 py-2 rounded bg-white border border-[#d6e0e2] text-xs text-[#333] focus:outline-none focus:border-[#943a9e]" />
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                Environment Name
+              </label>
+              <input
+                type="text"
+                name="name"
+                value={@name}
+                required
+                placeholder="e.g. production"
+                class="w-full px-3 py-2 rounded bg-white border border-[#d6e0e2] text-xs text-[#333] focus:outline-none focus:border-[#943a9e]"
+              />
             </div>
           <% end %>
 
           <div>
-            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Assign Pipelines</label>
+            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+              Assign Pipelines
+            </label>
             <%= if Enum.empty?(@available_pipelines) do %>
               <p class="text-slate-400 italic">No unassigned pipelines available.</p>
             <% else %>
               <div class="grid grid-cols-2 gap-2 mt-2 bg-slate-50 p-4 rounded border border-[#e9edef] max-h-40 overflow-y-auto">
                 <%= for pipe <- @available_pipelines do %>
                   <label class="flex items-center gap-2.5 font-medium text-slate-700 cursor-pointer">
-                    <input type="checkbox" name="pipelines[]" value={pipe.name} checked={pipe.name in @selected_pipelines}
-                           class="rounded border-[#d6e0e2] text-[#943a9e] focus:ring-[#943a9e]" />
+                    <input
+                      type="checkbox"
+                      name="pipelines[]"
+                      value={pipe.name}
+                      checked={pipe.name in @selected_pipelines}
+                      class="rounded border-[#d6e0e2] text-[#943a9e] focus:ring-[#943a9e]"
+                    />
                     <span>{pipe.name}</span>
                   </label>
                 <% end %>
@@ -1500,8 +1875,14 @@ defmodule ExGoCDWeb.AdminLive do
 
           <div>
             <div class="flex justify-between items-center mb-2">
-              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Environment Variables</label>
-              <button type="button" phx-click="add_env_var_row" class="text-[#943a9e] hover:text-purple-800 font-bold text-[10px] uppercase border-0 bg-transparent cursor-pointer">
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                Environment Variables
+              </label>
+              <button
+                type="button"
+                phx-click="add_env_var_row"
+                class="text-[#943a9e] hover:text-purple-800 font-bold text-[10px] uppercase border-0 bg-transparent cursor-pointer"
+              >
                 <i class="fa fa-plus mr-1"></i> Add Variable
               </button>
             </div>
@@ -1509,21 +1890,45 @@ defmodule ExGoCDWeb.AdminLive do
             <div class="space-y-2 max-h-48 overflow-y-auto">
               <%= for {var, idx} <- Enum.with_index(@variables) do %>
                 <div class="flex gap-2 items-center">
-                  <input type="text" name={"variables[#{idx}][name]"} value={var["name"] || var[:name]} required placeholder="Name"
-                         class="w-1/3 px-2 py-1 rounded border border-[#d6e0e2] text-xs" />
+                  <input
+                    type="text"
+                    name={"variables[#{idx}][name]"}
+                    value={var["name"] || var[:name]}
+                    required
+                    placeholder="Name"
+                    class="w-1/3 px-2 py-1 rounded border border-[#d6e0e2] text-xs"
+                  />
 
-                  <input type={if(var["secure"] || var[:secure], do: "password", else: "text")}
-                         name={"variables[#{idx}][value]"} value={var["value"] || var[:value] || var["encrypted_value"] || var[:encrypted_value]} required placeholder="Value"
-                         class="flex-grow px-2 py-1 rounded border border-[#d6e0e2] text-xs" />
+                  <input
+                    type={if(var["secure"] || var[:secure], do: "password", else: "text")}
+                    name={"variables[#{idx}][value]"}
+                    value={
+                      var["value"] || var[:value] || var["encrypted_value"] || var[:encrypted_value]
+                    }
+                    required
+                    placeholder="Value"
+                    class="flex-grow px-2 py-1 rounded border border-[#d6e0e2] text-xs"
+                  />
 
                   <label class="flex items-center gap-1 cursor-pointer">
-                    <input type="checkbox" name={"variables[#{idx}][secure]"} value="true" checked={var["secure"] || var[:secure]}
-                           phx-click="toggle_var_secure" phx-value-index={idx}
-                           class="rounded border-[#d6e0e2] text-[#943a9e] focus:ring-[#943a9e]" />
+                    <input
+                      type="checkbox"
+                      name={"variables[#{idx}][secure]"}
+                      value="true"
+                      checked={var["secure"] || var[:secure]}
+                      phx-click="toggle_var_secure"
+                      phx-value-index={idx}
+                      class="rounded border-[#d6e0e2] text-[#943a9e] focus:ring-[#943a9e]"
+                    />
                     <span class="text-[9px] uppercase font-bold text-slate-400">Secure</span>
                   </label>
 
-                  <button type="button" phx-click="remove_env_var_row" phx-value-index={idx} class="text-rose-500 hover:text-rose-700 p-1 border-0 bg-transparent cursor-pointer">
+                  <button
+                    type="button"
+                    phx-click="remove_env_var_row"
+                    phx-value-index={idx}
+                    class="text-rose-500 hover:text-rose-700 p-1 border-0 bg-transparent cursor-pointer"
+                  >
                     <i class="fa fa-trash-can"></i>
                   </button>
                 </div>
@@ -1535,10 +1940,17 @@ defmodule ExGoCDWeb.AdminLive do
           </div>
 
           <div class="flex justify-end gap-3 pt-4 border-t border-[#e9edef]">
-            <button type="submit" class="px-4 py-2 bg-[#943a9e] hover:bg-purple-700 text-white font-bold rounded shadow-sm border-0 cursor-pointer">
+            <button
+              type="submit"
+              class="px-4 py-2 bg-[#943a9e] hover:bg-purple-700 text-white font-bold rounded shadow-sm border-0 cursor-pointer"
+            >
               Save Environment
             </button>
-            <button type="button" phx-click="close_env_modal" class="px-4 py-2 bg-white border border-slate-350 text-slate-700 rounded hover:bg-slate-50 font-semibold cursor-pointer">
+            <button
+              type="button"
+              phx-click="close_env_modal"
+              class="px-4 py-2 bg-white border border-slate-350 text-slate-700 rounded hover:bg-slate-50 font-semibold cursor-pointer"
+            >
               Cancel
             </button>
           </div>
@@ -1560,47 +1972,90 @@ defmodule ExGoCDWeb.AdminLive do
 
           <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
-              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Actor</label>
-              <input type="text" name="actor" value={@filters[:actor] || ""} placeholder="e.g. admin"
-                     class="w-full px-3 py-2 rounded border border-[#d6e0e2] text-xs text-slate-700 focus:outline-none focus:border-[#943a9e]" />
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                Actor
+              </label>
+              <input
+                type="text"
+                name="actor"
+                value={@filters[:actor] || ""}
+                placeholder="e.g. admin"
+                class="w-full px-3 py-2 rounded border border-[#d6e0e2] text-xs text-slate-700 focus:outline-none focus:border-[#943a9e]"
+              />
             </div>
             <div>
-              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Action</label>
-              <input type="text" name="action" value={@filters[:action] || ""} placeholder="e.g. pipeline.trigger"
-                     class="w-full px-3 py-2 rounded border border-[#d6e0e2] text-xs text-slate-700 focus:outline-none focus:border-[#943a9e]" />
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                Action
+              </label>
+              <input
+                type="text"
+                name="action"
+                value={@filters[:action] || ""}
+                placeholder="e.g. pipeline.trigger"
+                class="w-full px-3 py-2 rounded border border-[#d6e0e2] text-xs text-slate-700 focus:outline-none focus:border-[#943a9e]"
+              />
             </div>
             <div>
-              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Resource Type</label>
-              <input type="text" name="resource_type" value={@filters[:resource_type] || ""} placeholder="e.g. pipeline"
-                     class="w-full px-3 py-2 rounded border border-[#d6e0e2] text-xs text-slate-700 focus:outline-none focus:border-[#943a9e]" />
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                Resource Type
+              </label>
+              <input
+                type="text"
+                name="resource_type"
+                value={@filters[:resource_type] || ""}
+                placeholder="e.g. pipeline"
+                class="w-full px-3 py-2 rounded border border-[#d6e0e2] text-xs text-slate-700 focus:outline-none focus:border-[#943a9e]"
+              />
             </div>
             <div>
-              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Resource Name</label>
-              <input type="text" name="resource_name" value={@filters[:resource_name] || ""} placeholder="e.g. build-linux"
-                     class="w-full px-3 py-2 rounded border border-[#d6e0e2] text-xs text-slate-700 focus:outline-none focus:border-[#943a9e]" />
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                Resource Name
+              </label>
+              <input
+                type="text"
+                name="resource_name"
+                value={@filters[:resource_name] || ""}
+                placeholder="e.g. build-linux"
+                class="w-full px-3 py-2 rounded border border-[#d6e0e2] text-xs text-slate-700 focus:outline-none focus:border-[#943a9e]"
+              />
             </div>
             <div>
-              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">From Date</label>
-              <input type="date" name="date_from" value={@filters[:date_from] || ""}
-                     class="w-full px-3 py-2 rounded border border-[#d6e0e2] text-xs text-slate-700 focus:outline-none focus:border-[#943a9e]" />
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                From Date
+              </label>
+              <input
+                type="date"
+                name="date_from"
+                value={@filters[:date_from] || ""}
+                class="w-full px-3 py-2 rounded border border-[#d6e0e2] text-xs text-slate-700 focus:outline-none focus:border-[#943a9e]"
+              />
             </div>
             <div>
-              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">To Date</label>
-              <input type="date" name="date_to" value={@filters[:date_to] || ""}
-                     class="w-full px-3 py-2 rounded border border-[#d6e0e2] text-xs text-slate-700 focus:outline-none focus:border-[#943a9e]" />
+              <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                To Date
+              </label>
+              <input
+                type="date"
+                name="date_to"
+                value={@filters[:date_to] || ""}
+                class="w-full px-3 py-2 rounded border border-[#d6e0e2] text-xs text-slate-700 focus:outline-none focus:border-[#943a9e]"
+              />
             </div>
           </div>
 
           <div class="flex justify-end">
-            <button type="button" phx-click="reset_audit_log_filters"
-                    class="px-4 py-2 rounded bg-white border border-[#d6e0e2] text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-all">
+            <button
+              type="button"
+              phx-click="reset_audit_log_filters"
+              class="px-4 py-2 rounded bg-white border border-[#d6e0e2] text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-all"
+            >
               <i class="fa fa-undo mr-1"></i> Reset Filters
             </button>
           </div>
         </form>
       </div>
-
-      <!-- Results Table -->
+      
+    <!-- Results Table -->
       <div class="bg-white rounded border border-[#d6e0e2] overflow-hidden shadow-sm">
         <div class="overflow-x-auto">
           <table class="w-full text-left text-xs text-slate-600 font-sans">
@@ -1640,7 +2095,8 @@ defmodule ExGoCDWeb.AdminLive do
                     <td class="px-5 py-3">
                       <%= if entry.resource_type do %>
                         <span class="text-slate-600">
-                          {entry.resource_type}<%= if entry.resource_name, do: " / #{entry.resource_name}" %>
+                          {entry.resource_type}{if entry.resource_name,
+                            do: " / #{entry.resource_name}"}
                         </span>
                       <% else %>
                         <span class="text-slate-400 italic">—</span>
@@ -1648,7 +2104,10 @@ defmodule ExGoCDWeb.AdminLive do
                     </td>
                     <td class="px-5 py-3 max-w-xs">
                       <%= if entry.details && map_size(entry.details) > 0 do %>
-                        <code class="text-[11px] text-slate-500 bg-slate-50 px-2 py-0.5 rounded block truncate" title={Jason.encode_to_iodata!(entry.details) |> IO.iodata_to_binary()}>
+                        <code
+                          class="text-[11px] text-slate-500 bg-slate-50 px-2 py-0.5 rounded block truncate"
+                          title={Jason.encode_to_iodata!(entry.details) |> IO.iodata_to_binary()}
+                        >
                           {Jason.encode_to_iodata!(entry.details) |> IO.iodata_to_binary()}
                         </code>
                       <% else %>
@@ -1672,6 +2131,7 @@ defmodule ExGoCDWeb.AdminLive do
   end
 
   defp format_audit_timestamp(nil), do: "—"
+
   defp format_audit_timestamp(dt) do
     Calendar.strftime(dt, "%Y-%m-%d %H:%M:%S UTC")
   end

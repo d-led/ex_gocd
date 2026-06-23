@@ -29,6 +29,7 @@ defmodule ExGoCDWeb.DashboardLive do
   def handle_params(params, _uri, socket) do
     search_text = params["search"] || ""
     group_by = params["group_by"] || "environment"
+
     {:noreply,
      socket
      |> assign(:search_text, search_text)
@@ -58,6 +59,7 @@ defmodule ExGoCDWeb.DashboardLive do
   @impl true
   def handle_event("select_grouping", %{"scheme" => scheme}, socket) do
     params = %{"group_by" => scheme}
+
     params =
       if socket.assigns.search_text != "" do
         Map.put(params, "search", socket.assigns.search_text)
@@ -102,13 +104,15 @@ defmodule ExGoCDWeb.DashboardLive do
         end
 
       false ->
-        {:noreply, put_flash(socket, :error, "You do not have operate permissions for this pipeline.")}
+        {:noreply,
+         put_flash(socket, :error, "You do not have operate permissions for this pipeline.")}
     end
   end
 
   @impl true
   def handle_event("show_pause_modal", %{"name" => name}, socket) do
     user = socket.assigns[:current_user]
+
     case ExGoCD.Policies.permit?(ExGoCD.Policies.EnvironmentPolicy, :trigger_pipeline, user) do
       true ->
         {:noreply,
@@ -116,8 +120,10 @@ defmodule ExGoCDWeb.DashboardLive do
          |> assign(:show_pause_modal, true)
          |> assign(:active_pause_pipeline, name)
          |> assign(:pause_cause_input, "")}
+
       false ->
-        {:noreply, put_flash(socket, :error, "You do not have operate permissions for this pipeline.")}
+        {:noreply,
+         put_flash(socket, :error, "You do not have operate permissions for this pipeline.")}
     end
   end
 
@@ -134,6 +140,7 @@ defmodule ExGoCDWeb.DashboardLive do
   def handle_event("pause_pipeline", %{"pause_cause" => cause}, socket) do
     pipeline_name = socket.assigns.active_pause_pipeline
     user = socket.assigns[:current_user]
+
     case ExGoCD.Policies.permit?(ExGoCD.Policies.EnvironmentPolicy, :trigger_pipeline, user) do
       true ->
         username = (user && user.username) || "anonymous"
@@ -154,17 +161,21 @@ defmodule ExGoCDWeb.DashboardLive do
              |> assign(:pause_cause_input, "")
              |> put_flash(:info, "Pipeline #{pipeline_name} paused successfully.")
              |> load_pipelines()}
+
           {:error, _} ->
             {:noreply, put_flash(socket, :error, "Failed to pause pipeline.")}
         end
+
       false ->
-        {:noreply, put_flash(socket, :error, "You do not have operate permissions for this pipeline.")}
+        {:noreply,
+         put_flash(socket, :error, "You do not have operate permissions for this pipeline.")}
     end
   end
 
   @impl true
   def handle_event("unpause_pipeline", %{"name" => name}, socket) do
     user = socket.assigns[:current_user]
+
     case ExGoCD.Policies.permit?(ExGoCD.Policies.EnvironmentPolicy, :trigger_pipeline, user) do
       true ->
         result =
@@ -180,18 +191,26 @@ defmodule ExGoCDWeb.DashboardLive do
              socket
              |> put_flash(:info, "Pipeline #{name} unpaused successfully.")
              |> load_pipelines()}
+
           {:error, _} ->
             {:noreply, put_flash(socket, :error, "Failed to unpause pipeline.")}
         end
+
       false ->
-        {:noreply, put_flash(socket, :error, "You do not have operate permissions for this pipeline.")}
+        {:noreply,
+         put_flash(socket, :error, "You do not have operate permissions for this pipeline.")}
     end
   end
 
   @impl true
-  def handle_event("show_stage_summary", %{"pipeline" => pipeline_name, "stage" => stage_name, "counter" => counter_str}, socket) do
+  def handle_event(
+        "show_stage_summary",
+        %{"pipeline" => pipeline_name, "stage" => stage_name, "counter" => counter_str},
+        socket
+      ) do
     counter = String.to_integer(counter_str)
     summary = fetch_stage_summary_details(pipeline_name, counter, stage_name)
+
     {:noreply,
      socket
      |> assign(:active_stage_summary, summary)
@@ -206,29 +225,46 @@ defmodule ExGoCDWeb.DashboardLive do
   @impl true
   def handle_event("toggle_job_selection", %{"job" => job_name}, socket) do
     selected = socket.assigns.selected_jobs
+
     new_selected =
       if MapSet.member?(selected, job_name) do
         MapSet.delete(selected, job_name)
       else
         MapSet.put(selected, job_name)
       end
+
     {:noreply, assign(socket, :selected_jobs, new_selected)}
   end
 
   @impl true
   def handle_event("rerun_failed_jobs", _params, socket) do
     summary = socket.assigns.active_stage_summary
+
     if summary do
-      case Pipelines.rerun_stage(summary.pipeline_name, summary.pipeline_counter, summary.stage_name, :failed) do
+      case Pipelines.rerun_stage(
+             summary.pipeline_name,
+             summary.pipeline_counter,
+             summary.stage_name,
+             :failed
+           ) do
         {:ok, _si} ->
-          new_summary = fetch_stage_summary_details(summary.pipeline_name, summary.pipeline_counter, summary.stage_name)
+          new_summary =
+            fetch_stage_summary_details(
+              summary.pipeline_name,
+              summary.pipeline_counter,
+              summary.stage_name
+            )
+
           {:noreply,
            socket
            |> put_flash(:info, "Rerun failed jobs scheduled successfully.")
            |> assign(:active_stage_summary, new_summary)
            |> assign(:selected_jobs, MapSet.new())}
+
         {:error, :no_jobs_to_run} ->
-          {:noreply, put_flash(socket, :error, "No failed or cancelled jobs found in previous stage run.")}
+          {:noreply,
+           put_flash(socket, :error, "No failed or cancelled jobs found in previous stage run.")}
+
         {:error, reason} ->
           {:noreply, put_flash(socket, :error, "Failed to rerun jobs: #{inspect(reason)}")}
       end
@@ -241,15 +277,28 @@ defmodule ExGoCDWeb.DashboardLive do
   def handle_event("rerun_selected_jobs", _params, socket) do
     summary = socket.assigns.active_stage_summary
     selected = socket.assigns.selected_jobs |> MapSet.to_list()
+
     if summary && not Enum.empty?(selected) do
-      case Pipelines.rerun_stage(summary.pipeline_name, summary.pipeline_counter, summary.stage_name, selected) do
+      case Pipelines.rerun_stage(
+             summary.pipeline_name,
+             summary.pipeline_counter,
+             summary.stage_name,
+             selected
+           ) do
         {:ok, _si} ->
-          new_summary = fetch_stage_summary_details(summary.pipeline_name, summary.pipeline_counter, summary.stage_name)
+          new_summary =
+            fetch_stage_summary_details(
+              summary.pipeline_name,
+              summary.pipeline_counter,
+              summary.stage_name
+            )
+
           {:noreply,
            socket
            |> put_flash(:info, "Rerun selected jobs scheduled successfully.")
            |> assign(:active_stage_summary, new_summary)
            |> assign(:selected_jobs, MapSet.new())}
+
         {:error, reason} ->
           {:noreply, put_flash(socket, :error, "Failed to rerun jobs: #{inspect(reason)}")}
       end
@@ -259,15 +308,21 @@ defmodule ExGoCDWeb.DashboardLive do
   end
 
   @impl true
-  def handle_event("approve_stage", %{"pipeline" => pipeline_name, "counter" => counter_str, "stage" => stage_name}, socket) do
+  def handle_event(
+        "approve_stage",
+        %{"pipeline" => pipeline_name, "counter" => counter_str, "stage" => stage_name},
+        socket
+      ) do
     user = socket.assigns[:current_user]
 
     case ExGoCD.Policies.permit?(ExGoCD.Policies.EnvironmentPolicy, :trigger_pipeline, user) do
       true ->
         counter = String.to_integer(counter_str)
+
         case Pipelines.approve_stage(pipeline_name, counter, stage_name) do
           {:ok, _stage_instance} ->
             new_summary = fetch_stage_summary_details(pipeline_name, counter, stage_name)
+
             {:noreply,
              socket
              |> put_flash(:info, "Stage #{stage_name} approved successfully.")
@@ -279,20 +334,29 @@ defmodule ExGoCDWeb.DashboardLive do
         end
 
       false ->
-        {:noreply, put_flash(socket, :error, "You do not have operate permissions for this pipeline.")}
+        {:noreply,
+         put_flash(socket, :error, "You do not have operate permissions for this pipeline.")}
     end
   end
 
   @impl true
   def handle_info(:pipelines_updated, socket) do
     socket = load_pipelines(socket)
+
     socket =
       if summary = socket.assigns[:active_stage_summary] do
-        new_summary = fetch_stage_summary_details(summary.pipeline_name, summary.pipeline_counter, summary.stage_name)
+        new_summary =
+          fetch_stage_summary_details(
+            summary.pipeline_name,
+            summary.pipeline_counter,
+            summary.stage_name
+          )
+
         assign(socket, :active_stage_summary, new_summary)
       else
         socket
       end
+
     {:noreply, socket}
   end
 
@@ -307,6 +371,7 @@ defmodule ExGoCDWeb.DashboardLive do
 
   defp fetch_db_stage_summary(pipeline_name, pipeline_counter, stage_name) do
     import Ecto.Query
+
     pi =
       from(pi in ExGoCD.Pipelines.PipelineInstance,
         join: p in assoc(pi, :pipeline),
@@ -325,6 +390,7 @@ defmodule ExGoCDWeb.DashboardLive do
 
   defp find_latest_stage_instance(pipeline_instance_id, stage_name) do
     import Ecto.Query
+
     from(si in ExGoCD.Pipelines.StageInstance,
       where: si.pipeline_instance_id == ^pipeline_instance_id and si.name == ^stage_name,
       order_by: [desc: si.counter],
@@ -340,9 +406,17 @@ defmodule ExGoCDWeb.DashboardLive do
     created_time = si.created_time || si.inserted_at
 
     jobs = si.job_instances || []
-    building_count = Enum.count(jobs, &(&1.state in ["Scheduled", "Assigned", "Preparing", "Building", "Completing"]))
+
+    building_count =
+      Enum.count(
+        jobs,
+        &(&1.state in ["Scheduled", "Assigned", "Preparing", "Building", "Completing"])
+      )
+
     passed_count = Enum.count(jobs, &(&1.state == "Completed" and &1.result == "Passed"))
-    failed_count = Enum.count(jobs, &(&1.state == "Completed" and &1.result in ["Failed", "Cancelled"]))
+
+    failed_count =
+      Enum.count(jobs, &(&1.state == "Completed" and &1.result in ["Failed", "Cancelled"]))
 
     mapped_jobs = Enum.map(jobs, &map_job_summary/1)
 
@@ -376,6 +450,7 @@ defmodule ExGoCDWeb.DashboardLive do
     case {ji.completed_at, ji.assigned_at} do
       {completed, assigned} when not is_nil(completed) and not is_nil(assigned) ->
         DateTime.diff(to_utc_datetime(completed), to_utc_datetime(assigned), :second)
+
       _ ->
         0
     end
@@ -385,6 +460,7 @@ defmodule ExGoCDWeb.DashboardLive do
     case {si.completed_at, si.created_time} do
       {completed, created} when not is_nil(completed) and not is_nil(created) ->
         DateTime.diff(to_utc_datetime(completed), to_utc_datetime(created), :second)
+
       _ ->
         0
     end
@@ -417,6 +493,7 @@ defmodule ExGoCDWeb.DashboardLive do
       ]
     }
   end
+
   # Private functions
 
   defp load_pipelines(socket) do
@@ -469,12 +546,13 @@ defmodule ExGoCDWeb.DashboardLive do
   defp grouping_data(all_pipelines, "environment", true) do
     # Group by environment. Pipelines without an environment go under "Default".
     # When environments are implemented, this will use the actual environment assignment.
-    env_map = Enum.group_by(all_pipelines, fn p ->
-      env = Map.get(p, :environment) || p[:environment]
-      if is_binary(env) and env != "", do: env, else: "Default"
-    end)
-    |> Enum.sort_by(fn {k, _} -> k end)
-    |> Map.new()
+    env_map =
+      Enum.group_by(all_pipelines, fn p ->
+        env = Map.get(p, :environment) || p[:environment]
+        if is_binary(env) and env != "", do: env, else: "Default"
+      end)
+      |> Enum.sort_by(fn {k, _} -> k end)
+      |> Map.new()
 
     # Ensure there's always at least a "Default" key for consistent rendering
     Map.put_new(env_map, "Default", [])
@@ -497,6 +575,7 @@ defmodule ExGoCDWeb.DashboardLive do
 
   defp pipeline_group(assigns) do
     assigns = Map.put_new(assigns, :current_user, nil)
+
     ~H"""
     <div class="dashboard-group" role="region" aria-label={"Pipeline group: #{@name}"}>
       <div class="dashboard-group_title">
@@ -515,13 +594,17 @@ defmodule ExGoCDWeb.DashboardLive do
 
   defp pipeline_widget(assigns) do
     assigns = Map.put_new(assigns, :current_user, nil)
+
     ~H"""
     <div class="pipeline">
       <div class="pipeline_header">
         <div class="pipeline_sub_header">
           <h3 class="pipeline_name">{@pipeline.name}</h3>
           <%= if @pipeline[:config_repo_id] do %>
-            <span class="text-[10px] text-slate-400 ml-1" title={"Defined by config repo ##{@pipeline.config_repo_id}"}>
+            <span
+              class="text-[10px] text-slate-400 ml-1"
+              title={"Defined by config repo ##{@pipeline.config_repo_id}"}
+            >
               config-repo
             </span>
           <% end %>
@@ -536,25 +619,38 @@ defmodule ExGoCDWeb.DashboardLive do
           </div>
         </div>
         <div>
-          <%
-            can_operate = ExGoCD.Policies.permit?(ExGoCD.Policies.EnvironmentPolicy, :trigger_pipeline, @current_user)
-            trigger_disabled = @pipeline.paused or not can_operate
+          <% can_operate =
+            ExGoCD.Policies.permit?(
+              ExGoCD.Policies.EnvironmentPolicy,
+              :trigger_pipeline,
+              @current_user
+            )
 
-            play_class = if trigger_disabled, do: "button pipeline_btn play disabled", else: "button pipeline_btn play"
-            play_options_class = if trigger_disabled, do: "button pipeline_btn play_with_options disabled", else: "button pipeline_btn play_with_options"
+          trigger_disabled = @pipeline.paused or not can_operate
 
-            pause_unpause_class =
-              cond do
-                @pipeline.paused and can_operate -> "button pipeline_btn unpause"
-                @pipeline.paused -> "button pipeline_btn unpause disabled"
-                can_operate -> "button pipeline_btn pause"
-                true -> "button pipeline_btn pause disabled"
-              end
+          play_class =
+            if trigger_disabled,
+              do: "button pipeline_btn play disabled",
+              else: "button pipeline_btn play"
 
-            pause_title = if @pipeline.paused, do: "Pipeline Paused", else: "Pause Pipeline"
-            play_title = if @pipeline.paused, do: "Trigger Pipeline Disabled", else: "Trigger Pipeline"
-            play_options_title = if @pipeline.paused, do: "Trigger with Options Disabled", else: "Trigger with Options"
-          %>
+          play_options_class =
+            if trigger_disabled,
+              do: "button pipeline_btn play_with_options disabled",
+              else: "button pipeline_btn play_with_options"
+
+          pause_unpause_class =
+            cond do
+              @pipeline.paused and can_operate -> "button pipeline_btn unpause"
+              @pipeline.paused -> "button pipeline_btn unpause disabled"
+              can_operate -> "button pipeline_btn pause"
+              true -> "button pipeline_btn pause disabled"
+            end
+
+          pause_title = if @pipeline.paused, do: "Pipeline Paused", else: "Pause Pipeline"
+          play_title = if @pipeline.paused, do: "Trigger Pipeline Disabled", else: "Trigger Pipeline"
+
+          play_options_title =
+            if @pipeline.paused, do: "Trigger with Options Disabled", else: "Trigger with Options" %>
           <ul class="pipeline_operations">
             <li>
               <button
@@ -597,9 +693,13 @@ defmodule ExGoCDWeb.DashboardLive do
           <a href={"/pipeline/activity/#{@pipeline.name}"} class="pipeline_history">History</a>
           <%= if @pipeline.paused do %>
             <div class="pipeline_pause-message">
-              Paused by {@pipeline.paused_by || "anonymous"} ({if @pipeline.pause_cause == "", do: "", else: @pipeline.pause_cause})
+              Paused by {@pipeline.paused_by || "anonymous"} ({if @pipeline.pause_cause == "",
+                do: "",
+                else: @pipeline.pause_cause})
               <%= if @pipeline.paused_at do %>
-                <div title={format_server_time(@pipeline.paused_at)}>on {format_local_time(@pipeline.paused_at)}</div>
+                <div title={format_server_time(@pipeline.paused_at)}>
+                  on {format_local_time(@pipeline.paused_at)}
+                </div>
               <% end %>
             </div>
           <% end %>
@@ -683,11 +783,13 @@ defmodule ExGoCDWeb.DashboardLive do
   end
 
   defp format_local_time(nil), do: "—"
+
   defp format_local_time(datetime) do
     Calendar.strftime(datetime, "%d %b, %Y at %H:%M:%S Local Time")
   end
 
   defp format_server_time(nil), do: "—"
+
   defp format_server_time(datetime) do
     Calendar.strftime(datetime, "%d %b, %Y at %H:%M:%S +00:00 Server Time")
   end
@@ -697,6 +799,7 @@ defmodule ExGoCDWeb.DashboardLive do
     secs = rem(seconds, 60)
     "#{minutes}m #{secs}s"
   end
+
   defp format_duration(_), do: "—"
 
   # Status dot — CSS class for coloured circle indicator
@@ -719,7 +822,7 @@ defmodule ExGoCDWeb.DashboardLive do
   # Accessibility label for screen readers
   def status_dot_label(job) do
     state = (job[:state] || "Unknown") |> String.capitalize()
-    result = (job[:result] || "Unknown")
+    result = job[:result] || "Unknown"
 
     cond do
       state in ["Building", "Preparing", "Completing"] -> "Status: #{state}"

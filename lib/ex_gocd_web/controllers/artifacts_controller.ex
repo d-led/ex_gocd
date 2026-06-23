@@ -13,18 +13,29 @@ defmodule ExGoCDWeb.ArtifactsController do
   end
 
   # Constructs job_dir and target_path from URL path params
-  defp build_job_paths(pipeline_name, pipeline_counter_str, stage_name, stage_counter_str, job_name, file_path) do
+  defp build_job_paths(
+         pipeline_name,
+         pipeline_counter_str,
+         stage_name,
+         stage_counter_str,
+         job_name,
+         file_path
+       ) do
     pipeline_counter = parse_integer(pipeline_counter_str)
     stage_counter = parse_integer(stage_counter_str)
 
-    job_dir = Path.expand(Path.join([
-      artifacts_dir(),
-      pipeline_name,
-      to_string(pipeline_counter),
-      stage_name,
-      to_string(stage_counter),
-      job_name
-    ]))
+    job_dir =
+      Path.expand(
+        Path.join([
+          artifacts_dir(),
+          pipeline_name,
+          to_string(pipeline_counter),
+          stage_name,
+          to_string(stage_counter),
+          job_name
+        ])
+      )
+
     target_path = Path.expand(Path.join([job_dir | file_path]))
 
     {pipeline_counter, stage_counter, job_dir, target_path}
@@ -40,7 +51,14 @@ defmodule ExGoCDWeb.ArtifactsController do
         "file_path" => file_path
       }) do
     {_pipeline_counter, _stage_counter, job_dir, target_path} =
-      build_job_paths(pipeline_name, pipeline_counter_str, stage_name, stage_counter_str, job_name, file_path)
+      build_job_paths(
+        pipeline_name,
+        pipeline_counter_str,
+        stage_name,
+        stage_counter_str,
+        job_name,
+        file_path
+      )
 
     with :ok <- check_safe_segments(file_path),
          :ok <- check_boundary(target_path, job_dir),
@@ -123,6 +141,7 @@ defmodule ExGoCDWeb.ArtifactsController do
   defp maybe_save_checksum(job_dir, %{path: _} = checksum_upload) do
     save_checksum(job_dir, checksum_upload)
   end
+
   defp maybe_save_checksum(_job_dir, _), do: :ok
 
   # Trigger test report generation if testoutput/ exists with XML files
@@ -154,14 +173,28 @@ defmodule ExGoCDWeb.ArtifactsController do
         "file_path" => file_path
       }) do
     {pipeline_counter, stage_counter, job_dir, target_path} =
-      build_job_paths(pipeline_name, pipeline_counter_str, stage_name, stage_counter_str, job_name, file_path)
+      build_job_paths(
+        pipeline_name,
+        pipeline_counter_str,
+        stage_name,
+        stage_counter_str,
+        job_name,
+        file_path
+      )
 
     with :ok <- check_safe_segments(file_path),
          :ok <- check_boundary(target_path, job_dir) do
       # Route to appropriate content provider
       cond do
         Path.join(file_path) == "cruise-output/console.log" ->
-          serve_console_log(conn, pipeline_name, pipeline_counter, stage_name, stage_counter, job_name)
+          serve_console_log(
+            conn,
+            pipeline_name,
+            pipeline_counter,
+            stage_name,
+            stage_counter,
+            job_name
+          )
 
         File.regular?(target_path) ->
           serve_file(conn, target_path)
@@ -179,7 +212,14 @@ defmodule ExGoCDWeb.ArtifactsController do
   end
 
   # sobelow_skip ["XSS.SendResp"]
-  defp serve_console_log(conn, pipeline_name, pipeline_counter, stage_name, stage_counter, job_name) do
+  defp serve_console_log(
+         conn,
+         pipeline_name,
+         pipeline_counter,
+         stage_name,
+         stage_counter,
+         job_name
+       ) do
     case get_run_by_params(pipeline_name, pipeline_counter, stage_name, stage_counter, job_name) do
       nil ->
         conn |> put_status(404) |> text("Console log not found.")
@@ -195,6 +235,7 @@ defmodule ExGoCDWeb.ArtifactsController do
   defp serve_file(conn, target_path) do
     verify_checksum_on_fetch(target_path)
     content_type = MIME.from_path(target_path)
+
     conn
     |> put_resp_header("content-type", content_type)
     |> send_file(200, target_path)
@@ -209,11 +250,16 @@ defmodule ExGoCDWeb.ArtifactsController do
 
     if File.exists?(checksum_file) and File.exists?(target_path) do
       stored = stored_checksum_for(checksum_file, file_name)
+
       if stored do
         computed = :crypto.hash(:md5, File.read!(target_path)) |> Base.encode16(case: :lower)
+
         unless computed == stored do
           require Logger
-          Logger.warning("Artifact checksum mismatch for #{file_name}: stored=#{stored}, computed=#{computed}")
+
+          Logger.warning(
+            "Artifact checksum mismatch for #{file_name}: stored=#{stored}, computed=#{computed}"
+          )
         end
       end
     end
@@ -234,8 +280,9 @@ defmodule ExGoCDWeb.ArtifactsController do
   end
 
   defp serve_directory(conn, target_path) do
-    is_zip? = String.ends_with?(conn.request_path, ".zip") or
-      String.contains?(get_req_header(conn, "accept") |> List.first() || "", "zip")
+    is_zip? =
+      String.ends_with?(conn.request_path, ".zip") or
+        String.contains?(get_req_header(conn, "accept") |> List.first() || "", "zip")
 
     if is_zip? do
       serve_directory_as_zip(conn, target_path)
@@ -246,11 +293,12 @@ defmodule ExGoCDWeb.ArtifactsController do
 
   # sobelow_skip ["Traversal.FileModule", "XSS.SendResp"]
   defp serve_directory_as_zip(conn, target_path) do
-    files_to_zip = list_files_recursive(target_path)
-    |> Enum.map(fn abs_path ->
-      rel_path = Path.relative_to(abs_path, target_path)
-      {to_charlist(rel_path), File.read!(abs_path)}
-    end)
+    files_to_zip =
+      list_files_recursive(target_path)
+      |> Enum.map(fn abs_path ->
+        rel_path = Path.relative_to(abs_path, target_path)
+        {to_charlist(rel_path), File.read!(abs_path)}
+      end)
 
     case :zip.create(~c"archive.zip", files_to_zip, [:memory]) do
       {:ok, {~c"archive.zip", binary}} ->
@@ -260,6 +308,7 @@ defmodule ExGoCDWeb.ArtifactsController do
 
       {:error, reason} ->
         Logger.error("Zip compression failed: #{inspect(reason)}")
+
         conn
         |> put_status(500)
         |> text("Internal Server Error: Failed to zip directory.")
@@ -287,7 +336,9 @@ defmodule ExGoCDWeb.ArtifactsController do
   defp serve_not_found(conn, file_path) do
     conn
     |> put_status(404)
-    |> text("Artifact '#{Path.join(file_path)}' is unavailable as it may have been purged by Go or deleted externally.")
+    |> text(
+      "Artifact '#{Path.join(file_path)}' is unavailable as it may have been purged by Go or deleted externally."
+    )
   end
 
   # PUT /files/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/:job_name/*file_path
@@ -300,13 +351,28 @@ defmodule ExGoCDWeb.ArtifactsController do
         "file_path" => file_path
       }) do
     {pipeline_counter, stage_counter, job_dir, target_path} =
-      build_job_paths(pipeline_name, pipeline_counter_str, stage_name, stage_counter_str, job_name, file_path)
+      build_job_paths(
+        pipeline_name,
+        pipeline_counter_str,
+        stage_name,
+        stage_counter_str,
+        job_name,
+        file_path
+      )
 
     with :ok <- check_safe_segments(file_path),
          :ok <- check_boundary(target_path, job_dir),
          {:ok, body, conn2} <- read_body(conn) do
       if Path.join(file_path) == "cruise-output/console.log" do
-        handle_console_log_append(conn2, pipeline_name, pipeline_counter, stage_name, stage_counter, job_name, body)
+        handle_console_log_append(
+          conn2,
+          pipeline_name,
+          pipeline_counter,
+          stage_name,
+          stage_counter,
+          job_name,
+          body
+        )
       else
         handle_file_append(conn2, target_path, file_path, body)
       end
@@ -316,7 +382,15 @@ defmodule ExGoCDWeb.ArtifactsController do
     end
   end
 
-  defp handle_console_log_append(conn, pipeline_name, pipeline_counter, stage_name, stage_counter, job_name, body) do
+  defp handle_console_log_append(
+         conn,
+         pipeline_name,
+         pipeline_counter,
+         stage_name,
+         stage_counter,
+         job_name,
+         body
+       ) do
     case get_run_by_params(pipeline_name, pipeline_counter, stage_name, stage_counter, job_name) do
       nil ->
         conn |> put_status(404) |> text("Job run not found.")
@@ -324,7 +398,10 @@ defmodule ExGoCDWeb.ArtifactsController do
       run ->
         case ExGoCD.AgentJobRuns.append_console(run.build_id, body) do
           {:ok, _} ->
-            conn |> put_status(200) |> text("File cruise-output/console.log was appended successfully")
+            conn
+            |> put_status(200)
+            |> text("File cruise-output/console.log was appended successfully")
+
           _ ->
             conn |> put_status(500) |> text("Failed to append to log.")
         end
@@ -335,9 +412,11 @@ defmodule ExGoCDWeb.ArtifactsController do
   defp handle_file_append(conn, target_path, file_path, body) do
     File.mkdir_p!(Path.dirname(target_path))
     mode = if File.exists?(target_path), do: [:append], else: [:write]
+
     case File.write(target_path, body, mode) do
       :ok ->
         conn |> put_status(200) |> text("File #{Path.join(file_path)} was appended successfully")
+
       {:error, reason} ->
         Logger.error("PUT write error: #{inspect(reason)}")
         conn |> put_status(500) |> text("Failed to append to file.")
@@ -412,6 +491,7 @@ defmodule ExGoCDWeb.ArtifactsController do
       _ -> ""
     end
   end
+
   defp get_entry_name(_), do: ""
 
   # Appends a checksum line to cruise-output/md5.checksum
@@ -437,6 +517,7 @@ defmodule ExGoCDWeb.ArtifactsController do
 
     # Only append if this file isn't already in the manifest
     existing = File.exists?(manifest_path) && File.read!(manifest_path)
+
     unless existing && String.contains?(existing, "  #{rel_path}") do
       File.write!(manifest_path, line, [:append])
     end
@@ -486,6 +567,12 @@ defmodule ExGoCDWeb.ArtifactsController do
 
   # Retrieves job run from the database based on pipeline coordinates
   defp get_run_by_params(pipeline_name, pipeline_counter, stage_name, stage_counter, job_name) do
-    ExGoCD.AgentJobRuns.get_run_by_params(pipeline_name, pipeline_counter, stage_name, stage_counter, job_name)
+    ExGoCD.AgentJobRuns.get_run_by_params(
+      pipeline_name,
+      pipeline_counter,
+      stage_name,
+      stage_counter,
+      job_name
+    )
   end
 end

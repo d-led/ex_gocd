@@ -41,7 +41,8 @@ defmodule ExGoCD.ConfigRepos do
   @doc """
   Updates a config repo.
   """
-  @spec update_config_repo(ConfigRepo.t(), map()) :: {:ok, ConfigRepo.t()} | {:error, Ecto.Changeset.t()}
+  @spec update_config_repo(ConfigRepo.t(), map()) ::
+          {:ok, ConfigRepo.t()} | {:error, Ecto.Changeset.t()}
   def update_config_repo(config_repo, attrs) do
     config_repo
     |> ConfigRepo.changeset(attrs)
@@ -62,14 +63,16 @@ defmodule ExGoCD.ConfigRepos do
   """
   @spec refresh_config_repo(ConfigRepo.t()) :: {:ok, integer()} | {:error, String.t()}
   def refresh_config_repo(_config_repo) do
-    {:error, "direct git clone not yet implemented — use refresh_config_repo_with_content/2 to pass file contents"}
+    {:error,
+     "direct git clone not yet implemented — use refresh_config_repo_with_content/2 to pass file contents"}
   end
 
   @doc """
   Refreshes a config repo with explicit file contents (for testing and API use).
   Parses the given content and upserts pipeline definitions.
   """
-  @spec refresh_config_repo_with_content(ConfigRepo.t(), String.t()) :: {:ok, integer()} | {:error, String.t()}
+  @spec refresh_config_repo_with_content(ConfigRepo.t(), String.t()) ::
+          {:ok, integer()} | {:error, String.t()}
   def refresh_config_repo_with_content(config_repo, content) when is_binary(content) do
     case Parser.parse_and_upsert(content) do
       {:ok, count} ->

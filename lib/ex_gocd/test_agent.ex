@@ -27,14 +27,15 @@ defmodule ExGoCD.TestAgent do
     work_simulation_ms = opts[:work_simulation_ms] || 1000
 
     # Ensure agent is registered in the DB (configured & enabled)
-    {:ok, agent} = Agents.register_agent(%{
-      "uuid" => uuid,
-      "hostname" => hostname,
-      "ipaddress" => ip_address,
-      "resources" => opts[:resources] || ["simulated"],
-      "environments" => opts[:environments] || ["test"],
-      "cookie" => "ex-gocd-demo-cookie"
-    })
+    {:ok, agent} =
+      Agents.register_agent(%{
+        "uuid" => uuid,
+        "hostname" => hostname,
+        "ipaddress" => ip_address,
+        "resources" => opts[:resources] || ["simulated"],
+        "environments" => opts[:environments] || ["test"],
+        "cookie" => "ex-gocd-demo-cookie"
+      })
 
     # Auto-enable the agent if it was registered but disabled
     if agent.disabled do
@@ -42,10 +43,11 @@ defmodule ExGoCD.TestAgent do
     end
 
     # Track presence so the scheduler and UI know this agent is connected
-    {:ok, _} = AgentPresence.track(self(), @presence_topic, uuid, %{
-      pid: inspect(self()),
-      joined_at: System.system_time(:second)
-    })
+    {:ok, _} =
+      AgentPresence.track(self(), @presence_topic, uuid, %{
+        pid: inspect(self()),
+        joined_at: System.system_time(:second)
+      })
 
     # Subscribe to PubSub topic for this agent to receive builds/cancels
     Phoenix.PubSub.subscribe(ExGoCD.PubSub, "agent:" <> uuid)
@@ -70,11 +72,12 @@ defmodule ExGoCD.TestAgent do
   @impl true
   def handle_info(:ping, state) do
     # Perform heartbeat update in database
-    _ = Agents.touch_agent_on_heartbeat(state.uuid, %{
-      "runtimeStatus" => state.runtime_status,
-      "operatingSystem" => "Simulated OTP",
-      "freeSpace" => 1024 * 1024 * 1024
-    })
+    _ =
+      Agents.touch_agent_on_heartbeat(state.uuid, %{
+        "runtimeStatus" => state.runtime_status,
+        "operatingSystem" => "Simulated OTP",
+        "freeSpace" => 1024 * 1024 * 1024
+      })
 
     # If idle, request work from the scheduler
     if state.runtime_status == "Idle" do
@@ -106,34 +109,37 @@ defmodule ExGoCD.TestAgent do
     sim_time = state.work_simulation_ms
     uuid = state.uuid
 
-    work_task = spawn(fn ->
-      # Transition Preparing -> Building
-      Process.sleep(div(sim_time, 3))
-      ExGoCD.AgentJobRuns.handle_agent_report(uuid, %{
-        "buildId" => build_id,
-        "jobState" => "Building",
-        "agentRuntimeInfo" => %{"runtimeStatus" => "Building"}
-      })
+    work_task =
+      spawn(fn ->
+        # Transition Preparing -> Building
+        Process.sleep(div(sim_time, 3))
 
-      # Upload some mock logs to console
-      ExGoCD.AgentJobRuns.append_console(build_id, "Preparing build workspace...\n")
-      Process.sleep(div(sim_time, 3))
-      ExGoCD.AgentJobRuns.append_console(build_id, "Executing simulated tasks...\n")
-      Process.sleep(div(sim_time, 3))
-      ExGoCD.AgentJobRuns.append_console(build_id, "Simulated build successfully finished!\n")
+        ExGoCD.AgentJobRuns.handle_agent_report(uuid, %{
+          "buildId" => build_id,
+          "jobState" => "Building",
+          "agentRuntimeInfo" => %{"runtimeStatus" => "Building"}
+        })
 
-      # Transition Building -> Completed
-      ExGoCD.AgentJobRuns.handle_agent_report(uuid, %{
-        "buildId" => build_id,
-        "jobState" => "Completed",
-        "result" => "Passed",
-        "agentRuntimeInfo" => %{"runtimeStatus" => "Idle"}
-      })
+        # Upload some mock logs to console
+        ExGoCD.AgentJobRuns.append_console(build_id, "Preparing build workspace...\n")
+        Process.sleep(div(sim_time, 3))
+        ExGoCD.AgentJobRuns.append_console(build_id, "Executing simulated tasks...\n")
+        Process.sleep(div(sim_time, 3))
+        ExGoCD.AgentJobRuns.append_console(build_id, "Simulated build successfully finished!\n")
 
-      send(parent, {:work_done, build_id})
-    end)
+        # Transition Building -> Completed
+        ExGoCD.AgentJobRuns.handle_agent_report(uuid, %{
+          "buildId" => build_id,
+          "jobState" => "Completed",
+          "result" => "Passed",
+          "agentRuntimeInfo" => %{"runtimeStatus" => "Idle"}
+        })
 
-    {:noreply, %{state | runtime_status: "Building", current_build_id: build_id, work_task: work_task}}
+        send(parent, {:work_done, build_id})
+      end)
+
+    {:noreply,
+     %{state | runtime_status: "Building", current_build_id: build_id, work_task: work_task}}
   end
 
   @impl true

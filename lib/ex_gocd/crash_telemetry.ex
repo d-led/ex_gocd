@@ -14,8 +14,20 @@ defmodule ExGoCD.CrashTelemetry do
   (the handler does nothing if no active span).
   """
   def attach do
-    :telemetry.attach("ex_gocd-crash-endpoint", [:phoenix, :endpoint, :exception], &handle_exception/4, nil)
-    :telemetry.attach("ex_gocd-crash-router", [:phoenix, :router_dispatch, :exception], &handle_exception/4, nil)
+    :telemetry.attach(
+      "ex_gocd-crash-endpoint",
+      [:phoenix, :endpoint, :exception],
+      &handle_exception/4,
+      nil
+    )
+
+    :telemetry.attach(
+      "ex_gocd-crash-router",
+      [:phoenix, :router_dispatch, :exception],
+      &handle_exception/4,
+      nil
+    )
+
     :ok
   end
 

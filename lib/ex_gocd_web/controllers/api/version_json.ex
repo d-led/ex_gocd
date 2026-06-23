@@ -7,6 +7,7 @@ defmodule ExGoCDWeb.API.VersionJSON do
   def show(_assigns) do
     vsn = to_string(Application.spec(@app, :vsn))
     git_sha = git_sha()
+
     %{
       _links: %{
         self: %{href: "/go/api/version"},
@@ -25,6 +26,7 @@ defmodule ExGoCDWeb.API.VersionJSON do
     case System.get_env("GITHUB_SHA") do
       sha when is_binary(sha) and byte_size(sha) > 0 ->
         String.slice(sha, 0, 7)
+
       _ ->
         ExGoCD.Git.rev_parse_short() || "unknown"
     end

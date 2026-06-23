@@ -32,10 +32,11 @@ defmodule ExGoCD.ConfigRepos.GitLabCITranslatorTest do
     test "translates a simple GitLab CI to pipeline attrs", %{prefix: prefix} do
       {:ok, ir} = GitLabCIParser.parse_gitlab_ci(@fixture_simple, ".gitlab-ci.yml")
 
-      {:ok, attrs} = GitLabCITranslator.translate(ir, %{
-        mode: "translate",
-        pipeline_name_prefix: prefix
-      })
+      {:ok, attrs} =
+        GitLabCITranslator.translate(ir, %{
+          mode: "translate",
+          pipeline_name_prefix: prefix
+        })
 
       assert attrs.name == "#{prefix}-gitlab-ci"
       assert attrs.group == prefix
@@ -63,11 +64,12 @@ defmodule ExGoCD.ConfigRepos.GitLabCITranslatorTest do
     test "respects selected_jobs filter", %{prefix: prefix} do
       {:ok, ir} = GitLabCIParser.parse_gitlab_ci(@fixture_simple, ".gitlab-ci.yml")
 
-      {:ok, attrs} = GitLabCITranslator.translate(ir, %{
-        mode: "translate",
-        pipeline_name_prefix: prefix,
-        selected_jobs: %{"included" => ["build-job"]}
-      })
+      {:ok, attrs} =
+        GitLabCITranslator.translate(ir, %{
+          mode: "translate",
+          pipeline_name_prefix: prefix,
+          selected_jobs: %{"included" => ["build-job"]}
+        })
 
       assert length(attrs.stages) == 1
       assert hd(attrs.stages).name == "build"
@@ -82,9 +84,11 @@ defmodule ExGoCD.ConfigRepos.GitLabCITranslatorTest do
         script: ./deploy.sh
         when: manual
       """
+
       {:ok, ir} = GitLabCIParser.parse_gitlab_ci(yaml, ".gitlab-ci.yml")
 
-      {:ok, attrs} = GitLabCITranslator.translate(ir, %{mode: "translate", pipeline_name_prefix: prefix})
+      {:ok, attrs} =
+        GitLabCITranslator.translate(ir, %{mode: "translate", pipeline_name_prefix: prefix})
 
       assert hd(attrs.stages).approval_type == "manual"
     end
@@ -94,7 +98,8 @@ defmodule ExGoCD.ConfigRepos.GitLabCITranslatorTest do
     test "returns empty stages for skip", %{prefix: prefix} do
       {:ok, ir} = GitLabCIParser.parse_gitlab_ci(@fixture_simple, ".gitlab-ci.yml")
 
-      {:ok, attrs} = GitLabCITranslator.translate(ir, %{mode: "skip", pipeline_name_prefix: prefix})
+      {:ok, attrs} =
+        GitLabCITranslator.translate(ir, %{mode: "skip", pipeline_name_prefix: prefix})
 
       assert attrs.stages == []
     end

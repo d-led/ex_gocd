@@ -34,7 +34,7 @@ defmodule ExGoCDWeb.ConnCase do
   setup tags do
     ExGoCD.DataCase.setup_sandbox(tags)
 
-    for name <- [ExGoCD.Scheduler, ExGoCD.Materials.TimerScheduler] do
+    for name <- [ExGoCD.Scheduler, ExGoCD.Materials.TimerScheduler, ExGoCD.Materials.Poller] do
       if pid = Process.whereis(name) do
         Ecto.Adapters.SQL.Sandbox.allow(ExGoCD.Repo, self(), pid)
       end

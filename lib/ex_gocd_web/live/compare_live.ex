@@ -10,7 +10,9 @@ defmodule ExGoCDWeb.CompareLive do
     to_counter = String.to_integer(params["to_counter"])
 
     # Determine if we should use mock fallback
-    use_mock = System.get_env("USE_MOCK_DATA") == "true" || not has_db_instances?(pipeline_name, to_counter)
+    use_mock =
+      System.get_env("USE_MOCK_DATA") == "true" ||
+        not has_db_instances?(pipeline_name, to_counter)
 
     comparison =
       if use_mock do
@@ -37,6 +39,7 @@ defmodule ExGoCDWeb.CompareLive do
 
   defp has_db_instances?(pipeline_name, counter) do
     import Ecto.Query
+
     ExGoCD.Repo.exists?(
       from pi in ExGoCD.Pipelines.PipelineInstance,
         join: p in assoc(pi, :pipeline),
@@ -55,13 +58,27 @@ defmodule ExGoCDWeb.CompareLive do
           from_revision: "a0f2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0",
           to_revision: "9f8e7d6c5b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e",
           modifications: [
-            %{"revision" => "9f8e7d6c5b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e", "username" => "Dmitry Ledentsov <dmitry@example.com>", "modifiedTime" => DateTime.utc_now() |> DateTime.to_iso8601(), "comment" => "feat: add job log streaming"},
-            %{"revision" => "7c6b5a4f3e2d1c0b9a8f7e6d5c4b3a2f1e0d9c8b", "username" => "Dmitry Ledentsov <dmitry@example.com>", "modifiedTime" => DateTime.utc_now() |> DateTime.add(-3600) |> DateTime.to_iso8601(), "comment" => "fix: dashboard live status"}
+            %{
+              "revision" => "9f8e7d6c5b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e",
+              "username" => "Dmitry Ledentsov <dmitry@example.com>",
+              "modifiedTime" => DateTime.utc_now() |> DateTime.to_iso8601(),
+              "comment" => "feat: add job log streaming"
+            },
+            %{
+              "revision" => "7c6b5a4f3e2d1c0b9a8f7e6d5c4b3a2f1e0d9c8b",
+              "username" => "Dmitry Ledentsov <dmitry@example.com>",
+              "modifiedTime" =>
+                DateTime.utc_now() |> DateTime.add(-3600) |> DateTime.to_iso8601(),
+              "comment" => "fix: dashboard live status"
+            }
           ]
         }
       ],
       from_environment_variables: [%{"name" => "DEPLOY_ENV", "value" => "staging"}],
-      to_environment_variables: [%{"name" => "DEPLOY_ENV", "value" => "production"}, %{"name" => "FEATURE_FLAG", "value" => "new_ui"}],
+      to_environment_variables: [
+        %{"name" => "DEPLOY_ENV", "value" => "production"},
+        %{"name" => "FEATURE_FLAG", "value" => "new_ui"}
+      ],
       config_changed: false
     }
   end
@@ -73,15 +90,18 @@ defmodule ExGoCDWeb.CompareLive do
       rev
     end
   end
+
   defp format_revision(_), do: "Unknown"
 
   defp format_time(nil), do: "—"
+
   defp format_time(time) when is_binary(time) do
     case DateTime.from_iso8601(time) do
       {:ok, dt, _} -> Calendar.strftime(dt, "%d %b, %Y at %H:%M:%S UTC")
       _ -> time
     end
   end
+
   defp format_time(%DateTime{} = dt), do: Calendar.strftime(dt, "%d %b, %Y at %H:%M:%S UTC")
   defp format_time(_), do: "—"
 
@@ -92,7 +112,12 @@ defmodule ExGoCDWeb.CompareLive do
       <!-- Breadcrumb Header -->
       <div class="page-header border-b border-gray-200 pb-4 mb-6">
         <div class="flex items-center gap-2 text-xs text-gray-500 font-mono font-bold uppercase tracking-wider">
-          <.link navigate={~p"/pipeline/activity/#{@pipeline_name}"} class="text-[#2d6ca2] hover:underline">{@pipeline_name}</.link>
+          <.link
+            navigate={~p"/pipeline/activity/#{@pipeline_name}"}
+            class="text-[#2d6ca2] hover:underline"
+          >
+            {@pipeline_name}
+          </.link>
           <span>/</span>
           <span class="text-gray-800">Compare: {@from_counter} with {@to_counter}</span>
         </div>
@@ -101,15 +126,18 @@ defmodule ExGoCDWeb.CompareLive do
           <h1 class="text-2xl font-extrabold text-gray-950 font-mono flex items-baseline gap-2">
             Compare: {@pipeline_name}
             <span class="text-sm font-semibold text-gray-500">
-              Counter <span class="bg-gray-200 px-1.5 py-0.5 rounded text-gray-800">{@from_counter}</span>
+              Counter
+              <span class="bg-gray-200 px-1.5 py-0.5 rounded text-gray-800">{@from_counter}</span>
               to
-              <span class="bg-[#e7eef0] px-1.5 py-0.5 rounded text-[#2d6ca2] font-bold">{@to_counter}</span>
+              <span class="bg-[#e7eef0] px-1.5 py-0.5 rounded text-[#2d6ca2] font-bold">
+                {@to_counter}
+              </span>
             </span>
           </h1>
         </div>
       </div>
-
-      <!-- Comparison Content -->
+      
+    <!-- Comparison Content -->
       <div class="flex flex-col gap-6">
         <%= if Enum.empty?(@comparison.materials) do %>
           <div class="bg-white border border-gray-200 rounded shadow-sm p-8 text-center text-gray-500 italic">
@@ -129,8 +157,18 @@ defmodule ExGoCDWeb.CompareLive do
                   </h3>
                 </div>
                 <div class="text-[10px] font-mono text-gray-400 font-bold uppercase tracking-wider flex gap-4">
-                  <div>From: <span class="text-gray-700 font-semibold">{format_revision(mat.from_revision)}</span></div>
-                  <div>To: <span class="text-gray-700 font-semibold">{format_revision(mat.to_revision)}</span></div>
+                  <div>
+                    From:
+                    <span class="text-gray-700 font-semibold">
+                      {format_revision(mat.from_revision)}
+                    </span>
+                  </div>
+                  <div>
+                    To:
+                    <span class="text-gray-700 font-semibold">
+                      {format_revision(mat.to_revision)}
+                    </span>
+                  </div>
                 </div>
               </div>
 

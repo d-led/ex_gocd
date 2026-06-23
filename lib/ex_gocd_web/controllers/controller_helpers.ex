@@ -28,6 +28,7 @@ defmodule ExGoCDWeb.ControllerHelpers do
   Parses an integer from a binary string, defaulting to 0 on parse errors or nil.
   """
   def parse_offset(nil), do: 0
+
   def parse_offset(str) when is_binary(str) do
     case Integer.parse(str) do
       {n, _} -> n

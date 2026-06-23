@@ -22,10 +22,11 @@ defmodule ExGoCDWeb.API.StageController do
       from(si in StageInstance,
         join: pi in assoc(si, :pipeline_instance),
         join: p in assoc(pi, :pipeline),
-        where: p.name == ^pipeline_name and
-                 pi.counter == ^pipeline_counter and
-                 si.name == ^stage_name and
-                 si.counter == ^stage_counter,
+        where:
+          p.name == ^pipeline_name and
+            pi.counter == ^pipeline_counter and
+            si.name == ^stage_name and
+            si.counter == ^stage_counter,
         preload: [pipeline_instance: {pi, pipeline: p}, job_instances: :job],
         limit: 1
       )
@@ -59,18 +60,19 @@ defmodule ExGoCDWeb.API.StageController do
       |> Repo.all()
 
     json(conn, %{
-      stages: Enum.map(instances, fn si ->
-        %{
-          pipeline_name: pipeline_name,
-          pipeline_counter: si.pipeline_instance.counter,
-          name: stage_name,
-          counter: si.counter,
-          state: si.state || "Unknown",
-          result: si.result || "Unknown",
-          approval_type: si.approval_type || "success",
-          rerun_of_counter: si.rerun_of_counter
-        }
-      end)
+      stages:
+        Enum.map(instances, fn si ->
+          %{
+            pipeline_name: pipeline_name,
+            pipeline_counter: si.pipeline_instance.counter,
+            name: stage_name,
+            counter: si.counter,
+            state: si.state || "Unknown",
+            result: si.result || "Unknown",
+            approval_type: si.approval_type || "success",
+            rerun_of_counter: si.rerun_of_counter
+          }
+        end)
     })
   end
 
@@ -142,5 +144,4 @@ defmodule ExGoCDWeb.API.StageController do
       scheduled_at: format_ts(ji.scheduled_at)
     }
   end
-
 end

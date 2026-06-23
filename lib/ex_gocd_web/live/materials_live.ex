@@ -26,6 +26,7 @@ defmodule ExGoCDWeb.MaterialsLive do
   @impl true
   def handle_params(params, _uri, socket) do
     search_text = params["search"] || ""
+
     {:noreply,
      socket
      |> assign(:search_text, search_text)
@@ -43,18 +44,21 @@ defmodule ExGoCDWeb.MaterialsLive do
   @impl true
   def handle_event("toggle_material", %{"fingerprint" => fingerprint}, socket) do
     expanded = socket.assigns.expanded_materials
+
     new_expanded =
       if MapSet.member?(expanded, fingerprint) do
         MapSet.delete(expanded, fingerprint)
       else
         MapSet.put(expanded, fingerprint)
       end
+
     {:noreply, assign(socket, :expanded_materials, new_expanded)}
   end
 
   @impl true
   def handle_event("trigger_update", %{"fingerprint" => fingerprint}, socket) do
     material = Enum.find(socket.assigns.materials, &(&1.fingerprint == fingerprint))
+
     if material do
       {:noreply,
        socket
@@ -67,6 +71,7 @@ defmodule ExGoCDWeb.MaterialsLive do
   @impl true
   def handle_event("show_usages", %{"fingerprint" => fingerprint}, socket) do
     material = Enum.find(socket.assigns.materials, &(&1.fingerprint == fingerprint))
+
     if material do
       {:noreply,
        socket
@@ -80,6 +85,7 @@ defmodule ExGoCDWeb.MaterialsLive do
   @impl true
   def handle_event("show_modifications", %{"fingerprint" => fingerprint}, socket) do
     material = Enum.find(socket.assigns.materials, &(&1.fingerprint == fingerprint))
+
     if material do
       {:noreply,
        socket
@@ -155,6 +161,7 @@ defmodule ExGoCDWeb.MaterialsLive do
     materials
     |> Enum.map(fn mat ->
       fp = fingerprint(mat)
+
       mat
       |> Map.put(:fingerprint, fp)
       |> Map.put(:modification, get_latest_modification(mat))
@@ -165,6 +172,7 @@ defmodule ExGoCDWeb.MaterialsLive do
   defp map_db_materials(list) do
     Enum.map(list, fn mat ->
       pipelines = Enum.map(mat.pipelines || [], & &1.name) |> Enum.uniq() |> Enum.sort()
+
       %{
         type: mat.type,
         url: mat.url,
@@ -234,7 +242,12 @@ defmodule ExGoCDWeb.MaterialsLive do
           <span class="help-question" title="A material is a cause for a pipeline to run.">?</span>
         </h1>
         <div class="search-box-wrapper" role="search" aria-label="Material filters">
-          <form phx-change="search" phx-submit="search" id="material-search-form" class="search-form-wrapper">
+          <form
+            phx-change="search"
+            phx-submit="search"
+            id="material-search-form"
+            class="search-form-wrapper"
+          >
             <i class="fa-solid fa-magnifying-glass search-icon-inside"></i>
             <input
               id="material-search"
@@ -254,24 +267,43 @@ defmodule ExGoCDWeb.MaterialsLive do
       <%= if @has_materials do %>
         <div class="materials-list" role="region" aria-label="SCM Materials">
           <%= for mat <- @materials do %>
-            <div class={"material-card collapse #{if MapSet.member?(@expanded_materials, mat.fingerprint), do: "expanded", else: ""}"} data-type={mat.type} id={"material-#{mat.fingerprint}"}>
+            <div
+              class={"material-card collapse #{if MapSet.member?(@expanded_materials, mat.fingerprint), do: "expanded", else: ""}"}
+              data-type={mat.type}
+              id={"material-#{mat.fingerprint}"}
+            >
               <div class="collapse-header">
-                <div class="collapse-header-clickable" phx-click="toggle_material" phx-value-fingerprint={mat.fingerprint}>
+                <div
+                  class="collapse-header-clickable"
+                  phx-click="toggle_material"
+                  phx-value-fingerprint={mat.fingerprint}
+                >
                   <div class="header-details">
                     <div class="material-icon-wrapper" data-test-id="material-icon">
                       <div class="scm-logo-box">
                         <%= case mat.type do %>
-                          <% "git" -> %> <i class="fa-brands fa-git-alt git-icon"></i> <span>git</span>
-                          <% "hg" -> %> <i class="fa-solid fa-code-fork hg-icon"></i> <span>hg</span>
-                          <% "svn" -> %> <i class="fa-solid fa-database svn-icon"></i> <span>svn</span>
-                          <% "p4" -> %> <i class="fa-solid fa-terminal p4-icon"></i> <span>p4</span>
-                          <% "tfs" -> %> <i class="fa-brands fa-windows tfs-icon"></i> <span>tfs</span>
-                          <% _ -> %> <i class="fa-solid fa-circle-question default-icon"></i> <span>{mat.type}</span>
+                          <% "git" -> %>
+                            <i class="fa-brands fa-git-alt git-icon"></i> <span>git</span>
+                          <% "hg" -> %>
+                            <i class="fa-solid fa-code-fork hg-icon"></i> <span>hg</span>
+                          <% "svn" -> %>
+                            <i class="fa-solid fa-database svn-icon"></i> <span>svn</span>
+                          <% "p4" -> %>
+                            <i class="fa-solid fa-terminal p4-icon"></i> <span>p4</span>
+                          <% "tfs" -> %>
+                            <i class="fa-brands fa-windows tfs-icon"></i> <span>tfs</span>
+                          <% _ -> %>
+                            <i class="fa-solid fa-circle-question default-icon"></i>
+                            <span>{mat.type}</span>
                         <% end %>
                       </div>
                     </div>
                     <div class="headerTitle">
-                      <h4 class="headerTitleText material-url" title={mat.url} data-test-id="material-type">
+                      <h4
+                        class="headerTitleText material-url"
+                        title={mat.url}
+                        data-test-id="material-type"
+                      >
                         {mat.url}
                       </h4>
                       <span class="headerTitleUrl" data-test-id="material-display-name">
@@ -284,8 +316,17 @@ defmodule ExGoCDWeb.MaterialsLive do
                     <%= if mat.modification do %>
                       <span class="comment">{mat.modification.comment}</span>
                       <div class="committerInfo">
-                        <span class="committer">{mat.modification.username}</span> | {mat.modification.revision} |
-                        <.link navigate={~p"/materials/value_stream_map/#{mat.fingerprint}/#{mat.modification.revision}"} class="vsm-link" onclick="event.stopPropagation();">VSM</.link>
+                        <span class="committer">{mat.modification.username}</span>
+                        | {mat.modification.revision} |
+                        <.link
+                          navigate={
+                            ~p"/materials/value_stream_map/#{mat.fingerprint}/#{mat.modification.revision}"
+                          }
+                          class="vsm-link"
+                          onclick="event.stopPropagation();"
+                        >
+                          VSM
+                        </.link>
                       </div>
                     <% else %>
                       This material was never parsed
@@ -295,19 +336,41 @@ defmodule ExGoCDWeb.MaterialsLive do
 
                 <div class="actions">
                   <div class="icon-group">
-                    <button class="icon-btn" title="Trigger Update" phx-click="trigger_update" phx-value-fingerprint={mat.fingerprint} data-test-id="trigger-update">
+                    <button
+                      class="icon-btn"
+                      title="Trigger Update"
+                      phx-click="trigger_update"
+                      phx-value-fingerprint={mat.fingerprint}
+                      data-test-id="trigger-update"
+                    >
                       <i class="fa-solid fa-arrows-rotate"></i>
                     </button>
-                    <button class="icon-btn" title="Show Usages" phx-click="show_usages" phx-value-fingerprint={mat.fingerprint} data-test-id="show-usages">
+                    <button
+                      class="icon-btn"
+                      title="Show Usages"
+                      phx-click="show_usages"
+                      phx-value-fingerprint={mat.fingerprint}
+                      data-test-id="show-usages"
+                    >
                       <i class="fa-solid fa-chart-pie"></i>
                     </button>
-                    <button class="icon-btn" title="Show Modifications" phx-click="show_modifications" phx-value-fingerprint={mat.fingerprint} data-test-id="show-modifications">
+                    <button
+                      class="icon-btn"
+                      title="Show Modifications"
+                      phx-click="show_modifications"
+                      phx-value-fingerprint={mat.fingerprint}
+                      data-test-id="show-modifications"
+                    >
                       <i class="fa-solid fa-list"></i>
                     </button>
                   </div>
                 </div>
 
-                <div class="collapse-toggle" phx-click="toggle_material" phx-value-fingerprint={mat.fingerprint}>
+                <div
+                  class="collapse-toggle"
+                  phx-click="toggle_material"
+                  phx-value-fingerprint={mat.fingerprint}
+                >
                   <i class="fa-solid fa-chevron-right"></i>
                 </div>
               </div>
@@ -319,7 +382,9 @@ defmodule ExGoCDWeb.MaterialsLive do
                     <div class="detail-row">
                       <span class="detail-key">Username</span>
                       <span class="detail-colon">:</span>
-                      <span class="detail-value">{mat.modification.username} &lt;{mat.modification.email}&gt;</span>
+                      <span class="detail-value">
+                        {mat.modification.username} &lt;{mat.modification.email}&gt;
+                      </span>
                     </div>
                     <div class="detail-row">
                       <span class="detail-key">Email</span>
@@ -339,7 +404,12 @@ defmodule ExGoCDWeb.MaterialsLive do
                     <div class="detail-row">
                       <span class="detail-key">Modified Time</span>
                       <span class="detail-colon">:</span>
-                      <span class="detail-value">{Calendar.strftime(mat.modification.modified_time, "%d %b, %Y at %H:%M:%S Local Time")}</span>
+                      <span class="detail-value">
+                        {Calendar.strftime(
+                          mat.modification.modified_time,
+                          "%d %b, %Y at %H:%M:%S Local Time"
+                        )}
+                      </span>
                     </div>
                   <% else %>
                     <div class="detail-row empty">This material was never parsed</div>
@@ -371,7 +441,8 @@ defmodule ExGoCDWeb.MaterialsLive do
                     <span class="detail-key">Auto Update</span>
                     <span class="detail-colon">:</span>
                     <span class="detail-value">
-                      <span class={"material-status_indicator " <> if not mat.auto_update, do: "auto-update-disabled", else: ""}></span>
+                      <span class={"material-status_indicator " <> if not mat.auto_update, do: "auto-update-disabled", else: ""}>
+                      </span>
                       <%= if mat.auto_update do %>
                         Active (polling)
                       <% else %>
@@ -390,14 +461,16 @@ defmodule ExGoCDWeb.MaterialsLive do
           <p>Try refining your search term or configure materials in your pipelines.</p>
         </div>
       <% end %>
-
-      <!-- Usages Modal -->
+      
+    <!-- Usages Modal -->
       <%= if @show_usages_modal and @active_material do %>
         <div class="modal-backdrop" phx-click="close_modal" id="usages-modal-backdrop">
           <div class="gocd-modal" onclick="event.stopPropagation();" id="usages-modal">
             <div class="modal-header">
               <h3>Usages</h3>
-              <button class="close-btn" phx-click="close_modal" aria-label="Close modal">&times;</button>
+              <button class="close-btn" phx-click="close_modal" aria-label="Close modal">
+                &times;
+              </button>
             </div>
             <div class="modal-body">
               <table class="modal-table">
@@ -429,32 +502,34 @@ defmodule ExGoCDWeb.MaterialsLive do
           </div>
         </div>
       <% end %>
-
-      <!-- Modifications Modal -->
+      
+    <!-- Modifications Modal -->
       <%= if @show_modifications_modal and @active_material do %>
-        <%
-          all_mods = get_all_modifications(@active_material)
-          query = String.downcase(@mod_search_text)
-          filtered_mods =
-            if query == "" do
-              all_mods
-            else
-              Enum.filter(all_mods, fn m ->
-                String.contains?(String.downcase(m.revision || ""), query) or
-                  String.contains?(String.downcase(m.comment || ""), query) or
-                  String.contains?(String.downcase(m.username || ""), query)
-              end)
-            end
-          page_size = 5
-          total_pages = max(1, Float.ceil(length(filtered_mods) / page_size) |> trunc())
-          current_page = min(@mod_page_index, total_pages - 1) |> max(0)
-          paged_mods = Enum.slice(filtered_mods, (current_page * page_size), page_size)
-        %>
+        <% all_mods = get_all_modifications(@active_material)
+        query = String.downcase(@mod_search_text)
+
+        filtered_mods =
+          if query == "" do
+            all_mods
+          else
+            Enum.filter(all_mods, fn m ->
+              String.contains?(String.downcase(m.revision || ""), query) or
+                String.contains?(String.downcase(m.comment || ""), query) or
+                String.contains?(String.downcase(m.username || ""), query)
+            end)
+          end
+
+        page_size = 5
+        total_pages = max(1, Float.ceil(length(filtered_mods) / page_size) |> trunc())
+        current_page = min(@mod_page_index, total_pages - 1) |> max(0)
+        paged_mods = Enum.slice(filtered_mods, current_page * page_size, page_size) %>
         <div class="modal-backdrop" phx-click="close_modal" id="modifications-modal-backdrop">
           <div class="gocd-modal large" onclick="event.stopPropagation();" id="modifications-modal">
             <div class="modal-header">
               <h3>Modifications</h3>
-              <button class="close-btn" phx-click="close_modal" aria-label="Close modal">&times;</button>
+              <button class="close-btn" phx-click="close_modal" aria-label="Close modal">
+                &times;
+              </button>
             </div>
             <div class="modal-sub-header">
               <div class="sub-header-title">
@@ -462,7 +537,12 @@ defmodule ExGoCDWeb.MaterialsLive do
                 <span class="scm-url">{@active_material.url}</span>
               </div>
               <div class="modal-search">
-                <form phx-change="search_modifications" phx-submit="search_modifications" id="mod-search-form" class="search-form-wrapper">
+                <form
+                  phx-change="search_modifications"
+                  phx-submit="search_modifications"
+                  id="mod-search-form"
+                  class="search-form-wrapper"
+                >
                   <i class="fa-solid fa-magnifying-glass search-icon-inside"></i>
                   <input
                     type="search"
@@ -484,7 +564,9 @@ defmodule ExGoCDWeb.MaterialsLive do
                     <div class="mod-row">
                       <div class="mod-left">
                         <span class="mod-user">{mod.username}</span>
-                        <span class="mod-time">{Calendar.strftime(mod.modified_time, "%d %b, %Y at %H:%M:%S")} Local Time</span>
+                        <span class="mod-time">
+                          {Calendar.strftime(mod.modified_time, "%d %b, %Y at %H:%M:%S")} Local Time
+                        </span>
                       </div>
                       <div class="mod-middle">
                         <span class="mod-comment">{mod.comment}</span>
@@ -492,15 +574,36 @@ defmodule ExGoCDWeb.MaterialsLive do
                       <div class="mod-right">
                         <span class="mod-rev">{String.slice(mod.revision, 0, 10)}...</span>
                         <span class="mod-divider">|</span>
-                        <.link navigate={~p"/materials/value_stream_map/#{@active_material.fingerprint}/#{mod.revision}"} class="mod-vsm">VSM</.link>
+                        <.link
+                          navigate={
+                            ~p"/materials/value_stream_map/#{@active_material.fingerprint}/#{mod.revision}"
+                          }
+                          class="mod-vsm"
+                        >
+                          VSM
+                        </.link>
                       </div>
                     </div>
                   <% end %>
                 <% end %>
               </div>
               <div class="modal-pagination">
-                <button class="page-btn" phx-click="mod_prev_page" disabled={current_page <= 0} id="mod-prev-btn">Previous</button>
-                <button class="page-btn" phx-click="mod_next_page" disabled={(current_page + 1) * page_size >= length(filtered_mods)} id="mod-next-btn">Next</button>
+                <button
+                  class="page-btn"
+                  phx-click="mod_prev_page"
+                  disabled={current_page <= 0}
+                  id="mod-prev-btn"
+                >
+                  Previous
+                </button>
+                <button
+                  class="page-btn"
+                  phx-click="mod_next_page"
+                  disabled={(current_page + 1) * page_size >= length(filtered_mods)}
+                  id="mod-next-btn"
+                >
+                  Next
+                </button>
               </div>
             </div>
             <div class="modal-footer">

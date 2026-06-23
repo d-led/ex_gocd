@@ -25,20 +25,33 @@ defmodule ExGoCDWeb.API.Admin.TemplateController do
     }
 
     case Pipelines.create_template(attrs) do
-      {:ok, template} -> conn |> put_status(:created) |> json(template_json(template))
-      {:error, changeset} -> conn |> put_status(:unprocessable_entity) |> json(%{message: "Failed to create template.", errors: format_errors(changeset)})
+      {:ok, template} ->
+        conn |> put_status(:created) |> json(template_json(template))
+
+      {:error, changeset} ->
+        conn
+        |> put_status(:unprocessable_entity)
+        |> json(%{message: "Failed to create template.", errors: format_errors(changeset)})
     end
   end
 
   @doc "PUT /api/admin/templates/:name"
   def update(conn, %{"name" => name} = params) do
     case Pipelines.get_template_by_name(name) do
-      nil -> conn |> put_status(:not_found) |> json(%{message: "Template '#{name}' not found."})
+      nil ->
+        conn |> put_status(:not_found) |> json(%{message: "Template '#{name}' not found."})
+
       template ->
         attrs = Map.take(params, ~w(stages))
+
         case Pipelines.update_template(template, attrs) do
-          {:ok, updated} -> json(conn, template_json(updated))
-          {:error, changeset} -> conn |> put_status(:unprocessable_entity) |> json(%{message: "Update failed.", errors: format_errors(changeset)})
+          {:ok, updated} ->
+            json(conn, template_json(updated))
+
+          {:error, changeset} ->
+            conn
+            |> put_status(:unprocessable_entity)
+            |> json(%{message: "Update failed.", errors: format_errors(changeset)})
         end
     end
   end
@@ -46,7 +59,9 @@ defmodule ExGoCDWeb.API.Admin.TemplateController do
   @doc "DELETE /api/admin/templates/:name"
   def delete(conn, %{"name" => name}) do
     case Pipelines.get_template_by_name(name) do
-      nil -> conn |> put_status(:not_found) |> json(%{message: "Template '#{name}' not found."})
+      nil ->
+        conn |> put_status(:not_found) |> json(%{message: "Template '#{name}' not found."})
+
       template ->
         Pipelines.delete_template(template)
         json(conn, %{message: "Template '#{name}' deleted."})
@@ -59,5 +74,4 @@ defmodule ExGoCDWeb.API.Admin.TemplateController do
       stages: template.stages || []
     }
   end
-
 end

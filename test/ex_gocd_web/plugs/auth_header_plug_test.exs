@@ -52,6 +52,7 @@ defmodule ExGoCDWeb.Plugs.AuthHeaderPlugTest do
   test "auto-creates admin when username in EX_GOCD_ADMIN_USERS", %{conn: conn} do
     System.put_env("EX_GOCD_AUTO_CREATE_USERS", "true")
     System.put_env("EX_GOCD_ADMIN_USERS", "admin@exgocd.local,lead@exgocd.local")
+
     on_exit(fn ->
       System.delete_env("EX_GOCD_AUTO_CREATE_USERS")
       System.delete_env("EX_GOCD_ADMIN_USERS")
@@ -69,12 +70,13 @@ defmodule ExGoCDWeb.Plugs.AuthHeaderPlugTest do
   end
 
   test "sets session for existing user in DB", %{conn: conn} do
-    {:ok, db_user} = Accounts.create_user(%{
-      username: "oauth_user",
-      display_name: "Original Name",
-      roles: ["developer"],
-      status: "Active"
-    })
+    {:ok, db_user} =
+      Accounts.create_user(%{
+        username: "oauth_user",
+        display_name: "Original Name",
+        roles: ["developer"],
+        status: "Active"
+      })
 
     conn =
       conn

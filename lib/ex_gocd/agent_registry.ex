@@ -75,14 +75,15 @@ defmodule ExGoCD.AgentRegistry do
 
     console_uri = console_uri_for_build(build_id)
 
-    payload = %{
-      "buildId" => build_id,
-      "buildLocator" => build_locator,
-      "buildLocatorForDisplay" => build_locator,
-      "buildCommand" => build_command,
-      "consoleURI" => console_uri
-    }
-    |> VsmTracer.inject_context()
+    payload =
+      %{
+        "buildId" => build_id,
+        "buildLocator" => build_locator,
+        "buildLocatorForDisplay" => build_locator,
+        "buildCommand" => build_command,
+        "consoleURI" => console_uri
+      }
+      |> VsmTracer.inject_context()
 
     {payload, build_id, pipeline, stage, job}
   end

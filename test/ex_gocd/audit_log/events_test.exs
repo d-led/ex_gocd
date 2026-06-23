@@ -52,7 +52,9 @@ defmodule ExGoCD.AuditLog.EventsTest do
       assert entry.action == "admin.reset_pipeline"
       assert entry.resource_type == "pipeline"
       assert entry.resource_name == "my-pipeline"
-      assert %{"event_version" => 1, "payload" => %{"pipeline_name" => "my-pipeline"}} = entry.details
+
+      assert %{"event_version" => 1, "payload" => %{"pipeline_name" => "my-pipeline"}} =
+               entry.details
     end
   end
 end

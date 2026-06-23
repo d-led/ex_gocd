@@ -14,6 +14,7 @@ defmodule ExGoCDWeb.API.UserController do
     case Accounts.get_user_by_username(username) do
       nil ->
         conn |> put_status(:not_found) |> json(%{message: "User '#{username}' not found."})
+
       user ->
         json(conn, user_json(user))
     end
@@ -22,15 +23,18 @@ defmodule ExGoCDWeb.API.UserController do
   @doc "POST /api/users"
   def create(conn, %{"username" => username} = params) do
     case Accounts.create_user(%{
-      username: username,
-      display_name: params["display_name"] || username,
-      roles: params["roles"] || [],
-      status: params["status"] || "Active"
-    }) do
+           username: username,
+           display_name: params["display_name"] || username,
+           roles: params["roles"] || [],
+           status: params["status"] || "Active"
+         }) do
       {:ok, user} ->
         conn |> put_status(:created) |> json(user_json(user))
+
       {:error, changeset} ->
-        conn |> put_status(:unprocessable_entity) |> json(%{message: "Failed to create user.", errors: format_errors(changeset)})
+        conn
+        |> put_status(:unprocessable_entity)
+        |> json(%{message: "Failed to create user.", errors: format_errors(changeset)})
     end
   end
 
@@ -39,12 +43,19 @@ defmodule ExGoCDWeb.API.UserController do
     case Accounts.get_user_by_username(username) do
       nil ->
         conn |> put_status(:not_found) |> json(%{message: "User '#{username}' not found."})
+
       user ->
         attrs = Map.take(params, ~w(display_name roles status))
         attrs = if attrs == %{}, do: %{display_name: user.display_name}, else: attrs
+
         case Accounts.update_user(user, attrs) do
-          {:ok, updated} -> json(conn, user_json(updated))
-          {:error, changeset} -> conn |> put_status(:unprocessable_entity) |> json(%{message: "Update failed.", errors: format_errors(changeset)})
+          {:ok, updated} ->
+            json(conn, user_json(updated))
+
+          {:error, changeset} ->
+            conn
+            |> put_status(:unprocessable_entity)
+            |> json(%{message: "Update failed.", errors: format_errors(changeset)})
         end
     end
   end
@@ -54,6 +65,7 @@ defmodule ExGoCDWeb.API.UserController do
     case Accounts.get_user_by_username(username) do
       nil ->
         conn |> put_status(:not_found) |> json(%{message: "User '#{username}' not found."})
+
       user ->
         Accounts.delete_user(user)
         json(conn, %{message: "User '#{username}' deleted."})
@@ -68,5 +80,4 @@ defmodule ExGoCDWeb.API.UserController do
       status: user.status
     }
   end
-
 end

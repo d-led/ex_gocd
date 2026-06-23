@@ -13,16 +13,18 @@ defmodule ExGoCDWeb.API.DashboardController do
   def show(conn, _params) do
     pipelines = Repo.all(from p in Pipeline, order_by: [asc: :display_order_weight, asc: :name])
 
-    pipeline_data = Enum.map(pipelines, fn p ->
-      latest = latest_instance(p.id)
-      %{
-        name: p.name,
-        group: p.group || "defaultGroup",
-        paused: p.paused || false,
-        locked: p.locked || false,
-        latest_instance: instance_summary(latest, p.name)
-      }
-    end)
+    pipeline_data =
+      Enum.map(pipelines, fn p ->
+        latest = latest_instance(p.id)
+
+        %{
+          name: p.name,
+          group: p.group || "defaultGroup",
+          paused: p.paused || false,
+          locked: p.locked || false,
+          latest_instance: instance_summary(latest, p.name)
+        }
+      end)
 
     # Group by pipeline group
     grouped =
@@ -67,23 +69,25 @@ defmodule ExGoCDWeb.API.DashboardController do
       counter: pi.counter,
       label: pi.label || to_string(pi.counter),
       scheduled_at: ts(pi.inserted_at),
-      stages: Enum.map(stages, fn si ->
-        %{
-          name: si.name,
-          counter: si.counter,
-          status: si.state || "Unknown",
-          result: si.result || "Unknown",
-          rerun_of_counter: si.rerun_of_counter,
-          jobs: Enum.map(si.job_instances || [], fn ji ->
-            %{
-              name: ji.name,
-              state: ji.state || "Unknown",
-              result: ji.result || "Unknown",
-              scheduled_date: ts(ji.scheduled_at)
-            }
-          end)
-        }
-      end),
+      stages:
+        Enum.map(stages, fn si ->
+          %{
+            name: si.name,
+            counter: si.counter,
+            status: si.state || "Unknown",
+            result: si.result || "Unknown",
+            rerun_of_counter: si.rerun_of_counter,
+            jobs:
+              Enum.map(si.job_instances || [], fn ji ->
+                %{
+                  name: ji.name,
+                  state: ji.state || "Unknown",
+                  result: ji.result || "Unknown",
+                  scheduled_date: ts(ji.scheduled_at)
+                }
+              end)
+          }
+        end),
       # Pipeline-level status derived from stages
       status: pipeline_status(stages)
     }

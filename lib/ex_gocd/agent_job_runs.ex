@@ -58,8 +58,11 @@ defmodule ExGoCD.AgentJobRuns do
       if job_instance_id && Repo.get(ExGoCD.Pipelines.JobInstance, job_instance_id),
         do: job_instance_id,
         else: nil
+
     case Agents.get_agent_by_uuid(agent_uuid) do
-      nil -> {:error, :agent_not_found}
+      nil ->
+        {:error, :agent_not_found}
+
       _agent ->
         attrs = %{
           agent_uuid: agent_uuid,
@@ -71,7 +74,10 @@ defmodule ExGoCD.AgentJobRuns do
           job_name: job_name,
           state: "Assigned"
         }
-        attrs = if job_instance_id, do: Map.put(attrs, :job_instance_id, job_instance_id), else: attrs
+
+        attrs =
+          if job_instance_id, do: Map.put(attrs, :job_instance_id, job_instance_id), else: attrs
+
         result =
           %AgentJobRun{}
           |> AgentJobRun.changeset(attrs)
@@ -99,19 +105,23 @@ defmodule ExGoCD.AgentJobRuns do
       parent_ctx = ExGoCD.VsmContextStore.take(build_id)
       VsmTracer.attach_ctx(parent_ctx)
 
-      VsmTracer.trace("job.status_update", %{
-        "build.id" => build_id,
-        "job.name" => run.job_name,
-        "pipeline.name" => run.pipeline_name,
-        "pipeline.counter" => run.pipeline_counter,
-        "stage.name" => run.stage_name,
-        "stage.counter" => run.stage_counter,
-        "agent.uuid" => agent_uuid,
-        "job.state" => job_state,
-        "job.result" => result
-      }, fn ->
-        update_run_in_span(run, build_id, agent_uuid, job_state, result)
-      end)
+      VsmTracer.trace(
+        "job.status_update",
+        %{
+          "build.id" => build_id,
+          "job.name" => run.job_name,
+          "pipeline.name" => run.pipeline_name,
+          "pipeline.counter" => run.pipeline_counter,
+          "stage.name" => run.stage_name,
+          "stage.counter" => run.stage_counter,
+          "agent.uuid" => agent_uuid,
+          "job.state" => job_state,
+          "job.result" => result
+        },
+        fn ->
+          update_run_in_span(run, build_id, agent_uuid, job_state, result)
+        end
+      )
     else
       {:error, :run_not_found}
     end
@@ -210,11 +220,12 @@ defmodule ExGoCD.AgentJobRuns do
   """
   def get_run_by_params(pipeline_name, pipeline_counter, stage_name, stage_counter, job_name) do
     from(r in AgentJobRun,
-      where: r.pipeline_name == ^pipeline_name
-        and r.pipeline_counter == ^pipeline_counter
-        and r.stage_name == ^stage_name
-        and r.stage_counter == ^stage_counter
-        and r.job_name == ^job_name,
+      where:
+        r.pipeline_name == ^pipeline_name and
+          r.pipeline_counter == ^pipeline_counter and
+          r.stage_name == ^stage_name and
+          r.stage_counter == ^stage_counter and
+          r.job_name == ^job_name,
       order_by: [desc: r.inserted_at],
       limit: 1
     )

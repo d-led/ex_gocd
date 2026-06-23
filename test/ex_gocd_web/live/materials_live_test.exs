@@ -68,7 +68,11 @@ defmodule ExGoCDWeb.MaterialsLiveTest do
       refute render(view) =~ "usages-modal"
 
       # Click the usages button for a specific material using its fingerprint
-      html = view |> element(".icon-btn[title='Show Usages'][phx-value-fingerprint='8d78bc9f6c661806']") |> render_click()
+      html =
+        view
+        |> element(".icon-btn[title='Show Usages'][phx-value-fingerprint='8d78bc9f6c661806']")
+        |> render_click()
+
       assert html =~ "usages-modal"
       assert html =~ "PIPELINE"
       assert html =~ "MATERIAL SETTING"
@@ -84,7 +88,13 @@ defmodule ExGoCDWeb.MaterialsLiveTest do
       refute render(view) =~ "modifications-modal"
 
       # Click the modifications button for a specific material using its fingerprint
-      html = view |> element(".icon-btn[title='Show Modifications'][phx-value-fingerprint='8d78bc9f6c661806']") |> render_click()
+      html =
+        view
+        |> element(
+          ".icon-btn[title='Show Modifications'][phx-value-fingerprint='8d78bc9f6c661806']"
+        )
+        |> render_click()
+
       assert html =~ "modifications-modal"
       assert html =~ "Modifications"
       assert html =~ "Search in revision, comment or username"
@@ -94,6 +104,7 @@ defmodule ExGoCDWeb.MaterialsLiveTest do
         view
         |> form("#mod-search-form", %{"value" => "upgrade"})
         |> render_change()
+
       assert html =~ "upgrade actions"
 
       # Close the modal

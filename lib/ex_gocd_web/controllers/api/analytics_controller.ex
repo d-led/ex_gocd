@@ -10,7 +10,11 @@ defmodule ExGoCDWeb.API.AnalyticsController do
     json(conn, %{
       types: [
         %{id: "pipeline_build_time", type: "pipeline", title: "Pipeline Build Time"},
-        %{id: "pipelines_highest_wait_time", type: "dashboard", title: "Pipelines with Highest Wait Time"},
+        %{
+          id: "pipelines_highest_wait_time",
+          type: "dashboard",
+          title: "Pipelines with Highest Wait Time"
+        },
         %{id: "agent_utilization", type: "dashboard", title: "Agent Utilization"},
         %{id: "agent_state_transition", type: "agent", title: "Agent State Transition"}
       ]
@@ -59,20 +63,24 @@ defmodule ExGoCDWeb.API.AnalyticsController do
 
   defp execute_analytics("agent_state_transition", params) do
     agent_uuid = params["agent_uuid"]
-    start_dt = parse_datetime(params["start"]) || DateTime.add(DateTime.utc_now(), -7 * 86_400, :second)
+
+    start_dt =
+      parse_datetime(params["start"]) || DateTime.add(DateTime.utc_now(), -7 * 86_400, :second)
+
     end_dt = parse_datetime(params["end"]) || DateTime.utc_now()
 
     transitions = Analytics.agent_transitions(agent_uuid, start_dt, end_dt)
 
     %{
       agent_uuid: agent_uuid,
-      transitions: Enum.map(transitions, fn t ->
-        %{
-          from_state: t.from_state,
-          to_state: t.to_state,
-          transitioned_at: t.transitioned_at
-        }
-      end),
+      transitions:
+        Enum.map(transitions, fn t ->
+          %{
+            from_state: t.from_state,
+            to_state: t.to_state,
+            transitioned_at: t.transitioned_at
+          }
+        end),
       utilization: Analytics.agent_utilization(agent_uuid, start_dt, end_dt)
     }
   end
@@ -89,6 +97,7 @@ defmodule ExGoCDWeb.API.AnalyticsController do
   end
 
   defp parse_datetime(nil), do: nil
+
   defp parse_datetime(str) when is_binary(str) do
     case DateTime.from_iso8601(str) do
       {:ok, dt, _} -> dt

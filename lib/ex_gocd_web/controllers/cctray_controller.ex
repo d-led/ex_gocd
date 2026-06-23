@@ -49,7 +49,14 @@ defmodule ExGoCDWeb.CCTrayController do
         last_build_status: cctray_status(stage[:status]),
         last_build_label: "#{counter}",
         last_build_time: format_time(pipeline[:last_run]),
-        web_url: stage_web_url(conn_module: nil, pipeline_name: pipeline[:name], pipeline_counter: counter, stage_name: stage[:name], stage_counter: counter)
+        web_url:
+          stage_web_url(
+            conn_module: nil,
+            pipeline_name: pipeline[:name],
+            pipeline_counter: counter,
+            stage_name: stage[:name],
+            stage_counter: counter
+          )
       }
     end)
   end

@@ -10,7 +10,6 @@ defmodule ExGoCD.Materials.PollerTest do
   alias ExGoCD.Scheduler
 
   setup do
-
     # Clean up before each test
     Repo.delete_all(Modification)
     Repo.delete_all(PipelineInstance)
@@ -18,17 +17,19 @@ defmodule ExGoCD.Materials.PollerTest do
     Repo.delete_all(Material)
 
     # Seed material and pipeline configs
-    material = Repo.insert!(%Material{
-      type: "git",
-      url: "https://github.com/gocd/gocd-git-repo.git",
-      branch: "master",
-      auto_update: true
-    })
+    material =
+      Repo.insert!(%Material{
+        type: "git",
+        url: "https://github.com/gocd/gocd-git-repo.git",
+        branch: "master",
+        auto_update: true
+      })
 
-    pipeline = Repo.insert!(%Pipeline{
-      name: "git-triggered-pipeline",
-      group: "default"
-    })
+    pipeline =
+      Repo.insert!(%Pipeline{
+        name: "git-triggered-pipeline",
+        group: "default"
+      })
 
     # Join pipeline and material
     Repo.insert_all("pipelines_materials", [%{pipeline_id: pipeline.id, material_id: material.id}])
@@ -40,6 +41,10 @@ defmodule ExGoCD.Materials.PollerTest do
 
     # Clear mock configuration revision
     Application.delete_env(:ex_gocd, :mock_git_revision)
+
+    on_exit(fn ->
+      Application.delete_env(:ex_gocd, :mock_git_revision)
+    end)
 
     {:ok, material: material, pipeline: pipeline}
   end

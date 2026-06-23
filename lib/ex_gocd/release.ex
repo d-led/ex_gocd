@@ -25,10 +25,12 @@ defmodule ExGoCD.Release do
 
     if File.exists?(seeds_path) do
       for repo <- repos() do
-        {:ok, _, _} = Ecto.Migrator.with_repo(repo, fn _repo ->
-          Code.eval_file(seeds_path)
-        end)
+        {:ok, _, _} =
+          Ecto.Migrator.with_repo(repo, fn _repo ->
+            Code.eval_file(seeds_path)
+          end)
       end
+
       :ok
     else
       IO.warn("Seeds file not found at #{seeds_path}")

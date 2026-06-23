@@ -80,7 +80,8 @@ defmodule ExGoCD.ConfigRepos.GitHubActionsParserTest do
     end
 
     test "parses schedule trigger" do
-      {:ok, ir} = GitHubActionsParser.parse_workflow(@fixture_schedule, ".github/workflows/nightly.yml")
+      {:ok, ir} =
+        GitHubActionsParser.parse_workflow(@fixture_schedule, ".github/workflows/nightly.yml")
 
       assert ir.name == "Nightly"
       assert length(ir.triggers) == 1
@@ -89,7 +90,8 @@ defmodule ExGoCD.ConfigRepos.GitHubActionsParserTest do
     end
 
     test "parses workflow_dispatch trigger" do
-      {:ok, ir} = GitHubActionsParser.parse_workflow(@fixture_dispatch, ".github/workflows/release.yml")
+      {:ok, ir} =
+        GitHubActionsParser.parse_workflow(@fixture_dispatch, ".github/workflows/release.yml")
 
       assert ir.name == "Release"
       assert length(ir.triggers) == 1
@@ -97,11 +99,15 @@ defmodule ExGoCD.ConfigRepos.GitHubActionsParserTest do
 
       # has inputs metadata
       trigger = hd(ir.triggers)
-      assert trigger.inputs == %{"version" => %{"description" => "Version to release", "required" => true}}
+
+      assert trigger.inputs == %{
+               "version" => %{"description" => "Version to release", "required" => true}
+             }
     end
 
     test "records uses: steps with warning (v1 behavior)" do
-      {:ok, ir} = GitHubActionsParser.parse_workflow(@fixture_dispatch, ".github/workflows/release.yml")
+      {:ok, ir} =
+        GitHubActionsParser.parse_workflow(@fixture_dispatch, ".github/workflows/release.yml")
 
       publish = ir.jobs["publish"]
       assert length(publish.steps) == 2

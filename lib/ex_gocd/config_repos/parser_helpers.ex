@@ -19,7 +19,9 @@ defmodule ExGoCD.ConfigRepos.ParserHelpers do
   """
   def ensure_map(data, label \\ "YAML")
   def ensure_map(data, _label) when is_map(data), do: :ok
-  def ensure_map(_data, label), do: {:error, "#{label} must parse to a mapping, not a list or scalar"}
+
+  def ensure_map(_data, label),
+    do: {:error, "#{label} must parse to a mapping, not a list or scalar"}
 
   @doc """
   Extracts the stem (filename without extension) from a file path.

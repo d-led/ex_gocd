@@ -192,7 +192,8 @@ defmodule ExGoCDWeb.DashboardLiveTest do
       refute html =~ "Default"
     end
 
-    test "Environment grouping shows all pipelines under one section when no environments exist", %{conn: conn} do
+    test "Environment grouping shows all pipelines under one section when no environments exist",
+         %{conn: conn} do
       alias ExGoCD.Pipelines.Pipeline
       alias ExGoCD.Repo
 
@@ -215,7 +216,11 @@ defmodule ExGoCDWeb.DashboardLiveTest do
       alias ExGoCD.Pipelines.Pipeline
       alias ExGoCD.Repo
 
-      Repo.insert!(%Pipeline{} |> Pipeline.changeset(%{name: "switch-frontend", group: "frontend"}))
+      Repo.insert!(
+        %Pipeline{}
+        |> Pipeline.changeset(%{name: "switch-frontend", group: "frontend"})
+      )
+
       Repo.insert!(%Pipeline{} |> Pipeline.changeset(%{name: "switch-backend", group: "backend"}))
 
       {:ok, view, _html} = live(conn, ~p"/")
@@ -232,7 +237,7 @@ defmodule ExGoCDWeb.DashboardLiveTest do
 
       # The two modes should produce DIFFERENT HTML (not identical)
       assert pg_html != env_html,
-        "Pipeline Group and Environment grouping must produce distinct results"
+             "Pipeline Group and Environment grouping must produce distinct results"
     end
 
     test "selecting grouping persists in URL via group_by param", %{conn: conn} do
@@ -366,7 +371,13 @@ defmodule ExGoCDWeb.DashboardLiveTest do
       on_exit(fn -> System.delete_env("USE_MOCK_DATA") end)
 
       # Seed admin user to exit open mode
-      {:ok, _} = ExGoCD.Accounts.create_user(%{username: "admin", display_name: "System Administrator", roles: ["admin", "developer"], status: "Active"})
+      {:ok, _} =
+        ExGoCD.Accounts.create_user(%{
+          username: "admin",
+          display_name: "System Administrator",
+          roles: ["admin", "developer"],
+          status: "Active"
+        })
 
       # Insert a pipeline config in the DB
       _pipeline = Repo.insert!(%Pipelines.Pipeline{name: "test-dashboard-pause", group: "test"})
@@ -388,7 +399,9 @@ defmodule ExGoCDWeb.DashboardLiveTest do
 
       # Verify the modal is open
       assert has_element?(view, "#pause-modal")
-      assert render(view) =~ "Specify a reason for pausing schedule on pipeline test-dashboard-pause"
+
+      assert render(view) =~
+               "Specify a reason for pausing schedule on pipeline test-dashboard-pause"
 
       # Submit the pause cause form
       view
@@ -420,8 +433,21 @@ defmodule ExGoCDWeb.DashboardLiveTest do
       on_exit(fn -> System.delete_env("USE_MOCK_DATA") end)
 
       # Seed admin and viewer users
-      {:ok, _} = ExGoCD.Accounts.create_user(%{username: "admin", display_name: "System Administrator", roles: ["admin", "developer"], status: "Active"})
-      {:ok, _} = ExGoCD.Accounts.create_user(%{username: "viewer", display_name: "Guest Viewer", roles: [], status: "Active"})
+      {:ok, _} =
+        ExGoCD.Accounts.create_user(%{
+          username: "admin",
+          display_name: "System Administrator",
+          roles: ["admin", "developer"],
+          status: "Active"
+        })
+
+      {:ok, _} =
+        ExGoCD.Accounts.create_user(%{
+          username: "viewer",
+          display_name: "Guest Viewer",
+          roles: [],
+          status: "Active"
+        })
 
       _pipeline = Repo.insert!(%Pipelines.Pipeline{name: "test-viewer-pause", group: "test"})
 
@@ -434,7 +460,8 @@ defmodule ExGoCDWeb.DashboardLiveTest do
       assert has_element?(view, "button[aria-label='Trigger Pipeline'].disabled")
 
       # Try triggering the pause event directly to ensure backend guards enforce permission
-      assert render_click(view, "show_pause_modal", %{"name" => "test-viewer-pause"}) =~ "You do not have operate permissions"
+      assert render_click(view, "show_pause_modal", %{"name" => "test-viewer-pause"}) =~
+               "You do not have operate permissions"
     end
   end
 end

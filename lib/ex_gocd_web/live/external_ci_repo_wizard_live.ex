@@ -78,8 +78,11 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
 
   defp build_file_configs_from_repo(existing_files) do
     Map.new(existing_files, fn f ->
-      selection = Repo.get_by(ExGoCD.ConfigRepos.ConfigRepoFileSelection,
-        config_repo_file_id: f.id)
+      selection =
+        Repo.get_by(ExGoCD.ConfigRepos.ConfigRepoFileSelection,
+          config_repo_file_id: f.id
+        )
+
       {f.path,
        %{
          mode: (selection && selection.mode) || "translate",
@@ -122,12 +125,14 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
     discovered = socket.assigns.discovered_files
     # Toggle selection in a temporary assign
     current_selected = socket.assigns[:selected_paths] || Enum.map(discovered, & &1.path)
+
     updated =
       if path in current_selected do
         current_selected -- [path]
       else
         current_selected ++ [path]
       end
+
     {:noreply, assign(socket, :selected_paths, updated)}
   end
 
@@ -165,10 +170,15 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
     # If editing, delete old ConfigRepoFile records and their selections
     if socket.assigns.editing do
       old_files = Repo.all(from(f in ConfigRepoFile, where: f.config_repo_id == ^config_repo.id))
+
       Enum.each(old_files, fn f ->
-        Repo.delete_all(from(s in ExGoCD.ConfigRepos.ConfigRepoFileSelection,
-          where: s.config_repo_file_id == ^f.id))
+        Repo.delete_all(
+          from(s in ExGoCD.ConfigRepos.ConfigRepoFileSelection,
+            where: s.config_repo_file_id == ^f.id
+          )
+        )
       end)
+
       Repo.delete_all(from(f in ConfigRepoFile, where: f.config_repo_id == ^config_repo.id))
     end
 
@@ -224,7 +234,9 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
   end
 
   def handle_event("step2_continue", _params, socket) do
-    selected = socket.assigns[:selected_paths] || Enum.map(socket.assigns.discovered_files, & &1.path)
+    selected =
+      socket.assigns[:selected_paths] || Enum.map(socket.assigns.discovered_files, & &1.path)
+
     advance_to_step3(socket, selected)
   end
 
@@ -239,20 +251,25 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
   end
 
   defp do_step1_update(socket, url, branch) do
-    changeset = ConfigRepo.changeset(socket.assigns.config_repo, %{
-      url: url, branch: branch,
-      source_type: socket.assigns.source_type,
-      plugin_id: socket.assigns.plugin_id,
-      configuration: socket.assigns.configuration
-    })
+    changeset =
+      ConfigRepo.changeset(socket.assigns.config_repo, %{
+        url: url,
+        branch: branch,
+        source_type: socket.assigns.source_type,
+        plugin_id: socket.assigns.plugin_id,
+        configuration: socket.assigns.configuration
+      })
 
     case Repo.update(changeset) do
       {:ok, config_repo} ->
         discovered = simulate_discovery(config_repo.source_type)
-        existing_paths = config_repo
+
+        existing_paths =
+          config_repo
           |> Repo.preload(:config_repo_files)
           |> Map.get(:config_repo_files, [])
           |> Enum.map(& &1.path)
+
         all_paths = Enum.uniq(existing_paths ++ Enum.map(discovered, & &1.path))
         advance_from_step1(socket, url, branch, config_repo, discovered, all_paths)
 
@@ -265,7 +282,8 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
   defp do_step1_create(socket, url, branch) do
     case %ConfigRepo{}
          |> ConfigRepo.changeset(%{
-           url: url, branch: branch,
+           url: url,
+           branch: branch,
            source_type: socket.assigns.source_type,
            plugin_id: socket.assigns.plugin_id,
            configuration: socket.assigns.configuration,
@@ -305,6 +323,7 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
     file_configs =
       Map.new(selected_paths, fn path ->
         file = Enum.find(socket.assigns.discovered_files, &(&1.path == path))
+
         {path,
          %{
            mode: "translate",
@@ -324,6 +343,7 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
 
   defp validate_step1("", _branch), do: %{repo_url: "Repository URL is required"}
   defp validate_step1(_url, ""), do: %{branch: "Branch is required"}
+
   defp validate_step1(url, _branch) do
     unless String.starts_with?(url, "http") or String.starts_with?(url, "git@") do
       %{repo_url: "Must be a valid git URL (http/https/git@)"}
@@ -383,7 +403,10 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
             <p class="text-xs text-slate-400 mb-6">
               {map_size(@file_configs)} workflow file(s) configured. They will appear in the config repos list.
             </p>
-            <a href="/admin/config_repos" class="inline-block px-4 py-2 rounded bg-[#943a9e] hover:bg-purple-700 text-xs font-bold text-white shadow-sm transition-all">
+            <a
+              href="/admin/config_repos"
+              class="inline-block px-4 py-2 rounded bg-[#943a9e] hover:bg-purple-700 text-xs font-bold text-white shadow-sm transition-all"
+            >
               ← Back to Config Repos
             </a>
           </div>
@@ -392,8 +415,13 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
         <div class="max-w-3xl mx-auto pt-6 px-4">
           <%!-- Header with cancel --%>
           <div class="flex items-center justify-between mb-4">
-            <h1 class="text-sm font-bold text-slate-700">{if @editing, do: "Re-sync Config Repository", else: "Add Config Repository"}</h1>
-            <button phx-click="cancel" class="text-xs text-slate-400 hover:text-red-500 transition-colors">
+            <h1 class="text-sm font-bold text-slate-700">
+              {if @editing, do: "Re-sync Config Repository", else: "Add Config Repository"}
+            </h1>
+            <button
+              phx-click="cancel"
+              class="text-xs text-slate-400 hover:text-red-500 transition-colors"
+            >
               Cancel
             </button>
           </div>
@@ -407,7 +435,9 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
                 disabled={i > @step}
                 class={[
                   "flex-1 text-center py-1.5 rounded text-[10px] font-bold transition-all",
-                  if(i < @step, do: "bg-emerald-100 text-emerald-700 cursor-pointer hover:bg-emerald-200"),
+                  if(i < @step,
+                    do: "bg-emerald-100 text-emerald-700 cursor-pointer hover:bg-emerald-200"
+                  ),
                   if(i == @step, do: "bg-[#943a9e] text-white"),
                   if(i > @step, do: "bg-slate-100 text-slate-400 cursor-not-allowed")
                 ]}
@@ -415,7 +445,8 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
                 {i}. {label}
               </button>
               <%= if i < 4 do %>
-                <div class={["w-4 h-0.5", if(i < @step, do: "bg-emerald-300", else: "bg-slate-200")]}></div>
+                <div class={["w-4 h-0.5", if(i < @step, do: "bg-emerald-300", else: "bg-slate-200")]}>
+                </div>
               <% end %>
             <% end %>
           </div>
@@ -461,7 +492,9 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
     ~H"""
     <div class="bg-white rounded border border-[#d6e0e2] p-6 shadow-sm">
       <h2 class="text-base font-bold text-slate-700 mb-1">Where is your pipeline?</h2>
-      <p class="text-xs text-slate-400 mb-6">Paste the URL of a GitHub or GitLab repository that contains workflow files.</p>
+      <p class="text-xs text-slate-400 mb-6">
+        Paste the URL of a GitHub or GitLab repository that contains workflow files.
+      </p>
 
       <form phx-submit="step1_next" class="space-y-5">
         <%!-- Source type — integrated into the form --%>
@@ -475,8 +508,17 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
                 else: "bg-white text-slate-500 border-[#d6e0e2] hover:border-purple-300"
               )
             ]}>
-              <input type="radio" name="source_type" value="github_actions" checked={@source_type == "github_actions"} phx-click="set_source_type" phx-value-source_type="github_actions" class="sr-only" />
-              <span class="text-base"></span> GitHub Actions
+              <input
+                type="radio"
+                name="source_type"
+                value="github_actions"
+                checked={@source_type == "github_actions"}
+                phx-click="set_source_type"
+                phx-value-source_type="github_actions"
+                class="sr-only"
+              />
+              <span class="text-base"></span>
+              GitHub Actions
             </label>
             <label class={[
               "flex items-center gap-2 px-4 py-2.5 rounded border cursor-pointer text-xs font-bold transition-all",
@@ -485,8 +527,17 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
                 else: "bg-white text-slate-500 border-[#d6e0e2] hover:border-orange-300"
               )
             ]}>
-              <input type="radio" name="source_type" value="gitlab_ci" checked={@source_type == "gitlab_ci"} phx-click="set_source_type" phx-value-source_type="gitlab_ci" class="sr-only" />
-              <span class="text-base"></span> GitLab CI
+              <input
+                type="radio"
+                name="source_type"
+                value="gitlab_ci"
+                checked={@source_type == "gitlab_ci"}
+                phx-click="set_source_type"
+                phx-value-source_type="gitlab_ci"
+                class="sr-only"
+              />
+              <span class="text-base"></span>
+              GitLab CI
             </label>
             <label class={[
               "flex items-center gap-2 px-4 py-2.5 rounded border cursor-pointer text-xs font-bold transition-all",
@@ -495,15 +546,26 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
                 else: "bg-white text-slate-500 border-[#d6e0e2] hover:border-emerald-300"
               )
             ]}>
-              <input type="radio" name="source_type" value="gocd_pipeline" checked={@source_type == "gocd_pipeline"} phx-click="set_source_type" phx-value-source_type="gocd_pipeline" class="sr-only" />
-              <span class="text-base">⚙</span> GoCD Pipeline Config
+              <input
+                type="radio"
+                name="source_type"
+                value="gocd_pipeline"
+                checked={@source_type == "gocd_pipeline"}
+                phx-click="set_source_type"
+                phx-value-source_type="gocd_pipeline"
+                class="sr-only"
+              />
+              <span class="text-base">⚙</span>
+              GoCD Pipeline Config
             </label>
           </div>
         </div>
 
         <%!-- Repo URL with examples --%>
         <div>
-          <label class="block text-[11px] font-bold uppercase text-slate-500 mb-1.5" for="repo_url">Repository URL</label>
+          <label class="block text-[11px] font-bold uppercase text-slate-500 mb-1.5" for="repo_url">
+            Repository URL
+          </label>
           <input
             type="text"
             id="repo_url"
@@ -513,10 +575,15 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
             autocomplete="url"
             class={[
               "w-full border rounded px-3 py-2.5 text-sm outline-none transition-all",
-              if(@errors[:repo_url], do: "border-red-300 focus:border-red-400", else: "border-[#d6e0e2] focus:border-[#943a9e]")
+              if(@errors[:repo_url],
+                do: "border-red-300 focus:border-red-400",
+                else: "border-[#d6e0e2] focus:border-[#943a9e]"
+              )
             ]}
           />
-          <p class="text-[10px] text-slate-400 mt-1">Example: https://github.com/myteam/backend.git</p>
+          <p class="text-[10px] text-slate-400 mt-1">
+            Example: https://github.com/myteam/backend.git
+          </p>
           <%= if @errors[:repo_url] do %>
             <p class="text-red-500 text-xs mt-1 flex items-center gap-1">
               <span>⚠</span> {@errors[:repo_url]}
@@ -526,7 +593,9 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
 
         <%!-- Branch --%>
         <div>
-          <label class="block text-[11px] font-bold uppercase text-slate-500 mb-1.5" for="branch">Branch</label>
+          <label class="block text-[11px] font-bold uppercase text-slate-500 mb-1.5" for="branch">
+            Branch
+          </label>
           <input
             type="text"
             id="branch"
@@ -535,7 +604,10 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
             placeholder="main"
             class={[
               "w-full border rounded px-3 py-2.5 text-sm outline-none transition-all",
-              if(@errors[:branch], do: "border-red-300 focus:border-red-400", else: "border-[#d6e0e2] focus:border-[#943a9e]")
+              if(@errors[:branch],
+                do: "border-red-300 focus:border-red-400",
+                else: "border-[#d6e0e2] focus:border-[#943a9e]"
+              )
             ]}
           />
           <%= if @errors[:branch] do %>
@@ -563,21 +635,34 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
     <div class="bg-white rounded border border-[#d6e0e2] p-6 shadow-sm">
       <h2 class="text-base font-bold text-slate-700 mb-1">Files found in this repository</h2>
       <p class="text-xs text-slate-400 mb-4">
-        We found {length(@discovered_files)} workflow {ngettext("file", "files", length(@discovered_files))}.
+        We found {length(@discovered_files)} workflow {ngettext(
+          "file",
+          "files",
+          length(@discovered_files)
+        )}.
         Uncheck any you don't want to import.
       </p>
 
       <%= if Enum.empty?(@discovered_files) do %>
         <div class="text-center py-12 text-slate-400">
           <p class="text-sm mb-2">No workflow files found</p>
-          <button phx-click="prev_step" class="text-xs text-[#943a9e] hover:underline">← Try a different repository</button>
+          <button phx-click="prev_step" class="text-xs text-[#943a9e] hover:underline">
+            ← Try a different repository
+          </button>
         </div>
       <% else %>
         <%!-- Select / deselect all --%>
         <div class="flex items-center gap-2 mb-3">
-          <button phx-click="step2_all" class="text-[10px] text-[#943a9e] hover:underline font-medium">Select all</button>
+          <button phx-click="step2_all" class="text-[10px] text-[#943a9e] hover:underline font-medium">
+            Select all
+          </button>
           <span class="text-slate-300">·</span>
-          <button phx-click="step2_none" class="text-[10px] text-[#943a9e] hover:underline font-medium">Deselect all</button>
+          <button
+            phx-click="step2_none"
+            class="text-[10px] text-[#943a9e] hover:underline font-medium"
+          >
+            Deselect all
+          </button>
         </div>
 
         <div class="space-y-1 mb-6">
@@ -588,7 +673,10 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
               phx-value-path={file.path}
               class={[
                 "flex items-center gap-3 p-3 rounded border cursor-pointer transition-all",
-                if(checked, do: "border-[#943a9e] bg-purple-50/30", else: "border-[#d6e0e2] hover:bg-slate-50")
+                if(checked,
+                  do: "border-[#943a9e] bg-purple-50/30",
+                  else: "border-[#d6e0e2] hover:bg-slate-50"
+                )
               ]}
             >
               <input type="checkbox" checked={checked} class="rounded pointer-events-none" />
@@ -601,7 +689,10 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
                 </span>
                 <span class={[
                   "px-1.5 py-0.5 rounded text-[9px] font-bold",
-                  if(@source_type == "github_actions", do: "bg-purple-100 text-purple-700", else: "bg-orange-100 text-orange-700")
+                  if(@source_type == "github_actions",
+                    do: "bg-purple-100 text-purple-700",
+                    else: "bg-orange-100 text-orange-700"
+                  )
                 ]}>
                   {source_type_label(@source_type)}
                 </span>
@@ -624,7 +715,10 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
             disabled={Enum.empty?(@selected_paths)}
             class={[
               "flex-1 py-2.5 rounded text-xs font-bold text-white shadow-sm transition-all flex items-center justify-center gap-2",
-              if(Enum.empty?(@selected_paths), do: "bg-slate-300 cursor-not-allowed", else: "bg-[#943a9e] hover:bg-purple-700")
+              if(Enum.empty?(@selected_paths),
+                do: "bg-slate-300 cursor-not-allowed",
+                else: "bg-[#943a9e] hover:bg-purple-700"
+              )
             ]}
           >
             Configure {length(@selected_paths)} {ngettext("file", "files", length(@selected_paths))} →
@@ -638,12 +732,15 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
   # ── Step 3: Per-file configuration ─────────────────────────────────────────
 
   defp step3_config(assigns) do
-    assigns = assign(assigns, :valid_modes, ["translate", "execute_act", "execute_gitlab", "skip"])
+    assigns =
+      assign(assigns, :valid_modes, ["translate", "execute_act", "execute_gitlab", "skip"])
 
     ~H"""
     <div class="bg-white rounded border border-[#d6e0e2] p-6 shadow-sm">
       <h2 class="text-base font-bold text-slate-700 mb-6 flex items-center gap-2">
-        <span class="w-7 h-7 rounded-full bg-[#943a9e] text-white text-xs flex items-center justify-center font-bold">3</span>
+        <span class="w-7 h-7 rounded-full bg-[#943a9e] text-white text-xs flex items-center justify-center font-bold">
+          3
+        </span>
         Configure Files
       </h2>
 
@@ -733,7 +830,9 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
     ~H"""
     <div class="bg-white rounded border border-[#d6e0e2] p-6 shadow-sm">
       <h2 class="text-base font-bold text-slate-700 mb-6 flex items-center gap-2">
-        <span class="w-7 h-7 rounded-full bg-[#943a9e] text-white text-xs flex items-center justify-center font-bold">4</span>
+        <span class="w-7 h-7 rounded-full bg-[#943a9e] text-white text-xs flex items-center justify-center font-bold">
+          4
+        </span>
         Review &amp; Save
       </h2>
 

@@ -390,7 +390,9 @@ defmodule ExGoCD.AgentsTest do
       assert :ok = Agents.touch_agent_on_heartbeat(agent.uuid, runtime)
     end
 
-    test "refreshes updated_at even when no other attrs change so status stays Idle", %{agent: agent} do
+    test "refreshes updated_at even when no other attrs change so status stays Idle", %{
+      agent: agent
+    } do
       runtime = %{"cookie" => "agent-token-123"}
 
       assert :ok = Agents.touch_agent_on_heartbeat(agent.uuid, runtime)

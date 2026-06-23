@@ -43,11 +43,11 @@ defmodule ExGoCD.ConfigRepos.GitHubActionsTranslatorTest do
       {:ok, ir} = GitHubActionsParser.parse_workflow(@fixture_ci, ".github/workflows/ci.yml")
       name = "#{prefix}-CI"
 
-
-      {:ok, attrs} = GitHubActionsTranslator.translate(ir, %{
-        mode: "translate",
-        pipeline_name_prefix: prefix
-      })
+      {:ok, attrs} =
+        GitHubActionsTranslator.translate(ir, %{
+          mode: "translate",
+          pipeline_name_prefix: prefix
+        })
 
       assert attrs.name == name
       assert attrs.group == prefix
@@ -81,12 +81,14 @@ defmodule ExGoCD.ConfigRepos.GitHubActionsTranslatorTest do
     end
 
     test "workflow_dispatch creates pipeline with no material (manual trigger)", %{prefix: prefix} do
-      {:ok, ir} = GitHubActionsParser.parse_workflow(@fixture_dispatch, ".github/workflows/release.yml")
+      {:ok, ir} =
+        GitHubActionsParser.parse_workflow(@fixture_dispatch, ".github/workflows/release.yml")
 
-      {:ok, attrs} = GitHubActionsTranslator.translate(ir, %{
-        mode: "translate",
-        pipeline_name_prefix: prefix
-      })
+      {:ok, attrs} =
+        GitHubActionsTranslator.translate(ir, %{
+          mode: "translate",
+          pipeline_name_prefix: prefix
+        })
 
       assert attrs.materials == []
     end
@@ -94,17 +96,20 @@ defmodule ExGoCD.ConfigRepos.GitHubActionsTranslatorTest do
     test "respects selected_jobs filter", %{prefix: prefix} do
       {:ok, ir} = GitHubActionsParser.parse_workflow(@fixture_ci, ".github/workflows/ci.yml")
 
-      {:ok, attrs} = GitHubActionsTranslator.translate(ir, %{
-        mode: "translate",
-        pipeline_name_prefix: prefix,
-        selected_jobs: %{"included" => ["build"]}
-      })
+      {:ok, attrs} =
+        GitHubActionsTranslator.translate(ir, %{
+          mode: "translate",
+          pipeline_name_prefix: prefix,
+          selected_jobs: %{"included" => ["build"]}
+        })
 
       assert length(attrs.stages) == 1
       assert hd(attrs.stages).name == "build"
     end
 
-    test "skips workflow with uses: action steps when in translate mode (v1 behavior)", %{prefix: prefix} do
+    test "skips workflow with uses: action steps when in translate mode (v1 behavior)", %{
+      prefix: prefix
+    } do
       yaml = ~s"""
       name: Deploy
       on: push
@@ -115,9 +120,11 @@ defmodule ExGoCD.ConfigRepos.GitHubActionsTranslatorTest do
             - uses: actions/checkout@v4
             - run: ./deploy.sh
       """
+
       {:ok, ir} = GitHubActionsParser.parse_workflow(yaml, ".github/workflows/deploy.yml")
 
-      {:ok, attrs} = GitHubActionsTranslator.translate(ir, %{mode: "translate", pipeline_name_prefix: prefix})
+      {:ok, attrs} =
+        GitHubActionsTranslator.translate(ir, %{mode: "translate", pipeline_name_prefix: prefix})
 
       # The action step (checkout) is skipped, only the run step remains
       deploy_stage = hd(attrs.stages)
@@ -131,11 +138,12 @@ defmodule ExGoCD.ConfigRepos.GitHubActionsTranslatorTest do
     test "creates an external task pipeline for execute_act mode", %{prefix: prefix} do
       {:ok, ir} = GitHubActionsParser.parse_workflow(@fixture_ci, ".github/workflows/ci.yml")
 
-      {:ok, attrs} = GitHubActionsTranslator.translate(ir, %{
-        mode: "execute_act",
-        pipeline_name_prefix: prefix,
-        selected_jobs: %{"included" => ["build"]}
-      })
+      {:ok, attrs} =
+        GitHubActionsTranslator.translate(ir, %{
+          mode: "execute_act",
+          pipeline_name_prefix: prefix,
+          selected_jobs: %{"included" => ["build"]}
+        })
 
       # Single stage, single job, single external task
       assert length(attrs.stages) == 1
@@ -156,10 +164,11 @@ defmodule ExGoCD.ConfigRepos.GitHubActionsTranslatorTest do
     test "returns empty stages for skip mode", %{prefix: prefix} do
       {:ok, ir} = GitHubActionsParser.parse_workflow(@fixture_ci, ".github/workflows/ci.yml")
 
-      {:ok, attrs} = GitHubActionsTranslator.translate(ir, %{
-        mode: "skip",
-        pipeline_name_prefix: prefix
-      })
+      {:ok, attrs} =
+        GitHubActionsTranslator.translate(ir, %{
+          mode: "skip",
+          pipeline_name_prefix: prefix
+        })
 
       assert attrs.name =~ prefix
       assert attrs.stages == []

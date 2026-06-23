@@ -68,21 +68,24 @@ defmodule ExGoCD.ConfigRepos.GitLabCITranslator do
 
     # Group by stage name
     job_list
-    |> Enum.group_by(fn {_, job_data} -> job_data.stage end, fn {job_name, job_data} -> {job_name, job_data} end)
+    |> Enum.group_by(fn {_, job_data} -> job_data.stage end, fn {job_name, job_data} ->
+      {job_name, job_data}
+    end)
     |> Enum.map(fn {stage_name, jobs} ->
       %{
         name: stage_name,
         approval_type: stage_approval_type(jobs),
         fetch_materials: true,
         clean_working_directory: false,
-        jobs: Enum.map(jobs, fn {job_name, job_data} ->
-          %{
-            name: job_name,
-            resources: job_data.tags || [],
-            tasks: build_tasks(job_data.steps),
-            environment_variables: job_data[:env] || %{}
-          }
-        end)
+        jobs:
+          Enum.map(jobs, fn {job_name, job_data} ->
+            %{
+              name: job_name,
+              resources: job_data.tags || [],
+              tasks: build_tasks(job_data.steps),
+              environment_variables: job_data[:env] || %{}
+            }
+          end)
       }
     end)
   end
@@ -106,6 +109,7 @@ defmodule ExGoCD.ConfigRepos.GitLabCITranslator do
       }
     end)
   end
+
   defp build_tasks(_), do: []
 
   defp build_materials(_ir) do

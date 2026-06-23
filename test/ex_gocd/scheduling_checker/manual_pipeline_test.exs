@@ -56,7 +56,10 @@ defmodule ExGoCD.SchedulingChecker.ManualPipelineTest do
 
   defp insert_pipeline(name, approval_type) do
     pipeline = Repo.insert!(%Pipeline{name: name, group: "test"})
-    stage = Repo.insert!(%Stage{name: "build", pipeline_id: pipeline.id, approval_type: approval_type})
+
+    stage =
+      Repo.insert!(%Stage{name: "build", pipeline_id: pipeline.id, approval_type: approval_type})
+
     job = Repo.insert!(%Job{name: "job", stage_id: stage.id, resources: []})
     Repo.insert!(%Task{type: "exec", command: "echo", arguments: ["ok"], job_id: job.id})
     pipeline

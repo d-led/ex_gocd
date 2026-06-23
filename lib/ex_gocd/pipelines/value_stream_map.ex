@@ -63,13 +63,16 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
 
   defp fetch_db_instance(pipeline_name, counter) do
     from(pi in PipelineInstance,
-      join: p in Pipeline, on: pi.pipeline_id == p.id,
+      join: p in Pipeline,
+      on: pi.pipeline_id == p.id,
       where: p.name == ^pipeline_name and pi.counter == ^counter,
       preload: [stage_instances: :job_instances]
     )
     |> Repo.one()
     |> case do
-      nil -> nil
+      nil ->
+        nil
+
       instance ->
         pipeline = Repo.get(Pipeline, instance.pipeline_id) |> Repo.preload(:materials)
         Map.put(instance, :pipeline_config, pipeline)
@@ -83,6 +86,7 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
       build_mock_indeterminate_vsm(pipeline_name)
     else
       pipeline = Repo.get_by(Pipeline, name: pipeline_name) |> Repo.preload(:materials)
+
       if is_nil(pipeline) do
         {:error, :not_found}
       else
@@ -124,6 +128,7 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
 
   defp build_mock_indeterminate_vsm(pipeline_name) do
     mock_pipeline = Enum.find(MockData.pipelines(), &(&1.name == pipeline_name))
+
     if is_nil(mock_pipeline) do
       {:error, :not_found}
     else
@@ -154,16 +159,18 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
       }
 
       downstream_nodes = build_all_downstream_nodes(downstream_names, [pipeline_name], 2)
+
       downstream_levels =
         downstream_nodes
         |> Enum.group_by(& &1["depth"])
         |> Enum.sort_by(fn {depth, _nodes} -> depth end)
         |> Enum.map(fn {_depth, nodes} -> %{"nodes" => nodes} end)
 
-      levels = [
-        %{"nodes" => material_nodes},
-        %{"nodes" => [pipeline_node]}
-      ] ++ downstream_levels
+      levels =
+        [
+          %{"nodes" => material_nodes},
+          %{"nodes" => [pipeline_node]}
+        ] ++ downstream_levels
 
       {:ok, %{"current_pipeline" => pipeline_name, "levels" => levels}}
     end
@@ -185,7 +192,17 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
     stages = build_stages_list(instance, pipeline_name)
     fan_in = count_fan_in(pipeline_name)
 
-    pipeline_node = build_pipeline_node(pipeline_name, instance, material_nodes, downstream_names, stages, fan_in, materials)
+    pipeline_node =
+      build_pipeline_node(
+        pipeline_name,
+        instance,
+        material_nodes,
+        downstream_names,
+        stages,
+        fan_in,
+        materials
+      )
+
     downstream_nodes = build_all_downstream_nodes(downstream_names, [pipeline_name], 2)
     levels = assemble_levels(material_nodes, pipeline_node, downstream_nodes)
 
@@ -220,6 +237,7 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
         else
           45
         end
+
       %{
         "name" => si.name,
         "status" => Map.get(si, :result) || si.state,
@@ -229,7 +247,15 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
     end)
   end
 
-  defp build_pipeline_node(pipeline_name, instance, material_nodes, downstream_names, stages, fan_in, materials) do
+  defp build_pipeline_node(
+         pipeline_name,
+         instance,
+         material_nodes,
+         downstream_names,
+         stages,
+         fan_in,
+         materials
+       ) do
     %{
       "id" => pipeline_name,
       "name" => pipeline_name,
@@ -251,14 +277,17 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
           "stages" => stages,
           "trigger_info" => %{
             "triggered_by" => Map.get(instance, :trigger_message) || instance.label || "Manual",
-            "triggered_at" => instance.inserted_at && Calendar.strftime(instance.inserted_at, "%d %b %Y, %H:%M:%S"),
-            "materials" => Enum.map(materials, fn m ->
-              %{
-                "type" => m.type || "git",
-                "url" => m.url,
-                "branch" => Map.get(m, :branch) || "main"
-              }
-            end)
+            "triggered_at" =>
+              instance.inserted_at &&
+                Calendar.strftime(instance.inserted_at, "%d %b %Y, %H:%M:%S"),
+            "materials" =>
+              Enum.map(materials, fn m ->
+                %{
+                  "type" => m.type || "git",
+                  "url" => m.url,
+                  "branch" => Map.get(m, :branch) || "main"
+                }
+              end)
           }
         }
       ]
@@ -277,6 +306,7 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
 
   defp get_mock_pipeline_vsm(pipeline_name, counter) do
     mock_pipeline = Enum.find(MockData.pipelines(), &(&1.name == pipeline_name))
+
     if is_nil(mock_pipeline) do
       {:error, :not_found}
     else
@@ -333,15 +363,17 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
         |> Enum.sort_by(fn {depth, _nodes} -> depth end)
         |> Enum.map(fn {_depth, nodes} -> %{"nodes" => nodes} end)
 
-      levels = [
-        %{"nodes" => material_nodes},
-        %{"nodes" => [pipeline_node]}
-      ] ++ downstream_levels
+      levels =
+        [
+          %{"nodes" => material_nodes},
+          %{"nodes" => [pipeline_node]}
+        ] ++ downstream_levels
 
-      {:ok, %{
-        "current_pipeline" => pipeline_name,
-        "levels" => levels
-      }}
+      {:ok,
+       %{
+         "current_pipeline" => pipeline_name,
+         "levels" => levels
+       }}
     end
   end
 
@@ -407,15 +439,17 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
       |> Enum.sort_by(fn {depth, _nodes} -> depth end)
       |> Enum.map(fn {_depth, nodes} -> %{"nodes" => nodes} end)
 
-    levels = [
-      %{"nodes" => [material_node]},
-      %{"nodes" => pipeline_nodes}
-    ] ++ downstream_levels
+    levels =
+      [
+        %{"nodes" => [material_node]},
+        %{"nodes" => pipeline_nodes}
+      ] ++ downstream_levels
 
-    {:ok, %{
-      "current_material" => fingerprint,
-      "levels" => levels
-    }}
+    {:ok,
+     %{
+       "current_material" => fingerprint,
+       "levels" => levels
+     }}
   end
 
   defp get_downstream_pipelines(pipeline_name) do
@@ -475,8 +509,10 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
 
   defp build_all_downstream_nodes(names, parents, depth, visited \\ MapSet.new())
   defp build_all_downstream_nodes([], _parents, _depth, _visited), do: []
+
   defp build_all_downstream_nodes(names, parents, depth, visited) do
     unvisited_names = Enum.reject(names, &MapSet.member?(visited, &1))
+
     if Enum.empty?(unvisited_names) do
       []
     else
@@ -531,6 +567,7 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
     |> Enum.find(fn pi ->
       bc = pi.build_cause || %{}
       revisions = bc["materialRevisions"] || []
+
       Enum.any?(revisions, fn rev ->
         mat = rev["material"] || rev
         mat_type = mat["type"] || rev["material_type"] || rev["type"]
@@ -546,6 +583,7 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
         %Ecto.Association.NotLoaded{} ->
           # Fallback: extract pipeline name from build_cause or just use stage instance names
           instance.stage_instances |> List.first() |> Map.get(:name) || "unknown"
+
         pipeline ->
           pipeline.name
       end
@@ -608,12 +646,14 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
   end
 
   defp parse_or_default_time(nil), do: DateTime.utc_now()
+
   defp parse_or_default_time(time_str) when is_binary(time_str) do
     case DateTime.from_iso8601(time_str) do
       {:ok, dt, _} -> dt
       _ -> DateTime.utc_now()
     end
   end
+
   defp parse_or_default_time(_), do: DateTime.utc_now()
 
   defp get_mock_modification(mat) do
@@ -626,6 +666,7 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
           comment: "upgrade actions and fix compilation warnings",
           modified_time: ~U[2026-06-11 12:00:00Z]
         }
+
       String.contains?(mat.url || "", "gocd/docs") ->
         %{
           username: "ExGoCD Team",
@@ -634,6 +675,7 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
           comment: "Update materials page documentation for rewrite",
           modified_time: ~U[2026-06-11 11:30:00Z]
         }
+
       true ->
         %{
           username: "exgocd-admin",
@@ -662,12 +704,14 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
   end
 
   defp to_utc_datetime(%DateTime{} = dt), do: DateTime.shift_zone!(dt, "Etc/UTC")
+
   defp to_utc_datetime(%NaiveDateTime{} = ndt) do
     case DateTime.from_naive(ndt, "Etc/UTC") do
       {:ok, dt} -> dt
       _ -> nil
     end
   end
+
   defp to_utc_datetime(_), do: nil
 
   defp get_all_mock_materials do
@@ -701,6 +745,7 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
       branch: "main",
       pipelines: []
     }
+
     build_material_vsm_data(generic_mat, material_fingerprint, revision)
   end
 
@@ -714,6 +759,7 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
   defp get_pipeline_stages(name) do
     if use_mock?(name) do
       mock_pipeline = Enum.find(MockData.pipelines(), &(&1.name == name))
+
       if mock_pipeline && mock_pipeline.stages do
         Enum.map(mock_pipeline.stages, fn s ->
           %{"name" => s.name, "status" => "Unknown", "duration" => 0, "locator" => ""}
@@ -741,6 +787,7 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
 
   defp build_material_node(mat, modification, pipeline_name) do
     fp = fingerprint(mat)
+
     %{
       "id" => fp,
       "name" => mat.url || mat.type,

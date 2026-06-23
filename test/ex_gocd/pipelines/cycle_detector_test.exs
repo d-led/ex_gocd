@@ -67,7 +67,8 @@ defmodule ExGoCD.Pipelines.CycleDetectorTest do
       # A depends on A
       insert_material(pipe_a, "dependency", "pipe-a")
 
-      assert {:error, {:circular_dependency, ["pipe-a", "pipe-a"]}} = CycleDetector.check_dependency_cycles()
+      assert {:error, {:circular_dependency, ["pipe-a", "pipe-a"]}} =
+               CycleDetector.check_dependency_cycles()
     end
 
     test "detects missing pipeline dependency reference" do

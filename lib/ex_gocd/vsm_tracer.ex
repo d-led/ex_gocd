@@ -28,15 +28,15 @@ defmodule ExGoCD.VsmTracer do
 
   @typedoc "Common span attributes shared across all VSM spans"
   @type vsm_attrs :: %{
-    optional(:pipeline_name) => String.t(),
-    optional(:pipeline_counter) => integer(),
-    optional(:stage_name) => String.t(),
-    optional(:stage_counter) => integer(),
-    optional(:job_name) => String.t(),
-    optional(:build_id) => String.t(),
-    optional(:agent_uuid) => String.t(),
-    optional(:result) => String.t()
-  }
+          optional(:pipeline_name) => String.t(),
+          optional(:pipeline_counter) => integer(),
+          optional(:stage_name) => String.t(),
+          optional(:stage_counter) => integer(),
+          optional(:job_name) => String.t(),
+          optional(:build_id) => String.t(),
+          optional(:agent_uuid) => String.t(),
+          optional(:result) => String.t()
+        }
 
   @typedoc "Span attribute keys (as passed to Jaeger/OTLP)"
   @type attr_key :: String.t()
@@ -62,6 +62,7 @@ defmodule ExGoCD.VsmTracer do
   """
   @spec attach_ctx(:otel_ctx.t() | nil) :: :ok
   def attach_ctx(nil), do: :ok
+
   def attach_ctx(ctx) do
     :otel_ctx.attach(ctx)
     :ok
@@ -75,7 +76,7 @@ defmodule ExGoCD.VsmTracer do
   def trace(span_name, attrs \\ %{}, fun) when is_function(fun, 0) do
     start_opts = %{attributes: attrs}
 
-    Tracer.with_span(span_name, start_opts) do
+    Tracer.with_span span_name, start_opts do
       fun.()
     end
   end
@@ -109,18 +110,23 @@ defmodule ExGoCD.VsmTracer do
   @spec inject_context(map()) :: map()
   def inject_context(map) when is_map(map) do
     ctx = :otel_ctx.get_current()
+
     case :otel_tracer.current_span_ctx(ctx) do
       :undefined ->
         map
-      {:span_ctx, _version, trace_id, span_id, _parent_id, _flags, _tracestate,
-       _is_recording, _is_valid, _timestamp, _instrumentation_scope}
+
+      {:span_ctx, _version, trace_id, span_id, _parent_id, _flags, _tracestate, _is_recording,
+       _is_valid, _timestamp, _instrumentation_scope}
       when is_binary(trace_id) and byte_size(trace_id) > 0 and
-           is_integer(span_id) and span_id > 0 ->
+             is_integer(span_id) and span_id > 0 ->
         # Erlang OTel SDK: trace_id is 32-char hex string, span_id is integer.
         # is_valid is always false — ignore it and build traceparent anyway.
-        span_hex = Integer.to_string(span_id, 16) |> String.downcase() |> String.pad_leading(16, "0")
+        span_hex =
+          Integer.to_string(span_id, 16) |> String.downcase() |> String.pad_leading(16, "0")
+
         traceparent = "00-#{trace_id}-#{span_hex}-01"
         Map.put(map, "traceparent", traceparent)
+
       _ ->
         map
     end

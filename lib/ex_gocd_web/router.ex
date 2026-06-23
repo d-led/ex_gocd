@@ -44,12 +44,25 @@ defmodule ExGoCDWeb.Router do
     post "/auth/login", SessionController, :create
     delete "/auth/logout", SessionController, :delete
 
-    post "/go/pipelines/:pipeline_name/:counter/:stage_name/run", API.PipelineOperationsController, :approve_stage
+    post "/go/pipelines/:pipeline_name/:counter/:stage_name/run",
+         API.PipelineOperationsController,
+         :approve_stage
 
-    get "/api_json/pipelines/value_stream_map/:pipeline_name/:pipeline_counter", ValueStreamMapController, :show
-    get "/api_json/materials/value_stream_map/:material_fingerprint/:revision", ValueStreamMapController, :show_material
-    get "/api_json/go/pipelines/value_stream_map/:pipeline_name/:pipeline_counter", ValueStreamMapController, :show
-    get "/api_json/go/materials/value_stream_map/:material_fingerprint/:revision", ValueStreamMapController, :show_material
+    get "/api_json/pipelines/value_stream_map/:pipeline_name/:pipeline_counter",
+        ValueStreamMapController,
+        :show
+
+    get "/api_json/materials/value_stream_map/:material_fingerprint/:revision",
+        ValueStreamMapController,
+        :show_material
+
+    get "/api_json/go/pipelines/value_stream_map/:pipeline_name/:pipeline_counter",
+        ValueStreamMapController,
+        :show
+
+    get "/api_json/go/materials/value_stream_map/:material_fingerprint/:revision",
+        ValueStreamMapController,
+        :show_material
 
     # CCTray XML feed for CI monitoring tools
     get "/go/cctray.xml", CCTrayController, :index
@@ -61,18 +74,43 @@ defmodule ExGoCDWeb.Router do
       live "/materials", MaterialsLive, :index
       live "/agents/:uuid/job_run_history", AgentJobHistoryLive, :index
       live "/agents/:uuid/job_run_history/:build_id", AgentJobRunDetailLive, :show
-      live "/pipelines/value_stream_map/:pipeline_name/:pipeline_counter", ValueStreamMapLive, :show
-      live "/materials/value_stream_map/:material_fingerprint/:revision", ValueStreamMapLive, :show_material
-      live "/go/pipelines/value_stream_map/:pipeline_name/:pipeline_counter", ValueStreamMapLive, :show
-      live "/go/materials/value_stream_map/:material_fingerprint/:revision", ValueStreamMapLive, :show_material
+
+      live "/pipelines/value_stream_map/:pipeline_name/:pipeline_counter",
+           ValueStreamMapLive,
+           :show
+
+      live "/materials/value_stream_map/:material_fingerprint/:revision",
+           ValueStreamMapLive,
+           :show_material
+
+      live "/go/pipelines/value_stream_map/:pipeline_name/:pipeline_counter",
+           ValueStreamMapLive,
+           :show
+
+      live "/go/materials/value_stream_map/:material_fingerprint/:revision",
+           ValueStreamMapLive,
+           :show_material
+
       live "/pipeline/activity/:pipeline_name", PipelineActivityLive, :index
       live "/go/pipeline/activity/:pipeline_name", PipelineActivityLive, :index
       live "/compare/:pipeline_name/:from_counter/with/:to_counter", CompareLive, :show
       live "/go/compare/:pipeline_name/:from_counter/with/:to_counter", CompareLive, :show
-      live "/pipelines/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter", StageDetailsLive, :show
-      live "/go/pipelines/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter", StageDetailsLive, :show
-      live "/tab/build/detail/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/:job_name", JobDetailsLive, :show
-      live "/go/tab/build/detail/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/:job_name", JobDetailsLive, :show
+
+      live "/pipelines/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter",
+           StageDetailsLive,
+           :show
+
+      live "/go/pipelines/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter",
+           StageDetailsLive,
+           :show
+
+      live "/tab/build/detail/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/:job_name",
+           JobDetailsLive,
+           :show
+
+      live "/go/tab/build/detail/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/:job_name",
+           JobDetailsLive,
+           :show
 
       # Admin Panel routes
       live "/admin", AdminLive, :index
@@ -154,7 +192,11 @@ defmodule ExGoCDWeb.Router do
 
     # Schedule a job (enqueue for next idle agent; GoCD-style pipeline/stage/job)
     post "/jobs/schedule", JobController, :schedule
-    get "/jobs/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/:job_name", JobController, :show
+
+    get "/jobs/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/:job_name",
+        JobController,
+        :show
+
     get "/jobs/:pipeline_name/:stage_name/:job_name/history", JobController, :history
 
     get "/dashboard", DashboardController, :show
@@ -167,7 +209,10 @@ defmodule ExGoCDWeb.Router do
     post "/pipelines/:pipeline_name/unlock", PipelineOperationsController, :unlock
     post "/pipelines/:pipeline_name/schedule", PipelineOperationsController, :schedule
     post "/pipelines/:pipeline_name/:counter/comment", PipelineOperationsController, :comment
-    post "/pipelines/:pipeline_name/:counter/:stage_name/run", PipelineOperationsController, :approve_stage
+
+    post "/pipelines/:pipeline_name/:counter/:stage_name/run",
+         PipelineOperationsController,
+         :approve_stage
 
     # SCM post-commit and push webhooks
     post "/admin/materials/git/notify", WebhookController, :git_notify
@@ -179,9 +224,16 @@ defmodule ExGoCDWeb.Router do
     get "/pipelines/:pipeline_name/:counter", PipelineInstanceController, :show
 
     # Stage instance & operations
-    get "/stages/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter", StageController, :show
+    get "/stages/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter",
+        StageController,
+        :show
+
     get "/stages/:pipeline_name/:stage_name/history", StageController, :history
-    post "/stages/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/rerun-failed-jobs", StageController, :rerun_failed_jobs
+
+    post "/stages/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/rerun-failed-jobs",
+         StageController,
+         :rerun_failed_jobs
+
     post "/stages/:pipeline_name/:pipeline_counter/:stage_name/cancel", StageController, :cancel
 
     # User management (GoCD users v3)
@@ -255,7 +307,11 @@ defmodule ExGoCDWeb.Router do
     put "/agents/:uuid/disable", AgentController, :disable
     post "/builds/:build_id/console", BuildConsoleController, :append
     post "/jobs/schedule", JobController, :schedule
-    get "/jobs/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/:job_name", JobController, :show
+
+    get "/jobs/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/:job_name",
+        JobController,
+        :show
+
     get "/jobs/:pipeline_name/:stage_name/:job_name/history", JobController, :history
 
     get "/dashboard", DashboardController, :show
@@ -268,7 +324,10 @@ defmodule ExGoCDWeb.Router do
     post "/pipelines/:pipeline_name/unlock", PipelineOperationsController, :unlock
     post "/pipelines/:pipeline_name/schedule", PipelineOperationsController, :schedule
     post "/pipelines/:pipeline_name/:counter/comment", PipelineOperationsController, :comment
-    post "/pipelines/:pipeline_name/:counter/:stage_name/run", PipelineOperationsController, :approve_stage
+
+    post "/pipelines/:pipeline_name/:counter/:stage_name/run",
+         PipelineOperationsController,
+         :approve_stage
 
     # SCM post-commit and push webhooks
     post "/admin/materials/git/notify", WebhookController, :git_notify
@@ -280,9 +339,16 @@ defmodule ExGoCDWeb.Router do
     get "/pipelines/:pipeline_name/:counter", PipelineInstanceController, :show
 
     # Stage instance & operations
-    get "/stages/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter", StageController, :show
+    get "/stages/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter",
+        StageController,
+        :show
+
     get "/stages/:pipeline_name/:stage_name/history", StageController, :history
-    post "/stages/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/rerun-failed-jobs", StageController, :rerun_failed_jobs
+
+    post "/stages/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/rerun-failed-jobs",
+         StageController,
+         :rerun_failed_jobs
+
     post "/stages/:pipeline_name/:pipeline_counter/:stage_name/cancel", StageController, :cancel
 
     # User management (GoCD users v3)
@@ -323,25 +389,49 @@ defmodule ExGoCDWeb.Router do
   scope "/files", ExGoCDWeb do
     pipe_through :files_api
 
-    get "/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/:job_name/*file_path", ArtifactsController, :show
-    post "/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/:job_name/*file_path", ArtifactsController, :create
-    put "/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/:job_name/*file_path", ArtifactsController, :update
+    get "/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/:job_name/*file_path",
+        ArtifactsController,
+        :show
+
+    post "/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/:job_name/*file_path",
+         ArtifactsController,
+         :create
+
+    put "/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/:job_name/*file_path",
+        ArtifactsController,
+        :update
   end
 
   scope "/go/files", ExGoCDWeb do
     pipe_through :files_api
 
-    get "/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/:job_name/*file_path", ArtifactsController, :show
-    post "/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/:job_name/*file_path", ArtifactsController, :create
-    put "/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/:job_name/*file_path", ArtifactsController, :update
+    get "/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/:job_name/*file_path",
+        ArtifactsController,
+        :show
+
+    post "/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/:job_name/*file_path",
+         ArtifactsController,
+         :create
+
+    put "/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/:job_name/*file_path",
+        ArtifactsController,
+        :update
   end
 
   scope "/remoting/files", ExGoCDWeb do
     pipe_through :files_api
 
-    get "/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/:job_name/*file_path", ArtifactsController, :show
-    post "/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/:job_name/*file_path", ArtifactsController, :create
-    put "/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/:job_name/*file_path", ArtifactsController, :update
+    get "/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/:job_name/*file_path",
+        ArtifactsController,
+        :show
+
+    post "/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/:job_name/*file_path",
+         ArtifactsController,
+         :create
+
+    put "/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/:job_name/*file_path",
+        ArtifactsController,
+        :update
   end
 
   # Enable LiveDashboard and Swoosh mailbox preview in development

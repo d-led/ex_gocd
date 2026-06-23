@@ -26,8 +26,10 @@ defmodule ExGoCD.ConfigRepos.GitHubActionsParser do
       iex> ir.name
       "CI"
   """
-  @spec parse_workflow(String.t(), String.t()) :: {:ok, ExternalPipelineIR.t()} | {:error, String.t()}
-  def parse_workflow(yaml_string, source_file) when is_binary(yaml_string) and is_binary(source_file) do
+  @spec parse_workflow(String.t(), String.t()) ::
+          {:ok, ExternalPipelineIR.t()} | {:error, String.t()}
+  def parse_workflow(yaml_string, source_file)
+      when is_binary(yaml_string) and is_binary(source_file) do
     with {:ok, parsed} <- ParserHelpers.parse_yaml(yaml_string),
          :ok <- ParserHelpers.ensure_map(parsed, "workflow YAML") do
       name = Map.get(parsed, "name", stem_from(source_file))
@@ -37,15 +39,16 @@ defmodule ExGoCD.ConfigRepos.GitHubActionsParser do
 
       stages = jobs_map |> Map.values() |> Enum.map(& &1.stage) |> Enum.uniq()
 
-      ir = ExternalPipelineIR.new(
-        source_type: "github_actions",
-        source_file: source_file,
-        name: name,
-        triggers: triggers,
-        env_vars: env_vars,
-        stages: stages,
-        jobs: jobs_map
-      )
+      ir =
+        ExternalPipelineIR.new(
+          source_type: "github_actions",
+          source_file: source_file,
+          name: name,
+          triggers: triggers,
+          env_vars: env_vars,
+          stages: stages,
+          jobs: jobs_map
+        )
 
       {:ok, ir}
     end
@@ -75,15 +78,18 @@ defmodule ExGoCD.ConfigRepos.GitHubActionsParser do
         "push" -> [build_push_trigger(config)]
         "schedule" -> build_schedule_triggers(config)
         "workflow_dispatch" -> [build_dispatch_trigger(config)]
-        _ -> [] # pull_request, workflow_call, etc. excluded in v1
+        # pull_request, workflow_call, etc. excluded in v1
+        _ -> []
       end
     end)
   end
 
   defp build_push_trigger(nil), do: %{type: "push"}
+
   defp build_push_trigger(config) when is_map(config) do
     %{type: "push", branches: config["branches"] || [], tags: config["tags"] || []}
   end
+
   defp build_push_trigger(_), do: %{type: "push"}
 
   defp build_schedule_triggers(schedules) when is_list(schedules) do
@@ -91,16 +97,19 @@ defmodule ExGoCD.ConfigRepos.GitHubActionsParser do
       %{type: "schedule", cron: s["cron"]}
     end)
   end
+
   defp build_schedule_triggers(_), do: []
 
   defp build_dispatch_trigger(config) when is_map(config) do
     base = %{type: "workflow_dispatch"}
+
     if Map.has_key?(config, "inputs") do
       Map.put(base, :inputs, config["inputs"])
     else
       base
     end
   end
+
   defp build_dispatch_trigger(_), do: %{type: "workflow_dispatch"}
 
   # --- Environment variables ---
@@ -115,9 +124,10 @@ defmodule ExGoCD.ConfigRepos.GitHubActionsParser do
     job_order = Map.keys(jobs)
 
     # First pass: collect raw job data
-    raw = for {job_id, job_data} <- jobs, into: %{} do
-      {job_id, extract_single_job(job_id, job_data, job_order)}
-    end
+    raw =
+      for {job_id, job_data} <- jobs, into: %{} do
+        {job_id, extract_single_job(job_id, job_data, job_order)}
+      end
 
     # Second pass: add needs-based ordering (jobs without needs come first in stage order)
     # For now, use job_order as-is from YAML
@@ -127,11 +137,12 @@ defmodule ExGoCD.ConfigRepos.GitHubActionsParser do
   defp extract_jobs(_), do: %{}
 
   defp extract_single_job(job_id, job_data, _job_order) when is_map(job_data) do
-    needs = case job_data["needs"] do
-      n when is_list(n) -> n
-      n when is_binary(n) -> [n]
-      _ -> []
-    end
+    needs =
+      case job_data["needs"] do
+        n when is_list(n) -> n
+        n when is_binary(n) -> [n]
+        _ -> []
+      end
 
     steps = extract_steps(job_data["steps"] || [])
     runs_on = job_data["runs-on"] || "ubuntu-latest"
@@ -147,6 +158,7 @@ defmodule ExGoCD.ConfigRepos.GitHubActionsParser do
       if: if_statement
     }
   end
+
   defp extract_single_job(job_id, runs_on, _) when is_binary(runs_on) do
     %{stage: job_id, needs: [], runs_on: runs_on, steps: [], env: %{}}
   end
@@ -158,8 +170,10 @@ defmodule ExGoCD.ConfigRepos.GitHubActionsParser do
       cond do
         Map.has_key?(step, "run") ->
           %{type: "run", command: step["run"], name: step["name"], shell: step["shell"]}
+
         Map.has_key?(step, "uses") ->
           %{type: "action", uses: step["uses"], name: step["name"], with: step["with"] || %{}}
+
         true ->
           %{type: "unknown", name: step["name"]}
       end

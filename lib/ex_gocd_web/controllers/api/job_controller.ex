@@ -52,11 +52,12 @@ defmodule ExGoCDWeb.API.JobController do
         join: si in assoc(ji, :stage_instance),
         join: pi in assoc(si, :pipeline_instance),
         join: p in assoc(pi, :pipeline),
-        where: p.name == ^pipeline_name and
-                 pi.counter == ^pipeline_counter and
-                 si.name == ^stage_name and
-                 si.counter == ^stage_counter and
-                 ji.name == ^job_name,
+        where:
+          p.name == ^pipeline_name and
+            pi.counter == ^pipeline_counter and
+            si.name == ^stage_name and
+            si.counter == ^stage_counter and
+            ji.name == ^job_name,
         preload: [stage_instance: {si, pipeline_instance: {pi, pipeline: p}}],
         limit: 1
       )
@@ -65,7 +66,14 @@ defmodule ExGoCDWeb.API.JobController do
     if is_nil(ji) do
       conn |> put_status(:not_found) |> json(%{message: "Job instance not found."})
     else
-      run = AgentJobRuns.get_run_by_params(pipeline_name, pipeline_counter, stage_name, stage_counter, job_name)
+      run =
+        AgentJobRuns.get_run_by_params(
+          pipeline_name,
+          pipeline_counter,
+          stage_name,
+          stage_counter,
+          job_name
+        )
 
       json(conn, %{
         name: ji.name,
@@ -82,7 +90,11 @@ defmodule ExGoCDWeb.API.JobController do
   GET /api/jobs/:pipeline_name/:stage_name/:job_name/history
   Returns the last 25 job runs ordered by pipeline counter descending.
   """
-  def history(conn, %{"pipeline_name" => pipeline_name, "stage_name" => stage_name, "job_name" => job_name}) do
+  def history(conn, %{
+        "pipeline_name" => pipeline_name,
+        "stage_name" => stage_name,
+        "job_name" => job_name
+      }) do
     offset = parse_offset(conn.params["offset"])
 
     import Ecto.Query
@@ -102,19 +114,19 @@ defmodule ExGoCDWeb.API.JobController do
     instances = Repo.all(query)
 
     json(conn, %{
-      jobs: Enum.map(instances, fn ji ->
-        %{
-          pipeline_name: pipeline_name,
-          pipeline_counter: ji.stage_instance.pipeline_instance.counter,
-          stage_name: stage_name,
-          stage_counter: ji.stage_instance.counter,
-          name: ji.name,
-          state: ji.state || "Scheduled",
-          result: ji.result || "Unknown",
-          scheduled_date: format_ts(ji.scheduled_at || ji.inserted_at)
-        }
-      end)
+      jobs:
+        Enum.map(instances, fn ji ->
+          %{
+            pipeline_name: pipeline_name,
+            pipeline_counter: ji.stage_instance.pipeline_instance.counter,
+            stage_name: stage_name,
+            stage_counter: ji.stage_instance.counter,
+            name: ji.name,
+            state: ji.state || "Scheduled",
+            result: ji.result || "Unknown",
+            scheduled_date: format_ts(ji.scheduled_at || ji.inserted_at)
+          }
+        end)
     })
   end
-
 end

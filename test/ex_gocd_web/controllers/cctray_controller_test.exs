@@ -5,7 +5,12 @@ defmodule ExGoCDWeb.CCTrayControllerTest do
   alias ExGoCD.Pipelines.{Pipeline, PipelineInstance, Stage, StageInstance}
 
   import ExGoCD.PipelinesFixtures,
-    only: [insert_pipeline: 2, insert_stage: 2, insert_pipeline_instance: 2, insert_stage_instance: 3]
+    only: [
+      insert_pipeline: 2,
+      insert_stage: 2,
+      insert_pipeline_instance: 2,
+      insert_stage_instance: 3
+    ]
 
   setup do
     # Ensure clean state
@@ -86,7 +91,12 @@ defmodule ExGoCDWeb.CCTrayControllerTest do
       pipeline = insert_pipeline("foo & bar", group: "default")
       insert_stage(pipeline.id, "build < test")
       pi = insert_pipeline_instance(pipeline.id, 1)
-      insert_stage_instance(pi.id, "build < test", counter: 1, state: "Completed", result: "Passed")
+
+      insert_stage_instance(pi.id, "build < test",
+        counter: 1,
+        state: "Completed",
+        result: "Passed"
+      )
 
       conn = get(conn, "/go/cctray.xml")
 
@@ -105,5 +115,4 @@ defmodule ExGoCDWeb.CCTrayControllerTest do
       assert conn.resp_body =~ ~s(webUrl="/go/pipelines/web-url-pipe/42/stage1/42")
     end
   end
-
 end

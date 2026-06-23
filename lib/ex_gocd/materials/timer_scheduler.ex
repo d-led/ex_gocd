@@ -46,6 +46,7 @@ defmodule ExGoCD.Materials.TimerScheduler do
       Phoenix.PubSub.subscribe(ExGoCD.PubSub, "pipelines:updates")
       send(self(), :reload_timers)
     end
+
     {:ok, %{timers: %{}}}
   end
 
@@ -106,7 +107,9 @@ defmodule ExGoCD.Materials.TimerScheduler do
 
     case pipeline do
       nil ->
-        Logger.debug("[TimerScheduler] Pipeline #{pipeline_name} no longer exists — dropping timer")
+        Logger.debug(
+          "[TimerScheduler] Pipeline #{pipeline_name} no longer exists — dropping timer"
+        )
 
       %{timer: nil} ->
         Logger.debug("[TimerScheduler] Pipeline #{pipeline_name} timer removed — dropping tick")
@@ -115,7 +118,9 @@ defmodule ExGoCD.Materials.TimerScheduler do
         if has_new_modifications_since_last_run?(p) do
           do_trigger(pipeline_name)
         else
-          Logger.debug("[TimerScheduler] #{pipeline_name}: skipping timer — no new material changes")
+          Logger.debug(
+            "[TimerScheduler] #{pipeline_name}: skipping timer — no new material changes"
+          )
         end
 
       _p ->
@@ -126,12 +131,14 @@ defmodule ExGoCD.Materials.TimerScheduler do
   defp do_trigger(pipeline_name) do
     Logger.info("[TimerScheduler] Firing scheduled trigger for pipeline: #{pipeline_name}")
 
-    case Pipelines.trigger_pipeline(pipeline_name) do
+    case Pipelines.trigger_pipeline(pipeline_name, %{auto_trigger: true}) do
       {:ok, instance} ->
         Logger.info("[TimerScheduler] #{pipeline_name} triggered → instance ##{instance.counter}")
 
       {:error, reason} ->
-        Logger.warning("[TimerScheduler] #{pipeline_name} could not be triggered: #{inspect(reason)}")
+        Logger.warning(
+          "[TimerScheduler] #{pipeline_name} could not be triggered: #{inspect(reason)}"
+        )
     end
   end
 

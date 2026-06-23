@@ -1,159 +1,173 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Sign In — GoCD</title>
-  <link rel="stylesheet" href="/assets/app.css" />
-  <style>
-    body {
-      background: #1a1a2e;
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-family: "Open Sans", sans-serif;
-      margin: 0;
-    }
-    .login-card {
-      background: white;
-      border-radius: 6px;
-      box-shadow: 0 8px 40px rgba(0,0,0,0.4);
-      width: 100%;
-      max-width: 400px;
-      overflow: hidden;
-    }
-    .login-header {
-      background: linear-gradient(135deg, #943a9e, #6d2679);
-      padding: 32px 32px 24px;
-      text-align: center;
-    }
-    .login-header .logo {
-      font-size: 28px;
-      font-weight: 800;
-      color: white;
-      letter-spacing: -0.5px;
-    }
-    .login-header .logo span { color: rgba(255,255,255,0.7); }
-    .login-header p {
-      color: rgba(255,255,255,0.65);
-      font-size: 13px;
-      margin: 6px 0 0;
-    }
-    .login-body { padding: 28px 32px 32px; }
-    .error-msg {
-      background: #fff0f0;
-      border: 1px solid #fca5a5;
-      border-radius: 4px;
-      color: #b91c1c;
-      font-size: 13px;
-      padding: 10px 14px;
-      margin-bottom: 18px;
-    }
-    label {
-      display: block;
-      font-size: 11px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: #64748b;
-      margin-bottom: 6px;
-    }
-    input[type="text"] {
-      width: 100%;
-      border: 1px solid #d6e0e2;
-      border-radius: 4px;
-      padding: 9px 12px;
-      font-size: 14px;
-      color: #333;
-      box-sizing: border-box;
-      outline: none;
-      transition: border-color 0.15s;
-    }
-    input[type="text"]:focus { border-color: #943a9e; }
-    .btn-login {
-      width: 100%;
-      background: #943a9e;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      padding: 10px;
-      font-size: 14px;
-      font-weight: 700;
-      cursor: pointer;
-      margin-top: 18px;
-      transition: background 0.15s;
-    }
-    .btn-login:hover { background: #7c2e85; }
-    .quick-login { margin-top: 22px; border-top: 1px solid #e9edef; padding-top: 18px; }
-    .quick-login p { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; margin-bottom: 10px; }
-    .user-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-    .user-chip {
-      display: inline-block;
-      background: #f4f8f9;
-      border: 1px solid #d6e0e2;
-      border-radius: 20px;
-      padding: 4px 12px;
-      font-size: 12px;
-      color: #444;
-      cursor: pointer;
-      text-decoration: none;
-      transition: all 0.15s;
-    }
-    .user-chip:hover { background: #943a9e; color: white; border-color: #943a9e; }
-    .user-chip.admin { border-color: #943a9e; color: #943a9e; font-weight: 700; }
-    .user-chip.admin:hover { background: #943a9e; color: white; }
-    .open-mode-banner {
-      background: #f0fdf4;
-      border: 1px solid #86efac;
-      border-radius: 4px;
-      padding: 10px 14px;
-      margin-bottom: 16px;
-      font-size: 12px;
-      color: #166534;
-    }
-  </style>
-</head>
-<body>
-  <div class="login-card">
-    <div class="login-header">
-      <div class="logo">Go<span>CD</span></div>
-      <p>Continuous Delivery — Sign In</p>
-    </div>
-    <div class="login-body">
-      <%= if @error do %>
-        <div class="error-msg"><%= @error %></div>
-      <% end %>
-      <%= if @users == [] do %>
-        <div class="open-mode-banner">
-          🔓 <strong>Open mode</strong> — No admin configured yet. All pages are accessible without login.
-        </div>
-      <% end %>
-      <form method="POST" action="/auth/login">
-        <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
-        <label for="session_username">Username</label>
-        <input type="text" id="session_username" name="session[username]"
-               placeholder="e.g. admin" autocomplete="username" autofocus />
-        <button type="submit" class="btn-login">Sign In</button>
-      </form>
-      <%= if @users != [] do %>
-        <div class="quick-login">
-          <p>Quick login</p>
-          <div class="user-chips">
-            <%= for user <- @users do %>
-              <form method="POST" action="/auth/login" style="display:inline">
-                <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
-                <input type="hidden" name="session[username]" value={user.username} />
-                <button type="submit" class={"user-chip #{if "admin" in (user.roles || []), do: "admin", else: ""}"}
-                        title={Enum.join(user.roles || [], ", ")}>
-                  <%= user.display_name || user.username %>
-                </button>
-              </form>
-            <% end %>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sign In — GoCD</title>
+    <link rel="stylesheet" href="/assets/app.css" />
+    <style>
+      body {
+        background: #1a1a2e;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: "Open Sans", sans-serif;
+        margin: 0;
+      }
+      .login-card {
+        background: white;
+        border-radius: 6px;
+        box-shadow: 0 8px 40px rgba(0,0,0,0.4);
+        width: 100%;
+        max-width: 400px;
+        overflow: hidden;
+      }
+      .login-header {
+        background: linear-gradient(135deg, #943a9e, #6d2679);
+        padding: 32px 32px 24px;
+        text-align: center;
+      }
+      .login-header .logo {
+        font-size: 28px;
+        font-weight: 800;
+        color: white;
+        letter-spacing: -0.5px;
+      }
+      .login-header .logo span { color: rgba(255,255,255,0.7); }
+      .login-header p {
+        color: rgba(255,255,255,0.65);
+        font-size: 13px;
+        margin: 6px 0 0;
+      }
+      .login-body { padding: 28px 32px 32px; }
+      .error-msg {
+        background: #fff0f0;
+        border: 1px solid #fca5a5;
+        border-radius: 4px;
+        color: #b91c1c;
+        font-size: 13px;
+        padding: 10px 14px;
+        margin-bottom: 18px;
+      }
+      label {
+        display: block;
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #64748b;
+        margin-bottom: 6px;
+      }
+      input[type="text"] {
+        width: 100%;
+        border: 1px solid #d6e0e2;
+        border-radius: 4px;
+        padding: 9px 12px;
+        font-size: 14px;
+        color: #333;
+        box-sizing: border-box;
+        outline: none;
+        transition: border-color 0.15s;
+      }
+      input[type="text"]:focus { border-color: #943a9e; }
+      .btn-login {
+        width: 100%;
+        background: #943a9e;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        padding: 10px;
+        font-size: 14px;
+        font-weight: 700;
+        cursor: pointer;
+        margin-top: 18px;
+        transition: background 0.15s;
+      }
+      .btn-login:hover { background: #7c2e85; }
+      .quick-login { margin-top: 22px; border-top: 1px solid #e9edef; padding-top: 18px; }
+      .quick-login p { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; margin-bottom: 10px; }
+      .user-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+      .user-chip {
+        display: inline-block;
+        background: #f4f8f9;
+        border: 1px solid #d6e0e2;
+        border-radius: 20px;
+        padding: 4px 12px;
+        font-size: 12px;
+        color: #444;
+        cursor: pointer;
+        text-decoration: none;
+        transition: all 0.15s;
+      }
+      .user-chip:hover { background: #943a9e; color: white; border-color: #943a9e; }
+      .user-chip.admin { border-color: #943a9e; color: #943a9e; font-weight: 700; }
+      .user-chip.admin:hover { background: #943a9e; color: white; }
+      .open-mode-banner {
+        background: #f0fdf4;
+        border: 1px solid #86efac;
+        border-radius: 4px;
+        padding: 10px 14px;
+        margin-bottom: 16px;
+        font-size: 12px;
+        color: #166534;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="login-card">
+      <div class="login-header">
+        <div class="logo">Go<span>CD</span></div>
+        <p>Continuous Delivery — Sign In</p>
+      </div>
+      <div class="login-body">
+        <%= if @error do %>
+          <div class="error-msg">{@error}</div>
+        <% end %>
+        <%= if @users == [] do %>
+          <div class="open-mode-banner">
+            🔓 <strong>Open mode</strong>
+            — No admin configured yet. All pages are accessible without login.
           </div>
-        </div>
-      <% end %>
+        <% end %>
+        <form method="POST" action="/auth/login">
+          <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
+          <label for="session_username">Username</label>
+          <input
+            type="text"
+            id="session_username"
+            name="session[username]"
+            placeholder="e.g. admin"
+            autocomplete="username"
+            autofocus
+          />
+          <button type="submit" class="btn-login">Sign In</button>
+        </form>
+        <%= if @users != [] do %>
+          <div class="quick-login">
+            <p>Quick login</p>
+            <div class="user-chips">
+              <%= for user <- @users do %>
+                <form method="POST" action="/auth/login" style="display:inline">
+                  <input
+                    type="hidden"
+                    name="_csrf_token"
+                    value={Phoenix.Controller.get_csrf_token()}
+                  />
+                  <input type="hidden" name="session[username]" value={user.username} />
+                  <button
+                    type="submit"
+                    class={"user-chip #{if "admin" in (user.roles || []), do: "admin", else: ""}"}
+                    title={Enum.join(user.roles || [], ", ")}
+                  >
+                    {user.display_name || user.username}
+                  </button>
+                </form>
+              <% end %>
+            </div>
+          </div>
+        <% end %>
+      </div>
     </div>
-  </div>
-</body>
+  </body>
 </html>
