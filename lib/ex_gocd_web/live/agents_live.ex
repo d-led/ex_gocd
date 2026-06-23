@@ -256,7 +256,7 @@ defmodule ExGoCDWeb.AgentsLive do
           </span>
         </h1>
       </div>
-
+      
     <!-- Tabs -->
       <div class="agents-tabs">
         <button
@@ -276,7 +276,7 @@ defmodule ExGoCDWeb.AgentsLive do
           ELASTIC
         </button>
       </div>
-
+      
     <!-- Bulk Actions & Stats -->
       <div class="agents-controls">
         <%= if @is_user_admin do %>
@@ -369,7 +369,7 @@ defmodule ExGoCDWeb.AgentsLive do
           </form>
         </div>
       </div>
-
+      
     <!-- Agents Table -->
       <div class="agents-table-container">
         <table class="agents-table">

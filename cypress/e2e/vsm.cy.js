@@ -103,11 +103,11 @@ describe("Value Stream Map", () => {
     });
 
     it("highlights the arrow and connected nodes when hovering over it", () => {
-      cy.hoverOnArrowBetween("ex_gocd.git", "upstream-lib");
+      cy.hoverOnArrowBetween("ex_gocd", "upstream-lib");
 
-      cy.arrowBetweenShouldBeHighlighted("ex_gocd.git", "upstream-lib");
-      cy.allOtherArrowsShouldBeDimmed("ex_gocd.git", "upstream-lib");
-      cy.nodesShouldGlow("ex_gocd.git", "upstream-lib");
+      cy.arrowBetweenShouldBeHighlighted("ex_gocd", "upstream-lib");
+      cy.allOtherArrowsShouldBeDimmed("ex_gocd", "upstream-lib");
+      cy.nodesShouldGlow("ex_gocd", "upstream-lib");
       cy.nodeShouldNotGlow("integration-pipeline");
 
       // Visual proof — screenshot shows the glow + dimming
@@ -115,8 +115,8 @@ describe("Value Stream Map", () => {
     });
 
     it("restores all arrows and removes the glow when moving the mouse away", () => {
-      cy.hoverOnArrowBetween("ex_gocd.git", "upstream-lib");
-      cy.moveMouseAwayFromArrowBetween("ex_gocd.git", "upstream-lib");
+      cy.hoverOnArrowBetween("ex_gocd", "upstream-lib");
+      cy.moveMouseAwayFromArrowBetween("ex_gocd", "upstream-lib");
 
       cy.allArrowsShouldBeBright();
       cy.noNodesShouldGlow();
@@ -126,13 +126,13 @@ describe("Value Stream Map", () => {
     });
 
     it("keeps the highlight after a tap so mobile users can inspect the arrow", () => {
-      cy.tapOnArrowBetween("ex_gocd.git", "upstream-lib");
+      cy.tapOnArrowBetween("ex_gocd", "upstream-lib");
 
-      cy.nodesShouldGlow("ex_gocd.git", "upstream-lib");
-      cy.allOtherArrowsShouldBeDimmed("ex_gocd.git", "upstream-lib");
+      cy.nodesShouldGlow("ex_gocd", "upstream-lib");
+      cy.allOtherArrowsShouldBeDimmed("ex_gocd", "upstream-lib");
 
       // A second tap dismisses the highlight
-      cy.tapOnArrowBetween("ex_gocd.git", "upstream-lib");
+      cy.tapOnArrowBetween("ex_gocd", "upstream-lib");
       cy.noNodesShouldGlow();
       cy.allArrowsShouldBeBright();
     });
@@ -145,6 +145,69 @@ describe("Value Stream Map", () => {
       cy.allOtherArrowsShouldBeDimmed("upstream-lib", "component-a");
 
       cy.moveMouseAwayFromArrowBetween("upstream-lib", "component-a");
+    });
+  });
+
+  describe("Desktop zoom and pan", () => {
+    beforeEach(() => {
+      cy.viewport(1280, 800);
+      cy.visitPage("/pipelines/value_stream_map/upstream-lib/3");
+    });
+
+    it("shows zoom controls on desktop and hides them on mobile", () => {
+      // Desktop: controls visible
+      cy.theZoomControlsAreVisible();
+      cy.theTransformGroupExists();
+
+      // Mobile: controls hidden
+      cy.viewport("iphone-6");
+      cy.theZoomControlsAreHidden();
+    });
+
+    it("fits the graph to screen on initial load", () => {
+      cy.theVSMZoomIsBelow(1.01);
+    });
+
+    it("zooms in and out and arrows still work", () => {
+      cy.zoomInViaButton();
+      cy.zoomInViaButton();
+      cy.vsmArrowsStillWork();
+
+      cy.zoomOutViaButton();
+      cy.vsmArrowsStillWork();
+    });
+
+    it("resets zoom to fit via the Fit button", () => {
+      cy.zoomInViaButton();
+      cy.zoomInViaButton();
+      cy.clickFitToScreen();
+      cy.theVSMZoomIsBelow(1.01);
+      cy.vsmArrowsStillWork();
+    });
+
+    it("zooms via mouse wheel on desktop", () => {
+      cy.scrollWheelOnVSM(-100);
+      cy.scrollWheelOnVSM(100);
+      cy.vsmArrowsStillWork();
+    });
+
+    it("shows grab cursor on desktop", () => {
+      cy.theVSMCursorIsGrab();
+    });
+
+    it("keeps arrows drawn after zoom", () => {
+      cy.vsmArrowsStillWork();
+      cy.zoomInViaButton();
+      cy.vsmArrowsStillWork();
+      cy.clickFitToScreen();
+      cy.vsmArrowsStillWork();
+    });
+
+    it("hover highlight still works after zoom", () => {
+      cy.zoomInViaButton();
+      cy.hoverStillHighlightsNodes();
+      cy.clickFitToScreen();
+      cy.hoverStillHighlightsNodes();
     });
   });
 });

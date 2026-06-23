@@ -324,47 +324,83 @@ defmodule ExGoCDWeb.ValueStreamMapLive do
         id="vsm-container"
         phx-hook="VSMGraph"
         phx-update="ignore"
-        class="vsm-container-wrapper relative border border-gray-200 rounded-lg p-4 md:p-10 bg-white shadow-sm overflow-x-auto min-h-[400px] md:min-h-[500px]"
+        class="vsm-container-wrapper relative border border-gray-200 rounded-lg p-4 md:p-10 bg-white shadow-sm overflow-x-auto md:overflow-hidden min-h-[400px] md:min-h-[500px]"
       >
-        <svg
-          id="vsm-svg"
-          class="absolute top-0 left-0 w-full h-full"
-          style="z-index: 10; overflow: visible;"
-        >
-          <defs>
-            <marker
-              id="arrow"
-              viewBox="0 0 10 10"
-              refX="8"
-              refY="5"
-              markerWidth="8"
-              markerHeight="8"
-              orient="auto"
-            >
-              <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#2fa8b6" />
-            </marker>
-            <marker
-              id="arrow-current"
-              viewBox="0 0 10 10"
-              refX="8"
-              refY="5"
-              markerWidth="8"
-              markerHeight="8"
-              orient="auto"
-            >
-              <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#943a9e" />
-            </marker>
-          </defs>
-        </svg>
+        <%!-- Zoom controls — visible only on desktop (hidden on mobile) --%>
+        <div class="vsm-zoom-controls hidden md:flex absolute top-3 right-3 z-30 gap-1">
+          <button
+            id="vsm-zoom-out"
+            class="w-8 h-8 flex items-center justify-center rounded bg-white border border-gray-300 text-gray-600 hover:bg-gray-100 hover:border-gray-400 transition-colors shadow-sm"
+            title="Zoom out"
+            aria-label="Zoom out"
+          >
+            <i class="fa-solid fa-minus text-xs"></i>
+          </button>
+          <button
+            id="vsm-zoom-in"
+            class="w-8 h-8 flex items-center justify-center rounded bg-white border border-gray-300 text-gray-600 hover:bg-gray-100 hover:border-gray-400 transition-colors shadow-sm"
+            title="Zoom in"
+            aria-label="Zoom in"
+          >
+            <i class="fa-solid fa-plus text-xs"></i>
+          </button>
+          <button
+            id="vsm-zoom-fit"
+            class="flex items-center justify-center rounded bg-white border border-gray-300 text-gray-600 hover:bg-gray-100 hover:border-gray-400 transition-colors shadow-sm px-2 py-1 text-xs font-medium gap-1"
+            title="Fit to screen"
+            aria-label="Fit to screen"
+          >
+            <i class="fa-solid fa-expand text-[10px]"></i>
+            <span class="hidden sm:inline">Fit</span>
+          </button>
+        </div>
 
-        <div class="flex flex-col md:flex-row justify-center items-center md:items-stretch gap-8 md:gap-16 min-w-0 md:min-w-[800px] relative z-0 pointer-events-none">
-          <%= for level <- @vsm["levels"] do %>
-            <div class="vsm-level flex flex-col justify-center gap-10 relative">
-              <%= for node <- level["nodes"] do %>
-                <.vsm_node_widget node={node} is_current={current?(node, @vsm)} />
-              <% end %>
-            </div>
-          <% end %>
+        <%!-- Transform group: SVG and content nodes move/scale together --%>
+        <div
+          id="vsm-transform-group"
+          class="vsm-transform-group relative"
+          style="transform-origin: 0 0;"
+        >
+          <svg
+            id="vsm-svg"
+            class="absolute top-0 left-0 w-full h-full"
+            style="z-index: 10; overflow: visible;"
+          >
+            <defs>
+              <marker
+                id="arrow"
+                viewBox="0 0 10 10"
+                refX="8"
+                refY="5"
+                markerWidth="8"
+                markerHeight="8"
+                orient="auto"
+              >
+                <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#2fa8b6" />
+              </marker>
+              <marker
+                id="arrow-current"
+                viewBox="0 0 10 10"
+                refX="8"
+                refY="5"
+                markerWidth="8"
+                markerHeight="8"
+                orient="auto"
+              >
+                <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#943a9e" />
+              </marker>
+            </defs>
+          </svg>
+
+          <div class="flex flex-col md:flex-row justify-center items-center md:items-stretch gap-8 md:gap-16 min-w-0 md:min-w-[800px] relative z-0 pointer-events-none">
+            <%= for level <- @vsm["levels"] do %>
+              <div class="vsm-level flex flex-col justify-center gap-10 relative">
+                <%= for node <- level["nodes"] do %>
+                  <.vsm_node_widget node={node} is_current={current?(node, @vsm)} />
+                <% end %>
+              </div>
+            <% end %>
+          </div>
         </div>
       </div>
     </div>

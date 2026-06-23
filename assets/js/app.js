@@ -49,25 +49,263 @@ const AgentsUpdates = {
 const VSMGraph = {
   mounted() {
     this._persistentHighlight = null;
+
+    // ── zoom/pan state (desktop only) ──────────────────────────
+    this._zoom = 1;
+    this._panX = 0;
+    this._panY = 0;
+    this._dragging = false;
+    this._dragStartX = 0;
+    this._dragStartY = 0;
+    this._dragPanX = 0;
+    this._dragPanY = 0;
+    this._lastTouches = null;
+    this._lastTouchDist = 0;
+    this._pinchZoomStart = 1;
+
+    this._isDesktop = () => window.innerWidth >= 768;
+    this._transformGroup = () => this.el.querySelector("#vsm-transform-group");
+    this._svg = () => this.el.querySelector("#vsm-svg");
+
     this.drawLines();
 
-    this.resizeObserver = new ResizeObserver(() => this.drawLines());
+    this.resizeObserver = new ResizeObserver(() => {
+      this.drawLines();
+      if (this._isDesktop()) this._scheduleAutoFit();
+    });
     this.resizeObserver.observe(this.el);
     window.addEventListener(
       "resize",
-      (this.handleResize = () => this.drawLines()),
+      (this.handleResize = () => {
+        this.drawLines();
+        if (this._isDesktop()) this._autoFit();
+      }),
     );
+
+    // ── mouse wheel zoom ───────────────────────────────────────
+    this._onWheel = (e) => {
+      if (!this._isDesktop()) return;
+      e.preventDefault();
+
+      const rect = this.el.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+      const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
+
+      this._zoomTo(mx, my, factor);
+    };
+    this.el.addEventListener("wheel", this._onWheel, { passive: false });
+
+    // ── mouse drag pan ─────────────────────────────────────────
+    this._onMouseDown = (e) => {
+      if (!this._isDesktop()) return;
+      // Don't start drag on interactive elements (buttons, links, etc.)
+      if (e.target.closest("button, a, input, .vsm-node")) return;
+      this._dragging = true;
+      this._dragStartX = e.clientX;
+      this._dragStartY = e.clientY;
+      this._dragPanX = this._panX;
+      this._dragPanY = this._panY;
+      this.el.style.cursor = "grabbing";
+    };
+    this._onMouseMove = (e) => {
+      if (!this._dragging) return;
+      this._panX = this._dragPanX + (e.clientX - this._dragStartX);
+      this._panY = this._dragPanY + (e.clientY - this._dragStartY);
+      this._applyTransform();
+      this.drawLines();
+    };
+    this._onMouseUp = () => {
+      if (!this._dragging) return;
+      this._dragging = false;
+      this.el.style.cursor = this._isDesktop() ? "grab" : "";
+    };
+    this.el.addEventListener("mousedown", this._onMouseDown);
+    window.addEventListener("mousemove", this._onMouseMove);
+    window.addEventListener("mouseup", this._onMouseUp);
+
+    // ── touch pan + pinch zoom ─────────────────────────────────
+    this._onTouchStart = (e) => {
+      if (!this._isDesktop()) return;
+      if (e.touches.length === 1) {
+        this._dragging = true;
+        this._dragStartX = e.touches[0].clientX;
+        this._dragStartY = e.touches[0].clientY;
+        this._dragPanX = this._panX;
+        this._dragPanY = this._panY;
+      } else if (e.touches.length === 2) {
+        this._dragging = false;
+        this._lastTouches = [e.touches[0], e.touches[1]];
+        this._lastTouchDist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY,
+        );
+        this._pinchZoomStart = this._zoom;
+        const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        const rect = this.el.getBoundingClientRect();
+        this._pinchCx = cx - rect.left;
+        this._pinchCy = cy - rect.top;
+        this._pinchPanX = this._panX;
+        this._pinchPanY = this._panY;
+      }
+    };
+    this._onTouchMove = (e) => {
+      if (!this._isDesktop()) return;
+      if (e.touches.length === 1 && this._dragging) {
+        this._panX = this._dragPanX + (e.touches[0].clientX - this._dragStartX);
+        this._panY = this._dragPanY + (e.touches[0].clientY - this._dragStartY);
+        this._applyTransform();
+        this.drawLines();
+      } else if (e.touches.length === 2) {
+        const dist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY,
+        );
+        if (this._lastTouchDist > 0) {
+          const scale = (dist / this._lastTouchDist) * this._pinchZoomStart;
+          this._zoom = Math.min(3, Math.max(0.25, scale));
+          const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+          const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+          const rect = this.el.getBoundingClientRect();
+          const newCx = cx - rect.left;
+          const newCy = cy - rect.top;
+          this._panX = this._pinchPanX + (newCx - this._pinchCx);
+          this._panY = this._pinchPanY + (newCy - this._pinchCy);
+          this._applyTransform();
+          this.drawLines();
+        }
+      }
+    };
+    this._onTouchEnd = () => {
+      this._dragging = false;
+      this._lastTouchDist = 0;
+    };
+    this.el.addEventListener("touchstart", this._onTouchStart, { passive: false });
+    this.el.addEventListener("touchmove", this._onTouchMove, { passive: false });
+    this.el.addEventListener("touchend", this._onTouchEnd);
+
+    // ── zoom control buttons ───────────────────────────────────
+    const zoomIn = this.el.querySelector("#vsm-zoom-in");
+    const zoomOut = this.el.querySelector("#vsm-zoom-out");
+    const zoomFit = this.el.querySelector("#vsm-zoom-fit");
+
+    if (zoomIn) {
+      zoomIn.addEventListener("click", () => {
+        const rect = this.el.getBoundingClientRect();
+        this._zoomTo(rect.width / 2, rect.height / 2, 1.25);
+      });
+    }
+    if (zoomOut) {
+      zoomOut.addEventListener("click", () => {
+        const rect = this.el.getBoundingClientRect();
+        this._zoomTo(rect.width / 2, rect.height / 2, 1 / 1.25);
+      });
+    }
+    if (zoomFit) {
+      zoomFit.addEventListener("click", () => this._autoFit());
+    }
+
+    // ── initial desktop cursor ─────────────────────────────────
+    if (this._isDesktop()) {
+      this.el.style.cursor = "grab";
+      this._autoFit();
+    }
   },
+
   updated() {
     this.drawLines();
+    if (this._isDesktop()) this._autoFit();
   },
+
   destroyed() {
     if (this.resizeObserver) this.resizeObserver.disconnect();
     window.removeEventListener("resize", this.handleResize);
+    this.el.removeEventListener("wheel", this._onWheel);
+    this.el.removeEventListener("mousedown", this._onMouseDown);
+    window.removeEventListener("mousemove", this._onMouseMove);
+    window.removeEventListener("mouseup", this._onMouseUp);
+    this.el.removeEventListener("touchstart", this._onTouchStart);
+    this.el.removeEventListener("touchmove", this._onTouchMove);
+    this.el.removeEventListener("touchend", this._onTouchEnd);
   },
+
+  // ── zoom/pan helpers ─────────────────────────────────────────────
+
+  /** Zoom toward a point (mx, my) in container coordinates. */
+  _zoomTo(mx, my, factor) {
+    const newZoom = Math.min(3, Math.max(0.25, this._zoom * factor));
+    // Keep the point under the cursor fixed
+    this._panX = mx - (mx - this._panX) * (newZoom / this._zoom);
+    this._panY = my - (my - this._panY) * (newZoom / this._zoom);
+    this._zoom = newZoom;
+    this._applyTransform();
+    this.drawLines();
+  },
+
+  /** Fit the entire graph within the container's padding box. */
+  _autoFit() {
+    const group = this._transformGroup();
+    if (!group) return;
+    const elStyle = getComputedStyle(this.el);
+    const padLeft = parseFloat(elStyle.paddingLeft) || 0;
+    const padRight = parseFloat(elStyle.paddingRight) || 0;
+    const padTop = parseFloat(elStyle.paddingTop) || 0;
+    const padBottom = parseFloat(elStyle.paddingBottom) || 0;
+    const innerW = this.el.clientWidth - padLeft - padRight;
+    const innerH = this.el.clientHeight - padTop - padBottom;
+    if (innerW < 20 || innerH < 20) return;
+
+    // Clear transform to measure natural node positions
+    group.style.transform = "";
+
+    const containerRect = this.el.getBoundingClientRect();
+    const nodes = this.el.querySelectorAll(".vsm-node");
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    nodes.forEach((n) => {
+      const r = n.getBoundingClientRect();
+      const x = r.left - containerRect.left + this.el.scrollLeft;
+      const y = r.top - containerRect.top + this.el.scrollTop;
+      if (x < minX) minX = x;
+      if (y < minY) minY = y;
+      if (x + r.width > maxX) maxX = x + r.width;
+      if (y + r.height > maxY) maxY = y + r.height;
+    });
+    if (!isFinite(minX)) return;
+
+    const contentW = maxX - minX;
+    const contentH = maxY - minY;
+
+    const scaleX = innerW / Math.max(contentW, 1);
+    const scaleY = innerH / Math.max(contentH, 1);
+    const scale = Math.min(scaleX, scaleY, 1); // never exceed 1 on auto-fit
+
+    this._zoom = Math.max(0.25, scale);
+    this._panX = padLeft + (innerW - contentW * this._zoom) / 2 - minX * this._zoom;
+    this._panY = padTop + (innerH - contentH * this._zoom) / 2 - minY * this._zoom;
+
+    this._applyTransform();
+    this.drawLines();
+  },
+
+  /** Schedule auto-fit after layout settles. */
+  _scheduleAutoFit() {
+    if (this._autoFitTimer) clearTimeout(this._autoFitTimer);
+    this._autoFitTimer = setTimeout(() => this._autoFit(), 100);
+  },
+
+  /** Apply current zoom/pan to the transform group. */
+  _applyTransform() {
+    const group = this._transformGroup();
+    if (!group) return;
+    group.style.transform = `translate(${this._panX}px, ${this._panY}px) scale(${this._zoom})`;
+  },
+
+  // ── path drawing ──────────────────────────────────────────────────
+
   drawLines() {
     setTimeout(() => {
-      const svg = this.el.querySelector("#vsm-svg");
+      const svg = this._svg();
       if (!svg) return;
 
       const oldPaths = svg.querySelectorAll(".vsm-path");
@@ -81,6 +319,7 @@ const VSMGraph = {
       );
       svg.style.overflow = "visible";
 
+      const zoom = this._isDesktop() ? this._zoom : 1;
       const wrapperRect = this.el.getBoundingClientRect();
       const nodes = this.el.querySelectorAll(".vsm-node");
       const nodeMap = {};
@@ -88,12 +327,14 @@ const VSMGraph = {
       nodes.forEach((node) => {
         const id = node.dataset.id;
         const rect = node.getBoundingClientRect();
+        // Convert screen-space coords to SVG coords (divide by zoom,
+        // as SVG is inside the same CSS-transformed group as nodes)
         nodeMap[id] = {
           el: node,
-          x: rect.left - wrapperRect.left + this.el.scrollLeft,
-          y: rect.top - wrapperRect.top + this.el.scrollTop,
-          width: rect.width,
-          height: rect.height,
+          x: (rect.left - wrapperRect.left + this.el.scrollLeft) / zoom,
+          y: (rect.top - wrapperRect.top + this.el.scrollTop) / zoom,
+          width: rect.width / zoom,
+          height: rect.height / zoom,
           isCurrent: node.classList.contains("border-[#943a9e]"),
         };
       });

@@ -62,18 +62,39 @@ defmodule ExGoCD.Materials.ScmClient do
       def latest_revision(url, branch) do
         case ExGoCD.Git.ls_remote(url, branch) do
           {:ok, sha} ->
+            details = resolve_commit_details(url, sha)
+
             {:ok,
              %{
                revision: sha,
-               committer_name: "git",
-               committer_email: "git@scm.local",
-               comment: "git ls-remote #{branch}",
+               committer_name: details[:committer_name] || "git",
+               committer_email: details[:committer_email] || "git@scm.local",
+               comment: details[:comment] || "Revision #{String.slice(sha, 0, 8)}",
                modified_time: ExGoCD.Materials.ScmClient.now()
              }}
 
           {:error, reason} ->
             Logger.error("git ls-remote failed: #{inspect(reason)}")
             {:error, :git_command_failed}
+        end
+      end
+
+      defp resolve_commit_details(url, sha) do
+        try do
+          if File.dir?(url) do
+            case ExGoCD.Git.commit_details(url, sha) do
+              {:ok, details} -> details
+              _ -> %{}
+            end
+          else
+            # For remote URLs, try current working directory (dogfood scenario)
+            case ExGoCD.Git.commit_details(".", sha) do
+              {:ok, details} -> details
+              _ -> %{}
+            end
+          end
+        rescue
+          _ -> %{}
         end
       end
     end

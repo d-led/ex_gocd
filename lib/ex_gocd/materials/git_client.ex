@@ -33,7 +33,7 @@ defmodule ExGoCD.Materials.GitClient do
              revision: sha,
              committer_name: "SCM Poller",
              committer_email: "poller@ex-gocd.local",
-             comment: "Auto-detected update via git ls-remote",
+             comment: "Revision #{String.slice(sha, 0, 8)}",
              modified_time: DateTime.utc_now() |> DateTime.truncate(:second)
            }}
 

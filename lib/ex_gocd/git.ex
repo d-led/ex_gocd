@@ -35,4 +35,35 @@ defmodule ExGoCD.Git do
       _ -> nil
     end
   end
+
+  @doc """
+  Gets commit details (author name, email, message) for a revision in a local repo.
+  Returns `{:ok, %{committer_name, committer_email, comment}}` or `{:error, reason}`.
+  """
+  @spec commit_details(String.t(), String.t()) :: {:ok, map()} | {:error, any()}
+  def commit_details(repo_path, revision) do
+    format = "%an%n%ae%n%s"
+    full_rev = revision |> String.trim() |> then(&"#{&1}^{commit}")
+
+    case System.cmd("git", ["-C", repo_path, "log", "-1", "--format=#{format}", full_rev],
+           stderr_to_stdout: true
+         ) do
+      {output, 0} ->
+        case String.split(output, "\n", trim: true) do
+          [name, email, comment] ->
+            {:ok,
+             %{
+               committer_name: String.trim(name),
+               committer_email: String.trim(email),
+               comment: String.trim(comment)
+             }}
+
+          _ ->
+            {:error, "unexpected git log output"}
+        end
+
+      {err, _} ->
+        {:error, String.trim(err)}
+    end
+  end
 end

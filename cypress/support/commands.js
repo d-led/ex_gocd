@@ -433,12 +433,22 @@ Cypress.Commands.add("insideVSMNode", (nodeId, fn) => {
 // -- VSM arrow interactions (domain language) -------------------------
 
 const vsmNodeId = (label) => {
-  // Find the vsm-node whose displayed text contains the label, return its data-id
-  return cy
-    .get(".vsm-node")
-    .contains(label)
-    .closest(".vsm-node")
-    .invoke("attr", "data-id");
+  // Find the vsm-node that contains the label text and return its data-id.
+  // Prefers the node whose name-span text matches exactly.
+  return cy.get(".vsm-node").then(($nodes) => {
+    for (const el of $nodes) {
+      // Try matching the visible name text (inside a truncate or font-semibold span)
+      const spans = el.querySelectorAll("span");
+      for (const span of spans) {
+        if (span.textContent.trim() === label) return el.getAttribute("data-id");
+      }
+    }
+    // Fallback: any node containing the label text anywhere
+    for (const el of $nodes) {
+      if (el.textContent.includes(label)) return el.getAttribute("data-id");
+    }
+    return null;
+  });
 };
 
 const vsmArrowSelector = (sourceId, targetId) =>
@@ -566,6 +576,103 @@ Cypress.Commands.add("vsmArrowsShouldBeDrawn", (minCount) => {
     "have.length.at.least",
     minCount,
   );
+});
+
+// -- VSM zoom/pan (desktop) --------------------------------------------
+
+Cypress.Commands.add("theZoomControlsAreVisible", () => {
+  cy.get("#vsm-zoom-in").should("be.visible");
+  cy.get("#vsm-zoom-out").should("be.visible");
+  cy.get("#vsm-zoom-fit").should("be.visible");
+});
+
+Cypress.Commands.add("theZoomControlsAreHidden", () => {
+  cy.get("#vsm-zoom-in").should("not.be.visible");
+  cy.get("#vsm-zoom-out").should("not.be.visible");
+  cy.get("#vsm-zoom-fit").should("not.be.visible");
+});
+
+Cypress.Commands.add("theTransformGroupExists", () => {
+  cy.get("#vsm-transform-group").should("exist");
+});
+
+Cypress.Commands.add("theTransformGroupHasDefaultScale", () => {
+  cy.get("#vsm-transform-group").should(($el) => {
+    const matrix = new DOMMatrixReadOnly(
+      getComputedStyle($el[0]).transform || "matrix(1,0,0,1,0,0)",
+    );
+    // After auto-fit, scale should be ≤ 1 (fitting within viewport, never zoomed in)
+    expect(matrix.a).to.be.at.most(1.01);
+    expect(matrix.a).to.be.at.least(0.2);
+  });
+});
+
+Cypress.Commands.add("zoomInViaButton", () => {
+  cy.get("#vsm-zoom-in").click();
+});
+
+Cypress.Commands.add("zoomOutViaButton", () => {
+  cy.get("#vsm-zoom-out").click();
+});
+
+Cypress.Commands.add("clickFitToScreen", () => {
+  cy.get("#vsm-zoom-fit").click();
+});
+
+Cypress.Commands.add("theVSMZoomIsAbove", (threshold) => {
+  cy.get("#vsm-transform-group").should(($el) => {
+    const matrix = new DOMMatrixReadOnly(
+      getComputedStyle($el[0]).transform || "matrix(1,0,0,1,0,0)",
+    );
+    expect(matrix.a).to.be.greaterThan(threshold);
+  });
+});
+
+Cypress.Commands.add("theVSMZoomIsBelow", (threshold) => {
+  cy.get("#vsm-transform-group").should(($el) => {
+    const matrix = new DOMMatrixReadOnly(
+      getComputedStyle($el[0]).transform || "matrix(1,0,0,1,0,0)",
+    );
+    expect(matrix.a).to.be.lessThan(threshold);
+  });
+});
+
+Cypress.Commands.add("theVSMZoomIsAbout", (expected) => {
+  cy.get("#vsm-transform-group").should(($el) => {
+    const matrix = new DOMMatrixReadOnly(
+      getComputedStyle($el[0]).transform || "matrix(1,0,0,1,0,0)",
+    );
+    expect(matrix.a).to.be.closeTo(expected, 0.15);
+  });
+});
+
+Cypress.Commands.add("scrollWheelOnVSM", (deltaY) => {
+  cy.get("#vsm-container").trigger("wheel", {
+    deltaY,
+    clientX: 400,
+    clientY: 300,
+    force: true,
+  });
+});
+
+Cypress.Commands.add("theVSMCursorIsGrab", () => {
+  cy.get("#vsm-container").should("have.css", "cursor", "grab");
+});
+
+Cypress.Commands.add("vsmArrowsStillWork", () => {
+  // After zoom/pan, arrows should still be present and interactive
+  cy.get("#vsm-svg .vsm-path").should("have.length.greaterThan", 0);
+  cy.get("#vsm-svg .vsm-path[stroke='transparent']").should(
+    "have.length.greaterThan",
+    0,
+  );
+});
+
+Cypress.Commands.add("hoverStillHighlightsNodes", () => {
+  cy.hoverOnArrowBetween("ex_gocd", "upstream-lib");
+  cy.nodesShouldGlow("ex_gocd", "upstream-lib");
+  cy.moveMouseAwayFromArrowBetween("ex_gocd", "upstream-lib");
+  cy.noNodesShouldGlow();
 });
 
 // -- Audit Log ----------------------------------------------------------

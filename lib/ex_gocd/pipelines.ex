@@ -815,9 +815,9 @@ defmodule ExGoCD.Pipelines do
     env_vars = if is_list(env_vars), do: Params.interpolate(env_vars, params), else: env_vars
 
     build_cause = %{
-      "approver" => "anonymous",
-      "triggerMessage" => "Triggered from dashboard",
-      "triggerForced" => false,
+      "approver" => Map.get(options, "approver", options[:approver]) || "anonymous",
+      "triggerMessage" => trigger_message(options, material_revisions),
+      "triggerForced" => Map.get(options, "triggerForced", false),
       "materialRevisions" => material_revisions,
       "configSnapshot" => pipeline_config_snapshot(pipeline)
     }
@@ -966,11 +966,18 @@ defmodule ExGoCD.Pipelines do
     Enum.map(pipeline.materials || [], fn material ->
       ref = Map.get(proposed, material.id)
 
-      revision =
+      {revision, comment, username, email} =
         case ref do
-          {:git, mod} -> mod.revision
-          {:pipeline, pi} -> "#{pi.pipeline.name}/#{pi.counter}"
-          _ -> "HEAD"
+          {:git, mod} ->
+            {mod.revision, mod.comment || "", mod.committer_name || "anonymous",
+             mod.committer_email || ""}
+
+          {:pipeline, pi} ->
+            {"#{pi.pipeline.name}/#{pi.counter}",
+             "Triggered by upstream #{pi.pipeline.name}/#{pi.counter}", "gocd", ""}
+
+          _ ->
+            {"HEAD", "Triggered manually", "anonymous", ""}
         end
 
       %{
@@ -986,12 +993,37 @@ defmodule ExGoCD.Pipelines do
           %{
             "revision" => revision,
             "modifiedTime" => DateTime.utc_now() |> DateTime.to_iso8601(),
-            "comment" => "Triggered commit",
-            "username" => "gocd"
+            "comment" => comment,
+            "username" => username,
+            "email" => email
           }
         ]
       }
     end)
+  end
+
+  defp trigger_message(options, material_revisions) do
+    # SCM poller trigger: "Modified by {committer name}"
+    first_mod =
+      material_revisions
+      |> List.first()
+      |> case do
+        %{"modifications" => [mod | _]} -> mod
+        _ -> %{}
+      end
+
+    cond do
+      Map.get(options, "auto_trigger") || Map.get(options, :auto_trigger) ->
+        username = first_mod["username"] || "anonymous"
+        "Modified by #{username}"
+
+      Map.get(options, "approver") || Map.get(options, :approver) ->
+        approver = Map.get(options, "approver") || Map.get(options, :approver)
+        "Triggered by #{approver}"
+
+      true ->
+        "Triggered manually"
+    end
   end
 
   defp insert_pipeline_material_revisions(pipeline_instance_id, proposed) do

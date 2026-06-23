@@ -82,19 +82,39 @@ defmodule ExGoCDWeb.PipelineActivityLive do
   defp map_pipeline_instance(pi) do
     build_cause = pi.build_cause || %{}
 
+    modifications =
+      build_cause["materialRevisions"] |> List.wrap() |> Enum.flat_map(&map_modifications/1)
+
+    triggered_by = derive_trigger_reason(build_cause["triggerMessage"], modifications)
+
     %{
       counter: pi.counter,
       label: pi.label,
       status: pipeline_instance_status(pi),
-      triggered_by: build_cause["triggerMessage"] || "Triggered manually",
+      triggered_by: triggered_by,
       last_run: pi.inserted_at || pi.updated_at || DateTime.utc_now(),
       stages:
         pi.stage_instances |> Enum.sort_by(& &1.order_id) |> Enum.map(&map_stage_instance/1),
-      modifications:
-        build_cause["materialRevisions"] |> List.wrap() |> Enum.flat_map(&map_modifications/1),
+      modifications: modifications,
       config_changed: Map.has_key?(build_cause, "configSnapshot")
     }
   end
+
+  defp derive_trigger_reason(nil, []), do: "Triggered manually"
+  defp derive_trigger_reason(nil, [mod | _]), do: trigger_from_mod(mod)
+
+  defp derive_trigger_reason("Triggered from dashboard", [mod | _]),
+    do: trigger_from_mod(mod)
+
+  defp derive_trigger_reason("Triggered from dashboard", []),
+    do: "Triggered manually"
+
+  defp derive_trigger_reason(msg, _mods), do: msg
+
+  defp trigger_from_mod(%{user: user}) when user not in ["gocd", "", nil],
+    do: "Modified by #{user}"
+
+  defp trigger_from_mod(_), do: "Triggered by SCM change"
 
   defp map_stage_instance(si) do
     %{name: si.name, status: stage_status(si), counter: si.counter}
@@ -105,13 +125,31 @@ defmodule ExGoCDWeb.PipelineActivityLive do
 
     (rev["modifications"] || [])
     |> Enum.map(fn mod ->
+      revision = mod["revision"] || "unknown"
+      raw_comment = mod["comment"] || ""
+
+      comment = clean_comment(raw_comment, revision)
+
       %{
-        revision: mod["revision"] || "unknown",
+        revision: revision,
         user: mod["username"] || "anonymous",
-        comment: mod["comment"] || "",
+        comment: comment,
         fingerprint: fp
       }
     end)
+  end
+
+  defp clean_comment("", _revision), do: nil
+  defp clean_comment(comment, _revision) when byte_size(comment) < 3, do: comment
+
+  defp clean_comment(comment, _revision) do
+    if String.starts_with?(comment, "git ls-remote") or
+         comment == "Triggered commit" or
+         comment == "Auto-detected update via git ls-remote" do
+      nil
+    else
+      comment
+    end
   end
 
   defp stage_status(si) do
@@ -282,12 +320,20 @@ defmodule ExGoCDWeb.PipelineActivityLive do
               <!-- Top line: counter + VSM + revisions + trigger time + status -->
               <div class="flex items-center gap-2 flex-wrap text-xs">
                 <span class="font-mono font-extrabold text-gray-900">#{run.label}</span>
-                <.link navigate={~p"/pipelines/value_stream_map/#{@pipeline.name}/#{run.counter}"}
-                       class="text-[#2d6ca2] hover:underline font-bold text-[10px]">VSM</.link>
+                <.link
+                  navigate={~p"/pipelines/value_stream_map/#{@pipeline.name}/#{run.counter}"}
+                  class="text-[#2d6ca2] hover:underline font-bold text-[10px]"
+                >
+                  VSM
+                </.link>
 
                 <%= for mod <- run.modifications do %>
-                  <.link navigate={~p"/materials/value_stream_map/#{mod.fingerprint}/#{mod.revision}"}
-                         class="font-mono text-cyan-600 hover:underline">{String.slice(mod.revision, 0, 8)}</.link>
+                  <.link
+                    navigate={~p"/materials/value_stream_map/#{mod.fingerprint}/#{mod.revision}"}
+                    class="font-mono text-cyan-600 hover:underline"
+                  >
+                    {String.slice(mod.revision, 0, 8)}
+                  </.link>
                 <% end %>
 
                 <span class="text-gray-400" title={format_local_time(run.last_run)}>
@@ -296,7 +342,11 @@ defmodule ExGoCDWeb.PipelineActivityLive do
 
                 <span class="text-gray-500">{run.triggered_by}</span>
 
-                <span class={"inline-block w-2 h-2 rounded-full shrink-0 " <> run_status_dot(run.status)} title={run.status}></span>
+                <span
+                  class={"inline-block w-2 h-2 rounded-full shrink-0 " <> run_status_dot(run.status)}
+                  title={run.status}
+                >
+                </span>
                 <span class="text-gray-500 font-medium">{run.status}</span>
 
                 <%= if Map.get(run, :config_changed) do %>
@@ -305,11 +355,11 @@ defmodule ExGoCDWeb.PipelineActivityLive do
                   </span>
                 <% end %>
               </div>
-
-              <!-- Commit messages: every material, full text, no clipping -->
-              <%= if run.modifications != [] do %>
+              
+    <!-- Commit messages: every material, full text, no clipping -->
+              <%= if Enum.any?(run.modifications, & &1.comment) do %>
                 <div class="flex flex-col gap-0.5">
-                  <%= for mod <- run.modifications do %>
+                  <%= for mod <- run.modifications, mod.comment do %>
                     <div class="text-[11px] text-gray-500 italic break-all leading-snug">
                       {mod.comment}
                     </div>
@@ -317,16 +367,22 @@ defmodule ExGoCDWeb.PipelineActivityLive do
                 </div>
               <% end %>
             </div>
-
-            <!-- Stage pipeline: compact horizontal strip -->
+            
+    <!-- Stage pipeline: compact horizontal strip -->
             <div class="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 border-l border-gray-100">
               <%= for {stage, idx} <- Enum.with_index(run.stages) do %>
-                <%= if idx > 0 do %><span class="text-gray-300 text-xs">&rarr;</span><% end %>
+                <%= if idx > 0 do %>
+                  <span class="text-gray-300 text-xs">&rarr;</span>
+                <% end %>
                 <.link
-                  navigate={~p"/pipelines/#{@pipeline.name}/#{run.counter}/#{stage.name}/#{stage.counter}"}
+                  navigate={
+                    ~p"/pipelines/#{@pipeline.name}/#{run.counter}/#{stage.name}/#{stage.counter}"
+                  }
                   class={"px-2 py-1 rounded text-white font-mono font-bold text-[10px] hover:scale-105 transition-transform shadow-sm " <> stage_status_class(stage.status)}
                   title={"#{stage.name} — #{stage.status}"}
-                >{stage.name}</.link>
+                >
+                  {stage.name}
+                </.link>
               <% end %>
             </div>
           </div>

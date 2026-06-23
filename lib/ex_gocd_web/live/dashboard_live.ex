@@ -93,7 +93,7 @@ defmodule ExGoCDWeb.DashboardLive do
           {:ok, _instance} ->
             {:noreply,
              socket
-             |> put_flash(:info, "Pipeline #{name} triggered. Jobs will run on idle agents.")
+             |> put_flash(:info, "Pipeline #{name} triggered.")
              |> load_pipelines()}
 
           {:error, :pipeline_not_found} ->

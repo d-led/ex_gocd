@@ -289,6 +289,29 @@ body {
   transition: box-shadow 0.2s, border-color 0.2s;
 }
 
+/* ── VSM zoom/pan ─────────────────────────────────────────────── */
+
+/* Transform group: will-change hints for GPU-accelerated transforms */
+.vsm-transform-group {
+  will-change: transform;
+}
+
+/* Desktop container: grab cursor, hide overflow so zoom/pan works as viewport */
+@media (min-width: 768px) {
+  .vsm-container-wrapper {
+    cursor: grab;
+  }
+}
+
+/* Zoom controls fade in/out smoothly */
+.vsm-zoom-controls button {
+  transition: opacity 0.15s, background-color 0.15s, border-color 0.15s;
+}
+
+.vsm-zoom-controls button:active {
+  transform: scale(0.95);
+}
+
 /* Console Log container & Timestamps show/hide */
 #console-container:not(.show-timestamps) .log-timestamp {
   display: none !important;

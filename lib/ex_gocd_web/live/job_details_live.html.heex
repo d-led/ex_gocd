@@ -119,7 +119,9 @@
           </span>
           <div class="flex items-center gap-3">
             <a
-              href={~p"/files/#{@pipeline_name}/#{@pipeline_counter}/#{@stage_name}/#{@stage_counter}/#{@job_name}/cruise-output/console.log"}
+              href={
+                ~p"/files/#{@pipeline_name}/#{@pipeline_counter}/#{@stage_name}/#{@stage_counter}/#{@job_name}/cruise-output/console.log"
+              }
               target="_blank"
               class="text-[10px] text-[#2d6ca2] hover:underline font-bold uppercase tracking-wider"
             >
@@ -194,12 +196,16 @@
             <div class="bg-yellow-900/40 border border-yellow-700/50 rounded px-3 py-2 mb-3 text-[10px] text-yellow-300 flex items-center gap-2">
               <i class="fa fa-exclamation-triangle"></i>
               <span>
-                Showing the last 1,000 lines (total: <%= @line_count %> lines).
+                Showing the last 1,000 lines (total: {@line_count} lines).
                 <a
-                  href={~p"/files/#{@pipeline_name}/#{@pipeline_counter}/#{@stage_name}/#{@stage_counter}/#{@job_name}/cruise-output/console.log"}
+                  href={
+                    ~p"/files/#{@pipeline_name}/#{@pipeline_counter}/#{@stage_name}/#{@stage_counter}/#{@job_name}/cruise-output/console.log"
+                  }
                   target="_blank"
                   class="text-yellow-100 underline font-bold"
-                >Download Full Log</a>
+                >
+                  Download Full Log
+                </a>
               </span>
             </div>
           <% end %>
