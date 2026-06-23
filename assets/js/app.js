@@ -115,7 +115,7 @@ const VSMGraph = {
         let dependents = [];
         try {
           dependents = JSON.parse(node.dataset.dependents || "[]");
-        } catch (e) {}
+        } catch {}
 
         dependents.forEach((depId, depIdx) => {
           const target = nodeMap[depId];
@@ -375,7 +375,6 @@ window.addEventListener("phx:page-loading-stop", (_info) => topbar.hide());
     subNav.style.position = "";
 
     // Force layout so we measure the natural position
-    // eslint-disable-next-line no-unused-expressions
     subNav.offsetHeight;
 
     const rect = subNav.getBoundingClientRect();
@@ -386,7 +385,6 @@ window.addEventListener("phx:page-loading-stop", (_info) => topbar.hide());
 
     // Try right-anchoring (right edge of dropdown = right edge of parent li)
     subNav.classList.add("anchor-right");
-    // eslint-disable-next-line no-unused-expressions
     subNav.offsetHeight;
     const rectR = subNav.getBoundingClientRect();
 
@@ -402,7 +400,6 @@ window.addEventListener("phx:page-loading-stop", (_info) => topbar.hide());
     subNav.style.left = Math.max(0, vpW - rect.width - 16) + "px";
 
     // Last resort: if still too wide, allow horizontal scroll
-    // eslint-disable-next-line no-unused-expressions
     subNav.offsetHeight;
     const rectF = subNav.getBoundingClientRect();
     if (rectF.left < 0) {
