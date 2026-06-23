@@ -18,8 +18,6 @@ module.exports = defineConfig({
     screenshotsFolder: "cypress/screenshots",
     viewportWidth: 1280,
     viewportHeight: 720,
-    // Cypress 15+: silence Cypress.env() deprecation warning
-    allowCypressEnv: false,
     setupNodeEvents(on, config) {
       on("task", {
         copyScreenshot({ src, dest }) {
