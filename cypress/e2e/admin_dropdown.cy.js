@@ -15,14 +15,16 @@ const openAdminDropdown = () => {
 
 const assertWithinHorizontalViewport = ($el) => {
   const rect = $el[0].getBoundingClientRect();
-  const vpW = Cypress.config("viewportWidth");
+  // Use clientWidth to account for potential vertical scrollbar taking up space
+  const winW = $el[0].ownerDocument.documentElement.clientWidth;
+  
   expect(rect.left).to.be.at.least(
-    0,
-    `dropdown left edge (${rect.left}px) overflows left off-screen (viewport ${vpW}px)`,
+    -2, // 2px tolerance for subpixel rendering
+    `dropdown left edge (${rect.left}px) overflows left off-screen`,
   );
   expect(rect.right).to.be.at.most(
-    vpW,
-    `dropdown right edge (${rect.right}px) overflows right off-screen (viewport ${vpW}px)`,
+    winW + 2, // 2px tolerance for subpixel rendering
+    `dropdown right edge (${rect.right}px) overflows right off-screen (viewport ${winW}px)`,
   );
 };
 
