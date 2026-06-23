@@ -953,7 +953,7 @@ defmodule ExGoCDWeb.PipelineConfigLive do
 
   defp save_modal_for_type(:add_material, params, socket) do
     if use_mock?() do
-      save_modal_mock_add_material(params, socket)
+      {:ok, :mock_created}
     else
       Pipelines.create_material_for_pipeline(socket.assigns.pipeline, material_attributes(params))
     end
@@ -974,23 +974,6 @@ defmodule ExGoCDWeb.PipelineConfigLive do
   end
 
   defp save_modal_for_type(_modal_type, _params, _socket), do: {:error, :unsupported_modal}
-
-  defp save_modal_mock_add_material(params, _socket) do
-    attrs = material_attributes(params)
-    type = attrs["type"]
-    url = attrs["url"]
-
-    if type == "dependency" do
-      mock_pipeline = ExGoCD.MockData.get_pipeline(url)
-      if is_nil(mock_pipeline) do
-        {:error, {:missing_pipeline, url}}
-      else
-        {:ok, :mock_created}
-      end
-    else
-      {:ok, :mock_created}
-    end
-  end
 
   defp parse_arguments(arguments) do
     (arguments || "")
