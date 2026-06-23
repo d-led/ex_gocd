@@ -1638,7 +1638,17 @@ defmodule ExGoCD.Pipelines do
   """
   def update_material(%Material{} = material, attrs) do
     Repo.transaction(fn ->
-      with {:ok, updated} <- material |> Material.changeset(attrs) |> Repo.update(),
+      material_changeset = Material.changeset(material, attrs)
+      
+      # Validate dependency material points to an existing pipeline
+      type = Ecto.Changeset.get_field(material_changeset, :type)
+      url = Ecto.Changeset.get_field(material_changeset, :url)
+      
+      if type == "dependency" and get_pipeline_by_name(url) == nil do
+        Repo.rollback({:missing_pipeline, url})
+      end
+
+      with {:ok, updated} <- Repo.update(material_changeset),
            :ok <- CycleDetector.check_dependency_cycles() do
         updated
       else
@@ -1777,6 +1787,10 @@ defmodule ExGoCD.Pipelines do
       string_attrs = Map.new(material_attrs, fn {k, v} -> {to_string(k), v} end)
       url = string_attrs["url"]
       type = string_attrs["type"]
+
+      if type == "dependency" and get_pipeline_by_name(url) == nil do
+        Repo.rollback({:missing_pipeline, url})
+      end
 
       material =
         case Repo.get_by(Material, type: type, url: url) do
