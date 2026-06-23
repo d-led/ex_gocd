@@ -16,6 +16,23 @@ defmodule ExGoCD.Release do
   end
 
   @doc """
+  Seeds the database with demo data (pipelines, users, etc.).
+  Safe to run multiple times — skips already-seeded records.
+  """
+  def seed do
+    load_app()
+    seeds_path = Path.join(:code.priv_dir(@app), "repo/seeds.exs")
+
+    if File.exists?(seeds_path) do
+      {_result, _bindings} = Code.eval_file(seeds_path)
+      :ok
+    else
+      IO.warn("Seeds file not found at #{seeds_path}")
+      :error
+    end
+  end
+
+  @doc """
   Rolls back migrations for a repo to a specific version.
   """
   def rollback(repo, version) do

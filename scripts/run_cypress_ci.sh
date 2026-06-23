@@ -16,7 +16,7 @@ docker run -d --name ex_gocd_ci --network host \
   -e PORT=4000 \
   -e PHX_SERVER=true \
   ex_gocd:ci \
-  sh -c "/app/bin/ex_gocd eval 'ExGoCD.Release.migrate' && /app/bin/ex_gocd start"
+  sh -c "/app/bin/ex_gocd eval 'ExGoCD.Release.migrate' && /app/bin/ex_gocd eval 'ExGoCD.Release.seed' && /app/bin/ex_gocd start"
 
 echo "=== Waiting for server ==="
 server_ready=false

@@ -1,5 +1,6 @@
 describe("Pipeline Configuration", () => {
   beforeEach(() => {
+    cy.loginAsAdmin();
     cy.visitPage("/go/admin/pipelines/demo/edit/materials");
   });
 
