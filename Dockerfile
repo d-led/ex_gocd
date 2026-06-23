@@ -80,8 +80,8 @@ RUN --mount=type=cache,target=/root/.hex \
 # Stage 2: Runner (distroless-like slim debian runner)
 FROM debian:bookworm-slim AS runner
 
-# Install runtime dependencies
-RUN apt-get update -y && apt-get install -y libstdc++6 openssl ca-certificates curl postgresql-client && apt-get clean && rm -rf /var/lib/apt/lists/*
+# Install runtime dependencies (libsctp1 silences ERTS SCTP warning in CI logs)
+RUN apt-get update -y && apt-get install -y libstdc++6 openssl ca-certificates curl postgresql-client libsctp1 && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Set locale
 ENV LANG=C.UTF-8
