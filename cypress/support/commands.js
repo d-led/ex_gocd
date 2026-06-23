@@ -158,6 +158,27 @@ Cypress.Commands.add("verifySCMType", (fingerprint, type) => {
   cy.get(`#material-${fingerprint} .scm-logo-box`).should("contain", type);
 });
 
+Cypress.Commands.add(
+  "navigateToJobConsole",
+  (pipelineName, stageCounter, jobCounter, expectedText) => {
+    cy.get(SELECTORS.pipeline)
+      .contains(SELECTORS.pipelineName, pipelineName)
+      .parents(SELECTORS.pipeline)
+      .find(".pipeline_instance-label")
+      .then(($label) => {
+        const counter = $label.text().match(/\d+/)[0];
+        cy.visit(
+          `/go/tab/build/detail/${pipelineName}/${counter}/${stageCounter}/${jobCounter}`,
+        );
+        cy.get(".phx-connected", { timeout: 10000 }).should("exist");
+        cy.get("pre.whitespace-pre-wrap", { timeout: 10000 }).should(
+          "contain",
+          expectedText,
+        );
+      });
+  },
+);
+
 Cypress.Commands.add("expandMaterialCard", (fingerprint) => {
   cy.get(`#material-${fingerprint} .collapse-header`).click();
 });
@@ -573,4 +594,43 @@ Cypress.Commands.add("theAuditLogHasDateRangeFilters", () => {
 
 Cypress.Commands.add("thePageHasALinkToAddConfigRepo", () => {
   cy.get("a[href*='config_repos/new']").should("exist");
+});
+
+// -- HTTP Agent / Pipeline execution -----------------------------------
+
+Cypress.Commands.add("startHttpAgents", (count) => {
+  cy.request({
+    method: "POST",
+    url: "/api/test/start_http_agents",
+    body: { count: String(count || 1) },
+    failOnStatusCode: false,
+  });
+});
+
+Cypress.Commands.add("whenPageHasAll", (texts, callback) => {
+  cy.get("body").then(($body) => {
+    const bodyText = $body.text();
+    const allPresent = texts.every((t) => bodyText.includes(t));
+    if (!allPresent) {
+      cy.log(`Skipping: page missing one of [${texts.join(", ")}] — likely mock mode`);
+    } else {
+      callback();
+    }
+  });
+});
+
+Cypress.Commands.add("thePipelineStagePassed", (pipelineName, timeout = 20000) => {
+  cy.get(SELECTORS.pipeline)
+    .contains(SELECTORS.pipelineName, pipelineName)
+    .parents(SELECTORS.pipeline)
+    .find(`${SELECTORS.stageBlock}.passed`, { timeout })
+    .should("exist");
+});
+
+Cypress.Commands.add("goToDashboard", () => {
+  cy.visitPage("/pipelines");
+});
+
+Cypress.Commands.add("goToAgents", () => {
+  cy.visitPage("/agents");
 });

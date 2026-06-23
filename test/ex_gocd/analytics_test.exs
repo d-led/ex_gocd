@@ -2,27 +2,16 @@ defmodule ExGoCD.AnalyticsTest do
   use ExGoCD.DataCase, async: true
 
   alias ExGoCD.Analytics
-  alias ExGoCD.Pipelines.{Job, Pipeline, Stage}
 
   import ExGoCD.PipelinesFixtures,
     only: [insert_pipeline_instance_by_name: 3, insert_stage_instance: 3,
-           insert_job_instance: 4, insert_job_instance_unassigned: 3]
+           insert_job_instance: 4, insert_job_instance_unassigned: 3, insert_pipeline_with_jobs: 2]
 
   @now ~U[2026-06-21 10:00:00Z]
 
   describe "pipeline_analytics/2 avg_wait_time" do
     setup do
-      pipeline =
-        Pipeline.changeset(%Pipeline{}, %{name: "wait-test-pipeline"})
-        |> Repo.insert!()
-
-      stage =
-        Stage.changeset(%Stage{}, %{name: "build", pipeline_id: pipeline.id})
-        |> Repo.insert!()
-
-      job =
-        Job.changeset(%Job{}, %{name: "compile", stage_id: stage.id})
-        |> Repo.insert!()
+      {pipeline, stage, [job]} = insert_pipeline_with_jobs("wait-test-pipeline", 1)
 
       %{pipeline: pipeline, stage: stage, job: job}
     end

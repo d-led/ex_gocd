@@ -1,21 +1,12 @@
 defmodule ExGoCD.Pipelines.TaskTest do
   use ExGoCD.DataCase, async: true
 
-  alias ExGoCD.Pipelines.{Job, Pipeline, Stage, Task}
+  alias ExGoCD.Pipelines.Task
+
+  import ExGoCD.PipelinesFixtures, only: [insert_pipeline_with_jobs: 2]
 
   setup do
-    pipeline =
-      Pipeline.changeset(%Pipeline{}, %{name: "test-pipeline"})
-      |> Repo.insert!()
-
-    stage =
-      Stage.changeset(%Stage{}, %{name: "build", pipeline_id: pipeline.id})
-      |> Repo.insert!()
-
-    job =
-      Job.changeset(%Job{}, %{name: "compile", stage_id: stage.id})
-      |> Repo.insert!()
-
+    {_pipeline, _stage, [job]} = insert_pipeline_with_jobs("test-pipeline", 1)
     %{job: job}
   end
 

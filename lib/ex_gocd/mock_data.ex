@@ -17,6 +17,20 @@ defmodule ExGoCD.MockData do
   def pipelines do
     [
       %{
+        name: "demo",
+        group: "default",
+        counter: 1,
+        status: "Passed",
+        triggered_by: "Triggered from dashboard",
+        last_run: ~U[2026-06-22 11:00:00Z],
+        stages: [
+          %{name: "build", status: "Passed", duration: 15}
+        ],
+        materials: [
+          %{type: "git", url: "https://github.com/d-led/ex_gocd.git", branch: "main"}
+        ]
+      },
+      %{
         name: "build-linux",
         group: "Build",
         counter: 145,

@@ -37,7 +37,8 @@ defmodule ExGoCD.Application do
       ExGoCD.Materials.Poller,
       ExGoCD.Materials.TimerScheduler,
       ExGoCD.Pipelines.ConsoleActivityMonitor,
-      ExGoCD.MaintenanceMode
+      ExGoCD.MaintenanceMode,
+      ExGoCD.SchedulingChecker.TriggerMonitor
     ]
 
     children =

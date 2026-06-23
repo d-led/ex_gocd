@@ -50,8 +50,8 @@ defmodule ExGoCD.Pipelines.ManualGateTest do
       job_instances_stage2 = Repo.all(from ji in JobInstance, where: ji.stage_instance_id == ^si2.id)
       assert Enum.empty?(job_instances_stage2)
 
-      # Pipeline is still considered building/active, so triggering it again should fail with :pipeline_locked
-      assert {:error, :pipeline_locked} == Pipelines.trigger_pipeline(pipeline.name)
+      # Pipeline has an active (Awaiting) stage, so triggering again fails with :stage_active
+      assert {:error, :stage_active} == Pipelines.trigger_pipeline(pipeline.name)
 
       # Now manually approve stage 2
       {:ok, si2_approved} = Pipelines.approve_stage(pipeline.name, pi.counter, stage2.name)

@@ -155,7 +155,7 @@ fi
 
 echo ""
 echo "=== Duplicate Code Detection (jscpd) ==="
-if npx --yes jscpd@3 lib/ test/ --threshold 1 --silent 2>&1; then
+if npx --yes jscpd@3 lib/ test/ assets/ --threshold 1 --silent 2>&1; then
   pass_step "Duplicate code — under 1% threshold"
 else
   fail_step "Duplicate code — exceeds 1% threshold (fix to pass)"

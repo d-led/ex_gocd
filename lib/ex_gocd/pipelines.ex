@@ -209,6 +209,25 @@ defmodule ExGoCD.Pipelines do
     })
   end
 
+  # ── Scheduling Checker Helpers ───────────────────────────────────────────
+
+  @doc """
+  Runs composite pre-trigger checks (debounce, stage active, disk space).
+  Returns :ok or {:error, reason}. Called before the main `with` chain in
+  `trigger_pipeline/2`.
+  """
+  @spec check_can_trigger(String.t()) :: :ok | {:error, atom()}
+  def check_can_trigger(pipeline_name) when is_binary(pipeline_name) do
+    ExGoCD.SchedulingChecker.Composite.check(
+      [
+        ExGoCD.SchedulingChecker.AboutToBeTriggered,
+        ExGoCD.SchedulingChecker.StageActive,
+        ExGoCD.SchedulingChecker.DiskSpace
+      ],
+      pipeline_name
+    )
+  end
+
   @doc """
   Triggers a pipeline run: creates PipelineInstance, StageInstances, JobInstances for the first stage,
   and enqueues each job to the Scheduler. Jobs will be picked up by idle agents.
@@ -217,7 +236,8 @@ defmodule ExGoCD.Pipelines do
   def trigger_pipeline(pipeline_name, options \\ %{}) when is_binary(pipeline_name) and is_map(options) do
     result =
       VsmTracer.trace("pipeline.trigger", %{"pipeline.name" => pipeline_name}, fn ->
-        with %Pipeline{} = pipeline <- get_pipeline_by_name(pipeline_name),
+        with :ok <- check_can_trigger(pipeline_name),
+             %Pipeline{} = pipeline <- get_pipeline_by_name(pipeline_name),
              {:paused, false} <- {:paused, pipeline.paused},
              {:locked, false} <- {:locked, pipeline_locked?(pipeline)},
              {:maintenance, false} <- {:maintenance, ExGoCD.MaintenanceMode.enabled?()},
@@ -225,6 +245,9 @@ defmodule ExGoCD.Pipelines do
              pipeline = resolve_template_stages(pipeline),
              {:ok, proposed} <- resolve_proposed_revisions(pipeline, options),
              :ok <- FanInResolver.verify_consistency(proposed) do
+          # Mark pipeline as triggered for debounce
+          ExGoCD.SchedulingChecker.TriggerMonitor.mark_triggered(pipeline_name)
+
           trigger_result = do_trigger_pipeline_with_proposed(pipeline, proposed, options)
           # Set pipeline.counter on the span after trigger succeeds
           case trigger_result do
@@ -243,6 +266,9 @@ defmodule ExGoCD.Pipelines do
           {:error, reason} -> {:error, reason}
         end
       end)
+
+    # Always clear the debounce marker
+    ExGoCD.SchedulingChecker.TriggerMonitor.mark_completed(pipeline_name)
 
     # Emit telemetry for pipeline trigger
     _ = emit_trigger_telemetry(pipeline_name, result)

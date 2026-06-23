@@ -18,6 +18,18 @@ defmodule ExGoCD.PipelinesTest do
     :ok
   end
 
+  # Helper: completes the first stage's only job as Passed, so the stage
+  # transitions to Completed and the pipeline is no longer active.
+  defp complete_first_stage(instance) do
+    [si] = from(s in StageInstance, where: s.pipeline_instance_id == ^instance.id) |> Repo.all()
+    [ji] = from(j in JobInstance, where: j.stage_instance_id == ^si.id) |> Repo.all()
+    assert :ok = Pipelines.complete_job_instance(ji.id, "Passed")
+
+    stage = Repo.get!(StageInstance, si.id)
+    assert stage.state == "Completed"
+    assert stage.result == "Passed"
+  end
+
   describe "trigger_pipeline/1" do
     test "pipeline not found returns error" do
       assert Pipelines.trigger_pipeline("nonexistent") == {:error, :pipeline_not_found}
@@ -104,8 +116,8 @@ defmodule ExGoCD.PipelinesTest do
       assert Pipelines.pipeline_building?(pipeline.id) == true
       assert Pipelines.pipeline_locked?(pipeline) == true
 
-      # 3. Attempting to trigger again returns {:error, :pipeline_locked}
-      assert Pipelines.trigger_pipeline(pipeline.name) == {:error, :pipeline_locked}
+      # 3. Attempting to trigger again returns {:error, :stage_active} (StageActiveChecker catches it first)
+      assert Pipelines.trigger_pipeline(pipeline.name) == {:error, :stage_active}
 
       # 4. Complete first run successfully
       [stage_instance1] = from(si in StageInstance, where: si.pipeline_instance_id == ^instance1.id) |> Repo.all()
@@ -138,6 +150,44 @@ defmodule ExGoCD.PipelinesTest do
       assert {:ok, unlocked_pipe} = Pipelines.unlock_pipeline(pipeline.name)
       assert unlocked_pipe.locked == false
       assert {:ok, _instance3} = Pipelines.trigger_pipeline(pipeline.name)
+    end
+  end
+
+  describe "check_can_trigger/1" do
+    alias ExGoCD.SchedulingChecker.TriggerMonitor
+
+    setup do
+      TriggerMonitor.mark_completed("check-any-pipe")
+      :ok
+    end
+
+    test "returns :ok for a pipeline with no active stages" do
+      {pipeline, _stage, _job} = insert_pipeline_with_jobs("can-trigger-ok", 1)
+      assert Pipelines.check_can_trigger(pipeline.name) == :ok
+    end
+
+    test "returns {:error, :already_triggered} when pipeline is in trigger monitor" do
+      {pipeline, _stage, _job} = insert_pipeline_with_jobs("can-trigger-debounce", 1)
+      TriggerMonitor.mark_triggered(pipeline.name)
+      assert Pipelines.check_can_trigger(pipeline.name) == {:error, :already_triggered}
+      TriggerMonitor.mark_completed(pipeline.name)
+    end
+
+    test "trigger_pipeline itself clears the debounce marker on completion" do
+      {pipeline, _stage, _job} = insert_pipeline_with_jobs("debounce-clear", 1)
+      assert {:ok, _} = Pipelines.trigger_pipeline(pipeline.name)
+      # After trigger, the monitor should be clear
+      refute TriggerMonitor.already_triggered?(pipeline.name)
+    end
+
+    test "trigger_pipeline clears debounce even on error" do
+      # Paused pipeline: check_can_trigger passes, but pause check fails
+      {pipeline, _stage, _job} = insert_pipeline_with_jobs("debounce-error", 1)
+      {:ok, _} = Pipelines.pause_pipeline(pipeline.name, "admin", "testing")
+
+      assert Pipelines.trigger_pipeline(pipeline.name) == {:error, :pipeline_paused}
+      # Even on error, the debounce marker should be cleared
+      refute TriggerMonitor.already_triggered?(pipeline.name)
     end
   end
 
@@ -403,7 +453,8 @@ defmodule ExGoCD.PipelinesTest do
       {pipeline, _stage, _job} = insert_pipeline_with_jobs("cfg-diff-chg", 1)
 
       # First run
-      assert {:ok, _} = Pipelines.trigger_pipeline(pipeline.name)
+      assert {:ok, instance1} = Pipelines.trigger_pipeline(pipeline.name)
+      complete_first_stage(instance1)
 
       # Modify pipeline config (rename it — this changes the snapshot)
       pipeline
@@ -422,7 +473,8 @@ defmodule ExGoCD.PipelinesTest do
     test "returns nil for same config between runs" do
       {pipeline, _stage, _job} = insert_pipeline_with_jobs("cfg-diff-same", 1)
 
-      assert {:ok, _} = Pipelines.trigger_pipeline(pipeline.name)
+      assert {:ok, instance1} = Pipelines.trigger_pipeline(pipeline.name)
+      complete_first_stage(instance1)
       assert {:ok, instance2} = Pipelines.trigger_pipeline(pipeline.name)
 
       assert {:ok, nil} = Pipelines.config_diff(pipeline.name, instance2.counter)

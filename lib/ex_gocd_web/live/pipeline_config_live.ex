@@ -8,7 +8,11 @@ defmodule ExGoCDWeb.PipelineConfigLive do
   @impl true
   def mount(params, _session, socket) do
     pipeline_name = params["pipeline_name"]
-    pipeline = Pipelines.get_pipeline_by_name(pipeline_name)
+    pipeline =
+      case Pipelines.get_pipeline_by_name(pipeline_name) do
+        nil -> if use_mock?(), do: ExGoCD.MockData.get_pipeline(pipeline_name), else: nil
+        p -> p
+      end
 
     if is_nil(pipeline) do
       {:ok,
@@ -33,7 +37,7 @@ defmodule ExGoCDWeb.PipelineConfigLive do
   def handle_params(params, _url, socket) do
     sub_path = params["sub_path"] || ["general"]
     pipeline = socket.assigns.pipeline
-    pipeline_with_materials = Repo.preload(pipeline, :materials)
+    pipeline_with_materials = if use_mock?(), do: pipeline, else: Repo.preload(pipeline, :materials)
     {view_mode, active_stage, active_job} = view_mode_from_path(sub_path, pipeline)
 
     {:noreply,
@@ -897,55 +901,96 @@ defmodule ExGoCDWeb.PipelineConfigLive do
   end
 
   defp save_modal_for_type(:add_stage, params, socket) do
-    Pipelines.create_stage(%{
-      name: params["name"],
-      approval_type: params["approval_type"] || "success",
-      pipeline_id: socket.assigns.pipeline.id
-    })
+    if use_mock?() do
+      {:ok, :mock_created}
+    else
+      Pipelines.create_stage(%{
+        name: params["name"],
+        approval_type: params["approval_type"] || "success",
+        pipeline_id: socket.assigns.pipeline.id
+      })
+    end
   end
 
   defp save_modal_for_type(:add_job, params, socket) do
-    Pipelines.create_job(%{
-      name: params["name"],
-      stage_id: socket.assigns.active_stage.id
-    })
+    if use_mock?() do
+      {:ok, :mock_created}
+    else
+      Pipelines.create_job(%{
+        name: params["name"],
+        stage_id: socket.assigns.active_stage.id
+      })
+    end
   end
 
   defp save_modal_for_type(:add_task, params, socket) do
-    Pipelines.create_task(%{
-      type: params["type"] || "exec",
-      command: params["command"],
-      arguments: parse_arguments(params["arguments"]),
-      job_id: socket.assigns.active_job.id
-    })
+    if use_mock?() do
+      {:ok, :mock_created}
+    else
+      Pipelines.create_task(%{
+        type: params["type"] || "exec",
+        command: params["command"],
+        arguments: parse_arguments(params["arguments"]),
+        job_id: socket.assigns.active_job.id
+      })
+    end
   end
 
   defp save_modal_for_type(:edit_task, params, _socket) do
-    task_id = params["_id"] || params["id"]
-    task = Repo.get!(Task, task_id)
+    if use_mock?() do
+      {:ok, :mock_updated}
+    else
+      task_id = params["_id"] || params["id"]
+      task = Repo.get!(Task, task_id)
 
-    Pipelines.update_task(task, %{
-      type: params["type"] || "exec",
-      command: params["command"],
-      arguments: parse_arguments(params["arguments"])
-    })
+      Pipelines.update_task(task, %{
+        type: params["type"] || "exec",
+        command: params["command"],
+        arguments: parse_arguments(params["arguments"])
+      })
+    end
   end
 
   defp save_modal_for_type(:add_material, params, socket) do
-    Pipelines.create_material_for_pipeline(socket.assigns.pipeline, material_attributes(params))
+    if use_mock?() do
+      save_modal_mock_add_material(params, socket)
+    else
+      Pipelines.create_material_for_pipeline(socket.assigns.pipeline, material_attributes(params))
+    end
   end
 
   defp save_modal_for_type(:edit_material, params, _socket) do
-    material_id = params["_id"] || params["id"]
-    material = Repo.get!(Material, material_id)
+    if use_mock?() do
+      {:ok, :mock_updated}
+    else
+      material_id = params["_id"] || params["id"]
+      material = Repo.get!(Material, material_id)
 
-    Pipelines.update_material(material, %{
-      url: params["url"],
-      branch: params["branch"]
-    })
+      Pipelines.update_material(material, %{
+        url: params["url"],
+        branch: params["branch"]
+      })
+    end
   end
 
   defp save_modal_for_type(_modal_type, _params, _socket), do: {:error, :unsupported_modal}
+
+  defp save_modal_mock_add_material(params, _socket) do
+    attrs = material_attributes(params)
+    type = attrs["type"]
+    url = attrs["url"]
+
+    if type == "dependency" do
+      mock_pipeline = ExGoCD.MockData.get_pipeline(url)
+      if is_nil(mock_pipeline) do
+        {:error, {:missing_pipeline, url}}
+      else
+        {:ok, :mock_created}
+      end
+    else
+      {:ok, :mock_created}
+    end
+  end
 
   defp parse_arguments(arguments) do
     (arguments || "")
@@ -966,7 +1011,13 @@ defmodule ExGoCDWeb.PipelineConfigLive do
     stage = socket.assigns.active_stage
     job = socket.assigns.active_job
 
-    new_pipeline = Pipelines.get_pipeline_by_name!(pipeline.name)
+    new_pipeline =
+      if use_mock?() do
+        ExGoCD.MockData.get_pipeline(pipeline.name)
+      else
+        Pipelines.get_pipeline_by_name!(pipeline.name)
+      end
+
     new_stage = if stage, do: Enum.find(new_pipeline.stages || [], &(&1.name == stage.name))
     new_job = if new_stage && job, do: Enum.find(new_stage.jobs || [], &(&1.name == job.name))
 
@@ -977,5 +1028,9 @@ defmodule ExGoCDWeb.PipelineConfigLive do
     |> assign(:show_add_modal, false)
     |> assign(:modal_type, nil)
     |> assign(:flash_info, "Configuration saved successfully.")
+  end
+
+  defp use_mock? do
+    System.get_env("USE_MOCK_DATA") == "true"
   end
 end

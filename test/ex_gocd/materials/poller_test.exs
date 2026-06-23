@@ -44,6 +44,16 @@ defmodule ExGoCD.Materials.PollerTest do
     {:ok, material: material, pipeline: pipeline}
   end
 
+  # Helper: completes the first stage's only job as Passed
+  defp complete_first_stage(instance) do
+    import Ecto.Query
+    alias ExGoCD.Pipelines.{JobInstance, StageInstance}
+
+    [si] = Repo.all(from s in StageInstance, where: s.pipeline_instance_id == ^instance.id)
+    [ji] = Repo.all(from j in JobInstance, where: j.stage_instance_id == ^si.id)
+    :ok = ExGoCD.Pipelines.complete_job_instance(ji.id, "Passed")
+  end
+
   describe "materials polling and pipeline triggering" do
     test "polls a git material for the first time, saves modification, and triggers pipeline", %{
       material: material,
@@ -106,9 +116,10 @@ defmodule ExGoCD.Materials.PollerTest do
       Application.put_env(:ex_gocd, :mock_git_revision, sha_1)
       assert {:ok, [{:new_commit, _, _, _}]} = Poller.poll_now()
 
-      # Verify first run
+      # Verify first run and complete it so the pipeline is ready for another trigger
       [instance_1] = Repo.all(from pi in PipelineInstance, where: pi.counter == 1)
       assert instance_1.pipeline_id == pipeline.id
+      complete_first_stage(instance_1)
 
       # Different commit detected
       sha_2 = "c0ffee4444444444444444444444444444444444"
