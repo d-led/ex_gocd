@@ -269,7 +269,7 @@ const ConsoleScroller = {
     if (follow === undefined || follow === "true") {
       this.el.scrollTop = this.el.scrollHeight;
     }
-  }
+  },
 };
 
 const csrfToken = document

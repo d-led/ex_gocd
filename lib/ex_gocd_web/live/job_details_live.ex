@@ -20,56 +20,15 @@ defmodule ExGoCDWeb.JobDetailsLive do
     stage_counter = String.to_integer(params["stage_counter"])
     job_name = params["job_name"]
 
+    run =
+      get_run_by_params(pipeline_name, pipeline_counter, stage_name, stage_counter, job_name)
+      |> ensure_run(pipeline_name, pipeline_counter, stage_name, stage_counter, job_name)
+
     job_instance =
       get_job_instance(pipeline_name, pipeline_counter, stage_name, stage_counter, job_name)
+      |> ensure_job_instance(pipeline_name, stage_name, stage_counter, job_name)
 
-    run = get_run_by_params(pipeline_name, pipeline_counter, stage_name, stage_counter, job_name)
-
-    use_mock = is_nil(run)
-
-    run =
-      if use_mock do
-        %{
-          build_id: nil,
-          pipeline_name: pipeline_name,
-          pipeline_counter: pipeline_counter,
-          stage_name: stage_name,
-          stage_counter: stage_counter,
-          job_name: job_name,
-          state: "Scheduled",
-          result: "Unknown",
-          console_log: nil
-        }
-      else
-        run
-      end
-
-    job_instance =
-      if is_nil(job_instance) do
-        %{
-          name: job_name,
-          state: "Scheduled",
-          result: "Unknown",
-          stage_instance: %{
-            stage_name: stage_name,
-            stage_counter: stage_counter,
-            artifacts_deleted: false,
-            pipeline_instance: %{
-              pipeline: %{
-                name: pipeline_name
-              }
-            }
-          }
-        }
-      else
-        job_instance
-      end
-
-    # Parse existing log if present
-    log_content = if is_map(run), do: Map.get(run, :console_log) || "", else: ""
-    {lines, _next_idx, fold_stack, fold_counter} = parse_log_into_lines(log_content, [], 0)
-    line_count = length(lines)
-    initial_lines = if line_count > 1000, do: Enum.drop(lines, line_count - 1000), else: lines
+    {initial_lines, line_count, fold_stack, fold_counter} = prepare_initial_log(run)
 
     if connected?(socket) && run && Map.get(run, :build_id) do
       AgentJobRuns.subscribe_console(run.build_id)
@@ -80,17 +39,7 @@ defmodule ExGoCDWeb.JobDetailsLive do
 
     materials = list_materials(pipeline_name, pipeline_counter)
 
-    agent =
-      cond do
-        is_struct(job_instance, JobInstance) && job_instance.agent_uuid ->
-          Agents.get_agent_by_uuid(job_instance.agent_uuid)
-
-        is_map(job_instance) && job_instance[:agent_uuid] ->
-          Agents.get_agent_by_uuid(job_instance[:agent_uuid])
-
-        true ->
-          nil
-      end
+    agent = resolve_agent(job_instance)
 
     {:ok,
      socket
@@ -115,6 +64,54 @@ defmodule ExGoCDWeb.JobDetailsLive do
      |> assign(:page_title, "Job Details: #{job_name}")
      |> stream(:log_lines, initial_lines, limit: -1000)}
   end
+
+  defp ensure_run(nil, pipeline_name, pipeline_counter, stage_name, stage_counter, job_name) do
+    %{
+      build_id: nil,
+      pipeline_name: pipeline_name,
+      pipeline_counter: pipeline_counter,
+      stage_name: stage_name,
+      stage_counter: stage_counter,
+      job_name: job_name,
+      state: "Scheduled",
+      result: "Unknown",
+      console_log: nil
+    }
+  end
+
+  defp ensure_run(run, _pn, _pc, _sn, _sc, _jn), do: run
+
+  defp ensure_job_instance(nil, pipeline_name, stage_name, stage_counter, job_name) do
+    %{
+      name: job_name,
+      state: "Scheduled",
+      result: "Unknown",
+      stage_instance: %{
+        stage_name: stage_name,
+        stage_counter: stage_counter,
+        artifacts_deleted: false,
+        pipeline_instance: %{pipeline: %{name: pipeline_name}}
+      }
+    }
+  end
+
+  defp ensure_job_instance(job_instance, _pn, _sn, _sc, _jn), do: job_instance
+
+  defp prepare_initial_log(run) do
+    log_content = if is_map(run), do: Map.get(run, :console_log) || "", else: ""
+    {lines, _next_idx, fold_stack, fold_counter} = parse_log_into_lines(log_content, [], 0)
+    line_count = length(lines)
+    initial_lines = if line_count > 1000, do: Enum.drop(lines, line_count - 1000), else: lines
+    {initial_lines, line_count, fold_stack, fold_counter}
+  end
+
+  defp resolve_agent(%JobInstance{agent_uuid: uuid}) when is_binary(uuid),
+    do: Agents.get_agent_by_uuid(uuid)
+
+  defp resolve_agent(%{agent_uuid: uuid}) when is_binary(uuid),
+    do: Agents.get_agent_by_uuid(uuid)
+
+  defp resolve_agent(_job_instance), do: nil
 
   @impl true
   def handle_params(_params, _uri, socket) do
