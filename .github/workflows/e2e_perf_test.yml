@@ -29,6 +29,13 @@ jobs:
         env:
           AGENT_COUNT: ${{ github.event.inputs.agent_count || '100' }}
 
+      - name: Publish Performance Summary
+        if: always()
+        run: |
+          if [ -f perf-summary.md ]; then
+            cat perf-summary.md >> $GITHUB_STEP_SUMMARY
+          fi
+
       - uses: dorny/test-reporter@v3
         if: always()
         with:
