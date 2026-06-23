@@ -118,17 +118,45 @@
             Console Output
           </span>
           <div class="flex items-center gap-3">
+            <a
+              href={~p"/files/#{@pipeline_name}/#{@pipeline_counter}/#{@stage_name}/#{@stage_counter}/#{@job_name}/cruise-output/console.log"}
+              target="_blank"
+              class="text-[10px] text-[#2d6ca2] hover:underline font-bold uppercase tracking-wider"
+            >
+              Raw Output
+            </a>
+            <button
+              class="text-[10px] text-gray-400 hover:text-gray-200 font-bold uppercase tracking-wider"
+              onclick="this.closest('.console-log').querySelectorAll('.fold-start').forEach(function(f){f.classList.remove('collapsed')}); window.dispatchEvent(new CustomEvent('update-folds'))"
+            >
+              Expand All
+            </button>
+            <button
+              class="text-[10px] text-gray-400 hover:text-gray-200 font-bold uppercase tracking-wider"
+              onclick="this.closest('.console-log').querySelectorAll('.fold-start').forEach(function(f){f.classList.add('collapsed')}); window.dispatchEvent(new CustomEvent('update-folds'))"
+            >
+              Collapse All
+            </button>
+            <label class="flex items-center gap-1 text-[10px] text-gray-400 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                id="toggle-wrap"
+                class="w-3 h-3"
+                phx-click="toggle_wrap"
+                checked={@wrap_lines}
+              /> Line Wrap
+            </label>
             <input
               type="text"
               id="console-search"
               placeholder="Filter..."
               autocomplete="off"
               class="w-32 px-2 py-0.5 text-[10px] bg-gray-800 border border-gray-700 rounded text-gray-300 placeholder-gray-600 focus:outline-none focus:border-gray-500"
-              oninput="var rows=this.closest('.p-6').querySelectorAll('.log-row'); var q=this.value.toLowerCase(); rows.forEach(function(row){ var msg=row.querySelector('.log-message').textContent.toLowerCase(); if(!q || msg.indexOf(q)!==-1){row.classList.remove('hidden')}else{row.classList.add('hidden')}})"
+              oninput="var rows=this.closest('.p-6').querySelectorAll('.log-row'); var q=this.value.toLowerCase(); rows.forEach(function(row){ var msg=row.querySelector('.log-message'); if(!msg)return; var m=msg.textContent.toLowerCase(); if(!q || m.indexOf(q)!==-1){row.classList.remove('hidden')}else{row.classList.add('hidden')}})"
             />
             <button
               class="text-[10px] text-gray-400 hover:text-gray-200 font-bold uppercase tracking-wider"
-              onclick="var txt='';this.closest('.p-6').querySelectorAll('.log-row:not(.hidden)').forEach(function(r){var msg=r.querySelector('.log-message').textContent;var ts=r.querySelector('.log-timestamp');if(ts && ts.offsetWidth>0){txt+='['+ts.textContent+'] '+msg+'\n'}else{txt+=msg+'\n'}});navigator.clipboard.writeText(txt);this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',1500)"
+              onclick="var txt='';this.closest('.p-6').querySelectorAll('.log-row:not(.hidden)').forEach(function(r){var msg=r.querySelector('.log-message'); var ts=r.querySelector('.log-timestamp'); var t=''; if(msg)t=msg.textContent; if(ts && ts.offsetWidth>0){txt+='['+ts.textContent+'] '+t+'\n'}else{txt+=t+'\n'}});navigator.clipboard.writeText(txt);this.textContent='Copied!';setTimeout(function(b){b.textContent='Copy'},1500,this)"
             >
               Copy
             </button>
@@ -159,21 +187,61 @@
             @show_timestamps && "show-timestamps"
           ]}
           id="console-container"
-          phx-hook=".ConsoleScroller"
+          phx-hook="ConsoleScroller"
           data-follow={to_string(@follow)}
         >
+          <%= if @line_count > 1000 do %>
+            <div class="bg-yellow-900/40 border border-yellow-700/50 rounded px-3 py-2 mb-3 text-[10px] text-yellow-300 flex items-center gap-2">
+              <i class="fa fa-exclamation-triangle"></i>
+              <span>
+                Showing the last 1,000 lines (total: <%= @line_count %> lines).
+                <a
+                  href={~p"/files/#{@pipeline_name}/#{@pipeline_counter}/#{@stage_name}/#{@stage_counter}/#{@job_name}/cruise-output/console.log"}
+                  target="_blank"
+                  class="text-yellow-100 underline font-bold"
+                >Download Full Log</a>
+              </span>
+            </div>
+          <% end %>
           <pre
             id="log-lines-stream"
             phx-update="stream"
-            class="whitespace-pre-wrap select-text selection:bg-purple-900 selection:text-white"
+            class={[
+              "select-text selection:bg-purple-900 selection:text-white",
+              @wrap_lines && "whitespace-pre-wrap",
+              !@wrap_lines && "whitespace-pre overflow-x-auto"
+            ]}
           >
             <%= for {dom_id, line} <- @streams.log_lines do %>
-              <div id={dom_id} class="log-row flex items-start font-mono text-[11px] leading-5">
-                <%= if line.timestamp do %>
-                  <span class="log-timestamp text-gray-500 select-none mr-3 shrink-0"><%= line.timestamp %></span>
-                <% end %>
-                <span class="log-message text-gray-300 flex-1 whitespace-pre-wrap"><%= console_with_links(line.message) %></span>
-              </div>
+              <%= if line.type == :fold_start do %>
+                <div
+                  id={dom_id}
+                  class="log-row fold-start flex items-center font-mono text-[11px] leading-5 cursor-pointer select-none hover:bg-gray-800/50"
+                  data-fold-id={line.fold_id}
+                  data-fold-parents={line.fold_parents}
+                  onclick={"var f=this.closest('.fold-start'); f.classList.toggle('collapsed'); window.dispatchEvent(new CustomEvent('update-folds'))"}
+                >
+                  <span class="fold-chevron text-gray-500 mr-2 transition-transform inline-block w-3"><i class="fa fa-chevron-down text-[9px]"></i></span>
+                  <%= if line.timestamp do %>
+                    <span class="log-timestamp text-gray-500 select-none mr-3 shrink-0"><%= line.timestamp %></span>
+                  <% end %>
+                  <span class="log-message text-gray-300 flex-1 font-bold"><%= line.fold_name %></span>
+                </div>
+              <% else %>
+                <div
+                  id={dom_id}
+                  class={[
+                    "log-row flex items-start font-mono text-[11px] leading-5",
+                    line.type == :fold_end && "hidden"
+                  ]}
+                  data-fold-parents={line.fold_parents}
+                >
+                  <%= if line.timestamp do %>
+                    <span class="log-timestamp text-gray-500 select-none mr-3 shrink-0"><%= line.timestamp %></span>
+                  <% end %>
+                  <span class="log-message text-gray-300 flex-1 whitespace-pre-wrap"><%= console_with_links(line.message) %></span>
+                </div>
+              <% end %>
             <% end %>
           </pre>
 

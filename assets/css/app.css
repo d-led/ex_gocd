@@ -316,3 +316,13 @@ body {
 #console-container::-webkit-scrollbar-thumb:hover {
   background: #4b5563;
 }
+
+/* Fold chevron: rotate when collapsed */
+.fold-start.collapsed .fold-chevron {
+  transform: rotate(-90deg);
+}
+
+/* Hidden log rows (folded or filtered) */
+.log-row.hidden {
+  display: none !important;
+}

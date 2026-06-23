@@ -260,15 +260,39 @@ function detectNarrowLayout(nodes) {
 const ConsoleScroller = {
   mounted() {
     this.scrollIfFollowing();
+    this.updateFoldVisibility();
+    window.addEventListener("update-folds", this.boundUpdateFolds);
   },
   updated() {
     this.scrollIfFollowing();
+    this.updateFoldVisibility();
+  },
+  destroyed() {
+    window.removeEventListener("update-folds", this.boundUpdateFolds);
   },
   scrollIfFollowing() {
     const follow = this.el.dataset.follow;
     if (follow === undefined || follow === "true") {
       this.el.scrollTop = this.el.scrollHeight;
     }
+  },
+  updateFoldVisibility() {
+    const container = this.el;
+    const collapsedIds = new Set();
+    container.querySelectorAll(".fold-start.collapsed").forEach((f) => {
+      collapsedIds.add(f.dataset.foldId);
+    });
+    container.querySelectorAll(".log-row").forEach((row) => {
+      if (row.classList.contains("fold-start")) return;
+      const parents = (row.dataset.foldParents || "")
+        .split(" ")
+        .filter(Boolean);
+      const hidden = parents.some((id) => collapsedIds.has(id));
+      row.classList.toggle("hidden", hidden);
+    });
+  },
+  boundUpdateFolds() {
+    this.updateFoldVisibility();
   },
 };
 
