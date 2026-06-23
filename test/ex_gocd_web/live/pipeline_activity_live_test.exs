@@ -23,7 +23,7 @@ defmodule ExGoCDWeb.PipelineActivityLiveTest do
       assert html =~ "add test suite support"
 
       # And stage run detail grids are rendered
-      assert html =~ "Stages Run Details"
+      assert html =~ "Stages"
       # First two letters of stage names like compile
       assert html =~ "CO"
       # test

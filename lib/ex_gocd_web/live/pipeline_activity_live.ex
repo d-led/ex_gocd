@@ -272,38 +272,36 @@ defmodule ExGoCDWeb.PipelineActivityLive do
       <div class="activity-container flex flex-col gap-4">
         <%= for run <- @runs do %>
           <div class={"pipeline-run-row flex items-stretch bg-white border border-gray-200 rounded shadow-sm hover:shadow-md transition-shadow " <> run_status_border(run.status)}>
-            <div class="p-5 flex-shrink-0 w-44 border-r border-gray-100 flex flex-col justify-between">
+            <!-- Left: instance label + actions -->
+            <div class="p-4 flex-shrink-0 w-28 border-r border-gray-100 flex flex-col justify-between">
               <div>
-                <span class="text-[10px] uppercase font-bold text-gray-400 tracking-wider font-mono">
+                <span class="text-[9px] uppercase font-bold text-gray-400 tracking-wider font-mono">
                   Instance
                 </span>
-                <div class="text-lg font-mono font-extrabold text-gray-900 mt-0.5">#{run.label}</div>
+                <div class="text-base font-mono font-extrabold text-gray-900 mt-0.5">#{run.label}</div>
               </div>
-              <div class="mt-4 flex flex-col gap-1.5 text-xs">
+              <div class="mt-3 flex flex-col gap-1 text-[10px]">
                 <.link
                   navigate={~p"/pipelines/value_stream_map/#{@pipeline.name}/#{run.counter}"}
                   class="text-[#2d6ca2] hover:underline font-bold flex items-center gap-1"
                 >
-                  <i class="fa-solid fa-network-wired text-[10px]"></i> VSM
+                  <i class="fa-solid fa-network-wired text-[9px]"></i> VSM
                 </.link>
                 <%= if run.counter > 1 do %>
                   <a
                     href={"/compare/#{@pipeline.name}/#{run.counter - 1}/with/#{run.counter}"}
                     class="text-[#2d6ca2] hover:underline font-bold flex items-center gap-1"
                   >
-                    <i class="fa-solid fa-right-left text-[10px]"></i> Compare
+                    <i class="fa-solid fa-right-left text-[9px]"></i> Compare
                   </a>
                 <% end %>
               </div>
             </div>
 
-            <div class="p-5 flex-grow min-w-0 flex flex-col justify-between">
+            <!-- Middle: trigger info + modifications -->
+            <div class="p-4 flex-grow min-w-0 flex flex-col justify-between">
               <div>
-                <div class="flex justify-between items-start gap-4">
-                  <div class="text-xs text-gray-500 font-medium">
-                    <span class="font-bold text-gray-700">{run.triggered_by}</span>
-                    on {format_local_time(run.last_run)}
-                  </div>
+                <div class="flex items-center gap-2 flex-wrap">
                   <span class={"text-[9px] font-extrabold px-1.5 py-0.5 rounded uppercase font-mono " <>
                     case run.status do
                       "Passed" -> "bg-green-100 text-green-700"
@@ -321,6 +319,10 @@ defmodule ExGoCDWeb.PipelineActivityLive do
                       Config
                     </span>
                   <% end %>
+                  <span class="text-xs text-gray-500 font-medium">
+                    <span class="font-bold text-gray-700">{run.triggered_by}</span>
+                    on {format_local_time(run.last_run)}
+                  </span>
                 </div>
 
                 <div class="mt-3">
@@ -331,21 +333,22 @@ defmodule ExGoCDWeb.PipelineActivityLive do
                     <div class="flex items-baseline gap-2 mt-1 text-xs text-gray-600">
                       <.link
                         navigate={~p"/materials/value_stream_map/#{mod.fingerprint}/#{mod.revision}"}
-                        class="font-mono text-cyan-600 hover:underline"
+                        class="font-mono text-cyan-600 hover:underline shrink-0"
                       >
                         {String.slice(mod.revision, 0, 8)}
                       </.link>
-                      <span class="font-semibold text-gray-700 truncate w-32">{mod.user}:</span>
-                      <span class="italic text-gray-600 truncate flex-grow">"{mod.comment}"</span>
+                      <span class="font-semibold text-gray-700 shrink-0 max-w-[10rem] truncate" title={mod.user}>{mod.user}:</span>
+                      <span class="italic text-gray-600 break-all" title={mod.comment}>"{mod.comment}"</span>
                     </div>
                   <% end %>
                 </div>
               </div>
             </div>
 
-            <div class="p-5 flex-shrink-0 w-72 border-l border-gray-100 flex flex-col justify-center">
+            <!-- Right: stage circles -->
+            <div class="p-4 flex-shrink-0 w-40 border-l border-gray-100 flex flex-col justify-center">
               <span class="text-[9px] uppercase font-bold text-gray-400 tracking-wider font-mono mb-2 block text-center">
-                Stages Run Details
+                Stages
               </span>
               <ul class="flex flex-wrap justify-center gap-1.5">
                 <%= for stage <- run.stages do %>

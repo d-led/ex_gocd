@@ -304,6 +304,162 @@ else
   IO.puts("Pipeline 'downstream-app' already exists")
 end
 
+# ══════════════════════════════════════════════════════════════════════════════
+# Multi-stage pipeline: release-pipeline (build → test → deploy)
+# Seeds with 4 historical runs (Passed, Failed, Building, Passed)
+# to exercise the pipeline activity page with multiple stages.
+# ══════════════════════════════════════════════════════════════════════════════
+alias ExGoCD.Pipelines.{PipelineInstance, StageInstance, JobInstance}
+
+unless Repo.get_by(Pipeline, name: "release-pipeline") do
+  pipeline =
+    %Pipeline{}
+    |> Pipeline.changeset(%{name: "release-pipeline", group: "default", label_template: "${COUNT}"})
+    |> Repo.insert!()
+
+  stages =
+    ["build", "test", "deploy"]
+    |> Enum.with_index(1)
+    |> Enum.map(fn {name, order} ->
+      %Stage{}
+      |> Stage.changeset(%{name: name, pipeline_id: pipeline.id, approval_type: "success"})
+      |> Repo.insert!()
+
+      job =
+        %Job{}
+        |> Job.changeset(%{name: name, stage_id: stage.id, resources: ["elixir"]})
+        |> Repo.insert!()
+
+      %Task{}
+      |> Task.changeset(%{
+        type: "exec",
+        command: "echo",
+        arguments: ["running #{name} for release-pipeline"],
+        job_id: job.id
+      })
+      |> Repo.insert!()
+
+      stage
+    end)
+
+  ensure_material.(pipeline, "git", "https://github.com/d-led/ex_gocd.git")
+
+  # ── Seed 4 historical pipeline instances ──────────────────────────────────
+  now = DateTime.utc_now()
+
+  history = [
+    %{
+      counter: 4,
+      label: "4",
+      status: "Passed",
+      stage_results: ["Passed", "Passed", "Passed"],
+      triggered_by: "Triggered by dmitry",
+      minutes_ago: 10,
+      comment: "fix: resolve deployment timeout issue"
+    },
+    %{
+      counter: 3,
+      label: "3",
+      status: "Failed",
+      stage_results: ["Passed", "Failed", "NotRun"],
+      triggered_by: "Triggered by dmitry",
+      minutes_ago: 30,
+      comment: "feat: add health check endpoint"
+    },
+    %{
+      counter: 2,
+      label: "2",
+      status: "Building",
+      stage_results: ["Passed", "Building", "NotRun"],
+      triggered_by: "Triggered by dmitry",
+      minutes_ago: 45,
+      comment: "refactor: extract config module"
+    },
+    %{
+      counter: 1,
+      label: "1",
+      status: "Passed",
+      stage_results: ["Passed", "Passed", "Passed"],
+      triggered_by: "Triggered manually by admin",
+      minutes_ago: 120,
+      comment: "initial pipeline setup with multi-stage config"
+    }
+  ]
+
+  Enum.each(history, fn run ->
+    ts = DateTime.add(now, -run.minutes_ago * 60, :second)
+
+    {:ok, pi} =
+      %PipelineInstance{}
+      |> PipelineInstance.changeset(%{
+        counter: run.counter,
+        label: run.label,
+        natural_order: run.counter * 1.0,
+        build_cause: %{
+          "triggerMessage" => run.triggered_by,
+          "approver" => "dmitry",
+          "materialRevisions" => [
+            %{
+              "type" => "git",
+              "url" => "https://github.com/d-led/ex_gocd.git",
+              "branch" => "main",
+              "modifications" => [
+                %{
+                  "revision" => "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0",
+                  "username" => "Dmitry Ledentsov <dmlled@yahoo.com>",
+                  "comment" => run.comment,
+                  "modifiedAt" => ts |> DateTime.to_iso8601()
+                }
+              ]
+            }
+          ]
+        },
+        pipeline_id: pipeline.id,
+        inserted_at: ts,
+        updated_at: ts
+      })
+      |> Repo.insert!()
+
+    # Create stage instances for this run
+    Enum.zip(stages, run.stage_results)
+    |> Enum.with_index(1)
+    |> Enum.each(fn {{stage, result}, scounter} ->
+      {:ok, si} =
+        %StageInstance{}
+        |> StageInstance.changeset(%{
+          name: stage.name,
+          counter: scounter,
+          order_id: scounter,
+          state: (case result do "NotRun" -> "Awaiting"; "Building" -> "Building"; _ -> "Completed" end),
+          result: result,
+          pipeline_instance_id: pi.id,
+          inserted_at: ts,
+          updated_at: ts
+        })
+        |> Repo.insert!()
+
+      # Create job instances for each stage
+      Repo.all(from(j in Job, where: j.stage_id == ^stage.id))
+      |> Enum.each(fn job ->
+        %JobInstance{}
+        |> JobInstance.changeset(%{
+          name: job.name,
+          state: (case result do "NotRun" -> "Awaiting"; "Building" -> "Building"; _ -> "Completed" end),
+          result: result,
+          stage_instance_id: si.id,
+          inserted_at: ts,
+          updated_at: ts
+        })
+        |> Repo.insert!()
+      end)
+    end)
+  end)
+
+  IO.puts("Seeded: release-pipeline (stages: build → test → deploy, 4 historical runs)")
+else
+  IO.puts("Pipeline 'release-pipeline' already exists")
+end
+
 alias ExGoCD.AgentJobRuns.AgentJobRun
 
 unless Repo.get_by(AgentJobRun, build_id: "demo-build-1") do
