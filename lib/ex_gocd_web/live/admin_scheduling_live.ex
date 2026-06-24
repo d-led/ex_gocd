@@ -81,6 +81,17 @@ defmodule ExGoCDWeb.AdminSchedulingLive do
   defp fetch_agents do
     Agents.list_agents()
     |> Enum.reject(&(&1.deleted == true))
+    |> Enum.sort_by(&{agent_sort_priority(&1), &1.hostname})
+  end
+
+  # Idle first, Building second, then everything else, then disabled last
+  defp agent_sort_priority(agent) do
+    cond do
+      agent.disabled -> 3
+      agent.state == "Idle" -> 0
+      agent.state == "Building" -> 1
+      true -> 2
+    end
   end
 
   defp fetch_scheduled_db_jobs do
@@ -130,6 +141,10 @@ defmodule ExGoCDWeb.AdminSchedulingLive do
           matching_agents: matching,
           stuck_reason: stuck_reason(job, matching, agents)
         }
+      end)
+      |> Enum.sort_by(fn m ->
+        # Stuck jobs first, then by pipeline name + counter for stable order
+        {!is_nil(m.stuck_reason), job_field(m.job, :pipeline_name) || "", job_field(m.job, :pipeline_counter) || 0}
       end)
 
     assign(socket, :job_matches, job_matches)
@@ -322,6 +337,12 @@ defmodule ExGoCDWeb.AdminSchedulingLive do
     agents |> Enum.count(&(&1.disabled == true))
   end
 
+  defp pending_color(0), do: "text-green-600"
+  defp pending_color(_), do: "text-amber-600"
+
+  defp stuck_color(0), do: "text-green-600"
+  defp stuck_color(_), do: "text-red-600"
+
   @impl true
   def render(assigns) do
     ~H"""
@@ -341,47 +362,61 @@ defmodule ExGoCDWeb.AdminSchedulingLive do
 
       <div class="px-6 py-4 space-y-6">
         <!-- Summary Cards -->
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <!-- Job Summary Card -->
           <div class="bg-white border border-[#e9edef] rounded p-4">
-            <p class="text-xs font-bold text-slate-500 uppercase tracking-wide">Pending Jobs</p>
-            <p class={"text-2xl font-bold mt-1 #{if @queue_state.pending_count > 0, do: "text-amber-600", else: "text-green-600"}"}>
-              {@queue_state.pending_count}
-            </p>
-            <p class="text-xs text-slate-400 mt-1">
-              {@queue_state.in_memory_count} memory + {@queue_state.db_count} DB
+            <p class="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">Job Summary</p>
+            <div class="flex items-center gap-6">
+              <div class="flex items-baseline gap-2">
+                <span class={"text-3xl font-bold " <> pending_color(@queue_state.pending_count)}>
+                  {@queue_state.pending_count}
+                </span>
+                <span class="text-xs text-slate-400">pending</span>
+              </div>
+              <div class="flex items-baseline gap-2">
+                <span class={"text-3xl font-bold " <> stuck_color(stuck_count(@job_matches))}>
+                  {stuck_count(@job_matches)}
+                </span>
+                <span class="text-xs text-slate-400">stuck</span>
+              </div>
+            </div>
+            <p class="text-xs text-slate-400 mt-2">
+              {@queue_state.in_memory_count} in memory &middot; {@queue_state.db_count} in DB
             </p>
           </div>
 
+          <!-- Agent Summary Card -->
           <div class="bg-white border border-[#e9edef] rounded p-4">
-            <p class="text-xs font-bold text-slate-500 uppercase tracking-wide">Agents Total</p>
-            <p class="text-2xl font-bold mt-1">{length(@agents)}</p>
-          </div>
-
-          <div class="bg-white border border-[#e9edef] rounded p-4">
-            <p class="text-xs font-bold text-slate-500 uppercase tracking-wide">
-              Idle / Building / Lost
-            </p>
-            <p class="text-2xl font-bold mt-1">
-              <span class="text-green-600">{count_idle(@agents)}</span>
-              <span class="text-slate-400 mx-1">/</span>
-              <span class="text-blue-600">{count_building(@agents)}</span>
-              <span class="text-slate-400 mx-1">/</span>
-              <span class="text-red-500">{count_lost(@agents)}</span>
-            </p>
-            <p class="text-xs text-slate-400 mt-1">
-              {count_disabled(@agents)} disabled
-            </p>
-          </div>
-
-          <div class="bg-white border border-[#e9edef] rounded p-4">
-            <p class="text-xs font-bold text-slate-500 uppercase tracking-wide">Stuck Jobs</p>
-            <p class={"text-2xl font-bold mt-1 " <> if(stuck_count(@job_matches) > 0, do: "text-red-600", else: "text-green-600")}>
-              {stuck_count(@job_matches)}
-            </p>
-            <p class="text-xs text-slate-400 mt-1">with no assignable agent</p>
+            <p class="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">Agent Summary</p>
+            <div class="flex items-center gap-6">
+              <div class="flex items-baseline gap-2">
+                <span class="text-3xl font-bold text-slate-700">
+                  {length(@agents)}
+                </span>
+                <span class="text-xs text-slate-400">total</span>
+              </div>
+              <div class="flex flex-wrap gap-3">
+                <div class="flex items-baseline gap-1">
+                  <span class="text-lg font-bold text-green-600">{count_idle(@agents)}</span>
+                  <span class="text-[10px] text-slate-400">idle</span>
+                </div>
+                <div class="flex items-baseline gap-1">
+                  <span class="text-lg font-bold text-blue-600">{count_building(@agents)}</span>
+                  <span class="text-[10px] text-slate-400">building</span>
+                </div>
+                <div class="flex items-baseline gap-1">
+                  <span class="text-lg font-bold text-red-500">{count_lost(@agents)}</span>
+                  <span class="text-[10px] text-slate-400">lost</span>
+                </div>
+                <div class="flex items-baseline gap-1">
+                  <span class="text-lg font-bold text-gray-400">{count_disabled(@agents)}</span>
+                  <span class="text-[10px] text-slate-400">disabled</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-        
+
     <!-- Pending Jobs Table -->
         <div class="bg-white border border-[#e9edef] rounded">
           <div class="px-4 py-3 border-b border-[#e9edef]">
@@ -480,7 +515,7 @@ defmodule ExGoCDWeb.AdminSchedulingLive do
             </div>
           <% end %>
         </div>
-        
+
     <!-- Agents Table -->
         <div class="bg-white border border-[#e9edef] rounded">
           <div class="px-4 py-3 border-b border-[#e9edef]">

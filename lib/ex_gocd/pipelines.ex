@@ -636,9 +636,12 @@ defmodule ExGoCD.Pipelines do
 
   @doc """
   Cancels a stage by marking all its building/scheduled job instances as Cancelled.
+  Accepts options: :actor (username, default "system"), :remote_ip
   """
-  def cancel_stage(pipeline_name, pipeline_counter, stage_name)
+  def cancel_stage(pipeline_name, pipeline_counter, stage_name, opts \\ [])
       when is_binary(pipeline_name) and is_integer(pipeline_counter) and is_binary(stage_name) do
+    actor = Keyword.get(opts, :actor, "system")
+    remote_ip = Keyword.get(opts, :remote_ip)
     import Ecto.Query
 
     query =
@@ -659,10 +662,11 @@ defmodule ExGoCD.Pipelines do
         Phoenix.PubSub.broadcast(ExGoCD.PubSub, "pipelines:updates", :pipelines_updated)
 
         ExGoCD.AuditLog.Events.stage_cancelled(
-          "admin",
+          actor,
           pipeline_name,
           pipeline_counter,
-          stage_name
+          stage_name,
+          remote_ip
         )
 
         {:ok, si}

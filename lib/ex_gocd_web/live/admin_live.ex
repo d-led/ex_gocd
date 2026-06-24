@@ -88,6 +88,12 @@ defmodule ExGoCDWeb.AdminLive do
     System.get_env("USE_MOCK_DATA") == "true"
   end
 
+  defp live_remote_ip(socket) do
+    peer = get_connect_info(socket, :peer_data)
+    address = peer[:address] || peer["address"] || {0, 0, 0, 0}
+    address |> :inet.ntoa() |> to_string()
+  end
+
   defp fetch_pipeline_groups(empty_groups) do
     db_pipelines = Pipelines.list_pipelines()
 
@@ -221,7 +227,7 @@ defmodule ExGoCDWeb.AdminLive do
             <i class="fa-solid fa-circle-question"></i>
           </a>
         </div>
-        
+
     <!-- Page Header Actions (Dynamic based on Tab) -->
         <div class="flex flex-wrap items-center gap-4">
           <%= if @tab == "pipelines" do %>
@@ -256,7 +262,7 @@ defmodule ExGoCDWeb.AdminLive do
           <% end %>
         </div>
       </div>
-      
+
     <!-- Sub-Tab Navigation Bar -->
       <div class="bg-white border-b border-[#e9edef] px-6 py-2.5 flex flex-wrap gap-6 text-sm font-semibold shadow-sm">
         <.sub_tab_link active={@tab == "overview"} href="/admin/overview">Overview</.sub_tab_link>
@@ -278,7 +284,7 @@ defmodule ExGoCDWeb.AdminLive do
         <.sub_tab_link active={@tab == "audit_log"} href="/admin/audit_log">Audit Log</.sub_tab_link>
         <.sub_tab_link active={false} href="/admin/scheduling">⚡ Scheduling</.sub_tab_link>
       </div>
-      
+
     <!-- Main Layout Body (Centered Content) -->
       <div class="max-w-[1400px] mx-auto px-6 py-6">
         <%= if @flash_info do %>
@@ -464,7 +470,7 @@ defmodule ExGoCDWeb.AdminLive do
             </div>
           </div>
         </div>
-        
+
     <!-- Quick Actions -->
         <div class="bg-white rounded border border-[#d6e0e2] p-5 shadow-sm">
           <h3 class="text-sm font-bold border-b border-[#e9edef] pb-3 flex items-center gap-2 text-slate-700">
@@ -567,7 +573,7 @@ defmodule ExGoCDWeb.AdminLive do
           </div>
         </form>
       <% end %>
-      
+
     <!-- Pipeline Group Cards -->
       <div class="space-y-6">
         <%= for group <- @filtered_groups do %>
@@ -907,7 +913,7 @@ defmodule ExGoCDWeb.AdminLive do
           <% end %>
         </button>
       </div>
-      
+
     <!-- Plugins -->
       <div class="bg-white rounded border border-[#d6e0e2] p-5 shadow-sm space-y-4">
         <h3 class="text-sm font-bold text-slate-700 border-b border-[#e9edef] pb-3 flex items-center gap-2">
@@ -1497,7 +1503,8 @@ defmodule ExGoCDWeb.AdminLive do
   @impl true
   def handle_event("cleanup_stuck_jobs", _, socket) do
     count = Pipelines.cleanup_stuck_jobs()
-    Events.admin_cleanup_stuck_jobs(socket.assigns.current_user.username, count)
+    remote_ip = live_remote_ip(socket)
+    Events.admin_cleanup_stuck_jobs(socket.assigns.current_user.username, count, remote_ip)
     {:noreply, socket |> put_flash(:info, "Cancelled #{count} stuck jobs.")}
   end
 
@@ -2055,7 +2062,7 @@ defmodule ExGoCDWeb.AdminLive do
           </div>
         </form>
       </div>
-      
+
     <!-- Results Table -->
       <div class="bg-white rounded border border-[#d6e0e2] overflow-hidden shadow-sm">
         <div class="overflow-x-auto">

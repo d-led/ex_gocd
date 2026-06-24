@@ -13,6 +13,7 @@ defmodule ExGoCD.AuditLog do
     field :resource_type, :string
     field :resource_name, :string
     field :details, :map, default: %{}
+    field :remote_ip, :string
 
     timestamps(type: :utc_datetime, updated_at: false)
   end
@@ -26,9 +27,10 @@ defmodule ExGoCD.AuditLog do
         action: action,
         resource_type: opts[:resource_type],
         resource_name: opts[:resource_name],
-        details: opts[:details] || %{}
+        details: opts[:details] || %{},
+        remote_ip: opts[:remote_ip]
       },
-      [:actor, :action, :resource_type, :resource_name, :details]
+      [:actor, :action, :resource_type, :resource_name, :details, :remote_ip]
     )
     |> Repo.insert!()
 

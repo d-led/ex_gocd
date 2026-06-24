@@ -552,8 +552,15 @@ func (a *Agent) runOneCommand(ctx context.Context, build *protocol.Build, cmd *p
 	// codeql[go/command-injection]: CI/CD agent executing admin-configured pipeline
 	// commands. Path is sanitized via filepath.Clean + exec.LookPath. Args are
 	// admin-controlled server-side, not arbitrary user input.
-	c := exec.CommandContext(cmdCtx, resolvedPath, cmd.Args...)
+	c := exec.Command(resolvedPath, cmd.Args...)
 	c.Dir = absDir
+	// Setpgid creates a new process group so we can kill the entire tree on cancel.
+	c.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+
+	// Graceful cancellation: SIGTERM → wait grace period → SIGKILL
+	cancelDone := make(chan struct{})
+	defer close(cancelDone)
+	go gracefulCancel(cmdCtx, c, cancelDone)
 
 	// Merge environment variables.
 	// Base is the agent's own environment (so docker, PATH, etc. are inherited).
@@ -634,6 +641,40 @@ func setExitCode(span trace.Span, err error) {
 		span.SetAttributes(attribute.Int("cmd.exit_code", exitErr.ExitCode()))
 	} else {
 		span.SetAttributes(attribute.Int("cmd.exit_code", -1))
+	}
+}
+
+// gracefulCancel handles context cancellation with SIGTERM → grace period → SIGKILL escalation.
+// The cmd must have SysProcAttr.Setpgid=true so we can signal the entire process group.
+func gracefulCancel(ctx context.Context, cmd *exec.Cmd, done <-chan struct{}) {
+	const gracePeriod = 10 * time.Second
+
+	select {
+	case <-ctx.Done():
+	case <-done:
+		return
+	}
+
+	// Brief pause to let the process start (Process is nil until Start/ Run).
+	time.Sleep(50 * time.Millisecond)
+
+	if cmd.Process == nil {
+		return
+	}
+
+	pgid := -cmd.Process.Pid
+	agentlog.Logger.Info().Int("pid", cmd.Process.Pid).Msg("Cancelling build — sending SIGTERM to process group")
+	_ = syscall.Kill(pgid, syscall.SIGTERM)
+
+	timer := time.NewTimer(gracePeriod)
+	select {
+	case <-done:
+		timer.Stop()
+	case <-timer.C:
+		if cmd.Process != nil {
+			agentlog.Logger.Info().Int("pid", cmd.Process.Pid).Msg("Build still running after grace period — sending SIGKILL to process group")
+			_ = syscall.Kill(pgid, syscall.SIGKILL)
+		}
 	}
 }
 

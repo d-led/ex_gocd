@@ -4,6 +4,15 @@ defmodule ExGoCDWeb.API.StageController do
   alias ExGoCD.{Pipelines, Repo}
   alias ExGoCD.Pipelines.{StageInstance, JobInstance}
 
+  defp get_actor(conn) do
+    session = get_session(conn)
+    ExGoCD.Accounts.get_current_user(session).username
+  end
+
+  defp get_remote_ip(conn) do
+    conn.remote_ip |> :inet.ntoa() |> to_string()
+  end
+
   @doc """
   GET /api/stages/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter
   """
@@ -85,8 +94,13 @@ defmodule ExGoCDWeb.API.StageController do
         "stage_name" => stage_name
       }) do
     pipeline_counter = String.to_integer(counter_str)
+    actor = get_actor(conn)
+    remote_ip = get_remote_ip(conn)
 
-    case Pipelines.cancel_stage(pipeline_name, pipeline_counter, stage_name) do
+    case Pipelines.cancel_stage(pipeline_name, pipeline_counter, stage_name,
+           actor: actor,
+           remote_ip: remote_ip
+         ) do
       {:ok, _} ->
         json(conn, %{message: "Stage '#{stage_name}' cancelled."})
 

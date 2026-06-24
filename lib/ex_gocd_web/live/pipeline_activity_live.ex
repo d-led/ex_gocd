@@ -81,7 +81,7 @@ defmodule ExGoCDWeb.PipelineActivityLive do
     end
   end
 
-  defp map_pipeline_instance(pi, config_stage_names \\ []) do
+  defp map_pipeline_instance(pi, config_stage_names) do
     build_cause = pi.build_cause || %{}
 
     modifications =

@@ -72,11 +72,11 @@ defmodule ExGoCD.AuditLog.Events do
 
   Payload: count of cancelled jobs
   """
-  @spec admin_cleanup_stuck_jobs(String.t(), non_neg_integer()) :: :ok
-  def admin_cleanup_stuck_jobs(actor, count) do
+  @spec admin_cleanup_stuck_jobs(String.t(), non_neg_integer(), String.t() | nil) :: :ok
+  def admin_cleanup_stuck_jobs(actor, count, remote_ip \\ nil) do
     emit("admin.cleanup_stuck_jobs", actor, nil, nil, %{
       count: count
-    })
+    }, remote_ip)
   end
 
   @doc """
@@ -130,8 +130,8 @@ defmodule ExGoCD.AuditLog.Events do
   # ===========================================================================
 
   @doc "A stage was cancelled."
-  @spec stage_cancelled(String.t(), String.t(), integer(), String.t()) :: :ok
-  def stage_cancelled(actor, pipeline_name, pipeline_counter, stage_name) do
+  @spec stage_cancelled(String.t(), String.t(), integer(), String.t(), String.t() | nil) :: :ok
+  def stage_cancelled(actor, pipeline_name, pipeline_counter, stage_name, remote_ip \\ nil) do
     emit(
       "stage.cancelled",
       actor,
@@ -141,7 +141,8 @@ defmodule ExGoCD.AuditLog.Events do
         pipeline_name: pipeline_name,
         pipeline_counter: pipeline_counter,
         stage_name: stage_name
-      }
+      },
+      remote_ip
     )
   end
 
@@ -170,7 +171,7 @@ defmodule ExGoCD.AuditLog.Events do
   # ===========================================================================
 
   @doc false
-  defp emit(event_type, actor, resource_type, resource_name, payload) do
+  defp emit(event_type, actor, resource_type, resource_name, payload, remote_ip \\ nil) do
     details = %{
       event_version: @event_version,
       payload: payload
@@ -179,7 +180,8 @@ defmodule ExGoCD.AuditLog.Events do
     AuditLog.log(actor, event_type,
       resource_type: resource_type,
       resource_name: resource_name,
-      details: details
+      details: details,
+      remote_ip: remote_ip
     )
   end
 end
