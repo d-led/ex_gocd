@@ -1,9 +1,14 @@
 # Script for populating the database. You can run it with:
 #   mix run priv/repo/seeds.exs
+#
+# Historical pipeline instances (fake runs) are ONLY seeded when USE_MOCK_DATA=true.
+# In production, pipelines start with no history — only real runs create instances.
 
 alias ExGoCD.Repo
 alias ExGoCD.Pipelines.{Pipeline, Stage, Job, Task, Material}
 import Ecto.Query, only: [from: 2]
+
+mock_mode? = fn -> System.get_env("USE_MOCK_DATA") == "true" end
 
 ensure_material = fn pipeline, type, url ->
   branch = "main"
@@ -349,8 +354,9 @@ unless Repo.get_by(Pipeline, name: "release-pipeline") do
 
   ensure_material.(pipeline, "git", "https://github.com/d-led/ex_gocd.git")
 
-  # ── Seed 4 historical pipeline instances ──────────────────────────────────
-  now = DateTime.utc_now()
+  # ── Seed 4 historical pipeline instances (mock mode only) ──────────────────
+  if mock_mode?.() do
+    now = DateTime.utc_now()
 
   history = [
     %{
@@ -471,6 +477,7 @@ unless Repo.get_by(Pipeline, name: "release-pipeline") do
       end)
     end)
   end)
+  end
 
   IO.puts("Seeded: release-pipeline (stages: build → test → deploy, 4 historical runs)")
 else
@@ -509,7 +516,8 @@ unless Repo.get_by(Pipeline, name: "build-linux") do
 
   ensure_material.(pipeline, "git", "https://github.com/d-led/ex_gocd.git")
 
-  now = DateTime.utc_now()
+  if mock_mode?.() do
+    now = DateTime.utc_now()
 
   [
     %{c: 3, status: "Failed", s1: "Passed", s2: "Failed",
@@ -574,6 +582,7 @@ unless Repo.get_by(Pipeline, name: "build-linux") do
       end)
     end
   end)
+  end
 
   IO.puts("Seeded: build-linux (build → test, 3 historical runs)")
 end
@@ -610,7 +619,8 @@ unless Repo.get_by(Pipeline, name: "deploy-staging") do
 
   ensure_material.(pipeline, "git", "https://github.com/d-led/ex_gocd.git")
 
-  now = DateTime.utc_now()
+  if mock_mode?.() do
+    now = DateTime.utc_now()
 
   [
     %{c: 234, status: "Passed", s1: "Passed", s2: "Passed",
@@ -673,6 +683,7 @@ unless Repo.get_by(Pipeline, name: "deploy-staging") do
       end)
     end
   end)
+  end
 
   IO.puts("Seeded: deploy-staging (deploy → smoke-tests, 3 historical runs)")
 end
@@ -681,7 +692,8 @@ end
 
 alias ExGoCD.AgentJobRuns.AgentJobRun
 
-unless Repo.get_by(AgentJobRun, build_id: "demo-build-1") do
+if mock_mode?.() do
+  unless Repo.get_by(AgentJobRun, build_id: "demo-build-1") do
   %AgentJobRun{}
   |> AgentJobRun.changeset(%{
     agent_uuid: "00000000-0000-0000-0000-000000000001",
@@ -700,6 +712,7 @@ unless Repo.get_by(AgentJobRun, build_id: "demo-build-1") do
   IO.puts("Seeded mock agent job run for build-agent-01.example.com")
 else
   IO.puts("Mock job run already exists, skipping seed")
+end
 end
 
 # Seed default users
@@ -786,7 +799,8 @@ unless Repo.get_by(Pipeline, name: "two-stage-demo") do
 
   ensure_material.(pipeline, "git", "https://github.com/d-led/ex_gocd.git")
 
-  # Seed 3 historical runs with proper commit messages
+  # Seed 3 historical runs (mock mode only)
+  if mock_mode?.() do
   now = DateTime.utc_now()
 
   [
@@ -852,6 +866,7 @@ unless Repo.get_by(Pipeline, name: "two-stage-demo") do
       end)
     end
   end)
+  end
 
   IO.puts("Seeded: two-stage-demo (build → test, 3 historical runs)")
 end

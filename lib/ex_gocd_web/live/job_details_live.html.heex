@@ -252,6 +252,22 @@
           </pre>
 
           <%= cond do %>
+            <% @job_instance && @job_instance.state == "Completed" && @job_instance.result == "Passed" && @line_count == 0 -> %>
+              <div class="text-green-500 py-8 text-center flex flex-col items-center justify-center gap-3">
+                <i class="fa fa-check-circle text-2xl text-green-500"></i>
+                <span class="font-bold">Job Passed</span>
+                <p class="text-gray-500 text-[10px] mt-1 max-w-md">
+                  Job completed successfully. No console output was captured.
+                </p>
+              </div>
+            <% @job_instance && @job_instance.state == "Completed" && @job_instance.result == "Cancelled" && @line_count == 0 -> %>
+              <div class="text-amber-500 py-8 text-center flex flex-col items-center justify-center gap-3">
+                <i class="fa fa-ban text-2xl text-amber-500"></i>
+                <span class="font-bold">Job Cancelled</span>
+                <p class="text-gray-500 text-[10px] mt-1 max-w-md">
+                  Job was cancelled before producing console output.
+                </p>
+              </div>
             <% is_nil(@run) || @run.state in ["Scheduled", "Assigned", "Preparing"] -> %>
               <div class="text-gray-500 italic py-8 text-center flex flex-col items-center justify-center gap-2">
                 <i class="fa fa-spinner animate-spin text-xl text-gray-600"></i>
