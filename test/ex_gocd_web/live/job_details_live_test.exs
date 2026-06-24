@@ -134,7 +134,7 @@ defmodule ExGoCDWeb.JobDetailsLiveTest do
       {:ok, view, _html} = live(conn, ~p"/go/tab/build/detail/demo/1/build/1/default")
 
       # Initially wrap is enabled (checkbox checked)
-      wrap_cb = element(view, "#toggle-wrap")
+      _wrap_cb = element(view, "#toggle-wrap")
       assert render(view) =~ "checked"
 
       # Click toggle-wrap

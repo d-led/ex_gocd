@@ -204,7 +204,7 @@ defmodule ExGoCD.Pipelines.ConsoleActivityMonitorTest do
         job_id: job.id,
         name: job.name,
         state: "Scheduled",
-        scheduled_at: NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+        scheduled_at: DateTime.utc_now()
       })
 
     AgentJobRuns.create_run(agent_uuid, build_name, pipeline.name, stage.name, job.name,

@@ -185,7 +185,7 @@ defmodule ExGoCD.ArtifactCleanupTest do
         result: "Passed",
         approval_type: "success",
         created_time: DateTime.utc_now() |> DateTime.add(offset_created, :second),
-        completed_at: NaiveDateTime.utc_now() |> NaiveDateTime.add(offset_completed, :second),
+        completed_at: DateTime.utc_now() |> DateTime.add(offset_completed, :second),
         latest_run: latest_run,
         artifacts_deleted: false
       })

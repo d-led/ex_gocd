@@ -126,7 +126,7 @@ defmodule ExGoCD.DataCase do
     {:ok, stage} =
       Repo.insert(%Stage{} |> Stage.changeset(%{name: "build", pipeline_id: p.id, order_id: 0}))
 
-    completed_at = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+    completed_at = DateTime.utc_now()
     created_time = DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.add(-300, :second)
 
     {:ok, instance} =

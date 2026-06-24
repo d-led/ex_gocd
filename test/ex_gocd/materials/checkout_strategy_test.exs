@@ -11,7 +11,7 @@ defmodule ExGoCD.Materials.CheckoutStrategyTest do
     end)
   end
 
-  test "ForceCheckout builds robust command tree with mkdir, init, clean, fetch, and force checkout" do
+  test "ForceCheckout builds robust command tree: mkdir, init, fetch, checkout, clean" do
     url = "https://github.com/d-led/ex_gocd.git"
     branch = "main"
     dest = "workspace"
@@ -21,8 +21,10 @@ defmodule ExGoCD.Materials.CheckoutStrategyTest do
 
     assert length(cmds) == 5
 
+    # 1. mkdir -p dest
     assert Enum.at(cmds, 0) == %{"name" => "exec", "command" => "mkdir", "args" => ["-p", dest]}
 
+    # 2. git init (safe on existing repos)
     assert Enum.at(cmds, 1) == %{
              "name" => "exec",
              "command" => "git",
@@ -30,24 +32,27 @@ defmodule ExGoCD.Materials.CheckoutStrategyTest do
              "workingDirectory" => dest
            }
 
+    # 3. git fetch --depth=1 --no-tags (shallow, no tag clutter)
     assert Enum.at(cmds, 2) == %{
              "name" => "exec",
              "command" => "git",
-             "args" => ["clean", "-fdx"],
+             "args" => ["fetch", "--depth=1", "--no-tags", url, branch],
              "workingDirectory" => dest
            }
 
+    # 4. git checkout -f revision
     assert Enum.at(cmds, 3) == %{
              "name" => "exec",
              "command" => "git",
-             "args" => ["fetch", "--depth=1", url, branch],
+             "args" => ["checkout", "-f", revision],
              "workingDirectory" => dest
            }
 
+    # 5. git clean -fdx (runs AFTER checkout to clean build artifacts)
     assert Enum.at(cmds, 4) == %{
              "name" => "exec",
              "command" => "git",
-             "args" => ["checkout", "-f", revision],
+             "args" => ["clean", "-fdx"],
              "workingDirectory" => dest
            }
   end
@@ -62,6 +67,7 @@ defmodule ExGoCD.Materials.CheckoutStrategyTest do
 
     assert length(cmds) == 4
 
+    # 1. git init
     assert Enum.at(cmds, 0) == %{
              "name" => "exec",
              "command" => "git",
@@ -69,24 +75,27 @@ defmodule ExGoCD.Materials.CheckoutStrategyTest do
              "workingDirectory" => dest
            }
 
+    # 2. git fetch --depth=1 --no-tags
     assert Enum.at(cmds, 1) == %{
              "name" => "exec",
              "command" => "git",
-             "args" => ["clean", "-fdx"],
+             "args" => ["fetch", "--depth=1", "--no-tags", url, branch],
              "workingDirectory" => dest
            }
 
+    # 3. git checkout -f revision
     assert Enum.at(cmds, 2) == %{
              "name" => "exec",
              "command" => "git",
-             "args" => ["fetch", "--depth=1", url, branch],
+             "args" => ["checkout", "-f", revision],
              "workingDirectory" => dest
            }
 
+    # 4. git clean -fdx (after checkout)
     assert Enum.at(cmds, 3) == %{
              "name" => "exec",
              "command" => "git",
-             "args" => ["checkout", "-f", revision],
+             "args" => ["clean", "-fdx"],
              "workingDirectory" => dest
            }
   end

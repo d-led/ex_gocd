@@ -287,6 +287,7 @@ defmodule ExGoCD.PipelinesFixtures do
   """
   def insert_pipeline_instance_by_name(pipeline_name, counter, inserted_at) do
     pipeline = Repo.get_by!(Pipeline, name: pipeline_name)
+    ts = DateTime.truncate(inserted_at, :second)
 
     Repo.insert!(%PipelineInstance{
       counter: counter,
@@ -294,8 +295,8 @@ defmodule ExGoCD.PipelinesFixtures do
       natural_order: counter * 1.0,
       build_cause: %{"approver" => "test"},
       pipeline_id: pipeline.id,
-      inserted_at: inserted_at,
-      updated_at: inserted_at
+      inserted_at: ts,
+      updated_at: ts
     })
   end
 
@@ -314,7 +315,8 @@ defmodule ExGoCD.PipelinesFixtures do
   """
   def insert_stage_instance(pipeline_instance_id, name, opts \\ []) do
     now = DateTime.utc_now()
-    created = Keyword.get(opts, :created_time, now)
+    now_sec = DateTime.truncate(now, :second)
+    created = Keyword.get(opts, :created_time, now_sec) |> DateTime.truncate(:second)
     state = Keyword.get(opts, :state, "Building")
     result = Keyword.get(opts, :result, if(state == "Building", do: "Unknown", else: "Passed"))
     # Default completed_at: nil for Building, now for terminal states
@@ -338,8 +340,8 @@ defmodule ExGoCD.PipelinesFixtures do
       latest_run: Keyword.get(opts, :latest_run, true),
       artifacts_deleted: Keyword.get(opts, :artifacts_deleted, false),
       rerun_of_counter: Keyword.get(opts, :rerun_of_counter),
-      inserted_at: Keyword.get(opts, :inserted_at, created),
-      updated_at: Keyword.get(opts, :updated_at, created)
+      inserted_at: Keyword.get(opts, :inserted_at, now_sec),
+      updated_at: Keyword.get(opts, :updated_at, now_sec)
     })
   end
 
@@ -355,15 +357,15 @@ defmodule ExGoCD.PipelinesFixtures do
       assigned_at: assigned_at,
       completed_at: DateTime.add(assigned_at, 60, :second),
       stage_instance_id: stage_instance_id,
-      inserted_at: scheduled_at,
-      updated_at: assigned_at
+      inserted_at: DateTime.truncate(scheduled_at, :second),
+      updated_at: DateTime.truncate(assigned_at, :second)
     })
   end
 
   @doc """
   Inserts a Scheduled (unassigned) JobInstance.
   """
-  def insert_job_instance_unassigned(stage_instance_id, name, scheduled_at) do
+  def insert_job_instance_unassigned(stage_instance_id, name, scheduled_at, opts \\ []) do
     Repo.insert!(%JobInstance{
       name: name,
       state: "Scheduled",
@@ -371,9 +373,10 @@ defmodule ExGoCD.PipelinesFixtures do
       scheduled_at: scheduled_at,
       assigned_at: nil,
       completed_at: nil,
+      job_id: Keyword.get(opts, :job_id),
       stage_instance_id: stage_instance_id,
-      inserted_at: scheduled_at,
-      updated_at: scheduled_at
+      inserted_at: DateTime.truncate(scheduled_at, :second),
+      updated_at: DateTime.truncate(scheduled_at, :second)
     })
   end
 

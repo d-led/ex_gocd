@@ -43,19 +43,19 @@ defmodule ExGoCD.Materials.CheckoutStrategy do
         %{
           "name" => "exec",
           "command" => "git",
-          "args" => ["clean", "-fdx"],
-          "workingDirectory" => dest
-        },
-        %{
-          "name" => "exec",
-          "command" => "git",
-          "args" => ["fetch", "--depth=1", url, branch],
+          "args" => ["fetch", "--depth=1", "--no-tags", url, branch],
           "workingDirectory" => dest
         },
         %{
           "name" => "exec",
           "command" => "git",
           "args" => ["checkout", "-f", revision],
+          "workingDirectory" => dest
+        },
+        %{
+          "name" => "exec",
+          "command" => "git",
+          "args" => ["clean", "-fdx"],
           "workingDirectory" => dest
         }
       ]

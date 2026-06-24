@@ -12,7 +12,7 @@ defmodule ExGoCD.AnalyticsTest do
       insert_pipeline_with_jobs: 2
     ]
 
-  @now ~U[2026-06-21 10:00:00Z]
+  @now ~U[2026-06-21 10:00:00.000000Z]
 
   describe "pipeline_analytics/2 avg_wait_time" do
     setup do
@@ -27,10 +27,10 @@ defmodule ExGoCD.AnalyticsTest do
         insert_pipeline_instance_by_name("wait-test-pipeline", 1, @now)
 
       si =
-        insert_stage_instance(pi.id, "build", created_time: ~U[2026-06-21 10:00:00Z])
+        insert_stage_instance(pi.id, "build", created_time: @now)
 
       _ji =
-        insert_job_instance(si.id, "compile", ~U[2026-06-21 10:00:00Z], ~U[2026-06-21 10:02:00Z])
+        insert_job_instance(si.id, "compile", @now, DateTime.add(@now, 120, :second))
 
       # wait = 10:02 - 10:00 = 120s
       result = Analytics.pipeline_analytics("wait-test-pipeline", 30)

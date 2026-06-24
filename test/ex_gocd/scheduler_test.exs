@@ -575,7 +575,7 @@ defmodule ExGoCD.SchedulerTest do
           job_id: job.id,
           name: job.name,
           state: "Scheduled",
-          scheduled_at: NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+          scheduled_at: DateTime.utc_now()
         })
 
       # Load with preloads
@@ -679,7 +679,7 @@ defmodule ExGoCD.SchedulerTest do
           job_id: down_job.id,
           name: down_job.name,
           state: "Scheduled",
-          scheduled_at: NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+          scheduled_at: DateTime.utc_now()
         })
 
       ji =

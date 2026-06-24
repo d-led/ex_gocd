@@ -129,7 +129,7 @@ defmodule ExGoCD.Pipelines.ValueStreamMapTest do
         })
         |> ExGoCD.Repo.insert()
 
-      completed_at = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+      completed_at = DateTime.utc_now()
 
       created_time =
         DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.add(-300, :second)
@@ -259,7 +259,7 @@ defmodule ExGoCD.Pipelines.ValueStreamMapTest do
       # Create instance for upstream-lib (stage already created by helper)
       stage = ExGoCD.Repo.get_by!(ExGoCD.Pipelines.Stage, pipeline_id: upstream.id, name: "build")
 
-      completed_at = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+      completed_at = DateTime.utc_now()
 
       created_time =
         DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.add(-300, :second)
@@ -492,7 +492,7 @@ defmodule ExGoCD.Pipelines.ValueStreamMapTest do
       # Create an instance for upstream so the VSM renders
       stage = ExGoCD.Repo.get_by!(ExGoCD.Pipelines.Stage, pipeline_id: upstream.id, name: "build")
 
-      completed_at = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+      completed_at = DateTime.utc_now()
 
       created_time =
         DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.add(-120, :second)

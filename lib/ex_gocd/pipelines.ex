@@ -1592,7 +1592,7 @@ defmodule ExGoCD.Pipelines do
           "stage.name" => si && si.name
         },
         fn ->
-          now = NaiveDateTime.utc_now()
+          now = DateTime.utc_now()
 
           res =
             ji
@@ -1667,7 +1667,7 @@ defmodule ExGoCD.Pipelines do
   end
 
   defp do_complete_job_instance(ji, result) do
-    now = NaiveDateTime.utc_now()
+    now = DateTime.utc_now()
 
     ji
     |> JobInstance.changeset(%{state: "Completed", result: result, completed_at: now})

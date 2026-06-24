@@ -54,7 +54,7 @@ defmodule ExGoCD.Pipelines.JobInstanceTest do
       changeset =
         JobInstance.changeset(%JobInstance{}, %{
           name: "compile",
-          scheduled_at: ~N[2024-01-01 10:00:00],
+          scheduled_at: ~U[2024-01-01 10:00:00.000000Z],
           stage_instance_id: stage_instance.id
         })
 

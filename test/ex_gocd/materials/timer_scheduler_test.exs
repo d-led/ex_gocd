@@ -104,7 +104,7 @@ defmodule ExGoCD.Materials.TimerSchedulerTest do
           result: "Passed",
           approval_type: "success",
           created_time: DateTime.utc_now() |> DateTime.add(-300, :second),
-          completed_at: NaiveDateTime.utc_now() |> NaiveDateTime.add(-300, :second)
+          completed_at: DateTime.utc_now() |> DateTime.add(-300, :second)
         })
       )
 
