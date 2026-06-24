@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/d-led/ex_gocd/agent/internal/config"
+	agentdocker "github.com/d-led/ex_gocd/agent/internal/docker"
 	agentlog "github.com/d-led/ex_gocd/agent/internal/log"
 	"github.com/d-led/ex_gocd/agent/internal/registration"
 	"github.com/d-led/ex_gocd/agent/internal/telemetry"
@@ -582,7 +583,10 @@ func (a *Agent) runOneCommand(ctx context.Context, build *protocol.Build, cmd *p
 	// codeql[go/command-injection]: CI/CD agent executing admin-configured pipeline
 	// commands. Path is sanitized via filepath.Clean + exec.LookPath. Args are
 	// admin-controlled server-side, not arbitrary user input.
-	c := exec.Command(resolvedPath, cmd.Args...)
+	// Inject agent-identity labels into docker run/create commands for
+	// container traceability and orphan cleanup (Testcontainers Ryuk pattern).
+	args := agentdocker.InterceptDockerArgs(resolvedPath, cmd.Args, a.config.UUID, build.BuildId)
+	c := exec.Command(resolvedPath, args...)
 	c.Dir = absDir
 	// Setpgid creates a new process group so we can kill the entire tree on cancel.
 	c.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}

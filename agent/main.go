@@ -17,6 +17,7 @@ import (
 
 	"github.com/d-led/ex_gocd/agent/cmd"
 	"github.com/d-led/ex_gocd/agent/internal/agent"
+	"github.com/d-led/ex_gocd/agent/internal/docker"
 	agentlog "github.com/d-led/ex_gocd/agent/internal/log"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel"
@@ -71,6 +72,15 @@ func main() {
 	}
 
 	agentUUID := resolveAgentUUID(uuidFile)
+
+	// ── Reap orphaned Docker containers from prior agent runs ───────
+	// Testcontainers Ryuk pattern: label containers with agent UUID,
+	// clean up any survivors from crashes or unclean shutdowns.
+	reaper := docker.NewReaper(agentUUID)
+	if err := reaper.ReapOrphans(context.Background()); err != nil {
+		// Non-fatal — agent continues without reaping.
+		agentlog.Logger.Warn().Err(err).Msg("failed to reap orphan containers")
+	}
 
 	// ── PID file: {uuid}.pid contains OS PID ────────────────────────
 	pidPath := filepath.Join(agentWorkDir, agentUUID+".pid")
