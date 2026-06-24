@@ -39,7 +39,7 @@ processes:
     command: "./gocd-agent"
     working_dir: "agent"
     environment:
-      - "AGENT_SERVER_URL=http://localhost:4000"
+      - "AGENT_SERVER_URL=http://127.0.0.1:4000"
       - "AGENT_WORK_DIR=/tmp/ex_gocd_agent_work"
       - "AGENT_CI_MODE=1"
       - "AGENT_AUTO_REGISTER_RESOURCES=elixir,postgres"
@@ -61,7 +61,7 @@ processes:
     command: "./gocd-agent"
     working_dir: "agent"
     environment:
-      - "AGENT_SERVER_URL=http://localhost:4000"
+      - "AGENT_SERVER_URL=http://127.0.0.1:4000"
       - "AGENT_WORK_DIR=/tmp/ex_gocd_agent_docker_work"
       - "AGENT_AUTO_REGISTER_RESOURCES=docker"
       - "AGENT_HOSTNAME=docker-agent"
@@ -84,7 +84,7 @@ processes:
     command: "./gocd-agent"
     working_dir: "agent"
     environment:
-      - "AGENT_SERVER_URL=http://localhost:4000"
+      - "AGENT_SERVER_URL=http://127.0.0.1:4000"
       - "AGENT_WORK_DIR=/tmp/ex_gocd_agent_docker_elastic_work"
       - "AGENT_AUTO_REGISTER_ELASTIC_AGENT_ID=elastic-docker-001"
       - "AGENT_AUTO_REGISTER_ELASTIC_PLUGIN_ID=cd.go.contrib.elastic-agent.docker"

@@ -51,7 +51,7 @@ else
 fi
 mkdir -p "$AGENT_WORK_DIR"
 
-export AGENT_SERVER_URL="${AGENT_SERVER_URL:-http://localhost:4000}"
+export AGENT_SERVER_URL="${AGENT_SERVER_URL:-http://127.0.0.1:4000}"
 export AGENT_WORK_DIR="$AGENT_WORK_DIR"
 # Only export AGENT_UUID if explicitly provided (avoid empty-string override)
 if [[ -n "${AGENT_UUID:-}" ]]; then

@@ -30,7 +30,7 @@
 | 18 | `API.Admin.PipelineConfigController` | show, create, update, delete | `/api/admin` |
 | 19 | `API.Admin.TemplateController` | index, show, create, update, delete | `/api/admin` |
 
-### LiveView Pages: 15 modules
+### LiveView Pages: 18 modules
 
 | Module | Feature |
 |--------|---------|
@@ -40,13 +40,16 @@
 | `AgentJobRunDetailLive` | Detail view of a single agent job run |
 | `JobDetailsLive` | Console, Tests, Artifacts, Materials tabs |
 | `StageDetailsLive` | Stage details with breadcrumbs → VSM |
-| `PipelineActivityLive` | Pipeline run history with VSM buttons |
+| `PipelineActivityLive` | Pipeline run history with VSM and config diff links |
 | `PipelineConfigLive` | Pipeline configuration editor |
 | `PipelineWizardLive` | Wizard for creating new pipelines |
-| `CompareLive` | Compare two pipeline runs |
-| `ValueStreamMapLive` | VSM: trigger info, FI/FO badges, breadcrumbs, responsive |
+| `CompareLive` | Compare two pipeline runs with env vars diff |
+| `ConfigDiffLive` | Side-by-side config change diff viewer |
+| `ValueStreamMapLive` | VSM: trigger info, FI/FO badges, breadcrumbs, responsive, SVG arrows |
 | `MaterialsLive` | Materials (SCM) management |
-| `AdminLive` | Admin settings / config |
+| `AdminLive` | Admin settings / config / dashboard |
+| `AdminSchedulingLive` | Scheduling diagnostics: pending + active jobs, agent matching, cross-links |
+| `AuditLogLive` | Searchable audit log with filters and resource links |
 | `AnalyticsLive` | Built-in CI analytics dashboard |
 | `ExternalCIRepoWizardLive` | External CI repo config wizard |
 
@@ -80,6 +83,11 @@
 | Webhooks | ✅ | GitHub, GitLab, git notify |
 | Fetch artifact task | ✅ | Agent-side protocol support |
 | Go agent | ✅ | HTTP remoting agent in `agent/` |
+| Config diff | ✅ | `config_diff/2` + `ConfigDiffLive` side-by-side viewer |
+| Trigger-time variables | ✅ | GoCD-format `variables` + `secure_variables` maps accepted |
+| Audit log UI | ✅ | `AuditLogLive` with search, filters, resource links |
+| Scheduling admin | ✅ | `AdminSchedulingLive` with pending + active jobs, cross-links |
+| Admin dropdown | ✅ | CSS-driven with JS edge guard (`clientWidth`) |
 
 ---
 
@@ -89,12 +97,12 @@
 
 | # | Gap | Effort | Notes |
 |---|-----|--------|-------|
-| B1 | Pipeline config admin: `index` action handler | S | Route auto-generated but no controller `index/2` |
-| B2 | Job comment API: `POST /api/pipelines/:name/:counter/comment` | S | Add controller action |
+| B1 | Pipeline config admin: `index` action handler | ✅ | Done |
+| B2 | Job comment API: `POST /api/pipelines/:name/:counter/comment` | ✅ | Done |
 | B3 | Stage run-failed-jobs / run-selected-jobs APIs | ✅ | `rerun_failed_jobs/4` + 3 tests + API route |
 | B4 | Config XML import/export | M | Serialize DB → cruise-config.xml |
 | B5 | Disk space monitor / artifact auto-cleanup | M | GenServer polling + purge policies |
-| B6 | Artifact MD5 verification on downstream fetch | S | Verify checksums when fetching artifacts |
+| B6 | Artifact MD5 verification on downstream fetch | ✅ | Done |
 
 ### 🟢 P2: Enterprise Features
 
@@ -151,7 +159,7 @@
 
 ## Part D: Build & Quality
 
-- **Tests**: 472 ExUnit tests, Go agent tests pass, Cypress E2E suite
+- **Tests**: 644 ExUnit tests, Go agent tests pass, Cypress E2E suite (108 tests, 15 specs)
 - **Quality gate**: `scripts/quality-gate.sh` — compile `--warnings-as-errors`, Credo, Sobelow
 - **Compile**: clean with `--warnings-as-errors` on all 146 files
 - **Go agent**: `go build`, `go vet`, `go test ./...` — all clean
@@ -511,9 +519,9 @@ GoCD detects config changes between pipeline runs and shows them in the pipeline
 
 | # | Item | Effort |
 |---|------|--------|
-| Q.3.1 | Implement `triggerCurrentStageInNewerPipeline` (GoCD parity) | M |
-| Q.3.2 | Write tests for #1-#17 from GoCD catalog | L |
-| Q.3.3 | Write fan-in graph construction test (#18) | S |
+| Q.3.1 | Implement `triggerCurrentStageInNewerPipeline` (GoCD parity) | ✅ | Done — triggers stage in newer pipeline when previous stage passed there |
+| Q.3.2 | Write tests for #1-#17 from GoCD catalog | L | 🔴 |
+| Q.3.3 | Write fan-in graph construction test (#18) | S | 🔴 |
 | Q.3.4 | Implement fan-in gate: wait for ALL dependencies before triggering | M |
 | Q.3.5 | Trigger with specific revision support | M |
 
@@ -742,11 +750,11 @@ GoCD's `SchedulingCheckerService` enforces a strict sequence of validation befor
 ### X.1 Missing Checkers
 | # | Item | Effort | Notes |
 |---|------|--------|-------|
-| X.1.1 | **AboutToBeTriggeredChecker** | M | ETS-based debounce to prevent double-triggering of the same pipeline. |
-| X.1.2 | **PipelineActiveChecker** | M | Blocks if pipeline has active stages (needed for rerun-stage correctness). |
-| X.1.3 | **StageLockChecker** | S | Prevents concurrent stage scheduling across pipeline instances. |
-| X.1.4 | **OutOfDiskSpaceChecker** | S | Wire `ExGoCD.DiskSpace` thresholds to block triggers system-wide. |
-| X.1.5 | **ManualPipelineChecker** | S | Blocks auto-trigger (timer/SCM) for manual-only pipelines. |
+| X.1.1 | **AboutToBeTriggeredChecker** | ✅ | ETS-based TriggerMonitor, O(1) lookups |
+| X.1.2 | **PipelineActiveChecker** | ✅ | Checks for active stages in a pipeline instance |
+| X.1.3 | **StageLockChecker** | ✅ | Prevents concurrent stage scheduling |
+| X.1.4 | **OutOfDiskSpaceChecker** | ✅ | Wired into composite checker chain |
+| X.1.5 | **ManualPipelineChecker** | ✅ | Blocks auto-trigger for manual-only pipelines |
 
 **Priority**: P1. Critical for correct scheduling behavior and data integrity.
 

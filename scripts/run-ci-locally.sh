@@ -18,7 +18,7 @@ AGENT_DIR="$ROOT/agent"
 
 # ── Config ───────────────────────────────────────────────────────────────
 export EX_GOCD_DEMO_COOKIE="${EX_GOCD_DEMO_COOKIE:-ex-gocd-demo-cookie}"
-SERVER_URL="${AGENT_SERVER_URL:-http://localhost:4000}"
+SERVER_URL="${AGENT_SERVER_URL:-http://127.0.0.1:4000}"
 AGENT_NAME="${AGENT_HOSTNAME:-local-ci-agent}"
 AGENT_RESOURCES="${AGENT_AUTO_REGISTER_RESOURCES:-elixir,postgres}"
 AGENT_WORK_DIR="${AGENT_WORK_DIR:-/tmp/ex_gocd_agent_work}"
