@@ -37,40 +37,40 @@
           <span class="text-sm font-semibold text-gray-500">Job Run Details</span>
         </h1>
       </div>
-
-      <%= if @job_instance do %>
-        <div class="flex items-center gap-3 bg-white px-4 py-2 border border-gray-200 rounded shadow-sm text-xs font-mono">
-          <span class="text-gray-400 font-bold uppercase tracking-wider text-[9px]">
-            Job State
-          </span>
-          <span class="font-bold text-gray-800">{@job_instance.state}</span>
-          <span class="text-gray-400 font-bold uppercase tracking-wider text-[9px] ml-2">
-            Result
-          </span>
-          <span class={"font-bold px-1.5 py-0.5 rounded text-[10px] text-white " <>
-            case @job_instance.result do
-              "Passed" -> "bg-[#5cb85c]"
-              "Failed" -> "bg-[#d9534f]"
-              "Cancelled" -> "bg-[#f0ad4e]"
-              _ -> "bg-blue-500"
-            end}>
-            {@job_instance.result || "Unknown"}
-          </span>
-          <%= if @agent do %>
-            <span class="text-gray-400 font-bold uppercase tracking-wider text-[9px] ml-2">
-              Agent
-            </span>
-            <.link navigate={~p"/agents"} class="font-bold text-[#2d6ca2] hover:underline">
-              {@agent.hostname}
-              <span class="text-gray-400 font-normal">
-                ({String.slice(@agent.uuid, 0, 8)}...)
-              </span>
-            </.link>
-          <% end %>
-        </div>
-      <% end %>
     </div>
   </div>
+
+  <%= if @job_instance do %>
+    <div class="flex items-center gap-3 bg-white px-4 py-3 border border-gray-200 rounded shadow-sm text-sm font-mono mb-6">
+      <span class="text-gray-400 font-bold uppercase tracking-wider text-[10px]">
+        Job State
+      </span>
+      <span class="font-bold text-gray-800">{@job_instance.state}</span>
+      <span class="text-gray-400 font-bold uppercase tracking-wider text-[10px] ml-2">
+        Result
+      </span>
+      <span class={"font-bold px-2 py-0.5 rounded text-xs text-white " <>
+        case @job_instance.result do
+          "Passed" -> "bg-[#5cb85c]"
+          "Failed" -> "bg-[#d9534f]"
+          "Cancelled" -> "bg-[#f0ad4e]"
+          _ -> "bg-blue-500"
+        end}>
+        {@job_instance.result || "Unknown"}
+      </span>
+      <%= if @agent do %>
+        <span class="text-gray-400 font-bold uppercase tracking-wider text-[10px] ml-2">
+          Agent
+        </span>
+        <.link navigate={~p"/agents"} class="font-bold text-[#2d6ca2] hover:underline">
+          {@agent.hostname}
+          <span class="text-gray-400 font-normal">
+            ({String.slice(@agent.uuid, 0, 8)}...)
+          </span>
+        </.link>
+      <% end %>
+    </div>
+  <% end %>
 
   <div class="bg-white border border-gray-200 rounded shadow-sm overflow-hidden">
     <!-- Tab Controls -->
@@ -129,13 +129,13 @@
             </a>
             <button
               class="text-[10px] text-gray-400 hover:text-gray-200 font-bold uppercase tracking-wider"
-              onclick="this.closest('.console-log').querySelectorAll('.fold-start').forEach(function(f){f.classList.remove('collapsed')}); window.dispatchEvent(new CustomEvent('update-folds'))"
+              onclick="var cl=this.closest('.p-6').querySelector('.console-log'); if(cl){cl.querySelectorAll('.fold-start').forEach(function(f){f.classList.remove('collapsed')})}; window.dispatchEvent(new CustomEvent('update-folds'))"
             >
               Expand All
             </button>
             <button
               class="text-[10px] text-gray-400 hover:text-gray-200 font-bold uppercase tracking-wider"
-              onclick="this.closest('.console-log').querySelectorAll('.fold-start').forEach(function(f){f.classList.add('collapsed')}); window.dispatchEvent(new CustomEvent('update-folds'))"
+              onclick="var cl=this.closest('.p-6').querySelector('.console-log'); if(cl){cl.querySelectorAll('.fold-start').forEach(function(f){f.classList.add('collapsed')})}; window.dispatchEvent(new CustomEvent('update-folds'))"
             >
               Collapse All
             </button>
@@ -154,11 +154,11 @@
               placeholder="Filter..."
               autocomplete="off"
               class="w-32 px-2 py-0.5 text-[10px] bg-gray-800 border border-gray-700 rounded text-gray-300 placeholder-gray-600 focus:outline-none focus:border-gray-500"
-              oninput="var rows=this.closest('.p-6').querySelectorAll('.log-row'); var q=this.value.toLowerCase(); rows.forEach(function(row){ var msg=row.querySelector('.log-message'); if(!msg)return; var m=msg.textContent.toLowerCase(); if(!q || m.indexOf(q)!==-1){row.classList.remove('hidden')}else{row.classList.add('hidden')}})"
+              oninput="var rows=this.closest('.p-6').querySelectorAll('.log-row'); var parts=this.value.toLowerCase().split(/\s+/).filter(function(p){return p.length>0}); rows.forEach(function(row){ var msg=row.querySelector('.log-message'); if(!msg)return; var m=msg.textContent.toLowerCase(); if(parts.length===0 || parts.every(function(p){return m.indexOf(p)!==-1})){row.classList.remove('hidden')}else{row.classList.add('hidden')}})"
             />
             <button
               class="text-[10px] text-gray-400 hover:text-gray-200 font-bold uppercase tracking-wider"
-              onclick="var txt='';this.closest('.p-6').querySelectorAll('.log-row:not(.hidden)').forEach(function(r){var msg=r.querySelector('.log-message'); var ts=r.querySelector('.log-timestamp'); var t=''; if(msg)t=msg.textContent; if(ts && ts.offsetWidth>0){txt+='['+ts.textContent+'] '+t+'\n'}else{txt+=t+'\n'}});navigator.clipboard.writeText(txt);this.textContent='Copied!';setTimeout(function(b){b.textContent='Copy'},1500,this)"
+              onclick="var txt='';this.closest('.p-6').querySelectorAll('.log-row:not(.hidden):not(.filter-hidden)').forEach(function(r){var msg=r.querySelector('.log-message'); var ts=r.querySelector('.log-timestamp'); var t=''; if(msg)t=msg.textContent; if(ts && ts.offsetWidth>0){txt+='['+ts.textContent+'] '+t+'\n'}else{txt+=t+'\n'}});navigator.clipboard.writeText(txt);this.textContent='Copied!';setTimeout(function(b){b.textContent='Copy'},1500,this)"
             >
               Copy
             </button>
@@ -221,16 +221,13 @@
               <%= if line.type == :fold_start do %>
                 <div
                   id={dom_id}
-                  class="log-row fold-start flex items-center font-mono text-[11px] leading-5 cursor-pointer select-none hover:bg-gray-800/50"
+                  class="log-row fold-start flex items-start font-mono text-[11px] leading-5 cursor-pointer select-none hover:bg-gray-800/50"
                   data-fold-id={line.fold_id}
                   data-fold-parents={line.fold_parents}
                   onclick={"var f=this.closest('.fold-start'); f.classList.toggle('collapsed'); window.dispatchEvent(new CustomEvent('update-folds'))"}
                 >
-                  <span class="fold-chevron text-gray-500 mr-2 transition-transform inline-block w-3"><i class="fa fa-chevron-down text-[9px]"></i></span>
-                  <%= if line.timestamp do %>
-                    <span class="log-timestamp text-gray-500 select-none mr-3 shrink-0"><%= line.timestamp %></span>
-                  <% end %>
-                  <span class={["log-message text-gray-300 flex-1 font-bold", @wrap_lines && "whitespace-pre-wrap", !@wrap_lines && "whitespace-pre"]}><%= line.fold_name %></span>
+                  <span class="fold-chevron text-gray-500 mr-3 shrink-0 inline-block w-3"><i class="fa fa-chevron-down text-[9px]"></i></span>
+                  <span class={["log-message text-gray-300 flex-1 font-bold", @wrap_lines && "whitespace-pre-wrap break-all", !@wrap_lines && "whitespace-pre"]}><%= line.fold_name %></span>
                 </div>
               <% else %>
                 <div
@@ -240,11 +237,12 @@
                     line.type == :fold_end && "hidden"
                   ]}
                   data-fold-parents={line.fold_parents}
+                  data-fold-end={to_string(line.type == :fold_end)}
                 >
                   <%= if line.timestamp do %>
                     <span class="log-timestamp text-gray-500 select-none mr-3 shrink-0"><%= line.timestamp %></span>
                   <% end %>
-                  <span class={["log-message text-gray-300 flex-1", @wrap_lines && "whitespace-pre-wrap", !@wrap_lines && "whitespace-pre"]}><%= console_with_links(line.message) %></span>
+                  <span class={["log-message text-gray-300 flex-1", @wrap_lines && "whitespace-pre-wrap break-all", !@wrap_lines && "whitespace-pre"]}><%= console_with_links(line.message) %></span>
                 </div>
               <% end %>
             <% end %>

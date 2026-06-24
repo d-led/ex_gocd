@@ -505,14 +505,15 @@ const ConsoleScroller = {
   mounted() {
     this.scrollIfFollowing();
     this.updateFoldVisibility();
-    window.addEventListener("update-folds", this.boundUpdateFolds);
+    this._boundUpdateFolds = () => this.updateFoldVisibility();
+    window.addEventListener("update-folds", this._boundUpdateFolds);
   },
   updated() {
     this.scrollIfFollowing();
     this.updateFoldVisibility();
   },
   destroyed() {
-    window.removeEventListener("update-folds", this.boundUpdateFolds);
+    window.removeEventListener("update-folds", this._boundUpdateFolds);
   },
   scrollIfFollowing() {
     const follow = this.el.dataset.follow;
@@ -528,15 +529,13 @@ const ConsoleScroller = {
     });
     container.querySelectorAll(".log-row").forEach((row) => {
       if (row.classList.contains("fold-start")) return;
+      if (row.dataset.foldEnd === "true") return;
       const parents = (row.dataset.foldParents || "")
         .split(" ")
         .filter(Boolean);
-      const hidden = parents.some((id) => collapsedIds.has(id));
-      row.classList.toggle("hidden", hidden);
+      const shouldHide = parents.some((id) => collapsedIds.has(id));
+      row.classList.toggle("hidden", shouldHide);
     });
-  },
-  boundUpdateFolds() {
-    this.updateFoldVisibility();
   },
 };
 

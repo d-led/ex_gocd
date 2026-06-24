@@ -349,3 +349,16 @@ body {
 .log-row.hidden {
   display: none !important;
 }
+
+.log-row.filter-hidden {
+  display: none !important;
+}
+
+/* Fold header styling — light green text, no background */
+.fold-start .fold-chevron {
+  color: #4ade80 !important;
+}
+
+.fold-start .log-message {
+  color: #4ade80 !important;
+}

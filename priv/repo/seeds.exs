@@ -713,6 +713,52 @@ if mock_mode?.() do
 else
   IO.puts("Mock job run already exists, skipping seed")
 end
+
+  # Fold demo: multi-step job with collapsible sections
+  unless Repo.get_by(AgentJobRun, build_id: "demo-fold-1") do
+    fold_log = """
+    08:00:01.000 ##[fold]Git Checkout
+    08:00:01.100 Cloning into 'agent'...
+    08:00:02.500 Receiving objects: 100% (1234/1234), done.
+    08:00:03.000 Resolving deltas: 100% (567/567), done.
+    08:00:03.100 ##[endfold]
+    08:00:03.200 ##[fold]Install Dependencies
+    08:00:03.300 mix deps.get
+    08:00:05.000 Resolving Hex dependencies...
+    08:00:10.000 All dependencies up to date
+    08:00:10.100 ##[endfold]
+    08:00:10.200 ##[fold]Compile
+    08:00:10.300 mix compile --warnings-as-errors
+    08:00:15.000 Compiling 42 files (.ex)
+    08:00:20.000 Generated ex_gocd app
+    08:00:20.100 ##[endfold]
+    08:00:20.200 ##[fold]Run Tests
+    08:00:20.300 mix test
+    08:00:25.000 Running ExUnit with seed: 123456
+    08:00:30.000 42 tests, 0 failures
+    08:00:30.100 ##[endfold]
+    08:00:30.200 Build completed successfully!
+    """
+
+    %AgentJobRun{}
+    |> AgentJobRun.changeset(%{
+      agent_uuid: "00000000-0000-0000-0000-000000000001",
+      build_id: "demo-fold-1",
+      pipeline_name: "demo",
+      pipeline_counter: 4,
+      stage_name: "build",
+      stage_counter: 1,
+      job_name: "default",
+      state: "Completed",
+      result: "Passed",
+      console_log: fold_log
+    })
+    |> Repo.insert!()
+
+    IO.puts("Seeded fold demo job run for demo/4/build/1/default")
+  else
+    IO.puts("Fold demo job run already exists, skipping seed")
+  end
 end
 
 # Seed default users

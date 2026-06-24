@@ -313,7 +313,7 @@ defmodule ExGoCD.PipelinesFixtures do
     - `:order_id` — defaults to 1
   """
   def insert_stage_instance(pipeline_instance_id, name, opts \\ []) do
-    now = DateTime.utc_now() |> DateTime.truncate(:second)
+    now = DateTime.utc_now()
     created = Keyword.get(opts, :created_time, now)
     state = Keyword.get(opts, :state, "Building")
     result = Keyword.get(opts, :result, if(state == "Building", do: "Unknown", else: "Passed"))
@@ -322,7 +322,7 @@ defmodule ExGoCD.PipelinesFixtures do
       Keyword.get(
         opts,
         :completed_at,
-        if(state != "Building", do: NaiveDateTime.truncate(now, :second))
+        if(state != "Building", do: now)
       )
 
     Repo.insert!(%StageInstance{
@@ -351,9 +351,9 @@ defmodule ExGoCD.PipelinesFixtures do
       name: name,
       state: "Completed",
       result: "Passed",
-      scheduled_at: DateTime.to_naive(scheduled_at),
-      assigned_at: DateTime.to_naive(assigned_at),
-      completed_at: DateTime.to_naive(DateTime.add(assigned_at, 60, :second)),
+      scheduled_at: scheduled_at,
+      assigned_at: assigned_at,
+      completed_at: DateTime.add(assigned_at, 60, :second),
       stage_instance_id: stage_instance_id,
       inserted_at: scheduled_at,
       updated_at: assigned_at
@@ -368,7 +368,7 @@ defmodule ExGoCD.PipelinesFixtures do
       name: name,
       state: "Scheduled",
       result: "Unknown",
-      scheduled_at: DateTime.to_naive(scheduled_at),
+      scheduled_at: scheduled_at,
       assigned_at: nil,
       completed_at: nil,
       stage_instance_id: stage_instance_id,

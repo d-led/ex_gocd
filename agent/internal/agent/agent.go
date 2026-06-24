@@ -473,7 +473,37 @@ func (a *Agent) executeCommandTree(ctx context.Context, build *protocol.Build, c
 		}
 		return nil
 	}
-	return a.runOneCommand(ctx, build, cmd, env)
+	// Wrap leaf commands (except export) with ##[fold] markers for UI collapsible sections
+	return a.runOneCommandWithFold(ctx, build, cmd, env)
+}
+
+// foldLabel builds a human-readable label for a build command (e.g. "mix deps.get")
+func (a *Agent) foldLabel(cmd *protocol.BuildCommand) string {
+	if cmd.Command == "" {
+		return cmd.Name
+	}
+	label := cmd.Command
+	for _, arg := range cmd.Args {
+		label += " " + arg
+	}
+	return label
+}
+
+// runOneCommandWithFold emits ##[fold] / ##[endfold] markers around a command's output.
+// Exports are passthrough — they have no visible output.
+func (a *Agent) runOneCommandWithFold(ctx context.Context, build *protocol.Build, cmd *protocol.BuildCommand, env map[string]string) error {
+	if cmd.Name == "export" {
+		return a.runOneCommand(ctx, build, cmd, env)
+	}
+	if build.ConsoleUrl != "" {
+		label := a.foldLabel(cmd)
+		_ = a.postConsole(build.ConsoleUrl, time.Now().Format("15:04:05.000")+" ##[fold]"+label)
+	}
+	err := a.runOneCommand(ctx, build, cmd, env)
+	if build.ConsoleUrl != "" {
+		_ = a.postConsole(build.ConsoleUrl, time.Now().Format("15:04:05.000")+" ##[endfold]")
+	}
+	return err
 }
 
 // runOneCommand runs a single BuildCommand (command + args), streaming output to build.ConsoleUrl when set.
