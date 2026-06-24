@@ -14,7 +14,7 @@ describe("Value Stream Map", () => {
 
       cy.theVSMShowsNode("Pipeline");
       cy.thePageShows("Current");
-      cy.theVSMStageIndicatorShows("compile");
+      cy.theVSMStageIndicatorShows("build");
       cy.theVSMStageIndicatorShows("test");
 
       cy.thePageShows("deploy-staging");
@@ -145,6 +145,42 @@ describe("Value Stream Map", () => {
       cy.allOtherArrowsShouldBeDimmed("upstream-lib", "component-a");
 
       cy.moveMouseAwayFromArrowBetween("upstream-lib", "component-a");
+    });
+  });
+
+  describe("VSM node link clickability", () => {
+    it("clicking a pipeline name link navigates to the pipeline list", () => {
+      cy.visitPage("/pipelines/value_stream_map/upstream-lib/3");
+      cy.get(".vsm-node").contains("component-a").click({ force: true });
+      cy.url().should("include", "/pipelines?search=component-a");
+    });
+
+    it("clicking a stage indicator navigates to stage details", () => {
+      cy.visitPage("/pipelines/value_stream_map/upstream-lib/3");
+      cy.insideVSMNode("upstream-lib", () => {
+        cy.get("a[href*='/pipelines/']").first().click({ force: true });
+      });
+      cy.url().should("include", "/pipelines/");
+    });
+
+    it("VSM links remain clickable after zoom", () => {
+      cy.viewport(1280, 800);
+      cy.visitPage("/pipelines/value_stream_map/upstream-lib/3");
+      cy.zoomInViaButton();
+      cy.zoomInViaButton();
+      cy.get(".vsm-node").contains("component-a").click({ force: true });
+      cy.url().should("include", "component-a");
+    });
+
+    it("VSM links remain clickable after pan", () => {
+      cy.viewport(1280, 800);
+      cy.visitPage("/pipelines/value_stream_map/upstream-lib/3");
+      cy.get("#vsm-container")
+        .trigger("mousedown", { clientX: 400, clientY: 300 })
+        .trigger("mousemove", { clientX: 350, clientY: 280 })
+        .trigger("mouseup");
+      cy.get(".vsm-node").contains("component-b").click({ force: true });
+      cy.url().should("include", "component-b");
     });
   });
 

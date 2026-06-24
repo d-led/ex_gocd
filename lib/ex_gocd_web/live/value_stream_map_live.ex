@@ -363,7 +363,7 @@ defmodule ExGoCDWeb.ValueStreamMapLive do
         >
           <svg
             id="vsm-svg"
-            class="absolute top-0 left-0 w-full h-full"
+            class="absolute top-0 left-0"
             style="z-index: 10; overflow: visible;"
           >
             <defs>
@@ -392,7 +392,7 @@ defmodule ExGoCDWeb.ValueStreamMapLive do
             </defs>
           </svg>
 
-          <div class="flex flex-col md:flex-row justify-center items-center md:items-stretch gap-8 md:gap-16 min-w-0 md:min-w-[800px] relative z-0 pointer-events-none">
+          <div class="flex flex-col md:flex-row justify-center items-center md:items-stretch gap-8 md:gap-16 min-w-0 md:min-w-[800px] relative z-20 pointer-events-none">
             <%= for level <- @vsm["levels"] do %>
               <div class="vsm-level flex flex-col justify-center gap-10 relative">
                 <%= for node <- level["nodes"] do %>

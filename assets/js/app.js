@@ -317,6 +317,9 @@ const VSMGraph = {
         "height",
         Math.max(this.el.clientHeight, this.el.scrollHeight),
       );
+      // Match CSS size to attributes for 1:1 coordinate mapping
+      svg.style.width = svg.getAttribute("width") + "px";
+      svg.style.height = svg.getAttribute("height") + "px";
       svg.style.overflow = "visible";
 
       const zoom = this._isDesktop() ? this._zoom : 1;
