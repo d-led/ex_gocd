@@ -647,7 +647,8 @@ window.addEventListener("phx:page-loading-stop", (_info) => topbar.hide());
     subNav.style.marginLeft = "";
     subNav.offsetHeight;
     const rect = subNav.getBoundingClientRect();
-    const vpW = window.innerWidth;
+    // Use clientWidth (excludes scrollbar), matching the test's assertWithinHorizontalViewport
+    const vpW = document.documentElement.clientWidth;
 
     if (rect.right > vpW) {
       // Nudge left so right edge fits with 8px margin
