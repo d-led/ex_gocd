@@ -36,7 +36,7 @@ processes:
 
   # ── CI Agent (elixir, postgres resources) ───────────────────────────
   ci-agent:
-    command: "./gocd-agent"
+    command: "go run ."
     working_dir: "agent"
     environment:
       - "AGENT_SERVER_URL=http://127.0.0.1:4000"
@@ -58,7 +58,7 @@ processes:
 
   # ── Docker Agent (docker resource, socket mounted) ──────────────────
   docker-agent:
-    command: "./gocd-agent"
+    command: "go run ."
     working_dir: "agent"
     environment:
       - "AGENT_SERVER_URL=http://127.0.0.1:4000"
@@ -81,7 +81,7 @@ processes:
   # Same Docker access as docker-agent, but registers as elastic (no resources).
   # Exits after 5 min idle; process-compose restarts it so it re-registers.
   elastic-docker-agent:
-    command: "./gocd-agent"
+    command: "go run ."
     working_dir: "agent"
     environment:
       - "AGENT_SERVER_URL=http://127.0.0.1:4000"
