@@ -209,13 +209,12 @@
               </span>
             </div>
           <% end %>
-          <pre
+          <div
             id="log-lines-stream"
             phx-update="stream"
             class={[
               "select-text selection:bg-purple-900 selection:text-white",
-              @wrap_lines && "whitespace-pre-wrap",
-              !@wrap_lines && "whitespace-pre overflow-x-auto"
+              !@wrap_lines && "overflow-x-auto"
             ]}
           >
             <%= for {dom_id, line} <- @streams.log_lines do %>
@@ -231,7 +230,7 @@
                   <%= if line.timestamp do %>
                     <span class="log-timestamp text-gray-500 select-none mr-3 shrink-0"><%= line.timestamp %></span>
                   <% end %>
-                  <span class="log-message text-gray-300 flex-1 font-bold"><%= line.fold_name %></span>
+                  <span class={["log-message text-gray-300 flex-1 font-bold", @wrap_lines && "whitespace-pre-wrap", !@wrap_lines && "whitespace-pre"]}><%= line.fold_name %></span>
                 </div>
               <% else %>
                 <div
@@ -245,11 +244,11 @@
                   <%= if line.timestamp do %>
                     <span class="log-timestamp text-gray-500 select-none mr-3 shrink-0"><%= line.timestamp %></span>
                   <% end %>
-                  <span class="log-message text-gray-300 flex-1 whitespace-pre-wrap"><%= console_with_links(line.message) %></span>
+                  <span class={["log-message text-gray-300 flex-1", @wrap_lines && "whitespace-pre-wrap", !@wrap_lines && "whitespace-pre"]}><%= console_with_links(line.message) %></span>
                 </div>
               <% end %>
             <% end %>
-          </pre>
+          </div>
 
           <%= cond do %>
             <% @job_instance && @job_instance.state == "Completed" && @job_instance.result == "Passed" && @line_count == 0 -> %>
