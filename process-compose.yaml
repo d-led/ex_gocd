@@ -20,7 +20,7 @@ processes:
     working_dir: "."
     environment:
       - "EX_GOCD_DEMO_COOKIE=ex-gocd-demo-cookie"
-      - "LOG_LEVEL=info"
+      - "LOG_LEVEL=warning"
     readiness_probe:
       http_get:
         host: localhost
