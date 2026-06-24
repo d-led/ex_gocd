@@ -75,6 +75,7 @@ defmodule ExGoCDWeb.AdminSchedulingLive do
     |> assign(:queue_state, Scheduler.get_queue_state())
     |> assign(:agents, fetch_agents())
     |> assign(:now, DateTime.utc_now())
+    |> assign(:active_jobs, fetch_active_db_jobs())
     |> assign_match_analysis()
   end
 
@@ -96,33 +97,45 @@ defmodule ExGoCDWeb.AdminSchedulingLive do
 
   defp fetch_scheduled_db_jobs do
     JobInstance
-    |> where(state: "Scheduled")
+    |> where([j], j.state == "Scheduled")
     |> order_by(asc: :id)
+    |> preload([:job, stage_instance: [pipeline_instance: :pipeline]])
     |> Repo.all()
-    |> Repo.preload([:job, stage_instance: [pipeline_instance: :pipeline]])
-    |> Enum.map(fn ji ->
-      stage_instance = ji.stage_instance
-      pipeline_instance = stage_instance.pipeline_instance
-      pipeline = pipeline_instance.pipeline
-      job_config = ji.job
+    |> Enum.map(&map_job_instance/1)
+  end
 
-      resources = (job_config && job_config.resources) || []
-      envs = ExGoCD.Scheduler.get_pipeline_environments(pipeline.name)
+  defp fetch_active_db_jobs do
+    JobInstance
+    |> where([j], j.state in ["Assigned", "Building", "Completing"])
+    |> order_by(asc: :id)
+    |> preload([:job, stage_instance: [pipeline_instance: :pipeline]])
+    |> Repo.all()
+    |> Enum.map(&map_job_instance/1)
+  end
 
-      %{
-        job_instance_id: ji.id,
-        pipeline_name: pipeline.name,
-        pipeline_counter: pipeline_instance.counter,
-        stage_name: stage_instance.name,
-        stage_counter: stage_instance.counter,
-        job_name: ji.name,
-        resources: resources,
-        environments: envs,
-        agent_uuid: ji.agent_uuid,
-        scheduled_at: ji.scheduled_at,
-        inserted_at: ji.inserted_at
-      }
-    end)
+  defp map_job_instance(ji) do
+    stage_instance = ji.stage_instance
+    pipeline_instance = stage_instance.pipeline_instance
+    pipeline = pipeline_instance.pipeline
+    job_config = ji.job
+
+    resources = (job_config && job_config.resources) || []
+    envs = ExGoCD.Scheduler.get_pipeline_environments(pipeline.name)
+
+    %{
+      job_instance_id: ji.id,
+      pipeline_name: pipeline.name,
+      pipeline_counter: pipeline_instance.counter,
+      stage_name: stage_instance.name,
+      stage_counter: stage_instance.counter,
+      job_name: ji.name,
+      resources: resources,
+      environments: envs,
+      agent_uuid: ji.agent_uuid,
+      state: ji.state,
+      scheduled_at: ji.scheduled_at,
+      inserted_at: ji.inserted_at
+    }
   end
 
   defp assign_match_analysis(socket) do
@@ -284,6 +297,32 @@ defmodule ExGoCDWeb.AdminSchedulingLive do
 
     "#{p}/#{c}/#{s}/#{sc}/#{jn}"
   end
+
+  defp job_detail_path(job) do
+    p = job_field(job, :pipeline_name) || "?"
+    c = job_field(job, :pipeline_counter) || 0
+    s = job_field(job, :stage_name) || "?"
+    sc = job_field(job, :stage_counter) || 0
+    jn = job_field(job, :job_name) || "?"
+
+    ~p"/go/tab/build/detail/#{p}/#{c}/#{s}/#{sc}/#{jn}"
+  end
+
+  defp job_vsm_path(job) do
+    p = job_field(job, :pipeline_name) || "?"
+    c = job_field(job, :pipeline_counter) || 0
+    ~p"/pipelines/value_stream_map/#{p}/#{c}"
+  end
+
+  defp job_activity_path(job) do
+    p = job_field(job, :pipeline_name) || "?"
+    ~p"/pipeline/activity/#{p}"
+  end
+
+  defp agent_job_history_path(agent_uuid) when is_binary(agent_uuid) and agent_uuid != "",
+    do: ~p"/agents/#{agent_uuid}/job_run_history"
+
+  defp agent_job_history_path(_), do: nil
 
   defp job_field(job, key) do
     # Try Access first (works for maps with string keys and structs with atom keys)
@@ -447,7 +486,18 @@ defmodule ExGoCDWeb.AdminSchedulingLive do
                   <%= for match <- @job_matches do %>
                     <tr class={"border-t border-[#e9edef] #{if match.stuck_reason, do: "bg-red-50", else: ""}"}>
                       <td class="px-4 py-3 font-mono text-xs">
-                        {job_label(match.job)}
+                        <.link navigate={job_detail_path(match.job)} class="text-[#943a9e] hover:underline">
+                          {job_label(match.job)}
+                        </.link>
+                        <div class="flex items-center gap-2 mt-0.5">
+                          <.link navigate={job_activity_path(match.job)} class="text-[10px] text-slate-400 hover:text-slate-600">
+                            activity
+                          </.link>
+                          <span class="text-slate-300">·</span>
+                          <.link navigate={job_vsm_path(match.job)} class="text-[10px] text-slate-400 hover:text-slate-600">
+                            VSM
+                          </.link>
+                        </div>
                       </td>
                       <td class="px-4 py-3">
                         <span class="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded">
@@ -506,6 +556,90 @@ defmodule ExGoCDWeb.AdminSchedulingLive do
                           <span class="text-xs text-red-600 font-medium">{match.stuck_reason}</span>
                         <% else %>
                           <span class="text-xs text-green-600">Ready to assign</span>
+                        <% end %>
+                      </td>
+                    </tr>
+                  <% end %>
+                </tbody>
+              </table>
+            </div>
+          <% end %>
+        </div>
+
+        <%!-- Active Jobs (Assigned / Building / Completing) --%>
+        <div class="bg-white border border-[#e9edef] rounded">
+          <div class="px-4 py-3 border-b border-[#e9edef]">
+            <h2 class="text-sm font-bold text-slate-700 uppercase tracking-wide">
+              Active Jobs ({length(@active_jobs)})
+            </h2>
+          </div>
+          <%= if Enum.empty?(@active_jobs) do %>
+            <div class="p-8 text-center text-slate-400">No active jobs.</div>
+          <% else %>
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead class="bg-[#f4f8f9] text-left text-xs font-bold text-slate-500 uppercase tracking-wide">
+                  <tr>
+                    <th class="px-4 py-2">Job</th>
+                    <th class="px-4 py-2">State</th>
+                    <th class="px-4 py-2">Agent</th>
+                    <th class="px-4 py-2">Resources</th>
+                    <th class="px-4 py-2">Running</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <%= for job <- @active_jobs do %>
+                    <tr class="border-t border-[#e9edef]">
+                      <td class="px-4 py-3 font-mono text-xs">
+                        <.link navigate={job_detail_path(job)} class="text-[#943a9e] hover:underline">
+                          {job_label(job)}
+                        </.link>
+                        <div class="flex items-center gap-2 mt-0.5">
+                          <.link navigate={job_activity_path(job)} class="text-[10px] text-slate-400 hover:text-slate-600">
+                            activity
+                          </.link>
+                          <span class="text-slate-300">·</span>
+                          <.link navigate={job_vsm_path(job)} class="text-[10px] text-slate-400 hover:text-slate-600">
+                            VSM
+                          </.link>
+                        </div>
+                      </td>
+                      <td class="px-4 py-3">
+                        <span class={[
+                          "text-xs px-2 py-0.5 rounded font-bold",
+                          case job.state do
+                            "Assigned" -> "bg-amber-50 text-amber-700"
+                            "Building" -> "bg-blue-50 text-blue-700"
+                            "Completing" -> "bg-purple-50 text-purple-700"
+                            _ -> "bg-slate-100 text-slate-600"
+                          end
+                        ]}>{job.state}</span>
+                      </td>
+                      <td class="px-4 py-3">
+                        <%= if (uuid = job.agent_uuid) && uuid != "" && agent_job_history_path(uuid) do %>
+                          <.link navigate={agent_job_history_path(uuid)} class="text-xs text-slate-600 hover:text-[#943a9e] font-mono hover:underline">
+                            {String.slice(uuid, 0, 8)}…
+                          </.link>
+                        <% else %>
+                          <span class="text-slate-400 text-xs">—</span>
+                        <% end %>
+                      </td>
+                      <td class="px-4 py-3">
+                        <%= if Enum.empty?(job.resources || []) do %>
+                          <span class="text-slate-400 text-xs">—</span>
+                        <% else %>
+                          <div class="flex flex-wrap gap-1">
+                            <%= for r <- job.resources do %>
+                              <span class="text-xs bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded">{r}</span>
+                            <% end %>
+                          </div>
+                        <% end %>
+                      </td>
+                      <td class="px-4 py-3 text-xs text-slate-500">
+                        <%= if inserted = job.inserted_at do %>
+                          {format_duration(inserted, @now)}
+                        <% else %>
+                          —
                         <% end %>
                       </td>
                     </tr>
