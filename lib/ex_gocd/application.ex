@@ -38,7 +38,8 @@ defmodule ExGoCD.Application do
       ExGoCD.Materials.TimerScheduler,
       ExGoCD.Pipelines.ConsoleActivityMonitor,
       ExGoCD.MaintenanceMode,
-      ExGoCD.SchedulingChecker.TriggerMonitor
+      ExGoCD.SchedulingChecker.TriggerMonitor,
+      ExGoCD.Monitors.DiskSpace
     ]
 
     children =
