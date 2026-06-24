@@ -81,6 +81,9 @@ if System.get_env("USE_MOCK_DATA") == "true" do
     git_client: ExGoCD.Materials.GitClient.MockImpl
 end
 
+# Suppress debug-level log noise in development (set to :debug to re-enable)
+config :logger, level: :info
+
 # Do not include metadata nor timestamps in development logs
 config :logger, :default_formatter, format: "[$level] $message\n"
 
