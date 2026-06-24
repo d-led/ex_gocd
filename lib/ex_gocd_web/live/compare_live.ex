@@ -136,7 +136,7 @@ defmodule ExGoCDWeb.CompareLive do
           </h1>
         </div>
       </div>
-      
+
     <!-- Comparison Content -->
       <div class="flex flex-col gap-6">
         <%= if Enum.empty?(@comparison.materials) do %>
@@ -212,6 +212,69 @@ defmodule ExGoCDWeb.CompareLive do
           <% end %>
         <% end %>
       </div>
+
+      <%!-- Environment Variables Comparison --%>
+      <%= if @comparison.from_environment_variables != [] or @comparison.to_environment_variables != [] do %>
+        <div class="bg-white border border-gray-200 rounded shadow-sm overflow-hidden">
+          <div class="bg-gray-50 border-b border-gray-200 px-6 py-4">
+            <h3 class="text-sm font-bold text-gray-800">
+              <i class="fa fa-cog text-gray-400 mr-1"></i> Environment Variables
+            </h3>
+          </div>
+          <div class="grid grid-cols-2 divide-x divide-gray-200">
+            <div class="p-4">
+              <div class="text-[10px] font-bold uppercase text-gray-400 mb-3">
+                From (#{@from_counter})
+              </div>
+              <%= if @comparison.from_environment_variables == [] do %>
+                <div class="text-xs text-gray-400 italic">No variables</div>
+              <% else %>
+                <div class="space-y-1">
+                  <%= for var <- @comparison.from_environment_variables do %>
+                    <div class="flex items-center gap-2 text-xs">
+                      <span class="font-mono text-gray-700 font-semibold">{var["name"]}</span>
+                      <span class="text-gray-400">=</span>
+                      <span class="font-mono text-gray-500 break-all">{var["value"]}</span>
+                    </div>
+                  <% end %>
+                </div>
+              <% end %>
+            </div>
+            <div class="p-4">
+              <div class="text-[10px] font-bold uppercase text-[#2d6ca2] mb-3">
+                To (#{@to_counter})
+              </div>
+              <%= if @comparison.to_environment_variables == [] do %>
+                <div class="text-xs text-gray-400 italic">No variables</div>
+              <% else %>
+                <div class="space-y-1">
+                  <%= for var <- @comparison.to_environment_variables do %>
+                    <div class="flex items-center gap-2 text-xs">
+                      <span class="font-mono text-gray-700 font-semibold">{var["name"]}</span>
+                      <span class="text-gray-400">=</span>
+                      <span class="font-mono text-gray-500 break-all">{var["value"]}</span>
+                    </div>
+                  <% end %>
+                </div>
+              <% end %>
+            </div>
+          </div>
+        </div>
+      <% end %>
+
+      <%!-- Config Changed Indicator --%>
+      <%= if @comparison.config_changed do %>
+        <div class="flex items-center gap-2 bg-purple-50 border border-purple-200 rounded px-4 py-3 text-xs">
+          <i class="fa fa-cog text-purple-500"></i>
+          <span class="text-purple-700 font-medium">Pipeline configuration changed between these runs.</span>
+          <.link
+            navigate={~p"/pipelines/#{@pipeline_name}/#{@to_counter}/config_diff"}
+            class="text-[#943a9e] hover:underline font-bold ml-auto"
+          >
+            View config diff →
+          </.link>
+        </div>
+      <% end %>
     </div>
     """
   end
