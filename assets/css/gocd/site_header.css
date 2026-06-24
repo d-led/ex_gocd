@@ -26,11 +26,12 @@
 }
 
 .gocd_logo {
-  height: 20px;
-  width: 40px;
+  height: 22px;
+  width: 90px;
   display: inline-block;
-  margin: 10px 0 10px 20px;
-  background: url("/images/go_logo.svg") no-repeat 0 0;
+  margin: 9px 0 9px 10px;
+  background: url("/images/exgocd1_bw.svg") no-repeat 0 0;
+  background-size: auto 100%;
   flex-shrink: 0;
 }
 
