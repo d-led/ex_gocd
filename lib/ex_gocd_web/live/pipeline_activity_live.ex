@@ -360,9 +360,13 @@ defmodule ExGoCDWeb.PipelineActivityLive do
                 <span class="text-gray-500 font-medium">{run.status}</span>
 
                 <%= if Map.get(run, :config_changed) do %>
-                  <span class="text-purple-500" title="Config changed since previous run">
+                  <.link
+                    navigate={~p"/pipelines/#{@pipeline.name}/#{run.counter}/config_diff"}
+                    class="text-purple-500 hover:text-purple-700"
+                    title="Config changed since previous run — click to view diff"
+                  >
                     <i class="fa fa-cog"></i>
-                  </span>
+                  </.link>
                 <% end %>
               </div>
 

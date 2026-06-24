@@ -24,10 +24,16 @@ describe("Console Log Fold (Collapsible Sections)", () => {
 
   it("renders fold headers with section names", function () {
     cy.get(".fold-start").should("have.length", 4);
-    cy.get(".fold-start .log-message").first().should("contain.text", "Git Checkout");
-    cy.get(".fold-start .log-message").eq(1).should("contain.text", "Install Dependencies");
+    cy.get(".fold-start .log-message")
+      .first()
+      .should("contain.text", "Git Checkout");
+    cy.get(".fold-start .log-message")
+      .eq(1)
+      .should("contain.text", "Install Dependencies");
     cy.get(".fold-start .log-message").eq(2).should("contain.text", "Compile");
-    cy.get(".fold-start .log-message").eq(3).should("contain.text", "Run Tests");
+    cy.get(".fold-start .log-message")
+      .eq(3)
+      .should("contain.text", "Run Tests");
   });
 
   it("hides ##[endfold] markers", function () {
@@ -40,8 +46,14 @@ describe("Console Log Fold (Collapsible Sections)", () => {
     cy.contains("button", "Collapse All").click();
     cy.wait(400);
     cy.get(".fold-start.collapsed").should("have.length", 4);
-    cy.get("#log-lines-stream .log-row:not(.hidden)").should("have.length.at.most", 6);
-    cy.get("#log-lines-stream").should("contain.text", "Build completed successfully!");
+    cy.get("#log-lines-stream .log-row:not(.hidden)").should(
+      "have.length.at.most",
+      6,
+    );
+    cy.get("#log-lines-stream").should(
+      "contain.text",
+      "Build completed successfully!",
+    );
   });
 
   it("expands all sections on Expand All click", function () {
@@ -50,6 +62,9 @@ describe("Console Log Fold (Collapsible Sections)", () => {
     cy.contains("button", "Expand All").click();
     cy.wait(400);
     cy.get(".fold-start.collapsed").should("have.length", 0);
-    cy.get("#log-lines-stream .log-row:not(.hidden)").should("have.length.of.at.least", 17);
+    cy.get("#log-lines-stream .log-row:not(.hidden)").should(
+      "have.length.of.at.least",
+      17,
+    );
   });
 });

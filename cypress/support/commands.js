@@ -440,7 +440,8 @@ const vsmNodeId = (label) => {
       // Try matching the visible name text (inside a truncate or font-semibold span)
       const spans = el.querySelectorAll("span");
       for (const span of spans) {
-        if (span.textContent.trim() === label) return el.getAttribute("data-id");
+        if (span.textContent.trim() === label)
+          return el.getAttribute("data-id");
       }
     }
     // Fallback: any node containing the label text anywhere

@@ -454,7 +454,7 @@ GoCD detects config changes between pipeline runs and shows them in the pipeline
 | P.3.2 | Add `{:map_diff, "~> 1.3"}` to mix.exs deps | ✅ |
 | P.3.3 | Diff pipeline config against previous run | ✅ | `config_diff/2` + 3 tests |
 | P.3.4 | Show "Config Changed" badge in pipeline activity/history | ✅ | `config_changed` boolean in run map |
-| P.3.5 | Diff viewer UI (collapsible, side-by-side) | M | 🔴 |
+| P.3.5 | Diff viewer UI (collapsible, side-by-side) | ✅ | `ConfigDiffLive` at /pipelines/:name/:counter/config_diff |
 **Priority**: P1. Core GoCD feature for auditing config changes.
 
 ---

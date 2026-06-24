@@ -181,8 +181,12 @@ const VSMGraph = {
       this._dragging = false;
       this._lastTouchDist = 0;
     };
-    this.el.addEventListener("touchstart", this._onTouchStart, { passive: false });
-    this.el.addEventListener("touchmove", this._onTouchMove, { passive: false });
+    this.el.addEventListener("touchstart", this._onTouchStart, {
+      passive: false,
+    });
+    this.el.addEventListener("touchmove", this._onTouchMove, {
+      passive: false,
+    });
     this.el.addEventListener("touchend", this._onTouchEnd);
 
     // ── zoom control buttons ───────────────────────────────────
@@ -261,7 +265,10 @@ const VSMGraph = {
 
     const containerRect = this.el.getBoundingClientRect();
     const nodes = this.el.querySelectorAll(".vsm-node");
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    let minX = Infinity,
+      minY = Infinity,
+      maxX = -Infinity,
+      maxY = -Infinity;
     nodes.forEach((n) => {
       const r = n.getBoundingClientRect();
       const x = r.left - containerRect.left + this.el.scrollLeft;
@@ -281,8 +288,10 @@ const VSMGraph = {
     const scale = Math.min(scaleX, scaleY, 1); // never exceed 1 on auto-fit
 
     this._zoom = Math.max(0.25, scale);
-    this._panX = padLeft + (innerW - contentW * this._zoom) / 2 - minX * this._zoom;
-    this._panY = padTop + (innerH - contentH * this._zoom) / 2 - minY * this._zoom;
+    this._panX =
+      padLeft + (innerW - contentW * this._zoom) / 2 - minX * this._zoom;
+    this._panY =
+      padTop + (innerH - contentH * this._zoom) / 2 - minY * this._zoom;
 
     this._applyTransform();
     this.drawLines();
@@ -313,29 +322,28 @@ const VSMGraph = {
       this._persistentHighlight = null;
 
       svg.setAttribute("width", this.el.clientWidth);
-      svg.setAttribute(
-        "height",
-        Math.max(this.el.clientHeight, this.el.scrollHeight),
-      );
+      svg.setAttribute("height", this.el.clientHeight);
       // Match CSS size to attributes for 1:1 coordinate mapping
       svg.style.width = svg.getAttribute("width") + "px";
       svg.style.height = svg.getAttribute("height") + "px";
       svg.style.overflow = "visible";
 
       const zoom = this._isDesktop() ? this._zoom : 1;
-      const wrapperRect = this.el.getBoundingClientRect();
+      const svgRect = svg.getBoundingClientRect();
       const nodes = this.el.querySelectorAll(".vsm-node");
       const nodeMap = {};
 
       nodes.forEach((node) => {
         const id = node.dataset.id;
         const rect = node.getBoundingClientRect();
-        // Convert screen-space coords to SVG coords (divide by zoom,
-        // as SVG is inside the same CSS-transformed group as nodes)
+        // Convert screen-space coords to SVG/group-local coords.
+        // Both SVG and nodes are inside #vsm-transform-group, so they share
+        // the same coordinate space.  Simply subtract the SVG's screen origin
+        // and divide by zoom to recover group-local coordinates.
         nodeMap[id] = {
           el: node,
-          x: (rect.left - wrapperRect.left + this.el.scrollLeft) / zoom,
-          y: (rect.top - wrapperRect.top + this.el.scrollTop) / zoom,
+          x: (rect.left - svgRect.left) / zoom,
+          y: (rect.top - svgRect.top) / zoom,
           width: rect.width / zoom,
           height: rect.height / zoom,
           isCurrent: node.classList.contains("border-[#943a9e]"),
@@ -643,10 +651,10 @@ window.addEventListener("phx:page-loading-stop", (_info) => topbar.hide());
 
     if (rect.right > vpW) {
       // Nudge left so right edge fits with 8px margin
-      subNav.style.marginLeft = (vpW - rect.right - 8) + "px";
+      subNav.style.marginLeft = vpW - rect.right - 8 + "px";
     } else if (rect.left < 0) {
       // Nudge right so left edge is at 8px
-      subNav.style.marginLeft = (8 - rect.left) + "px";
+      subNav.style.marginLeft = 8 - rect.left + "px";
     }
   }
 
