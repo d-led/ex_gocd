@@ -66,6 +66,8 @@ defmodule ExGoCDWeb.PipelineActivityLive do
       p ->
         import Ecto.Query
 
+        config_stage_names = Enum.map(p.stages || [], & &1.name)
+
         runs =
           ExGoCD.Repo.all(
             from pi in ExGoCD.Pipelines.PipelineInstance,
@@ -73,13 +75,13 @@ defmodule ExGoCDWeb.PipelineActivityLive do
               order_by: [desc: pi.counter],
               preload: [stage_instances: :job_instances]
           )
-          |> Enum.map(&map_pipeline_instance/1)
+          |> Enum.map(&map_pipeline_instance(&1, config_stage_names))
 
         if runs == [], do: get_mock_runs(pipeline_name), else: runs
     end
   end
 
-  defp map_pipeline_instance(pi) do
+  defp map_pipeline_instance(pi, config_stage_names \\ []) do
     build_cause = pi.build_cause || %{}
 
     modifications =
@@ -87,14 +89,22 @@ defmodule ExGoCDWeb.PipelineActivityLive do
 
     triggered_by = derive_trigger_reason(build_cause["triggerMessage"], modifications)
 
+    stages =
+      pi.stage_instances |> Enum.sort_by(& &1.order_id) |> Enum.map(&map_stage_instance/1)
+
+    # Pad with configured stages that have no instances yet (e.g. only first stage ran)
+    filled_stages =
+      Enum.map(config_stage_names, fn sname ->
+        Enum.find(stages, &(&1.name == sname)) || %{name: sname, status: "NotRun", counter: 0}
+      end)
+
     %{
       counter: pi.counter,
       label: pi.label,
       status: pipeline_instance_status(pi),
       triggered_by: triggered_by,
       last_run: pi.inserted_at || pi.updated_at || DateTime.utc_now(),
-      stages:
-        pi.stage_instances |> Enum.sort_by(& &1.order_id) |> Enum.map(&map_stage_instance/1),
+      stages: filled_stages,
       modifications: modifications,
       config_changed: Map.has_key?(build_cause, "configSnapshot")
     }
@@ -355,7 +365,7 @@ defmodule ExGoCDWeb.PipelineActivityLive do
                   </span>
                 <% end %>
               </div>
-              
+
     <!-- Commit messages: every material, full text, no clipping -->
               <%= if Enum.any?(run.modifications, & &1.comment) do %>
                 <div class="flex flex-col gap-0.5">
@@ -367,7 +377,7 @@ defmodule ExGoCDWeb.PipelineActivityLive do
                 </div>
               <% end %>
             </div>
-            
+
     <!-- Stage pipeline: compact horizontal strip -->
             <div class="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 border-l border-gray-100">
               <%= for {stage, idx} <- Enum.with_index(run.stages) do %>
