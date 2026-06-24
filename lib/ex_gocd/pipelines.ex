@@ -820,10 +820,7 @@ defmodule ExGoCD.Pipelines do
 
     material_revisions = build_material_revisions_map(pipeline, proposed)
 
-    env_vars =
-      Map.get(options, :environment_variables) || Map.get(options, "environment_variables")
-
-    env_vars = if is_list(env_vars), do: Params.interpolate(env_vars, params), else: env_vars
+    env_vars = extract_trigger_variables(options, params)
 
     build_cause = %{
       "approver" => Map.get(options, "approver", options[:approver]) || "anonymous",
@@ -834,7 +831,7 @@ defmodule ExGoCD.Pipelines do
     }
 
     build_cause =
-      if is_list(env_vars) do
+      if is_list(env_vars) and env_vars != [] do
         Map.put(build_cause, "environmentVariables", env_vars)
       else
         build_cause
@@ -1841,6 +1838,32 @@ defmodule ExGoCD.Pipelines do
 
       {new_si, job_instances}
     end)
+  end
+
+  # Parses trigger-time variables from options, supporting both formats:
+  # - GoCD API: {"variables" => %{"VAR" => "val"}, "secure_variables" => %{"SEC" => "enc"}}
+  # - Internal: :environment_variables => [%{"name" => "VAR", "value" => "val"}]
+  defp extract_trigger_variables(options, params) do
+    env_vars =
+      Map.get(options, :environment_variables) || Map.get(options, "environment_variables") ||
+        Map.get(options, :variables) || Map.get(options, "variables")
+
+    env_vars =
+      cond do
+        is_list(env_vars) -> Params.interpolate(env_vars, params)
+        is_map(env_vars) -> Enum.map(env_vars, fn {k, v} -> %{"name" => k, "value" => Params.interpolate(v, params)} end)
+        true -> env_vars
+      end
+
+    secure_vars =
+      Map.get(options, :secure_variables) || Map.get(options, "secure_variables") || %{}
+
+    if is_map(secure_vars) and map_size(secure_vars) > 0 do
+      secure_list = Enum.map(secure_vars, fn {k, v} -> %{"name" => k, "value" => v, "secure" => true} end)
+      (List.wrap(env_vars) ++ secure_list) |> Enum.uniq_by(& &1["name"])
+    else
+      env_vars
+    end
   end
 
   defp trigger_next_stage(stage_instance) do
