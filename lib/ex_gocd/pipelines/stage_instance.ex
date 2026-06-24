@@ -108,7 +108,7 @@ defmodule ExGoCD.Pipelines.StageInstance do
     |> validate_number(:counter, greater_than: 0)
     |> validate_inclusion(:approval_type, ["success", "manual"])
     |> validate_inclusion(:result, ["Passed", "Failed", "Cancelled", "Unknown"])
-    |> validate_inclusion(:state, ["Building", "Completed", "Cancelled", "Awaiting"])
+    |> validate_inclusion(:state, ["Building", "Completed", "Cancelled", "Awaiting", "Scheduled"])
     |> foreign_key_constraint(:pipeline_instance_id)
     |> unique_constraint([:pipeline_instance_id, :name, :counter],
       name: :stage_instances_pipeline_instance_id_name_counter_index

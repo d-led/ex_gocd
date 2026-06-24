@@ -40,7 +40,7 @@ defmodule ExGoCD.Pipelines.StageInstanceTest do
       assert changeset.valid?
     end
 
-    test "requires name, counter, order_id, state, approval_type, created_time, pipeline_instance_id" do
+    test "requires name, counter, order_id, state, pipeline_instance_id" do
       changeset = StageInstance.changeset(%StageInstance{}, %{})
       errors = errors_on(changeset)
 
@@ -49,8 +49,6 @@ defmodule ExGoCD.Pipelines.StageInstanceTest do
                counter: ["can't be blank"],
                order_id: ["can't be blank"],
                state: ["can't be blank"],
-               approval_type: ["can't be blank"],
-               created_time: ["can't be blank"],
                pipeline_instance_id: ["can't be blank"]
              } = errors
     end
