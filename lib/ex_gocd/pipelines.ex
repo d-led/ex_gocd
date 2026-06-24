@@ -1728,9 +1728,120 @@ defmodule ExGoCD.Pipelines do
 
   defp maybe_trigger_next_stage(updated_stage, "Passed") do
     trigger_next_stage(updated_stage)
+    trigger_current_stage_in_newer_pipeline(updated_stage)
   end
 
   defp maybe_trigger_next_stage(_updated_stage, _), do: :ok
+
+  # GoCD parity: when a stage passes, check if a NEWER pipeline run exists
+  # where the previous stage also passed but this stage hasn't been run yet.
+  # If so, trigger this stage in that newer pipeline too.
+  #
+  # Example: Pipeline #5 stage "build" passes → pipeline #6 is triggered and
+  # "build" passes there too → pipeline #5 "test" completes → we should also
+  # trigger "test" in pipeline #6 (since #6 is newer and its "build" passed).
+  #
+  # Mirrors GoCD's `ScheduleService.triggerCurrentStageInNewerPipeline`.
+  defp trigger_current_stage_in_newer_pipeline(stage_instance) do
+    stage_instance =
+      Repo.preload(stage_instance, pipeline_instance: [pipeline: :stages])
+
+    pipeline_instance = stage_instance.pipeline_instance
+    pipeline = pipeline_instance.pipeline
+    stages = Enum.sort_by(pipeline.stages || [], & &1.id)
+    current_idx = Enum.find_index(stages, &(&1.name == stage_instance.name))
+
+    if current_idx && current_idx > 0 do
+      previous_stage = Enum.at(stages, current_idx - 1)
+      newer_pi = find_newer_pipeline_with_passed_previous(pipeline, previous_stage, pipeline_instance)
+
+      if newer_pi && stage_not_run_in_pipeline?(newer_pi, stage_instance.name) do
+        trigger_stage_in_pipeline(pipeline, newer_pi, stage_instance.name, current_idx)
+      end
+    end
+
+    :ok
+  end
+
+  defp find_newer_pipeline_with_passed_previous(pipeline, previous_stage, current_pi) do
+    most_recent =
+      Repo.one(
+        from si in StageInstance,
+          join: pi in assoc(si, :pipeline_instance),
+          where:
+            pi.pipeline_id == ^pipeline.id and
+              si.name == ^previous_stage.name and
+              si.result == "Passed",
+          order_by: [desc: pi.counter],
+          limit: 1,
+          preload: [:pipeline_instance]
+      )
+
+    if most_recent && most_recent.pipeline_instance.counter > current_pi.counter do
+      most_recent.pipeline_instance
+    end
+  end
+
+  defp stage_not_run_in_pipeline?(newer_pi, stage_name) do
+    not Repo.exists?(
+      from si in StageInstance,
+        where:
+          si.pipeline_instance_id == ^newer_pi.id and
+            si.name == ^stage_name and
+            si.result in ["Passed", "Failed", "Cancelled"]
+    )
+  end
+
+  defp trigger_stage_in_pipeline(pipeline, newer_pi, stage_name, order_idx) do
+    pipeline = Repo.preload(pipeline, stages: [jobs: :tasks])
+    stage_config = Enum.find(pipeline.stages, &(&1.name == stage_name))
+
+    if stage_config do
+      now = DateTime.utc_now()
+
+      case do_insert_and_schedule_stage(pipeline, newer_pi, stage_config, stage_name, order_idx, now) do
+        {:ok, {new_si, jobs}} ->
+          schedule_next_jobs(pipeline, newer_pi.counter, new_si, stage_config.jobs, jobs, pipeline.parameters || %{})
+          :ok
+
+        error ->
+          Logger.warning("trigger_current_stage_in_newer_pipeline failed for #{pipeline.name}/#{stage_name}: #{inspect(error)}")
+          :ok
+      end
+    end
+  end
+
+  defp do_insert_and_schedule_stage(pipeline, newer_pi, stage_config, stage_name, order_idx, now) do
+    Repo.transaction(fn ->
+      new_si =
+        %StageInstance{}
+        |> StageInstance.changeset(%{
+          pipeline_instance_id: newer_pi.id,
+          name: stage_name,
+          counter: 1,
+          order_id: order_idx + 1,
+          state: "Building",
+          result: "Unknown",
+          approval_type: stage_config.approval_type,
+          created_time: now,
+          fetch_materials: stage_config.fetch_materials,
+          clean_working_dir: stage_config.clean_working_directory
+        })
+        |> Repo.insert!()
+
+      job_instances =
+        insert_next_job_instances(
+          new_si.id,
+          stage_config.jobs,
+          pipeline.name,
+          newer_pi.counter,
+          stage_name,
+          now
+        )
+
+      {new_si, job_instances}
+    end)
+  end
 
   defp trigger_next_stage(stage_instance) do
     stage_instance = Repo.preload(stage_instance, pipeline_instance: [pipeline: :stages])
