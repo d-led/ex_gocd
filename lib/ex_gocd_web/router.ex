@@ -152,6 +152,10 @@ defmodule ExGoCDWeb.Router do
       # Audit log
       live "/admin/audit_log", AuditLogLive, :index
       live "/go/admin/audit_log", AuditLogLive, :index
+
+      # Config XML export
+      get "/admin/config_xml", ConfigXmlController, :show
+      get "/go/admin/config_xml", ConfigXmlController, :show
     end
   end
 

@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"io"
 	"mime/multipart"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -1215,6 +1216,7 @@ func getUsableSpace() int64 {
 
 // validateURL validates that the URL is a HTTP/HTTPS request matching the configured GoCD server host to mitigate SSRF.
 // To satisfy static analysis, we reconstruct the URL using the trusted configured server URL's scheme and host.
+// Accepts localhost, 127.0.0.1, 0.0.0.0, and [::1] as equivalent.
 func (a *Agent) validateURL(rawURL string) (string, error) {
 	u, err := url.Parse(rawURL)
 	if err != nil {
@@ -1223,7 +1225,7 @@ func (a *Agent) validateURL(rawURL string) (string, error) {
 	if u.Scheme != "http" && u.Scheme != "https" {
 		return "", fmt.Errorf("unsupported URL scheme: %s", u.Scheme)
 	}
-	if u.Host != a.config.ServerURL.Host {
+	if !hostsMatch(u.Host, a.config.ServerURL.Host) {
 		return "", fmt.Errorf("untrusted URL host: %s (must match configured GoCD server %s)", u.Host, a.config.ServerURL.Host)
 	}
 	// Reconstruct securely using trusted host and scheme
@@ -1232,6 +1234,27 @@ func (a *Agent) validateURL(rawURL string) (string, error) {
 	target.RawQuery = u.RawQuery
 	target.Fragment = u.Fragment
 	return target.String(), nil
+}
+
+// hostsMatch returns true if both hosts are equivalent — treating loopback addresses as the same.
+func hostsMatch(host1, host2 string) bool {
+	if host1 == host2 {
+		return true
+	}
+	return isLoopback(host1) && isLoopback(host2)
+}
+
+// isLoopback returns true for localhost, 127.0.0.1, [::1], 0.0.0.0 and variants.
+func isLoopback(host string) bool {
+	// Strip port
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	}
+	switch host {
+	case "localhost", "127.0.0.1", "::1", "[::1]", "0.0.0.0":
+		return true
+	}
+	return false
 }
 
 // validatePath cleans targetPath, resolves it relative to baseDir, and ensures it does not escape baseDir boundary to mitigate path traversal.
