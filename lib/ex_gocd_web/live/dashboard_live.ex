@@ -608,15 +608,6 @@ defmodule ExGoCDWeb.DashboardLive do
               config-repo
             </span>
           <% end %>
-          <div class="pipeline_actions">
-            <a
-              aria-label={"Edit Configuration for Pipeline #{@pipeline.name}"}
-              title="Edit Pipeline Configuration"
-              href={"/admin/pipelines/#{@pipeline.name}/edit"}
-              class="edit_config"
-            >
-            </a>
-          </div>
         </div>
         <div>
           <% can_operate =
@@ -689,8 +680,16 @@ defmodule ExGoCDWeb.DashboardLive do
               >
               </button>
             </li>
+            <li class="pipeline_actions">
+              <a
+                aria-label={"Edit Configuration for Pipeline #{@pipeline.name}"}
+                title="Edit Pipeline Configuration"
+                href={"/admin/pipelines/#{@pipeline.name}/edit"}
+                class="edit_config"
+              >
+              </a>
+            </li>
           </ul>
-          <a href={"/pipeline/activity/#{@pipeline.name}"} class="pipeline_history">History</a>
           <%= if @pipeline.paused do %>
             <div class="pipeline_pause-message">
               Paused by {@pipeline.paused_by || "anonymous"} ({if @pipeline.pause_cause == "",
@@ -705,6 +704,7 @@ defmodule ExGoCDWeb.DashboardLive do
           <% end %>
         </div>
       </div>
+      <a href={"/pipeline/activity/#{@pipeline.name}"} class="pipeline_history">History</a>
       <div class="pipeline_instances">
         <.pipeline_instance pipeline={@pipeline} />
       </div>
