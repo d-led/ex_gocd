@@ -209,6 +209,7 @@ defmodule ExGoCDWeb.Router do
 
     get "/dashboard", DashboardController, :show
     get "/version", VersionController, :show
+    get "/server_health_messages", ServerHealthController, :show
 
     # Pipeline operations (pause/unpause/approve/status/unlock/schedule/comment)
     get "/pipelines/:pipeline_name/status", PipelineOperationsController, :status
@@ -324,6 +325,7 @@ defmodule ExGoCDWeb.Router do
 
     get "/dashboard", DashboardController, :show
     get "/version", VersionController, :show
+    get "/server_health_messages", ServerHealthController, :show
 
     # Pipeline operations (pause/unpause/approve/status/unlock/schedule/comment)
     get "/pipelines/:pipeline_name/status", PipelineOperationsController, :status
