@@ -1,5 +1,6 @@
 describe("Admin Config Repositories", () => {
   beforeEach(() => {
+    cy.loginAsAdmin();
     cy.visitPage("/admin/config_repos");
   });
 
