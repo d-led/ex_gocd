@@ -101,7 +101,7 @@
 | B2 | Job comment API: `POST /api/pipelines/:name/:counter/comment` | ✅ | Done |
 | B3 | Stage run-failed-jobs / run-selected-jobs APIs | ✅ | `rerun_failed_jobs/4` + 3 tests + API route |
 | B4 | Config XML import/export | M | Serialize DB → cruise-config.xml |
-| B5 | Disk space monitor / artifact auto-cleanup | M | GenServer polling + purge policies |
+| B5 | Disk space monitor / artifact auto-cleanup | ✅ | `ExGoCD.Monitors.DiskSpace` GenServer, wired into scheduler checker chain |
 | B6 | Artifact MD5 verification on downstream fetch | ✅ | Done |
 
 ### 🟢 P2: Enterprise Features
