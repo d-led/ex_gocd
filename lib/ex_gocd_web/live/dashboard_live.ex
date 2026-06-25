@@ -598,18 +598,18 @@ defmodule ExGoCDWeb.DashboardLive do
     ~H"""
     <div class="pipeline">
       <div class="pipeline_header">
-        <div class="pipeline_sub_header">
-          <h3 class="pipeline_name">{@pipeline.name}</h3>
-          <%= if @pipeline[:config_repo_id] do %>
-            <span
-              class="text-[10px] text-slate-400 ml-1"
-              title={"Defined by config repo ##{@pipeline.config_repo_id}"}
-            >
-              config-repo
-            </span>
-          <% end %>
-        </div>
-        <div>
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-1">
+            <h3 class="pipeline_name">{@pipeline.name}</h3>
+            <%= if @pipeline[:config_repo_id] do %>
+              <span
+                class="text-[10px] text-slate-400"
+                title={"Defined by config repo ##{@pipeline.config_repo_id}"}
+              >
+                config-repo
+              </span>
+            <% end %>
+          </div>
           <% can_operate =
             ExGoCD.Policies.permit?(
               ExGoCD.Policies.EnvironmentPolicy,
