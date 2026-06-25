@@ -265,8 +265,7 @@ body {
 .pipeline_history {
   text-decoration: underline;
   font-size: 13px;
-  float: right;
-  margin-top: 10px;
+  flex-shrink: 0;
 }
 
 
@@ -422,6 +421,13 @@ body {
   text-overflow: ellipsis;
   overflow: hidden;
   white-space: nowrap;
+}
+
+/* Instance + History on one line */
+.pipeline_instance-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .pipeline_instance-details {

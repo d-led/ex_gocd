@@ -704,7 +704,6 @@ defmodule ExGoCDWeb.DashboardLive do
           <% end %>
         </div>
       </div>
-      <a href={"/pipeline/activity/#{@pipeline.name}"} class="pipeline_history">History</a>
       <div class="pipeline_instances">
         <.pipeline_instance pipeline={@pipeline} />
       </div>
@@ -715,7 +714,12 @@ defmodule ExGoCDWeb.DashboardLive do
   defp pipeline_instance(assigns) do
     ~H"""
     <div class="pipeline_instance">
-      <label class="pipeline_instance-label">Instance: {@pipeline.counter}</label>
+      <div class="pipeline_instance-header">
+        <label class="pipeline_instance-label">
+          Instance: {@pipeline.counter}
+        </label>
+        <a href={"/pipeline/activity/#{@pipeline.name}"} class="pipeline_history">History</a>
+      </div>
       <div class="more_info">
         <ul class="info">
           <li>
