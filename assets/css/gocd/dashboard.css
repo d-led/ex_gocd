@@ -182,6 +182,7 @@ body {
 
 .pipeline_sub_header {
   width: 240px;
+  float: left;
   display: flex;
   justify-content: space-between;
 }
@@ -189,11 +190,11 @@ body {
 
 /* Pixel-perfect: GoCD pipeline actions alignment */
 .pipeline_actions {
+  float: right;
   display: flex;
   position: relative;
   top: -3px;
   flex-shrink: 0;
-  right: 0;
   align-items: flex-start;
   gap: 0;
 }

@@ -768,7 +768,7 @@ GoCD is well known for its comprehensive documentation at `docs.go.cd`.
 | # | Item | Effort | Notes |
 |---|------|--------|-------|
 | Y.1.1 | **CCTray XML API** | M | Endpoint for IDEs and menu bar monitors to track build status (`api-cctray`). |
-| Y.1.2 | **Server Health API** | S | `api-server-health-messages-v1` for surfacing global errors/warnings. |
+| Y.1.2 | **Server Health API** | ✅ | `GET /api/server_health_messages` — maintenance, disk, OK |
 | Y.1.3 | **Feeds API** | M | ATOM feeds for pipeline/stage/job events (`api-feeds-api-v1`). |
 | Y.1.4 | **User Manuals & Concepts** | L | Port or rewrite core concepts documentation for Fan-in/out, VSM, and Pipeline as Code. |
 | Y.1.5 | **API Reference** | L | Public Slate-generated documentation for the new REST API. |
