@@ -275,11 +275,16 @@
   }
 
   /* Mobile: admin sub-nav as expandable section (not hover) */
+  .main-navigation .site-navigation_left li.is-drop-down > a {
+    cursor: pointer;
+    -webkit-tap-highlight-color: rgba(148, 58, 158, 0.3);
+  }
+
   .main-navigation .site-navigation_left li.is-drop-down > a::after {
     content: "\f107"; /* fa-caret-down */
     font-family: "Font Awesome 6 Free";
     font-weight: 900;
-    font-size: 12px;
+    font-size: 14px;
     color: #94a3b8;
     margin-left: auto;
     transition: transform 0.2s;
@@ -289,26 +294,64 @@
     transform: rotate(180deg);
   }
 
-  /* Show sub-nav when admin is tapped on mobile */
+  /* Show sub-nav when admin is tapped on mobile — vertical list, large text */
   .main-navigation .site-navigation_left li.is-drop-down.sub-open .sub-navigation {
-    display: flex !important;
-    flex-direction: column;
+    display: block !important;
     position: static;
     width: 100%;
     background: transparent;
     box-shadow: none;
-    padding: 4px 0 4px 16px;
+    padding: 8px 0 8px 0;
+    flex-direction: column;
   }
 
   .main-navigation .site-navigation_left li.is-drop-down.sub-open .sub-navigation .site-sub-nav {
+    display: flex;
+    flex-direction: column;
     width: 100%;
-    padding: 4px 0;
+    padding: 0;
+    margin: 0;
+    list-style: none;
+  }
+
+  .main-navigation .site-navigation_left li.is-drop-down.sub-open .sub-navigation .site-sub-nav_item {
+    display: block;
+    width: 100%;
   }
 
   .main-navigation .site-navigation_left li.is-drop-down.sub-open .sub-navigation .site-sub-nav_link {
-    padding: 8px 12px;
-    font-size: 13px;
-    color: #ccc;
+    display: block;
+    padding: 12px 16px;
+    font-size: 15px;
+    line-height: 1.4;
+    color: #cbd5e1;
+    text-decoration: none;
+    width: 100%;
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: rgba(148, 58, 158, 0.2);
+  }
+
+  .main-navigation .site-navigation_left li.is-drop-down.sub-open .sub-navigation .site-sub-nav_link:active,
+  .main-navigation .site-navigation_left li.is-drop-down.sub-open .sub-navigation .site-sub-nav_link:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+  }
+
+  /* Section headers in sub-nav (e.g., "Server configuration", "Security") */
+  .main-navigation .site-navigation_left li.is-drop-down.sub-open .sub-navigation .site-sub-nav_item:not(:has(a)) {
+    padding: 14px 16px 4px 16px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #64748b;
+  }
+
+  /* Divider between sub-nav groups */
+  .main-navigation .site-navigation_left li.is-drop-down.sub-open .sub-navigation .site-sub-nav + .site-sub-nav {
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    margin-top: 4px;
+    padding-top: 4px;
   }
 
   .need_help {

@@ -98,7 +98,7 @@ defmodule ExGoCDWeb.Layouts do
                 >
                   Admin <i class="fa fa-caret-down caret-down-icon"></i>
                 </a>
-                <div class="sub-navigation">
+                <div class="sub-navigation" phx-update="ignore" id="admin-sub-navigation">
                   <ul class="site-sub-nav">
                     <li class="site-sub-nav_item">
                       <a
