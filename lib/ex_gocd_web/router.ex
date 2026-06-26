@@ -283,6 +283,8 @@ defmodule ExGoCDWeb.Router do
     post "/maintenance_mode/disable", MaintenanceModeController, :disable
 
     post "/backups", BackupController, :create
+
+    resources "/elastic_agent_profiles", ElasticAgentProfileController, except: [:new, :edit]
   end
 
   scope "/api/current_user", ExGoCDWeb.API do
