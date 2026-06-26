@@ -905,54 +905,9 @@ defmodule ExGoCDWeb.AdminLive do
           <% end %>
         </button>
       </div>
-
-      <!-- Server Configuration -->
-      <div class="bg-white rounded border border-[#d6e0e2] p-5 shadow-sm space-y-4">
-        <h3 class="text-sm font-bold text-slate-700 border-b border-[#e9edef] pb-3 flex items-center gap-2">
-          <i class="fa fa-gear text-[#943a9e]"></i> Server Configuration
-        </h3>
-        <div class="space-y-2 text-xs text-slate-600">
-          <div class="flex justify-between py-1.5 border-b border-[#e9edef]">
-            <span class="text-slate-400">Server Port</span>
-            <span class="font-mono font-semibold text-slate-700"><%= server_config(:port) %></span>
-          </div>
-          <div class="flex justify-between py-1.5 border-b border-[#e9edef]">
-            <span class="text-slate-400">Database</span>
-            <span class="font-mono font-semibold text-slate-700"><%= server_config(:database) %></span>
-          </div>
-          <div class="flex justify-between py-1.5 border-b border-[#e9edef]">
-            <span class="text-slate-400">Mix Environment</span>
-            <span class="font-mono font-semibold text-slate-700"><%= server_config(:env) %></span>
-          </div>
-          <div class="flex justify-between py-1.5 border-b border-[#e9edef]">
-            <span class="text-slate-400">Log Level</span>
-            <span class="font-mono font-semibold text-slate-700"><%= server_config(:log_level) %></span>
-          </div>
-          <div class="flex justify-between py-1.5 border-b border-[#e9edef]">
-            <span class="text-slate-400">Secret Key Base</span>
-            <span class="font-mono text-[11px] text-slate-400"><%= server_config(:secret_masked) %></span>
-          </div>
-          <div class="flex justify-between py-1.5">
-            <span class="text-slate-400">URL</span>
-            <span class="font-mono font-semibold text-slate-700"><%= server_config(:url) %></span>
-          </div>
-        </div>
-      </div>
     </div>
     """
   end
-
-  defp server_config(:port) do
-    case Application.get_env(:ex_gocd, ExGoCDWeb.Endpoint) do
-      nil -> 4000
-      cfg -> get_in(cfg, [:http, :port]) || 4000
-    end
-  end
-  defp server_config(:database), do: System.get_env("DATABASE_URL", "ecto://localhost/ex_gocd_dev") |> String.replace(~r/:[^@]+@/, ":****@")
-  defp server_config(:env), do: to_string(Mix.env())
-  defp server_config(:log_level), do: Application.get_env(:logger, :level, :info) |> to_string() |> String.upcase()
-  defp server_config(:secret_masked), do: "****" <> String.duplicate("*", 28)
-  defp server_config(:url), do: System.get_env("PHX_URL", "http://localhost:" <> to_string(server_config(:port)))
 
   defp safe_backup_create do
     Backup.create()
