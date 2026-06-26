@@ -133,6 +133,7 @@ describe("Admin Page", () => {
 
   describe("Server Configuration tab", () => {
     beforeEach(() => {
+      cy.loginAsAdmin();
       cy.visitPage("/admin/server");
     });
 

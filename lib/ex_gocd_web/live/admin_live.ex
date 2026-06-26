@@ -53,10 +53,10 @@ defmodule ExGoCDWeb.AdminLive do
        |> assign(:config_repos, config_repos)
        |> assign(:users, users)
        |> assign(:search_query, "")
-       |> assign(:maintenance_mode, MaintenanceMode.enabled?())
+       |> assign(:maintenance_mode, safe_maintenance_mode())
        # Idle, Running, Completed, Failed
-       |> assign(:backup_status, Backup.status().status)
-       |> assign(:backup_message, Backup.status().message)
+       |> assign(:backup_status, safe_backup_status())
+       |> assign(:backup_message, safe_backup_message())
        |> assign(:new_group_name, "")
        |> assign(:show_create_modal, false)
        # User modals assigns
@@ -953,6 +953,24 @@ defmodule ExGoCDWeb.AdminLive do
     Backup.create()
   rescue
     _ -> {:error, :unavailable}
+  end
+
+  defp safe_maintenance_mode do
+    MaintenanceMode.enabled?()
+  rescue
+    _ -> false
+  end
+
+  defp safe_backup_status do
+    Backup.status().status
+  rescue
+    _ -> "Idle"
+  end
+
+  defp safe_backup_message do
+    Backup.status().message
+  rescue
+    _ -> ""
   end
 
   defp user_modal_layer(assigns) do
