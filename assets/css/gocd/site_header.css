@@ -470,10 +470,12 @@
   position: relative;
 }
 
-.site-navigation_left li.is-drop-down:hover .sub-navigation,
-/* Test helper: Cypress can't reliably activate :hover in headless Chrome */
-.site-navigation_left li.is-drop-down.test-dropdown-open .sub-navigation {
-  display: flex !important;
+@media (min-width: 768px) {
+  .site-navigation_left li.is-drop-down:hover .sub-navigation,
+  /* Test helper: Cypress can't reliably activate :hover in headless Chrome */
+  .site-navigation_left li.is-drop-down.test-dropdown-open .sub-navigation {
+    display: flex !important;
+  }
 }
 
 /* Make sure the dropdown is hidden by default */

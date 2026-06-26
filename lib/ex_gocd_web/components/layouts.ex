@@ -102,6 +102,17 @@ defmodule ExGoCDWeb.Layouts do
                   <ul class="site-sub-nav">
                     <li class="site-sub-nav_item">
                       <a
+                        href="/admin"
+                        class={[
+                          "site-sub-nav_link",
+                          if(active_sub_nav?(@current_path, "/admin"), do: "is-active")
+                        ]}
+                      >
+                        Overview
+                      </a>
+                    </li>
+                    <li class="site-sub-nav_item">
+                      <a
                         href="/admin/pipelines"
                         class={[
                           "site-sub-nav_link",

@@ -111,11 +111,16 @@ describe("Admin dropdown — desktop viewport usability", () => {
       cy.get(".sub-navigation .site-sub-nav").should("have.length", 4);
     });
 
-    it("renders the first column — Pipelines, Environments, Templates, Config XML, Package Repositories", () => {
+    it("renders the first column — Overview, Pipelines, Environments, Templates, Config XML, Package Repositories", () => {
       cy.get(".sub-navigation .site-sub-nav")
         .eq(0)
         .within(() => {
-          cy.get(".site-sub-nav_link").should("have.length", 5);
+          cy.get(".site-sub-nav_link").should("have.length", 6);
+          cy.contains("a", "Overview").should(
+            "have.attr",
+            "href",
+            "/admin",
+          );
           cy.contains("a", "Pipelines").should(
             "have.attr",
             "href",
