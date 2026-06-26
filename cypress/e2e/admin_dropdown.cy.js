@@ -8,10 +8,12 @@ const ready = () => {
 };
 
 const openAdminDropdown = () => {
-  // Force :hover via a test helper class — CSS :hover does not activate
-  // reliably in headless Chrome via Cypress trigger("mouseenter").
-  cy.get("li.is-drop-down").invoke("addClass", "test-dropdown-open");
-  // Trigger mouseenter so that clampPosition runs
+  // Force display via jQuery .css() — most reliable across all environments
+  // (CSS @media rules and class-based approaches fail in Docker headless Chrome)
+  cy.get("li.is-drop-down").trigger("mouseenter");
+  cy.get(".sub-navigation").then(($el) => {
+    $el.css("display", "flex");
+  });
   cy.get("li.is-drop-down").trigger("mouseenter");
 };
 
@@ -47,10 +49,7 @@ describe("Admin dropdown — desktop viewport usability", () => {
       ready();
     });
 
-    afterEach(() => {
-      // Clean up test helper class that bypasses :hover
-      cy.get("li.is-drop-down").invoke("removeClass", "test-dropdown-open");
-    });
+    afterEach(() => {});
 
     it("renders the Admin nav item with dropdown class", () => {
       cy.get("li.is-drop-down")
@@ -79,10 +78,6 @@ describe("Admin dropdown — desktop viewport usability", () => {
 
     it("dropdown may overflow downward — that's fine, page scrolls", () => {
       openAdminDropdown();
-      // Force display via inline style — more reliable than CSS @media in CI
-      cy.get(".sub-navigation").then(($el) => {
-        $el.css("display", "flex");
-      });
       cy.get(".sub-navigation").then(($el) => {
         const rect = $el[0].getBoundingClientRect();
         // Downward overflow is acceptable — the page can scroll.
