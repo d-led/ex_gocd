@@ -42,8 +42,6 @@ defmodule ExGoCDWeb.AdminLive do
           []
         end
 
-      plugins = []
-
       {:ok,
        socket
        |> assign(:empty_groups, empty_groups)
@@ -52,7 +50,6 @@ defmodule ExGoCDWeb.AdminLive do
        |> assign(:environments, environments)
        |> assign(:config_repos, config_repos)
        |> assign(:users, users)
-       |> assign(:plugins, plugins)
        |> assign(:search_query, "")
        |> assign(:maintenance_mode, false)
        # Idle, Running, Completed
@@ -173,8 +170,7 @@ defmodule ExGoCDWeb.AdminLive do
              "artifact_stores",
              "config",
              "maintenance_mode",
-             "backup",
-             "plugins"
+             "backup"
            ] ->
         "server"
 
@@ -306,7 +302,6 @@ defmodule ExGoCDWeb.AdminLive do
               environments={@environments}
               config_repos={@config_repos}
               users={@users}
-              plugins={@plugins}
               maintenance_mode={@maintenance_mode}
             />
           <% "pipelines" -> %>
@@ -325,7 +320,6 @@ defmodule ExGoCDWeb.AdminLive do
               maintenance_mode={@maintenance_mode}
               backup_status={@backup_status}
               backup_message={@backup_message}
-              plugins={@plugins}
             />
           <% "security" -> %>
             <.security_tab users={@users} />
@@ -463,10 +457,6 @@ defmodule ExGoCDWeb.AdminLive do
             <div class="flex justify-between">
               <span>API Database:</span>
               <span class="font-semibold text-emerald-600">Connected (PostgreSQL)</span>
-            </div>
-            <div class="flex justify-between">
-              <span>Registered Plugins:</span>
-              <span class="font-semibold text-[#943a9e]">{length(@plugins)} Active Plugins</span>
             </div>
           </div>
         </div>
@@ -912,33 +902,6 @@ defmodule ExGoCDWeb.AdminLive do
             <i class="fa fa-cloud-arrow-up"></i> Start Backup Now
           <% end %>
         </button>
-      </div>
-
-    <!-- Plugins -->
-      <div class="bg-white rounded border border-[#d6e0e2] p-5 shadow-sm space-y-4">
-        <h3 class="text-sm font-bold text-slate-700 border-b border-[#e9edef] pb-3 flex items-center gap-2">
-          <i class="fa fa-cubes text-[#943a9e]"></i> Active Plugins
-        </h3>
-        <p class="text-xs text-slate-500">
-          Active plugins providing custom material types, artifact store plugins, and slack integrations.
-        </p>
-
-        <div class="divide-y divide-[#e9edef] bg-white">
-          <%= for plugin <- @plugins do %>
-            <div class="py-3 flex justify-between items-center text-xs">
-              <div>
-                <p class="font-bold text-slate-700">{plugin.name}</p>
-                <p class="text-slate-400 font-mono text-[10px] mt-0.5">{plugin.id}</p>
-              </div>
-              <div class="text-right">
-                <span class="text-slate-500 font-semibold">v{plugin.version}</span>
-                <span class="ml-2 bg-emerald-50 text-emerald-600 border border-emerald-200 px-1.5 py-0.5 rounded text-[10px] font-bold">
-                  Active
-                </span>
-              </div>
-            </div>
-          <% end %>
-        </div>
       </div>
     </div>
     """

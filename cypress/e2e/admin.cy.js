@@ -140,10 +140,6 @@ describe("Admin Page", () => {
       cy.thePageShows("Backup Configuration Database");
       cy.get("button").contains("Start Backup Now").should("exist");
     });
-
-    it("displays the active plugins section", () => {
-      cy.thePageShows("Active Plugins");
-    });
   });
 
   // ── Security & Users tab ──────────────────────────────────────

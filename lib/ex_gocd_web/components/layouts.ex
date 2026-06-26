@@ -267,17 +267,6 @@ defmodule ExGoCDWeb.Layouts do
                         Backup
                       </a>
                     </li>
-                    <li class="site-sub-nav_item">
-                      <a
-                        href="/admin/plugins"
-                        class={[
-                          "site-sub-nav_link",
-                          if(active_sub_nav?(@current_path, "/admin/plugins"), do: "is-active")
-                        ]}
-                      >
-                        Plugins
-                      </a>
-                    </li>
                   </ul>
                   <ul class="site-sub-nav">
                     <li class="site-sub-nav_heading">Security</li>

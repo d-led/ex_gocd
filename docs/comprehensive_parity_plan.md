@@ -63,12 +63,12 @@
 | Artifact tree browser | ✅ | Recursive directory listing in JobDetailsLive |
 | Console live streaming | ✅ | PubSub-based console subscription |
 | MD5 checksums | ✅ | Agent sends checksums; server stores |
-| Maintenance mode | ✅ | GenServer: enable/disable/info; blocks triggers |
+| Maintenance mode | 🟡 | Admin UI toggle (local assign); needs server-wide GenServer wiring |
 | Stage cancel | ✅ | `cancel_stage/3` with transaction |
 | Cycle detection | ✅ | DFS cycle detector on pipeline dependency graph |
 | Dashboard API | ✅ | `GET /api/dashboard` |
 | Analytics | ✅ | 6 functions: pipeline, agent, VSM trends |
-| Backup API | ✅ | `POST /api/admin/backups` (async pg_dump) |
+| Backup API | 🟡 | API endpoint exists; admin UI button simulated; needs real pg_dump wiring |
 | Environment API | ✅ | Full CRUD |
 | Template API | ✅ | Full CRUD |
 | Pipeline config API | ✅ | CRUD (show/create/update/delete) |
@@ -87,7 +87,8 @@
 | Trigger-time variables | ✅ | GoCD-format `variables` + `secure_variables` maps accepted |
 | Audit log UI | ✅ | `AuditLogLive` with search, filters, resource links |
 | Scheduling admin | ✅ | `AdminSchedulingLive` with pending + active jobs, cross-links |
-| Admin dropdown | ✅ | CSS-driven with JS edge guard (`clientWidth`) |
+| Admin dropdown | ✅ | CSS-driven with JS edge guard; mobile responsive with vertical list + phx-update="ignore" |
+| Plugins removed | ✅ | No plugin architecture — ex_gocd bakes in features directly. Removed from UI and nav. |
 
 ---
 
@@ -98,6 +99,9 @@
 | # | Gap | Effort | Notes |
 |---|-----|--------|-------|
 | B1 | Pipeline config admin: `index` action handler | ✅ | Done |
+| B18 | Admin maintenance mode — wire UI to backend | S | Admin page toggle only flips a local assign. Needs to call real MaintenanceMode GenServer or implement server-wide mode |
+| B19 | Admin backup — wire UI to backend | S | Admin page button simulates with timeout. Needs `POST /api/admin/backups` with async pg_dump |
+| B20 | Admin server config — wire UI | S | Server Configuration tab is placeholder. Needs real config display/edit |
 | B2 | Job comment API: `POST /api/pipelines/:name/:counter/comment` | ✅ | Done |
 | B3 | Stage run-failed-jobs / run-selected-jobs APIs | ✅ | `rerun_failed_jobs/4` + 3 tests + API route |
 | B4 | Config XML import/export | M | Serialize DB → cruise-config.xml |

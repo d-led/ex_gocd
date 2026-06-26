@@ -173,7 +173,6 @@ describe("Admin dropdown — desktop viewport usability", () => {
           cy.contains("a", "Server Configuration");
           cy.contains("a", "Server Maintenance Mode");
           cy.contains("a", "Backup");
-          cy.contains("a", "Plugins");
         });
     });
 
@@ -240,7 +239,7 @@ describe("Admin dropdown — desktop viewport usability", () => {
     it("marks the Admin nav item as active when on admin pages", () => {
       cy.viewport(...DESKTOP);
       cy.loginAsAdmin();
-      cy.visit("/admin/plugins");
+      cy.visit("/admin/backup");
       ready();
 
       cy.get("li.is-drop-down").should("have.class", "active");
