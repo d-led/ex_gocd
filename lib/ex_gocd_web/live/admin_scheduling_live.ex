@@ -12,7 +12,7 @@ defmodule ExGoCDWeb.AdminSchedulingLive do
   """
   use ExGoCDWeb, :live_view
 
-  alias ExGoCD.{Agents, Scheduler}
+  alias ExGoCD.{Agents, Scheduler, AuditLog}
   alias ExGoCD.Pipelines.JobInstance
   alias ExGoCD.Repo
 
@@ -76,6 +76,7 @@ defmodule ExGoCDWeb.AdminSchedulingLive do
     |> assign(:agents, fetch_agents())
     |> assign(:now, DateTime.utc_now())
     |> assign(:active_jobs, fetch_active_db_jobs())
+    |> assign(:recent_errors, fetch_recent_errors())
     |> assign_match_analysis()
   end
 
@@ -83,6 +84,37 @@ defmodule ExGoCDWeb.AdminSchedulingLive do
     Agents.list_agents()
     |> Enum.reject(&(&1.deleted == true))
     |> Enum.sort_by(&{agent_sort_priority(&1), &1.hostname})
+  end
+
+  defp fetch_recent_errors do
+    AuditLog.recent(100)
+    |> Enum.filter(fn entry ->
+      entry.action in ["server.crash", "poller_error", "material_error"] or
+        String.contains?(entry.action || "", "error") or
+        String.contains?(entry.action || "", "fail")
+    end)
+    |> Enum.take(10)
+    |> Enum.map(fn entry ->
+      detail = entry.details || %{}
+      %{
+        time: entry.inserted_at,
+        action: entry.action,
+        message: format_error_message(entry),
+        resource: entry.resource_name
+      }
+    end)
+  end
+
+  defp format_error_message(entry) do
+    detail = entry.details || %{}
+    payload = detail["payload"] || detail[:payload] || %{}
+    msg = payload["exception.message"] || payload[:exception] || detail["error"] || ""
+    # Truncate long messages
+    if is_binary(msg) and String.length(msg) > 120 do
+      String.slice(msg, 0, 120) <> "..."
+    else
+      msg
+    end
   end
 
   # Idle first, Building second, then everything else, then disabled last
@@ -649,6 +681,45 @@ defmodule ExGoCDWeb.AdminSchedulingLive do
             </div>
           <% end %>
         </div>
+
+        <%!-- Recent Errors --%>
+        <%= if not Enum.empty?(@recent_errors) do %>
+          <div class="bg-white border border-red-200 rounded">
+            <div class="px-4 py-3 border-b border-red-200 bg-red-50">
+              <h2 class="text-sm font-bold text-red-700 uppercase tracking-wide">
+                ⚠ Recent Errors ({length(@recent_errors)})
+              </h2>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead class="bg-red-50/50 text-left text-xs font-bold text-red-500 uppercase tracking-wide">
+                  <tr>
+                    <th class="px-4 py-2 w-32">Time</th>
+                    <th class="px-4 py-2 w-32">Type</th>
+                    <th class="px-4 py-2">Message</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <%= for err <- @recent_errors do %>
+                    <tr class="border-t border-red-100">
+                      <td class="px-4 py-2 text-xs text-slate-500 tabular-nums whitespace-nowrap">
+                        {format_duration(err.time, @now)} ago
+                      </td>
+                      <td class="px-4 py-2">
+                        <span class="text-xs bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-bold">
+                          {err.action}
+                        </span>
+                      </td>
+                      <td class="px-4 py-2 text-xs text-slate-600 font-mono max-w-md truncate">
+                        {err.message || "—"}
+                      </td>
+                    </tr>
+                  <% end %>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        <% end %>
 
     <!-- Agents Table -->
         <div class="bg-white border border-[#e9edef] rounded">
