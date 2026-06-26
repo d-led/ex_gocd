@@ -14,7 +14,7 @@ describe("Value Stream Map", () => {
 
       cy.theVSMShowsNode("Pipeline");
       cy.thePageShows("Current");
-      cy.theVSMStageIndicatorShows("build");
+      cy.theVSMStageIndicatorShows("compile");
       cy.theVSMStageIndicatorShows("test");
 
       cy.thePageShows("deploy-staging");

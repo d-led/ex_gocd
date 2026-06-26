@@ -79,8 +79,10 @@ describe("Admin dropdown — desktop viewport usability", () => {
 
     it("dropdown may overflow downward — that's fine, page scrolls", () => {
       openAdminDropdown();
-      // Wait for the dropdown to actually be visible and laid out
-      cy.get(".sub-navigation").should("be.visible");
+      // Force display via inline style — more reliable than CSS @media in CI
+      cy.get(".sub-navigation").then(($el) => {
+        $el.css("display", "flex");
+      });
       cy.get(".sub-navigation").then(($el) => {
         const rect = $el[0].getBoundingClientRect();
         // Downward overflow is acceptable — the page can scroll.

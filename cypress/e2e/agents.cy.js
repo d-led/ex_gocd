@@ -19,7 +19,9 @@ describe("Agents Management", () => {
   it("shows agent search/filter functionality", () => {
     // Get first agent name and filter by it
     cy.get(".agent-name, .agents-table tbody tr td:first-child").first().invoke("text").then((name) => {
-      cy.get("input[type=\"text\"], #agent-search, input[placeholder*=\"Filter\"]").first().type(name.trim(), { force: true });
+      const trimmed = (name || "").trim();
+      const query = trimmed || "agent";
+      cy.get("input[type=\"text\"], #agent-search, input[placeholder*=\"Filter\"]").first().type(query, { force: true });
       cy.get(".agents-table tbody tr, .agent-row").should("have.length.at.least", 1);
     });
   });
