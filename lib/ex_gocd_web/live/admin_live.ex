@@ -951,26 +951,26 @@ defmodule ExGoCDWeb.AdminLive do
 
   defp safe_backup_create do
     Backup.create()
-  rescue
-    _ -> {:error, :unavailable}
+  catch
+    :exit, _ -> {:error, :unavailable}
   end
 
   defp safe_maintenance_mode do
     MaintenanceMode.enabled?()
-  rescue
-    _ -> false
+  catch
+    :exit, _ -> false
   end
 
   defp safe_backup_status do
     Backup.status().status
-  rescue
-    _ -> "Idle"
+  catch
+    :exit, _ -> "Idle"
   end
 
   defp safe_backup_message do
     Backup.status().message
-  rescue
-    _ -> ""
+  catch
+    :exit, _ -> ""
   end
 
   defp user_modal_layer(assigns) do
