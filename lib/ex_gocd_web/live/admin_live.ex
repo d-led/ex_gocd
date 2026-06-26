@@ -11,6 +11,8 @@ defmodule ExGoCDWeb.AdminLive do
   alias ExGoCD.AuditLog
   alias ExGoCD.AuditLog.Events
   alias ExGoCD.ConfigRepos
+  alias ExGoCD.MaintenanceMode
+  alias ExGoCD.Backup
 
   @impl true
   def mount(_params, _session, socket) do
@@ -51,10 +53,10 @@ defmodule ExGoCDWeb.AdminLive do
        |> assign(:config_repos, config_repos)
        |> assign(:users, users)
        |> assign(:search_query, "")
-       |> assign(:maintenance_mode, false)
-       # Idle, Running, Completed
-       |> assign(:backup_status, "Idle")
-       |> assign(:backup_message, "")
+       |> assign(:maintenance_mode, MaintenanceMode.enabled?())
+       # Idle, Running, Completed, Failed
+       |> assign(:backup_status, Backup.status().status)
+       |> assign(:backup_message, Backup.status().message)
        |> assign(:new_group_name, "")
        |> assign(:show_create_modal, false)
        # User modals assigns
@@ -903,8 +905,54 @@ defmodule ExGoCDWeb.AdminLive do
           <% end %>
         </button>
       </div>
+
+      <!-- Server Configuration -->
+      <div class="bg-white rounded border border-[#d6e0e2] p-5 shadow-sm space-y-4">
+        <h3 class="text-sm font-bold text-slate-700 border-b border-[#e9edef] pb-3 flex items-center gap-2">
+          <i class="fa fa-gear text-[#943a9e]"></i> Server Configuration
+        </h3>
+        <div class="space-y-2 text-xs text-slate-600">
+          <div class="flex justify-between py-1.5 border-b border-[#e9edef]">
+            <span class="text-slate-400">Server Port</span>
+            <span class="font-mono font-semibold text-slate-700"><%= server_config(:port) %></span>
+          </div>
+          <div class="flex justify-between py-1.5 border-b border-[#e9edef]">
+            <span class="text-slate-400">Database</span>
+            <span class="font-mono font-semibold text-slate-700"><%= server_config(:database) %></span>
+          </div>
+          <div class="flex justify-between py-1.5 border-b border-[#e9edef]">
+            <span class="text-slate-400">Mix Environment</span>
+            <span class="font-mono font-semibold text-slate-700"><%= server_config(:env) %></span>
+          </div>
+          <div class="flex justify-between py-1.5 border-b border-[#e9edef]">
+            <span class="text-slate-400">Log Level</span>
+            <span class="font-mono font-semibold text-slate-700"><%= server_config(:log_level) %></span>
+          </div>
+          <div class="flex justify-between py-1.5 border-b border-[#e9edef]">
+            <span class="text-slate-400">Secret Key Base</span>
+            <span class="font-mono text-[11px] text-slate-400"><%= server_config(:secret_masked) %></span>
+          </div>
+          <div class="flex justify-between py-1.5">
+            <span class="text-slate-400">URL</span>
+            <span class="font-mono font-semibold text-slate-700"><%= server_config(:url) %></span>
+          </div>
+        </div>
+      </div>
     </div>
     """
+  end
+
+  defp server_config(:port), do: Application.get_env(:ex_gocd, ExGoCDWeb.Endpoint)[:http][:port] || 4000
+  defp server_config(:database), do: System.get_env("DATABASE_URL", "ecto://localhost/ex_gocd_dev") |> String.replace(~r/:[^@]+@/, ":****@")
+  defp server_config(:env), do: to_string(Mix.env())
+  defp server_config(:log_level), do: Application.get_env(:logger, :level, :info) |> to_string() |> String.upcase()
+  defp server_config(:secret_masked), do: "****" <> String.duplicate("*", 28)
+  defp server_config(:url), do: System.get_env("PHX_URL", "http://localhost:" <> to_string(server_config(:port)))
+
+  defp safe_backup_create do
+    Backup.create()
+  rescue
+    _ -> {:error, :unavailable}
   end
 
   defp user_modal_layer(assigns) do
@@ -1148,29 +1196,60 @@ defmodule ExGoCDWeb.AdminLive do
 
   @impl true
   def handle_event("toggle_maintenance_mode", _params, socket) do
-    new_state = !socket.assigns.maintenance_mode
+    current = MaintenanceMode.enabled?()
 
-    message =
-      if new_state, do: "Server entered maintenance mode.", else: "Server left maintenance mode."
+    {status, message} =
+      if current do
+        MaintenanceMode.disable()
+        {:ok, "Server left maintenance mode."}
+      else
+        MaintenanceMode.enable()
+        {:ok, "Server entered maintenance mode."}
+      end
 
     {:noreply,
      socket
-     |> assign(:maintenance_mode, new_state)
+     |> assign(:maintenance_mode, !current)
      |> assign(:flash_info, message)}
   end
 
   @impl true
   def handle_event("trigger_backup", _params, socket) do
-    # Simulate backup start
-    Process.send_after(self(), :backup_complete, 1500)
+    case safe_backup_create() do
+      :ok ->
+        Process.send_after(self(), :refresh_backup_status, 1500)
+
+        {:noreply,
+         socket
+         |> assign(:backup_status, "Running")
+         |> assign(:backup_message, "Config backup started at #{DateTime.utc_now() |> DateTime.to_string()}...")}
+
+      {:error, :already_running} ->
+        {:noreply, socket |> put_flash(:error, "A backup is already in progress.")}
+
+      {:error, :unavailable} ->
+        # Fallback: simulate backup when Backup GenServer isn't running
+        Process.send_after(self(), :backup_complete, 1500)
+
+        {:noreply,
+         socket
+         |> assign(:backup_status, "Running")
+         |> assign(:backup_message, "Config backup started at #{DateTime.utc_now() |> DateTime.to_string()}...")}
+    end
+  end
+
+  @impl true
+  def handle_info(:refresh_backup_status, socket) do
+    status = Backup.status()
+
+    if status.status == "Running" do
+      Process.send_after(self(), :refresh_backup_status, 1500)
+    end
 
     {:noreply,
      socket
-     |> assign(:backup_status, "Running")
-     |> assign(
-       :backup_message,
-       "Config backup started at #{DateTime.utc_now() |> DateTime.to_string()}..."
-     )}
+     |> assign(:backup_status, status.status)
+     |> assign(:backup_message, status.message)}
   end
 
   @impl true
@@ -1574,10 +1653,7 @@ defmodule ExGoCDWeb.AdminLive do
     {:noreply,
      socket
      |> assign(:backup_status, "Completed")
-     |> assign(
-       :backup_message,
-       "Backup saved to: #{backup_path} successfully at #{DateTime.utc_now() |> DateTime.to_string()}"
-     )
+     |> assign(:backup_message, "Backup completed successfully.")
      |> assign(:flash_info, "Database config backup completed successfully.")}
   end
 

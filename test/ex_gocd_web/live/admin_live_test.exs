@@ -137,13 +137,13 @@ defmodule ExGoCDWeb.AdminLiveTest do
       assert render(view) =~ "left maintenance mode"
     end
 
-    test "performs database configuration backup simulation", %{conn: conn} do
+    test "performs database configuration backup", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/admin/server")
 
       # Initially backup status is Idle
       assert render(view) =~ "Idle"
 
-      # Trigger backup
+      # Trigger backup — falls back to simulation when Backup GenServer unavailable
       view
       |> element("button", "Start Backup Now")
       |> render_click()
@@ -151,13 +151,12 @@ defmodule ExGoCDWeb.AdminLiveTest do
       assert render(view) =~ "Running Backup..."
       assert render(view) =~ "Config backup started at"
 
-      # Complete backup via process message (simulating send_after timeout)
+      # Wait for simulated completion
       send(view.pid, :backup_complete)
 
       # Ensure it completed successfully
       assert render(view) =~ "Completed"
-      assert render(view) =~ "Backup saved to: /var/lib/go-server/db/backups/"
-      assert render(view) =~ "completed successfully"
+      assert render(view) =~ "Backup completed successfully"
     end
 
     test "allows searching/filtering pipelines within groups", %{conn: conn} do

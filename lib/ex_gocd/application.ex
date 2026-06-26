@@ -38,6 +38,7 @@ defmodule ExGoCD.Application do
       ExGoCD.Materials.TimerScheduler,
       ExGoCD.Pipelines.ConsoleActivityMonitor,
       ExGoCD.MaintenanceMode,
+      ExGoCD.Backup,
       ExGoCD.SchedulingChecker.TriggerMonitor,
       ExGoCD.Monitors.DiskSpace
     ]
