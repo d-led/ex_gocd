@@ -99,9 +99,9 @@
 | # | Gap | Effort | Notes |
 |---|-----|--------|-------|
 | B1 | Pipeline config admin: `index` action handler | ✅ | Done |
-| B18 | Admin maintenance mode — wire UI to backend | S | Admin page toggle only flips a local assign. Needs to call real MaintenanceMode GenServer or implement server-wide mode |
-| B19 | Admin backup — wire UI to backend | S | Admin page button simulates with timeout. Needs `POST /api/admin/backups` with async pg_dump |
-| B20 | Admin server config — wire UI | S | Server Configuration tab is placeholder. Needs real config display/edit |
+| B18 | Admin maintenance mode — wire UI to backend | ✅ | Done — calls `ExGoCD.MaintenanceMode.enable/disable` GenServer |
+| B19 | Admin backup — wire UI to backend | ✅ | Done — `ExGoCD.Backup` GenServer with async `pg_dump` via Task |
+| B20 | Admin server config — wire UI | 🟡 | Deferred — caused 500 errors in Docker CI |
 | B2 | Job comment API: `POST /api/pipelines/:name/:counter/comment` | ✅ | Done |
 | B3 | Stage run-failed-jobs / run-selected-jobs APIs | ✅ | `rerun_failed_jobs/4` + 3 tests + API route |
 | B4 | Config XML import/export | M | Serialize DB → cruise-config.xml |
