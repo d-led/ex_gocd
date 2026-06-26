@@ -942,7 +942,12 @@ defmodule ExGoCDWeb.AdminLive do
     """
   end
 
-  defp server_config(:port), do: Application.get_env(:ex_gocd, ExGoCDWeb.Endpoint)[:http][:port] || 4000
+  defp server_config(:port) do
+    case Application.get_env(:ex_gocd, ExGoCDWeb.Endpoint) do
+      nil -> 4000
+      cfg -> get_in(cfg, [:http, :port]) || 4000
+    end
+  end
   defp server_config(:database), do: System.get_env("DATABASE_URL", "ecto://localhost/ex_gocd_dev") |> String.replace(~r/:[^@]+@/, ":****@")
   defp server_config(:env), do: to_string(Mix.env())
   defp server_config(:log_level), do: Application.get_env(:logger, :level, :info) |> to_string() |> String.upcase()
