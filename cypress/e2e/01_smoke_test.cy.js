@@ -7,7 +7,6 @@ describe("Smoke Test — App Health", () => {
     { path: "/pipelines", name: "Dashboard", sign: ".dashboard" },
     { path: "/agents", name: "Agents", sign: ".agents-page" },
     { path: "/materials", name: "Materials", sign: ".materials-page" },
-    { path: "/admin", name: "Admin", sign: ".admin-page-wrapper" },
   ];
 
   pages.forEach(({ path, name, sign }) => {
@@ -17,7 +16,14 @@ describe("Smoke Test — App Health", () => {
     });
   });
 
+  it("Admin page loads and renders", () => {
+    cy.loginAsAdmin();
+    cy.visitPage("/admin");
+    cy.get(".admin-page-wrapper", { timeout: 10000 }).should("exist");
+  });
+
   it("header navigation links are present", () => {
+    cy.loginAsAdmin();
     cy.visitPage("/pipelines");
     cy.get(".site-header", { timeout: 10000 }).should("be.visible");
     cy.get(".site-navigation_left a").contains("Dashboard").should("exist");
