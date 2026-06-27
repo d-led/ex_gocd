@@ -2,7 +2,7 @@ defmodule ExGoCD.Repo.Migrations.CreateSecretConfigs do
   use Ecto.Migration
 
   def change do
-    create table(:secret_configs, primary_key: false) do
+    create_if_not_exists table(:secret_configs, primary_key: false) do
       add :id, :binary_id, primary_key: true
       add :name, :string, null: false
       add :plugin_id, :string, null: false
@@ -12,6 +12,6 @@ defmodule ExGoCD.Repo.Migrations.CreateSecretConfigs do
       timestamps()
     end
 
-    create unique_index(:secret_configs, [:name])
+    create_if_not_exists unique_index(:secret_configs, [:name])
   end
 end
