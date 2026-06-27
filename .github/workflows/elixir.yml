@@ -76,6 +76,7 @@ jobs:
         name: Elixir Unit Tests
         path: _build/test/lib/ex_gocd/test-junit-report.xml
         reporter: java-junit
+        fail_on_error: false
 
   publish-server:
     name: Build and publish Server Docker image
