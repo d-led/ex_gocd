@@ -119,5 +119,75 @@ defmodule ExGoCD.ConfigXmlTest do
       xml = "<cruise><server serverId='x'/></cruise>"
       assert {:ok, []} = ExGoCD.ConfigXml.from_xml(xml)
     end
+
+    test "parses SVN material with full attributes" do
+      xml = """
+      <cruise>
+        <pipelines group="default">
+          <pipeline name="svn-pipeline">
+            <materials>
+              <svn url="https://svn.example.com/repo/trunk" username="alice" password="secret"
+                   checkexternals="true" materialName="my-svn" autoUpdate="true" dest="my-dest" />
+            </materials>
+          </pipeline>
+        </pipelines>
+      </cruise>
+      """
+
+      assert {:ok, [pipeline]} = ExGoCD.ConfigXml.from_xml(xml)
+      assert [material] = pipeline.materials
+      assert material.type == "svn"
+      assert material.url == "https://svn.example.com/repo/trunk"
+      assert material.username == "alice"
+      assert material.name == "my-svn"
+      assert material.auto_update == true
+
+      assert material.type_specific_config["check_externals"] == true
+      assert material.type_specific_config["password"] == "secret"
+    end
+
+    test "parses SVN material without auth (public repo)" do
+      xml = """
+      <cruise>
+        <pipelines group="default">
+          <pipeline name="svn-public">
+            <materials>
+              <svn url="https://svn.apache.org/repos/asf/subversion/trunk"
+                   checkexternals="false" materialName="apache-svn" />
+            </materials>
+          </pipeline>
+        </pipelines>
+      </cruise>
+      """
+
+      assert {:ok, [pipeline]} = ExGoCD.ConfigXml.from_xml(xml)
+      assert [material] = pipeline.materials
+      assert material.type == "svn"
+      assert material.url == "https://svn.apache.org/repos/asf/subversion/trunk"
+      assert material.username == nil
+      assert material.type_specific_config["check_externals"] == false
+      assert material.type_specific_config["password"] == ""
+    end
+
+    test "parses SVN material with username only (cached password)" do
+      xml = """
+      <cruise>
+        <pipelines group="default">
+          <pipeline name="svn-cached">
+            <materials>
+              <svn url="https://svn.example.com/repo" username="bob"
+                   checkexternals="false" materialName="bobs-repo" />
+            </materials>
+          </pipeline>
+        </pipelines>
+      </cruise>
+      """
+
+      assert {:ok, [pipeline]} = ExGoCD.ConfigXml.from_xml(xml)
+      assert [material] = pipeline.materials
+      assert material.type == "svn"
+      assert material.username == "bob"
+      assert material.type_specific_config["password"] == ""
+    end
   end
 end

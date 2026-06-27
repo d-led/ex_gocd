@@ -34,7 +34,7 @@ defmodule ExGoCD.Materials.ScmClient do
     end
 
     def latest_revision(%Material{type: "svn"} = mat) do
-      __MODULE__.Svn.latest_revision(mat.url, mat.branch || "trunk")
+      __MODULE__.Svn.latest_revision(mat)
     end
 
     def latest_revision(%Material{type: "hg"} = mat) do
@@ -103,24 +103,87 @@ defmodule ExGoCD.Materials.ScmClient do
       @moduledoc false
       require Logger
 
-      def latest_revision(url, _branch) do
-        case System.cmd("svn", ["info", "--show-item", "revision", url]) do
-          {output, 0} ->
-            rev = String.trim(output)
+      def latest_revision(%Material{type: "svn"} = mat) do
+        svn_opts = build_svn_opts(mat)
+        url = mat.url
+        branch = mat.branch
+
+        # Use branch as the full URL if specified, otherwise use url
+        effective_url = if branch && branch != "trunk" && branch != "", do: branch, else: url
+
+        case ExGoCD.Svn.info_revision(effective_url, svn_opts) do
+          {:ok, rev} ->
+            # Try to get richer info via svn log or svn info --xml
+            details = resolve_svn_details(effective_url, rev, svn_opts)
 
             {:ok,
              %{
                revision: rev,
-               committer_name: "svn",
-               committer_email: "svn@scm.local",
-               comment: "svn revision #{rev}",
-               modified_time: ExGoCD.Materials.ScmClient.now()
+               committer_name: details[:committer_name] || "svn",
+               committer_email: details[:committer_email] || "svn@scm.local",
+               comment: details[:comment] || "svn revision #{rev}",
+               modified_time: details[:modified_time] || ExGoCD.Materials.ScmClient.now()
              }}
 
-          {err, _} ->
-            Logger.error("svn info failed: #{inspect(err)}")
+          {:error, reason} ->
+            Logger.error("svn info failed for #{url}: #{inspect(reason)}")
             {:error, :svn_command_failed}
         end
+      end
+
+      defp resolve_svn_details(url, rev, opts) do
+        # Try svn log --xml for commit message and author
+        case ExGoCD.Svn.latest_modification(url, opts) do
+          {:ok, %{author: author, date: date, message: msg}} ->
+            %{
+              committer_name: author,
+              committer_email: "#{String.replace(author || "svn", " ", ".")}@scm.local",
+              comment: msg || "svn revision #{rev}",
+              modified_time: parse_svn_date(date)
+            }
+
+          _ ->
+            # Fallback: try svn info --xml for author
+            case ExGoCD.Svn.remote_info(url, opts) do
+              {:ok, %{author: author, date: date}} ->
+                %{
+                  committer_name: author,
+                  committer_email: "#{String.replace(author || "svn", " ", ".")}@scm.local",
+                  comment: "svn revision #{rev}",
+                  modified_time: parse_svn_date(date)
+                }
+
+              _ ->
+                %{}
+            end
+        end
+      end
+
+      defp parse_svn_date(nil), do: ExGoCD.Materials.ScmClient.now()
+      defp parse_svn_date(""), do: ExGoCD.Materials.ScmClient.now()
+
+      defp parse_svn_date(date_str) do
+        case DateTime.from_iso8601(date_str) do
+          {:ok, dt, _} -> dt
+          _ -> ExGoCD.Materials.ScmClient.now()
+        end
+      end
+
+      @doc false
+      def build_svn_opts(%Material{} = mat) do
+        tsc = mat.type_specific_config || %{}
+        username = mat.username
+        password = tsc["password"]
+
+        opts = []
+
+        opts =
+          if username && username != "", do: Keyword.put(opts, :username, username), else: opts
+
+        opts =
+          if password && password != "", do: Keyword.put(opts, :password, password), else: opts
+
+        opts
       end
     end
 

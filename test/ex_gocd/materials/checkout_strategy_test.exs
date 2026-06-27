@@ -114,4 +114,49 @@ defmodule ExGoCD.Materials.CheckoutStrategyTest do
     cmds = CheckoutStrategy.build_checkout_commands("url", "branch", "dest", "rev")
     assert cmds == [%{"name" => "exec", "command" => "echo", "args" => ["mocked"]}]
   end
+
+  describe "SvnCheckout" do
+    test "builds mkdir + svn checkout commands with destination" do
+      cmds =
+        CheckoutStrategy.SvnCheckout.build_checkout_commands(
+          "https://svn.example.com/repo/trunk",
+          "trunk",
+          "my-pipeline",
+          "42"
+        )
+
+      assert length(cmds) == 2
+
+      assert %{"command" => "mkdir", "args" => ["-p", "my-pipeline"]} = Enum.at(cmds, 0)
+
+      svn_cmd = Enum.at(cmds, 1)
+      assert svn_cmd["command"] == "svn"
+
+      assert svn_cmd["args"] == [
+               "checkout",
+               "--non-interactive",
+               "-r",
+               "42",
+               "https://svn.example.com/repo/trunk",
+               "."
+             ]
+
+      assert svn_cmd["workingDirectory"] == "my-pipeline"
+    end
+
+    test "skips mkdir when destination is empty" do
+      cmds =
+        CheckoutStrategy.SvnCheckout.build_checkout_commands(
+          "https://svn.example.com/repo",
+          "trunk",
+          "",
+          "1"
+        )
+
+      assert length(cmds) == 1
+      svn_cmd = Enum.at(cmds, 0)
+      assert svn_cmd["command"] == "svn"
+      assert svn_cmd["workingDirectory"] == ""
+    end
+  end
 end

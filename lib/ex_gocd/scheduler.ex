@@ -641,12 +641,57 @@ defmodule ExGoCD.Scheduler do
         revision
       )
     else
-      []
+      if mat["type"] == "svn" do
+        build_svn_checkout_cmds(
+          mat["url"],
+          mat["destination"] || "",
+          revision,
+          mat
+        )
+      else
+        []
+      end
     end
   end
 
   defp build_git_checkout_cmds(url, branch, dest, revision) do
     ExGoCD.Materials.CheckoutStrategy.build_checkout_commands(url, branch, dest, revision)
+  end
+
+  defp build_svn_checkout_cmds(url, dest, revision, mat) do
+    # Build SVN checkout commands with auth args from material config.
+    base_cmds =
+      ExGoCD.Materials.CheckoutStrategy.SvnCheckout.build_checkout_commands(
+        url,
+        "",
+        dest,
+        revision
+      )
+
+    # Inject auth args into the svn command
+    username = mat["username"]
+    password = type_specific_password(mat)
+
+    Enum.map(base_cmds, fn cmd ->
+      if cmd["command"] == "svn" do
+        auth_args = ExGoCD.Svn.svn_auth_args(username: username, password: password)
+        existing_args = cmd["args"] || []
+        # Insert auth args after the subcommand (checkout) but before URL
+        subcmd = Enum.at(existing_args, 0)
+        rest_args = Enum.drop(existing_args, 1)
+        new_args = [subcmd | auth_args ++ rest_args]
+        %{cmd | "args" => new_args}
+      else
+        cmd
+      end
+    end)
+  end
+
+  defp type_specific_password(mat) do
+    case mat["type_specific_config"] do
+      %{"password" => pwd} when is_binary(pwd) and pwd != "" -> pwd
+      _ -> nil
+    end
   end
 
   defp ensure_non_empty_cmds([]),

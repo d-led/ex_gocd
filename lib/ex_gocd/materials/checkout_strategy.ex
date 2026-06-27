@@ -63,4 +63,45 @@ defmodule ExGoCD.Materials.CheckoutStrategy do
       mkdir_cmd ++ git_cmds
     end
   end
+
+  defmodule SvnCheckout do
+    @moduledoc """
+    SVN checkout strategy based on GoCD's SvnMaterial.updateTo():
+    1. Create destination directory
+    2. If working copy exists and URL matches → cleanup, revert, update
+    3. If working copy doesn't exist or URL changed → fresh checkout
+
+    The agent-side commands simulate this logic:
+    - mkdir -p (dest)
+    - svn checkout --non-interactive -r REV URL DEST  (fresh checkout)
+    - OR: svn cleanup && svn revert -R . && svn update -r REV  (update existing)
+
+    Since the agent may not have prior state knowledge, we always do a fresh
+    checkout (like ForceCheckout for git). The agent receives all auth args.
+    """
+    @behaviour ExGoCD.Materials.CheckoutStrategy
+
+    @impl true
+    def build_checkout_commands(url, _branch, dest, revision) do
+      mkdir_cmd =
+        if dest != "" do
+          [%{"name" => "exec", "command" => "mkdir", "args" => ["-p", dest]}]
+        else
+          []
+        end
+
+      # Always fresh checkout — simplest and most reliable.
+      # SVN handles auth via --username/--password passed in args.
+      svn_cmds = [
+        %{
+          "name" => "exec",
+          "command" => "svn",
+          "args" => ["checkout", "--non-interactive", "-r", revision, url, "."],
+          "workingDirectory" => dest
+        }
+      ]
+
+      mkdir_cmd ++ svn_cmds
+    end
+  end
 end

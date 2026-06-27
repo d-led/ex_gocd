@@ -903,6 +903,132 @@ defmodule ExGoCD.SchedulerTest do
     end
   end
 
+  describe "SVN material checkout commands" do
+    alias ExGoCD.Pipelines.{
+      Job,
+      JobInstance,
+      Pipeline,
+      PipelineInstance,
+      Stage,
+      StageInstance,
+      Task
+    }
+
+    alias ExGoCD.Repo
+
+    test "generates svn checkout subcommands with auth args for SVN material" do
+      ji =
+        setup_svn_pipeline_instance("svn-pipe", %{
+          "materialRevisions" => [
+            %{
+              "material" => %{
+                "type" => "svn",
+                "url" => "https://svn.example.com/repo/trunk",
+                "destination" => "src",
+                "username" => "alice",
+                "type_specific_config" => %{"password" => "secret"}
+              },
+              "modifications" => [%{"revision" => "42", "comment" => "fix bug"}]
+            }
+          ]
+        })
+
+      cmd_spec = Scheduler.build_command_from_job_instance(ji)
+      assert %{"subCommands" => sub_cmds} = cmd_spec
+
+      svn_cmd = Enum.find(sub_cmds, &(&1["command"] == "svn"))
+      assert svn_cmd, "expected svn checkout command in subCommands"
+
+      assert svn_cmd["name"] == "exec"
+      assert svn_cmd["workingDirectory"] == "src"
+
+      args = svn_cmd["args"]
+      assert "checkout" in args
+      assert "--non-interactive" in args
+      assert "-r" in args
+      assert "42" in args
+      assert "https://svn.example.com/repo/trunk" in args
+      assert "." in args
+      assert "--username" in args
+      assert "alice" in args
+      assert "--password" in args
+      assert "secret" in args
+      assert "--no-auth-cache" in args
+    end
+
+    test "generates svn checkout without auth args when no credentials" do
+      ji =
+        setup_svn_pipeline_instance("svn-public-pipe", %{
+          "materialRevisions" => [
+            %{
+              "material" => %{
+                "type" => "svn",
+                "url" => "https://svn.apache.org/repos/asf/subversion/trunk",
+                "destination" => ""
+              },
+              "modifications" => [%{"revision" => "100"}]
+            }
+          ]
+        })
+
+      cmd_spec = Scheduler.build_command_from_job_instance(ji)
+      assert %{"subCommands" => sub_cmds} = cmd_spec
+
+      svn_cmd = Enum.find(sub_cmds, &(&1["command"] == "svn"))
+      assert svn_cmd, "expected svn checkout command"
+
+      args = svn_cmd["args"]
+      refute "--username" in args
+      refute "--password" in args
+      assert "--non-interactive" in args
+    end
+
+    defp setup_svn_pipeline_instance(name, build_cause) do
+      pipeline = Repo.insert!(%Pipeline{name: name, group: "test"})
+
+      stage =
+        Repo.insert!(%Stage{
+          name: "build",
+          pipeline_id: pipeline.id,
+          approval_type: "success",
+          fetch_materials: true
+        })
+
+      job = Repo.insert!(%Job{name: "compile", stage_id: stage.id})
+      Repo.insert!(%Task{type: "exec", command: "echo", arguments: ["done"], job_id: job.id})
+
+      pi =
+        Repo.insert!(%PipelineInstance{
+          pipeline_id: pipeline.id,
+          counter: 1,
+          label: "#{name}/1",
+          natural_order: 1.0,
+          build_cause: build_cause
+        })
+
+      si =
+        Repo.insert!(%StageInstance{
+          pipeline_instance_id: pi.id,
+          name: stage.name,
+          counter: 1,
+          order_id: 1,
+          state: "Building",
+          approval_type: "success",
+          created_time: DateTime.utc_now() |> DateTime.truncate(:second)
+        })
+
+      Repo.insert!(%JobInstance{
+        stage_instance_id: si.id,
+        job_id: job.id,
+        name: job.name,
+        state: "Scheduled",
+        scheduled_at: DateTime.utc_now()
+      })
+      |> then(&Repo.get!(JobInstance, &1.id))
+      |> Repo.preload([:job, stage_instance: [pipeline_instance: :pipeline]])
+    end
+  end
+
   defp assert_fifo_assign(uuid, expected_id) do
     # Reset agent to Idle to simulate previous job completing
     agent = ExGoCD.Repo.get_by!(ExGoCD.Agents.Agent, uuid: uuid)
