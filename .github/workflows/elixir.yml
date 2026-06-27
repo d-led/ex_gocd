@@ -46,13 +46,17 @@ jobs:
         otp-version: '29.0'      # [Required] Define the Erlang/OTP version
 
     - name: Restore dependencies cache
-      uses: actions/cache@v5
+      uses: actions/cache@v6
       with:
         path: deps
         key: ${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
         restore-keys: ${{ runner.os }}-mix-
     - name: Install dependencies
       run: mix deps.get
+    - name: Compile (force, to avoid stale beam warnings)
+      run: mix compile --force --warnings-as-errors
+      env:
+        CI: "true"
     - name: Run Elixir tests
       run: mix test
       env:
