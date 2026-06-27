@@ -892,6 +892,7 @@ defmodule ExGoCD.Scheduler do
     # Falls back to creating a root span when no HTTP trigger context exists
     # (e.g. timer-fired or material-polling triggers).
     enqueue_ctx = job_spec[:enqueue_ctx]
+    trigger_type = job_spec[:trigger_type] || job_spec["trigger_type"] || "unknown"
 
     do_assign = fn ->
       # Enrich the span with what was assigned
@@ -914,7 +915,8 @@ defmodule ExGoCD.Scheduler do
         "pipeline.counter" => pipeline_counter,
         "stage.name" => stage,
         "stage.counter" => stage_counter,
-        "job.name" => job
+        "job.name" => job,
+        "trigger.type" => trigger_type
       }, do_assign)
     end
   end

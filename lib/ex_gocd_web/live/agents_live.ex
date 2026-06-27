@@ -217,7 +217,8 @@ defmodule ExGoCDWeb.AgentsLive do
           "job" => "test-job",
           "run_on_all_agents" => true,
           "resources" => [],
-          "environments" => []
+          "environments" => [],
+          "trigger_type" => "manual_test"
         })
 
       count = elem(result, 1)

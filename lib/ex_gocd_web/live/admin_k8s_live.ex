@@ -20,22 +20,47 @@ defmodule ExGoCDWeb.AdminK8sLive do
   @impl true
   def mount(_params, _session, socket) do
     k3s_status = ClusterProfiles.maybe_auto_seed_k3s()
+    profiles = ClusterProfiles.list_profiles()
 
-    {:ok,
-     assign(socket,
-       page_title: "Elastic Agents",
-       active_tab: "elastic_agents",
-       cluster_profiles: ClusterProfiles.list_profiles(),
-       agent_profiles: ElasticAgentProfiles.list_profiles(),
-       show_cluster_modal: false,
-       show_agent_modal: false,
-       editing_cluster: nil,
-       editing_agent: nil,
-       cluster_form: empty_cluster_form(),
-       agent_form: empty_agent_form(),
-       k3s_status: k3s_status,
-       show_token: %{}
-     )}
+    socket =
+      assign(socket,
+        page_title: "Elastic Agents",
+        active_tab: "elastic_agents",
+        cluster_profiles: profiles,
+        agent_profiles: ElasticAgentProfiles.list_profiles(),
+        show_cluster_modal: false,
+        show_agent_modal: false,
+        editing_cluster: nil,
+        editing_agent: nil,
+        cluster_form: empty_cluster_form(),
+        agent_form: empty_agent_form(),
+        k3s_status: k3s_status,
+        show_token: %{},
+        connection_status: %{}
+      )
+
+    # Start async connectivity checks for each cluster profile
+    socket =
+      Enum.reduce(profiles, socket, fn profile, acc ->
+        try do
+          start_async(acc, {:check_conn, profile.id}, fn ->
+            {profile.id, ClusterProfiles.check_connection(profile)}
+          end)
+        rescue
+          _ -> acc
+        end
+      end)
+
+    {:ok, socket}
+  end
+
+  @impl true
+  def handle_async({:check_conn, id}, {:ok, {id, status}}, socket) do
+    {:noreply, put_in(socket.assigns.connection_status, Map.put(socket.assigns.connection_status, id, status))}
+  end
+
+  def handle_async({:check_conn, _id}, {:exit, reason}, socket) do
+    {:noreply, put_flash(socket, :error, "Connection check failed: #{inspect(reason)}")}
   end
 
   # ── Cluster Profile actions ───────────────────────────────────────────────
@@ -99,9 +124,13 @@ defmodule ExGoCDWeb.AdminK8sLive do
 
         # Re-check connection for the saved/updated profile
         socket =
-          start_async(socket, {:check_conn, profile.id}, fn ->
-            {profile.id, ClusterProfiles.check_connection(profile)}
-          end)
+          try do
+            start_async(socket, {:check_conn, profile.id}, fn ->
+              {profile.id, ClusterProfiles.check_connection(profile)}
+            end)
+          rescue
+            _ -> socket
+          end
 
         {:noreply, socket}
 
