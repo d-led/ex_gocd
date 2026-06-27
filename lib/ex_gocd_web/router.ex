@@ -293,6 +293,10 @@ defmodule ExGoCDWeb.Router do
     get "/pipeline_group_permissions", PipelineGroupPermissionController, :index
     post "/pipeline_group_permissions", PipelineGroupPermissionController, :create
     delete "/pipeline_group_permissions", PipelineGroupPermissionController, :delete
+
+    get "/notification_filters", NotificationFilterController, :index
+    post "/notification_filters", NotificationFilterController, :create
+    delete "/notification_filters/:id", NotificationFilterController, :delete
   end
 
   scope "/api/current_user", ExGoCDWeb.API do

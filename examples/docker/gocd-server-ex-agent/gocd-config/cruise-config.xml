@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<cruise xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="cruise-config.xsd" schemaVersion="139">
+  <server agentAutoRegisterKey="123456789abcdef" webhookSecret="3a167cf0-bdfa-4258-aff4-4c96a0062e39" serverId="exgocd-demo-server" tokenGenerationKey="47621e31-a4ae-4684-988f-a35b56eada14">
+    <artifacts>
+      <artifactsDir>artifacts</artifactsDir>
+    </artifacts>
+  </server>
+</cruise>
