@@ -6,13 +6,14 @@ defmodule ExGoCD.ClusterProfilesTest do
 
   describe "cluster profiles" do
     @valid_attrs %{
+      name: "test-cluster",
       plugin_id: "cd.go.contrib.elasticagent.kubernetes",
-      properties: %{"go_server_url" => "https://gocd.example.com"}
+      properties: %{"kubernetes_cluster_url" => "https://k8s.test:6443"}
     }
     @update_attrs %{
       properties: %{
-        "go_server_url" => "https://new.example.com",
-        "kubernetes_cluster_url" => "https://k8s.example.com"
+        "kubernetes_cluster_url" => "https://new-k8s.example.com",
+        "namespace" => "gocd-agents"
       }
     }
 
@@ -36,7 +37,7 @@ defmodule ExGoCD.ClusterProfilesTest do
 
     test "create_profile/1 with invalid data returns error" do
       {:error, changeset} = ClusterProfiles.create_profile(%{})
-      assert "can't be blank" in errors_on(changeset).plugin_id
+      assert "can't be blank" in errors_on(changeset).name
     end
 
     test "update_profile/2 updates the profile" do
@@ -52,8 +53,8 @@ defmodule ExGoCD.ClusterProfilesTest do
     end
 
     test "list_by_plugin/1 filters by plugin_id" do
-      ClusterProfiles.create_profile(%{plugin_id: "k8s", properties: %{}})
-      ClusterProfiles.create_profile(%{plugin_id: "docker", properties: %{}})
+      ClusterProfiles.create_profile(%{name: "k8s-cluster", plugin_id: "k8s", properties: %{}})
+      ClusterProfiles.create_profile(%{name: "docker-cluster", plugin_id: "docker", properties: %{}})
       assert length(ClusterProfiles.list_by_plugin("k8s")) == 1
     end
   end
