@@ -1,8 +1,5 @@
 import Config
 
-# Use DynamicHTTPProvider for k8s tests — no real cluster needed
-config :k8s, http_provider: K8s.Client.DynamicHTTPProvider
-
 config :ex_gocd,
   scheduler_reload_interval: :none,
   poller_interval: :none,
