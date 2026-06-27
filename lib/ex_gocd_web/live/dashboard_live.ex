@@ -107,11 +107,23 @@ defmodule ExGoCDWeb.DashboardLive do
           {:error, :pipeline_not_found} ->
             {:noreply, put_flash(socket, :error, "Pipeline '#{name}' not found.")}
 
+          {:error, :already_triggered} ->
+            {:noreply, put_flash(socket, :error, "Pipeline '#{name}' was just triggered — wait a moment.")}
+
+          {:error, :paused} ->
+            {:noreply, put_flash(socket, :error, "Pipeline '#{name}' is paused. Unpause first.")}
+
+          {:error, :locked} ->
+            {:noreply, put_flash(socket, :error, "Pipeline '#{name}' is locked. Unlock first.")}
+
+          {:error, :maintenance} ->
+            {:noreply, put_flash(socket, :error, "Server is in maintenance mode. Cannot trigger pipelines.")}
+
           {:error, reason} when is_binary(reason) ->
             {:noreply, put_flash(socket, :error, "Trigger failed: #{String.slice(reason, 0, 200)}")}
 
           {:error, reason} ->
-            {:noreply, put_flash(socket, :error, "Trigger failed: #{inspect(reason)}")}
+            {:noreply, put_flash(socket, :error, "Trigger failed.")}
         end
 
       false ->
