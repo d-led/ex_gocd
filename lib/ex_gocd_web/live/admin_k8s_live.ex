@@ -84,16 +84,26 @@ defmodule ExGoCDWeb.AdminK8sLive do
       end
 
     case result do
-      {:ok, _profile} ->
-        {:noreply,
-         socket
-         |> assign(
-           show_cluster_modal: false,
-           editing_cluster: nil,
-           cluster_profiles: ClusterProfiles.list_profiles(),
-           agent_profiles: ElasticAgentProfiles.list_profiles()
-         )
-         |> put_flash(:info, "Cluster profile saved.")}
+      {:ok, profile} ->
+        profiles = ClusterProfiles.list_profiles()
+
+        socket =
+          socket
+          |> assign(
+            show_cluster_modal: false,
+            editing_cluster: nil,
+            cluster_profiles: profiles,
+            agent_profiles: ElasticAgentProfiles.list_profiles()
+          )
+          |> put_flash(:info, "Cluster profile saved.")
+
+        # Re-check connection for the saved/updated profile
+        socket =
+          start_async(socket, {:check_conn, profile.id}, fn ->
+            {profile.id, ClusterProfiles.check_connection(profile)}
+          end)
+
+        {:noreply, socket}
 
       {:error, changeset} ->
         {:noreply, assign(socket, cluster_form: to_form(changeset))}
@@ -111,6 +121,22 @@ defmodule ExGoCDWeb.AdminK8sLive do
        agent_profiles: ElasticAgentProfiles.list_profiles()
      )
      |> put_flash(:info, "Cluster profile deleted.")}
+  end
+
+  def handle_event("recheck_cluster", %{"id" => id}, socket) do
+    # Mark as checking
+    socket = put_in(socket.assigns.connection_status, Map.put(socket.assigns.connection_status, id, nil))
+
+    case ClusterProfiles.get_profile(id) do
+      nil ->
+        {:noreply, socket}
+
+      profile ->
+        start_async(socket, {:check_conn, id}, fn ->
+          {id, ClusterProfiles.check_connection(profile)}
+        end)
+        |> then(&{:noreply, &1})
+    end
   end
 
   # ── Elastic Agent Profile actions ─────────────────────────────────────────
@@ -241,6 +267,9 @@ defmodule ExGoCDWeb.AdminK8sLive do
                     do: "✓ Configured",
                     else: "✗ Missing"}
                 </div>
+                <div class="mt-2">
+                  {connection_status_badge(@connection_status[profile.id])}
+                </div>
               </div>
               <div class="flex gap-2 mt-3">
                 <button
@@ -249,6 +278,13 @@ defmodule ExGoCDWeb.AdminK8sLive do
                   class="text-sm text-blue-600 hover:underline"
                 >
                   Edit
+                </button>
+                <button
+                  phx-click="recheck_cluster"
+                  phx-value-id={profile.id}
+                  class="text-sm text-gray-600 hover:underline"
+                >
+                  Re-check
                 </button>
                 <button
                   phx-click="delete_cluster"
@@ -776,4 +812,52 @@ defmodule ExGoCDWeb.AdminK8sLive do
   end
 
   defp format_key_value(_), do: ""
+
+  # ── Connection status helpers ──────────────────────────────────────────────
+
+  defp connection_status_badge(nil) do
+    Phoenix.HTML.raw("""
+    <span class="inline-flex items-center gap-1 text-xs text-gray-500">
+      <span class="w-2 h-2 bg-gray-300 rounded-full animate-pulse"></span>
+      Checking\u2026
+    </span>\
+    """)
+  end
+
+  defp connection_status_badge(:ok) do
+    Phoenix.HTML.raw("""
+    <span class="inline-flex items-center gap-1 text-xs text-green-700" title="Cluster is reachable">
+      <span class="w-2 h-2 bg-green-500 rounded-full"></span>
+      Connected
+    </span>\
+    """)
+  end
+
+  defp connection_status_badge({:error, :incomplete}) do
+    Phoenix.HTML.raw("""
+    <span class="inline-flex items-center gap-1 text-xs text-amber-700" title="Missing server URL or token">
+      <span class="w-2 h-2 bg-amber-400 rounded-full"></span>
+      Incomplete \u2014 configure server and token
+    </span>\
+    """)
+  end
+
+  defp connection_status_badge({:error, reason}) when is_binary(reason) do
+    escaped = Phoenix.HTML.html_escape(reason) |> Phoenix.HTML.safe_to_string()
+    Phoenix.HTML.raw("""
+    <span class="inline-flex items-center gap-1 text-xs text-red-700" title="#{escaped}">
+      <span class="w-2 h-2 bg-red-500 rounded-full"></span>
+      Failed \u2014 #{escaped}
+    </span>\
+    """)
+  end
+
+  defp connection_status_badge(_) do
+    Phoenix.HTML.raw("""
+    <span class="inline-flex items-center gap-1 text-xs text-gray-500">
+      <span class="w-2 h-2 bg-gray-300 rounded-full"></span>
+      Unknown
+    </span>\
+    """)
+  end
 end

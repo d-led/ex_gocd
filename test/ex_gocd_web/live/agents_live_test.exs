@@ -99,8 +99,9 @@ defmodule ExGoCDWeb.AgentsLiveTest do
 
       {:ok, view, _html} = live(conn, ~p"/agents")
 
-      # Verify the disabled agent appears
-      assert render(view) =~ "disabled-agent"
+      # Verify the disabled agent appears in the agents table
+      table_html = view |> element(".agents-table") |> render()
+      assert table_html =~ "disabled-agent"
 
       # Click CLEAN DISABLED
       html = view |> element("button", "CLEAN DISABLED") |> render_click()
@@ -109,7 +110,8 @@ defmodule ExGoCDWeb.AgentsLiveTest do
       assert html =~ ~r{Deleted \d+ disabled agent}
 
       # The disabled agent should be gone from the table
-      refute html =~ "disabled-agent"
+      table_html = view |> element(".agents-table") |> render()
+      refute table_html =~ "disabled-agent"
     end
 
     test "non-admin cannot clean disabled agents", %{conn: conn} do
@@ -123,6 +125,33 @@ defmodule ExGoCDWeb.AgentsLiveTest do
 
       # Non-admin shouldn't see the CLEAN DISABLED button
       refute render(view) =~ "CLEAN DISABLED"
+    end
+  end
+
+  describe "registration log" do
+    test "shows registration log after agents register", %{conn: conn} do
+      Agents.register_agent(%{uuid: "reglog-0000-0000-0000-000000000001", hostname: "agent-a", ipaddress: "10.0.0.1"})
+      Agents.register_agent(%{uuid: "reglog-0000-0000-0000-000000000002", hostname: "agent-b", ipaddress: "10.0.0.2"})
+
+      {:ok, _view, html} = live(conn, ~p"/agents")
+      assert html =~ "Registration log"
+      assert html =~ "agent-a"
+      assert html =~ "agent-b"
+    end
+
+    test "shows both successes and failures", %{conn: conn} do
+      Agents.register_agent(%{uuid: "reglog-0000-0000-0000-000000000003", hostname: "agent-ok", ipaddress: "10.0.0.3"})
+      Agents.register_agent(%{uuid: "bad-uuid-xxxxxxxx", hostname: ""})
+
+      {:ok, _view, html} = live(conn, ~p"/agents")
+      assert html =~ "Registration log"
+      assert html =~ "agent-ok"
+    end
+
+    test "agent appears immediately after registration", %{conn: conn} do
+      Agents.register_agent(%{uuid: "presence-0000-0000-0000-000000000001", hostname: "presence-test", ipaddress: "10.0.0.4"})
+      {:ok, view, _html} = live(conn, ~p"/agents")
+      assert render(view) =~ "presence-test"
     end
   end
 end

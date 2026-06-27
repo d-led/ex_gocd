@@ -22,6 +22,7 @@ defmodule ExGoCDWeb.AgentsLive do
      socket
      |> assign(
        agents: fetch_agents(),
+       registration_log: ExGoCD.Agents.registration_log(),
        selected_agents: MapSet.new(),
        agent_type: :static,
        filter: "",
@@ -354,6 +355,24 @@ defmodule ExGoCDWeb.AgentsLive do
           <span class="stats-separator">:</span>
           <span class="stats-value">{@pending_scheduled}</span>
         </div>
+
+        <%= if @registration_log != [] do %>
+          <details class="mb-2 text-xs">
+            <summary class="cursor-pointer text-gray-500 hover:text-gray-700">
+              Registration log (last {length(@registration_log)})
+            </summary>
+            <div class="mt-1 max-h-32 overflow-y-auto border rounded p-2 bg-gray-50 font-mono">
+              <%= for {uuid, host, result, time} <- Enum.take(@registration_log, 10) do %>
+                <div class={"flex gap-2 #{if result == :ok, do: "text-green-700", else: "text-red-600"}"}>
+                  <span class="w-12 shrink-0">{if result == :ok, do: "✓", else: "✗"}</span>
+                  <span class="w-36 shrink-0 truncate" title={uuid}>{String.slice(uuid, 0, 20)}</span>
+                  <span class="w-20 shrink-0">{host}</span>
+                  <span class="text-gray-400">{time && Calendar.strftime(time, "%H:%M:%S")}</span>
+                </div>
+              <% end %>
+            </div>
+          </details>
+        <% end %>
 
         <div class="search-box">
           <i class="fa fa-search" aria-hidden="true"></i>

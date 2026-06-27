@@ -93,6 +93,45 @@ defmodule ExGoCD.K8s do
   end
 
   @doc """
+  Tests connectivity to a Kubernetes cluster.
+
+  Tries to list pods with limit 1 in the configured namespace.
+  Returns `:ok` on success, or `{:error, reason}` on failure.
+
+  The `reason` is a human-readable string suitable for UI display.
+  The call is wrapped in a Task with a 5-second timeout to prevent hanging.
+  """
+  @spec ping(conn(), keyword()) :: :ok | {:error, String.t()}
+  def ping(conn, opts \\ []) do
+    ns = Keyword.get(opts, :namespace, "default")
+
+    task =
+      Task.async(fn ->
+        path_params = [namespace: ns, limit: 1]
+        operation = @k8s_client.list("v1", "Pod", path_params)
+        @k8s_client.run(conn, operation)
+      end)
+
+    case Task.yield(task, 5000) || Task.shutdown(task) do
+      {:ok, {:ok, _}} -> :ok
+      {:ok, {:error, error}} -> {:error, format_ping_error(error)}
+      {:ok, other} -> {:error, "Unexpected response: #{inspect(other)}"}
+      nil -> {:error, "Connection timed out after 5 seconds"}
+    end
+  rescue
+    e in RuntimeError -> {:error, Exception.message(e)}
+  end
+
+  @doc false
+  def format_ping_error(%{reason: :connect_timeout}), do: "Connection timed out — cluster unreachable"
+  def format_ping_error(%{reason: :nxdomain}), do: "DNS resolution failed — check server URL"
+  def format_ping_error(%{reason: :econnrefused}), do: "Connection refused — is the cluster running?"
+  def format_ping_error(%{reason: :ssl_error}), do: "TLS error — check CA certificate"
+  def format_ping_error(%{reason: :not_found}), do: "Connected but namespace not found"
+  def format_ping_error(%{message: msg}) when is_binary(msg), do: "Error: #{msg}"
+  def format_ping_error(_), do: "Unknown error connecting to cluster"
+
+  @doc """
   Discover a local k3s cluster for development.
 
   Tries, in order:

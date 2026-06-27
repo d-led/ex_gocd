@@ -19,10 +19,39 @@ defmodule ExGoCD.Agents do
   alias ExGoCD.Repo
 
   @agents_topic "agents:updates"
+  @reg_log_table :agent_registration_log
+  @max_reg_log 30
 
   # Check if we should use mock data
   defp use_mock? do
     System.get_env("USE_MOCK_DATA") == "true"
+  end
+
+  # ── Registration log (diagnostic: last 30 registration attempts) ────────
+
+  @doc "Returns the last 30 registration attempts (success + failure) sorted newest first."
+  def registration_log do
+    try do
+      :ets.tab2list(@reg_log_table) |> Enum.sort_by(fn {_k, _h, _r, t} -> t end, {:desc, DateTime})
+    rescue
+      _ -> []
+    catch
+      _, _ -> []
+    end
+  end
+
+  defp log_registration(uuid, hostname, result) do
+    init_reg_log()
+    logs = :ets.tab2list(@reg_log_table)
+    if length(logs) >= @max_reg_log, do: :ets.delete(@reg_log_table, hd(logs))
+    :ets.insert(@reg_log_table, {uuid, hostname, result, DateTime.utc_now()})
+  end
+
+  defp init_reg_log do
+    case :ets.info(@reg_log_table) do
+      :undefined -> :ets.new(@reg_log_table, [:named_table, :public, :set])
+      _ -> :ok
+    end
   end
 
   @doc """
@@ -54,37 +83,52 @@ defmodule ExGoCD.Agents do
       uuid = attrs["uuid"] || attrs[:uuid]
       hostname = attrs["hostname"] || attrs[:hostname]
 
-      case uuid && get_agent_by_uuid(uuid) do
-        nil ->
-          # UUID not found. Check if a LostContact agent with same hostname exists
-          # (robust re-registration after DB reset or agent UUID change).
-          existing =
-            if hostname do
-              Repo.get_by(Agent, hostname: hostname, disabled: false, deleted: false)
+      result =
+        case uuid && get_agent_by_uuid(uuid) do
+          nil ->
+            existing =
+              if hostname do
+                Repo.get_by(Agent, hostname: hostname, disabled: false, deleted: false)
+              end
+
+            case existing do
+              nil ->
+                %Agent{}
+                |> Agent.registration_changeset(attrs)
+                |> Repo.insert()
+                |> broadcast(:agent_registered)
+
+              agent ->
+                agent
+                |> Agent.changeset(Map.put(attrs, "uuid", uuid))
+                |> Repo.update()
+                |> broadcast(:agent_updated)
             end
 
-          case existing do
-            nil ->
-              %Agent{}
-              |> Agent.registration_changeset(attrs)
-              |> Repo.insert()
-              |> broadcast(:agent_registered)
+          existing_agent ->
+            existing_agent
+            |> Agent.changeset(attrs)
+            |> Repo.update()
+            |> broadcast(:agent_updated)
+        end
 
-            agent ->
-              # Update existing agent with new UUID (re-registration)
-              agent
-              |> Agent.changeset(Map.put(attrs, "uuid", uuid))
-              |> Repo.update()
-              |> broadcast(:agent_updated)
-          end
-
-        existing_agent ->
-          existing_agent
-          |> Agent.changeset(attrs)
-          |> Repo.update()
-          |> broadcast(:agent_updated)
-      end
+      outcome = elem(result, 0)
+      log_registration(uuid || "unknown", hostname || "unknown", outcome)
+      log_registration_audit(uuid, hostname, outcome, attrs)
+      result
     end
+  end
+
+  defp log_registration_audit(uuid, hostname, outcome, attrs) do
+    ip = attrs["ipaddress"] || attrs[:ipaddress] || "unknown"
+    status = if outcome == :ok, do: "success", else: "failed"
+    actor = "agent:#{String.slice(uuid || "", 0, 8)}"
+    ExGoCD.AuditLog.log(actor, "agent_registration",
+      resource_type: "agent",
+      resource_name: hostname,
+      remote_ip: ip,
+      details: %{uuid: uuid, status: status}
+    )
   end
 
   @doc """

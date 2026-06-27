@@ -82,4 +82,36 @@ defmodule ExGoCD.ClusterProfiles do
       end
     end
   end
+
+  @doc """
+  Checks connectivity to a cluster profile's Kubernetes API.
+
+  Returns `:ok` on success, `{:error, reason}` on failure
+  (reason is a human-readable string), or `{:error, :incomplete}`
+  when the profile is missing required fields.
+  """
+  @spec check_connection(ClusterProfile.t()) :: :ok | {:error, String.t() | :incomplete}
+  def check_connection(%ClusterProfile{} = profile) do
+    server = ClusterProfile.server_url(profile)
+    token = ClusterProfile.bearer_token(profile)
+
+    if is_nil(server) or server == "" or is_nil(token) or token == "" do
+      {:error, :incomplete}
+    else
+      config = %{
+        "server" => server,
+        "token" => token,
+        "ca_cert" => ClusterProfile.ca_cert(profile),
+        "namespace" => ClusterProfile.namespace(profile)
+      }
+
+      case K8s.from_config(config) do
+        {:ok, conn} ->
+          K8s.ping(conn, namespace: ClusterProfile.namespace(profile))
+
+        {:error, reason} ->
+          {:error, "Invalid config: #{inspect(reason)}"}
+      end
+    end
+  end
 end
