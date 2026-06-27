@@ -1,4 +1,4 @@
-defmodule ExGoCDWeb.API.PackageRepositoryController do
+defmodule ExGoCDWeb.API.Admin.PackageRepositoryController do
   use ExGoCDWeb, :controller
   alias ExGoCD.PackageRepositories
 

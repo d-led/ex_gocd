@@ -1,4 +1,4 @@
-defmodule ExGoCDWeb.API.ClusterProfileJSON do
+defmodule ExGoCDWeb.API.Admin.ClusterProfileJSON do
   def index(%{profiles: profiles}) do
     %{data: Enum.map(profiles, &data/1)}
   end

@@ -151,8 +151,12 @@ defmodule ExGoCD.ConfigXml do
         count =
           Enum.reduce(pipelines, 0, fn pipeline, acc ->
             case Pipelines.get_pipeline_by_name(pipeline.name) do
-              nil -> Pipelines.create_pipeline(pipeline); acc + 1
-              _existing -> Pipelines.update_pipeline(pipeline); acc + 1
+              nil ->
+                Pipelines.create_pipeline(pipeline)
+                acc + 1
+              existing ->
+                Pipelines.update_pipeline(existing, pipeline)
+                acc + 1
             end
           end)
 
@@ -275,7 +279,13 @@ defmodule ExGoCD.ConfigXml do
       name: to_string(attr(el, :name)),
       fetch_materials: attr(el, :fetchMaterials) != "false",
       clean_working_directory: attr(el, :cleanWorkingDir) == "true",
-      approval_type: (find_child(el, :approval) |> case do nil -> "success"; a -> to_string(attr(a, :type) || "success") end),
+      approval_type: (
+        find_child(el, :approval)
+        |> case do
+          nil -> "success"
+          a -> to_string(attr(a, :type) || "success")
+        end
+      ),
       environment_variables: parse_env_vars(el),
       secure_variables: parse_secure_vars(el),
       jobs: parse_jobs(el)
@@ -323,23 +333,25 @@ defmodule ExGoCD.ConfigXml do
   end
 
   defp parse_task(el) do
-    tag = elem(el, 1)
-    case tag do
-      :exec ->
-        command = to_string(attr(el, :command) || "")
-        args = find_elements(el, :arg) |> Enum.map(fn a -> text_content(a) |> to_string() end)
-        runif_el = find_child(el, :runif)
-        runif = if runif_el, do: to_string(attr(runif_el, :status) || "passed"), else: "passed"
-        %{type: "exec", command: command, args: args, run_if: [runif]}
-
-      :fetchartifact ->
-        %{type: "fetch", pipeline: to_string(attr(el, :pipeline) || ""), stage: to_string(attr(el, :stage) || ""),
-          job: to_string(attr(el, :job) || ""), src_file: to_string(attr(el, :srcfile) || ""),
-          dest: to_string(attr(el, :dest) || ""), artifact_origin: to_string(attr(el, :artifactOrigin) || "gocd")}
-
-      _ ->
-        %{type: "exec", command: "echo", args: ["unknown task: #{tag}"]}
+    case elem(el, 1) do
+      :exec -> parse_exec_task(el)
+      :fetchartifact -> parse_fetch_task(el)
+      other -> %{type: "exec", command: "echo", args: ["unknown task: #{other}"]}
     end
+  end
+
+  defp parse_exec_task(el) do
+    command = to_string(attr(el, :command) || "")
+    args = find_elements(el, :arg) |> Enum.map(fn a -> text_content(a) |> to_string() end)
+    runif_el = find_child(el, :runif)
+    runif = if runif_el, do: to_string(attr(runif_el, :status) || "passed"), else: "passed"
+    %{type: "exec", command: command, args: args, run_if: [runif]}
+  end
+
+  defp parse_fetch_task(el) do
+    %{type: "fetch", pipeline: to_string(attr(el, :pipeline) || ""), stage: to_string(attr(el, :stage) || ""),
+      job: to_string(attr(el, :job) || ""), src_file: to_string(attr(el, :srcfile) || ""),
+      dest: to_string(attr(el, :dest) || ""), artifact_origin: to_string(attr(el, :artifactOrigin) || "gocd")}
   end
 
   # ── xmerl navigation helpers ──────────────────────────────────────
@@ -375,14 +387,6 @@ defmodule ExGoCD.ConfigXml do
       child when elem(child, 0) == :xmlText -> elem(child, 4) |> to_string()
       _ -> nil
     end)
-  end
-
-  defp find_text(el, _name) when is_nil(el), do: nil
-  defp find_text(el, name) do
-    find_child(el, name) |> case do
-      nil -> nil
-      child -> text_content(child)
-    end
   end
 
   defp timer_text(nil), do: nil

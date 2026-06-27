@@ -39,7 +39,7 @@ defmodule ExGoCD.Backup do
     {:reply, {:error, :already_running}, state}
   end
 
-  def handle_call(:create, _from, state) do
+  def handle_call(:create, _from, _state) do
     timestamp = Calendar.strftime(DateTime.utc_now(), "%Y%m%d_%H%M%S")
     filename = "ex_gocd_backup_#{timestamp}.sql"
     filepath = Path.join(@backup_dir, filename)
@@ -81,8 +81,8 @@ defmodule ExGoCD.Backup do
 
     case parse_db_url(db_url) do
       {:ok, opts} ->
-        cmd = pg_dump_cmd(opts, filepath)
-        case System.cmd("pg_dump", cmd, stderr_to_stdout: true) do
+        {args, env} = pg_dump_cmd(opts, filepath)
+        case System.cmd("pg_dump", args, env: env, stderr_to_stdout: true) do
           {output, 0} -> {:ok, output}
           {output, _} -> {:error, String.trim(output)}
         end

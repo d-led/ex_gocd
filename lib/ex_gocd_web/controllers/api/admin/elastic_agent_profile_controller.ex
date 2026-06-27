@@ -1,4 +1,4 @@
-defmodule ExGoCDWeb.API.ElasticAgentProfileController do
+defmodule ExGoCDWeb.API.Admin.ElasticAgentProfileController do
   use ExGoCDWeb, :controller
 
   alias ExGoCD.ElasticAgentProfiles

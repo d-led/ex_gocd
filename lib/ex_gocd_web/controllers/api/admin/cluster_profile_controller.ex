@@ -1,4 +1,4 @@
-defmodule ExGoCDWeb.API.ClusterProfileController do
+defmodule ExGoCDWeb.API.Admin.ClusterProfileController do
   use ExGoCDWeb, :controller
 
   alias ExGoCD.ClusterProfiles

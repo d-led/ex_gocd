@@ -1,4 +1,4 @@
-defmodule ExGoCDWeb.API.ElasticAgentProfileJSON do
+defmodule ExGoCDWeb.API.Admin.ElasticAgentProfileJSON do
   def index(%{profiles: profiles}) do
     %{data: Enum.map(profiles, &data/1)}
   end

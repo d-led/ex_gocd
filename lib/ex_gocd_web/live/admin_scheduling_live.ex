@@ -95,7 +95,7 @@ defmodule ExGoCDWeb.AdminSchedulingLive do
     end)
     |> Enum.take(10)
     |> Enum.map(fn entry ->
-      detail = entry.details || %{}
+      _detail = entry.details || %{}
       %{
         time: entry.inserted_at,
         action: entry.action,

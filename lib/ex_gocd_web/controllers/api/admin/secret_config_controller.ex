@@ -1,4 +1,4 @@
-defmodule ExGoCDWeb.API.SecretConfigController do
+defmodule ExGoCDWeb.API.Admin.SecretConfigController do
   use ExGoCDWeb, :controller
   alias ExGoCD.SecretConfigs
 

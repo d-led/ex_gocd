@@ -1176,7 +1176,7 @@ defmodule ExGoCDWeb.AdminLive do
   def handle_event("toggle_maintenance_mode", _params, socket) do
     current = MaintenanceMode.enabled?()
 
-    {status, message} =
+    {_status, message} =
       if current do
         MaintenanceMode.disable()
         {:ok, "Server left maintenance mode."}
@@ -1214,20 +1214,6 @@ defmodule ExGoCDWeb.AdminLive do
          |> assign(:backup_status, "Running")
          |> assign(:backup_message, "Config backup started at #{DateTime.utc_now() |> DateTime.to_string()}...")}
     end
-  end
-
-  @impl true
-  def handle_info(:refresh_backup_status, socket) do
-    status = Backup.status()
-
-    if status.status == "Running" do
-      Process.send_after(self(), :refresh_backup_status, 1500)
-    end
-
-    {:noreply,
-     socket
-     |> assign(:backup_status, status.status)
-     |> assign(:backup_message, status.message)}
   end
 
   @impl true
@@ -1624,10 +1610,21 @@ defmodule ExGoCDWeb.AdminLive do
   # --- Moved handlers & helpers ---
 
   @impl true
-  def handle_info(:backup_complete, socket) do
-    backup_path =
-      "/var/lib/go-server/db/backups/backup_config_xml_#{System.unique_integer([:positive])}.zip"
+  def handle_info(:refresh_backup_status, socket) do
+    status = Backup.status()
 
+    if status.status == "Running" do
+      Process.send_after(self(), :refresh_backup_status, 1500)
+    end
+
+    {:noreply,
+     socket
+     |> assign(:backup_status, status.status)
+     |> assign(:backup_message, status.message)}
+  end
+
+  @impl true
+  def handle_info(:backup_complete, socket) do
     {:noreply,
      socket
      |> assign(:backup_status, "Completed")

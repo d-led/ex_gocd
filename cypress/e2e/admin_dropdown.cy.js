@@ -113,11 +113,7 @@ describe("Admin dropdown — desktop viewport usability", () => {
         .eq(0)
         .within(() => {
           cy.get(".site-sub-nav_link").should("have.length", 6);
-          cy.contains("a", "Overview").should(
-            "have.attr",
-            "href",
-            "/admin",
-          );
+          cy.contains("a", "Overview").should("have.attr", "href", "/admin");
           cy.contains("a", "Pipelines").should(
             "have.attr",
             "href",
