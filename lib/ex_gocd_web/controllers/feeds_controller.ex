@@ -36,18 +36,18 @@ defmodule ExGoCDWeb.FeedsController do
       |> Enum.map(fn inst ->
         pipeline = Enum.find(pipelines, &(&1.id == inst.pipeline_id))
         pipeline_name = if pipeline, do: pipeline.name, else: "unknown"
-        updated = inst.inserted_at || now
-        status = inst.status || "Unknown"
+        updated = (inst.inserted_at && Calendar.strftime(inst.inserted_at, "%Y-%m-%dT%H:%M:%SZ")) || now
+        label = inst.label || "Unknown"
 
         """
         <entry>
-          <title>#{esc("#{pipeline_name} ##{inst.counter} #{status}")}</title>
+          <title>#{esc("#{pipeline_name} ##{inst.counter} #{label}")}</title>
           <link href="#{esc("#{base_url}/pipelines/value_stream_map/#{pipeline_name}/#{inst.counter}")}" rel="alternate" type="text/html"/>
           <id>#{esc("urn:exgocd:pipeline:#{pipeline_name}:#{inst.counter}")}</id>
           <published>#{esc(updated)}</published>
           <updated>#{esc(updated)}</updated>
-          <category term="#{esc(status)}" label="status"/>
-          <content type="text">#{esc("#{pipeline_name} ##{inst.counter}: #{status}")}</content>
+          <category term="#{esc(label)}"/>
+          <content type="text">#{esc("#{pipeline_name} ##{inst.counter}: #{label}")}</content>
         </entry>
         """
       end)
