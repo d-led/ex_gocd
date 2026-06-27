@@ -602,84 +602,60 @@ defmodule ExGoCDWeb.AgentsLive do
                 <%= if map_size(@tracked_pods) == 0 do %>
                   <tr>
                     <td colspan="8" class="text-center text-gray-500 py-4">
-                      No elastic agent pods tracked. Pods appear here when the scheduler creates them for <code>run_on_all_agents</code> jobs.
+                      No elastic agent pods tracked. Pods appear here when the scheduler creates them for
+                      <code>run_on_all_agents</code>
+                      jobs.
                     </td>
                   </tr>
                 <% else %>
                   <%= for {_pod_name, pod} <- @tracked_pods do %>
-                  <tr>
-                    <td class="font-mono text-sm">{pod.pod_name}</td>
-                    <td>{pod.profile_name}</td>
-                    <td>{pod.cluster_name}</td>
-                    <td>{pod.namespace}</td>
-                    <td>{pod.job_name}</td>
-                    <td>{Enum.join(pod.resources, ", ")}</td>
-                    <td>
-                      <%= if pod.error do %>
-                        <span class="text-red-700">Error</span>
-                      <% else %>
-                        <%= if pod.agent_uuid do %>
-                          <span class="text-green-700">Registered</span>
+                    <tr>
+                      <td class="font-mono text-sm">{pod.pod_name}</td>
+                      <td>{pod.profile_name}</td>
+                      <td>{pod.cluster_name}</td>
+                      <td>{pod.namespace}</td>
+                      <td>{pod.job_name}</td>
+                      <td>{Enum.join(pod.resources, ", ")}</td>
+                      <td>
+                        <%= if pod.error do %>
+                          <span class="text-red-700">Error</span>
                         <% else %>
-                          <span class="text-amber-700">Pending</span>
+                          <%= if pod.agent_uuid do %>
+                            <span class="text-green-700">Registered</span>
+                          <% else %>
+                            <span class="text-amber-700">Pending</span>
+                          <% end %>
                         <% end %>
-                      <% end %>
-                    </td>
-                    <td class="text-sm text-gray-500">{format_pod_time(pod.created_at)}</td>
-                  </tr>
+                      </td>
+                      <td class="text-sm text-gray-500">{format_pod_time(pod.created_at)}</td>
+                    </tr>
+                  <% end %>
                 <% end %>
               <% end %>
-            <% end %>
             </tbody>
           </table>
         </div>
       <% end %>
 
       <%= if @registration_log != [] do %>
-        <div class="registration-log" style="margin-top: 16px;">
-          <div class="page-header" style="margin-bottom: 8px;">
-            <h2 class="page-header_title" style="font-size: 18px;">
-              <span>Registration log (last {length(@registration_log)})</span>
-            </h2>
+        <details class="registration-log" style="margin-top: 16px;" open>
+          <summary style="cursor: pointer; font-size: 14px; color: #6b7280; margin-bottom: 8px;">
+            Registration log · last {length(@registration_log)}
+          </summary>
+          <div style="display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 13px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;">
+            <%= for {uuid, host, result, time} <- Enum.take(@registration_log, 10) do %>
+              <span style="white-space: nowrap;" title={"#{uuid} · #{host}"}>
+                <span style={if result == :ok, do: "color: #16a34a;", else: "color: #dc2626;"}>
+                  {if result == :ok, do: "✓", else: "✗"}
+                </span>
+                <span style="margin-left: 2px; color: #374151;">{host}</span>
+                <span style="margin-left: 4px; color: #9ca3af;">
+                  {time && Calendar.strftime(time, "%H:%M:%S")}
+                </span>
+              </span>
+            <% end %>
           </div>
-          <div class="agents-table-container">
-            <table class="registration-log-table">
-              <thead>
-                <tr>
-                  <th style="width: 40px;"></th>
-                  <th>UUID</th>
-                  <th>Hostname</th>
-                  <th>Time</th>
-                  <th>Result</th>
-                </tr>
-              </thead>
-              <tbody>
-                <%= for {uuid, host, result, time} <- Enum.take(@registration_log, 10) do %>
-                  <tr class={if result == :ok, do: "", else: "disabled-row"}>
-                    <td style="text-align: center;">
-                      <span class={if result == :ok, do: "stats-enabled", else: "stats-disabled"}>
-                        {if result == :ok, do: "✓", else: "✗"}
-                      </span>
-                    </td>
-                    <td>
-                      <span title={uuid}>{String.slice(uuid, 0, 36)}</span>
-                      <%= if String.length(uuid) > 36 do %>
-                        <span class="none-specified">…</span>
-                      <% end %>
-                    </td>
-                    <td>{host}</td>
-                    <td class="text-gray-400">{time && Calendar.strftime(time, "%H:%M:%S")}</td>
-                    <td>
-                      <span class={status_class(if result == :ok, do: :idle, else: :lost_contact)}>
-                        {if result == :ok, do: "ok", else: "failed"}
-                      </span>
-                    </td>
-                  </tr>
-                <% end %>
-              </tbody>
-            </table>
-          </div>
-        </div>
+        </details>
       <% end %>
     </div>
     """
@@ -808,6 +784,9 @@ defmodule ExGoCDWeb.AgentsLive do
 
   defp format_pod_time(nil), do: "—"
   defp format_pod_time(dt) when is_struct(dt, DateTime), do: Calendar.strftime(dt, "%H:%M:%S")
-  defp format_pod_time(dt) when is_struct(dt, NaiveDateTime), do: Calendar.strftime(dt, "%H:%M:%S")
+
+  defp format_pod_time(dt) when is_struct(dt, NaiveDateTime),
+    do: Calendar.strftime(dt, "%H:%M:%S")
+
   defp format_pod_time(_), do: "—"
 end

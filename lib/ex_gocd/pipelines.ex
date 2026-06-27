@@ -973,14 +973,15 @@ defmodule ExGoCD.Pipelines do
          idle_count
        ) do
     Enum.flat_map(jobs, fn job ->
-      matching =
+      {count, agent_uuids} =
         if job.run_on_all_agents || job.run_instance_count not in [nil, ""] do
-          Agents.count_all_matching(job.resources || [])
+          matching = Agents.list_all_matching(job.resources || [])
+          {length(matching), Enum.map(matching, & &1.uuid)}
         else
-          idle_count
+          {max(idle_count, 1), []}
         end
 
-      count = instance_count_for_job(job, matching)
+      count = instance_count_for_job(job, count)
       run_on_all = job.run_on_all_agents || false
       run_multiple = job.run_instance_count not in [nil, ""]
 
@@ -988,7 +989,8 @@ defmodule ExGoCD.Pipelines do
         counter: counter,
         count: count,
         run_on_all: run_on_all,
-        run_multiple: run_multiple
+        run_multiple: run_multiple,
+        agent_uuids: agent_uuids
       )
     end)
   end
@@ -998,6 +1000,7 @@ defmodule ExGoCD.Pipelines do
     run_on_all = Keyword.fetch!(opts, :run_on_all)
     counter = Keyword.fetch!(opts, :counter)
     run_multiple = Keyword.fetch!(opts, :run_multiple)
+    agent_uuids = Keyword.get(opts, :agent_uuids, [])
 
     for i <- 1..count do
       job_name =
@@ -1007,13 +1010,16 @@ defmodule ExGoCD.Pipelines do
           job.name
         end
 
+      agent_uuid = Enum.at(agent_uuids, i - 1)
+
       insert_job_instance(job, pipeline, stage_instance, first_stage, now,
         run_on_all: run_on_all,
         run_multiple: run_multiple,
         count: count,
         run_index: i,
         counter: counter,
-        job_name: job_name
+        job_name: job_name,
+        agent_uuid: agent_uuid
       )
     end
   end
@@ -1035,6 +1041,8 @@ defmodule ExGoCD.Pipelines do
     identifier =
       "#{pipeline.name}/#{Keyword.get(opts, :counter, 1)}/#{first_stage.name}/1/#{job.name}/1#{identifier_suffix}"
 
+    agent_uuid = Keyword.get(opts, :agent_uuid)
+
     %JobInstance{}
     |> JobInstance.changeset(%{
       stage_instance_id: stage_instance.id,
@@ -1045,7 +1053,8 @@ defmodule ExGoCD.Pipelines do
       scheduled_at: scheduled_at,
       run_on_all_agents: run_on_all,
       run_multiple_instance: run_multiple,
-      identifier: identifier
+      identifier: identifier,
+      agent_uuid: agent_uuid
     })
     |> Repo.insert!()
   end

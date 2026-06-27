@@ -108,6 +108,9 @@ defmodule ExGoCD.GenServerRedact do
   def redact_pdict(pdict), do: pdict
 
   defp sensitive_key?(key) when is_atom(key), do: sensitive_key?(Atom.to_string(key))
-  defp sensitive_key?(key) when is_binary(key), do: Enum.any?(@sensitive_patterns, &Regex.match?(&1, key))
+
+  defp sensitive_key?(key) when is_binary(key),
+    do: Enum.any?(@sensitive_patterns, &Regex.match?(&1, key))
+
   defp sensitive_key?(_), do: false
 end
