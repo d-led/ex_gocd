@@ -838,6 +838,7 @@ defmodule ExGoCD.Pipelines do
       end
 
     # Compute idle agent count OUTSIDE the transaction (DB query)
+    # For run_on_all_agents, each job needs its own matching agent count
     idle_count = Agents.count_idle()
 
     result =
@@ -877,7 +878,15 @@ defmodule ExGoCD.Pipelines do
 
         job_instances =
           Enum.flat_map(first_stage.jobs, fn job ->
-            count = instance_count_for_job(job, idle_count)
+            # Count agents matching this job's resources (for run_on_all_agents)
+            matching =
+              if job.run_on_all_agents || job.run_instance_count not in [nil, ""] do
+                Agents.count_idle_matching(job.resources || [])
+              else
+                idle_count
+              end
+
+            count = instance_count_for_job(job, matching)
             run_on_all = job.run_on_all_agents || false
             run_multiple = job.run_instance_count not in [nil, ""]
 
@@ -1546,10 +1555,21 @@ defmodule ExGoCD.Pipelines do
     stages = instance.stage_instances || []
 
     cond do
-      Enum.any?(stages, fn s -> s.state in ["Building", "Awaiting"] end) -> "Building"
-      Enum.any?(stages, fn s -> s.result == "Failed" or s.result == "Cancelled" end) -> "Failed"
-      Enum.all?(stages, fn s -> s.state == "Completed" and s.result == "Passed" end) -> "Passed"
-      true -> "Unknown"
+      Enum.any?(stages, fn s -> s.state in ["Building", "Awaiting"] end) ->
+        "Building"
+
+      Enum.any?(stages, fn s -> s.result == "Failed" or s.result == "Cancelled" end) ->
+        "Failed"
+
+      stages != [] and
+        Enum.all?(stages, fn s -> s.state == "Completed" and s.result in ["Passed", "Unknown"] end) ->
+        "Passed"
+
+      stages != [] ->
+        "Failed"
+
+      true ->
+        "Building"
     end
   end
 

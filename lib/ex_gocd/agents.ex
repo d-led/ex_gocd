@@ -142,6 +142,35 @@ defmodule ExGoCD.Agents do
   end
 
   @doc """
+  Counts idle agents matching the given resources.
+  An agent matches if its resources list contains ALL required resources.
+  Used by run_on_all_agents to create one job instance per matching agent.
+  """
+  @spec count_idle_matching([String.t()]) :: integer()
+  def count_idle_matching(resources) when is_list(resources) and resources != [] do
+    idle_agents = list_idle_agents()
+
+    Enum.count(idle_agents, fn agent ->
+      agent_resources = agent.resources || []
+      Enum.all?(resources, fn r -> r in agent_resources end)
+    end)
+  end
+
+  def count_idle_matching(_), do: count_idle()
+
+  @doc """
+  Lists all idle (not disabled, not deleted) agents.
+  """
+  def list_idle_agents do
+    if use_mock?() do
+      Mock.list_active_agents() |> Enum.filter(&(&1.state == "Idle"))
+    else
+      from(a in Agent, where: a.state == "Idle" and a.disabled == false and a.deleted == false)
+      |> Repo.all()
+    end
+  end
+
+  @doc """
   Lists agents by environment.
   """
   @spec list_agents_in_environment(String.t()) :: [Agent.t()]

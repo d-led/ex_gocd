@@ -5,6 +5,33 @@
 # See: http://localhost:4000/admin/config_repos
 
 pipelines:
+  # ── Agent smoke test — runs on all agent types to verify connectivity ──
+  agent-smoke-test:
+    group: dogfood
+    stages:
+      - any-agent:
+          jobs:
+            unix-echo:
+              tasks:
+                - exec:
+                    command: echo
+                    arguments: ["hello from agent-smoke-test / unix-echo"]
+      - docker:
+          jobs:
+            docker-info:
+              resources: [docker]
+              tasks:
+                - exec:
+                    command: docker
+                    arguments: [info, --format, "'{{.ServerVersion}}'"]
+      - elixir:
+          jobs:
+            elixir-version:
+              resources: [elixir]
+              tasks:
+                - exec:
+                    command: elixir
+                    arguments: [--version]
   # ── CI pipeline (runs on ci-agent with elixir+postgres) ────────────────
   ex_gocd_ci:
     group: dogfood
