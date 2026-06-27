@@ -355,44 +355,49 @@ defmodule ExGoCD.Agents do
     hostname = runtime_attrs["hostName"] || runtime_attrs["hostname"]
 
     result =
-      case get_agent_by_uuid(uuid) do
-        nil ->
-          # UUID not found — try hostname-based lookup for re-registration
-          existing =
-            if hostname do
-              Repo.get_by(Agent, hostname: hostname, disabled: false, deleted: false)
-            end
-
-          case existing do
-            nil ->
-              {:error, :not_found}
-
-            agent ->
-              # Re-assign UUID to existing agent (robust re-registration)
-              agent
-              |> Agent.changeset(%{"uuid" => uuid})
-              |> Repo.update()
-              |> case do
-                {:ok, updated} -> update_agent_on_heartbeat(updated, runtime_attrs)
-                {:error, _} -> {:error, :not_found}
-              end
-          end
-
-        agent ->
-          update_agent_on_heartbeat(agent, runtime_attrs)
+      uuid
+      |> find_or_reregister_agent(hostname)
+      |> case do
+        {:ok, agent} -> update_agent_on_heartbeat(agent, runtime_attrs)
+        {:error, _} = error -> error
       end
 
     outcome =
       case result do
         :ok -> :ok
-        {:ok, _} -> :ok
         {:error, _} -> :error
-        other -> other
       end
 
     log_registration(uuid, hostname || "unknown", outcome)
     log_registration_audit(uuid, hostname || "unknown", outcome, runtime_attrs)
     result
+  end
+
+  defp find_or_reregister_agent(uuid, hostname) do
+    case get_agent_by_uuid(uuid) do
+      nil ->
+        if hostname do
+          case Repo.get_by(Agent, hostname: hostname, disabled: false, deleted: false) do
+            nil -> {:error, :not_found}
+            agent -> re_assign_uuid(agent, uuid)
+          end
+        else
+          {:error, :not_found}
+        end
+
+      agent ->
+        {:ok, agent}
+    end
+  end
+
+  defp re_assign_uuid(agent, uuid) do
+    agent
+    |> Agent.changeset(%{"uuid" => uuid})
+    |> Repo.update()
+    |> case do
+      {:ok, updated} -> {:ok, updated}
+      {:error, _} -> {:error, :not_found}
+    end
   end
 
   defp update_agent_on_heartbeat(agent, runtime_attrs) do

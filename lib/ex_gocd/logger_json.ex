@@ -53,6 +53,7 @@ defmodule ExGoCD.LoggerJSON do
 
   @impl true
   def handle_event({level, _gl, {Logger, message, timestamp, metadata}}, state) do
+    level = normalize_level(level)
     if Logger.compare_levels(level, state.level) != :lt do
       entry = %{
         "level" => Atom.to_string(level),
@@ -79,6 +80,11 @@ defmodule ExGoCD.LoggerJSON do
 
   @impl true
   def code_change(_old, state, _extra), do: {:ok, state}
+
+  # Elixir 1.20+ deprecates :warn in favour of :warning.
+  # Dependencies may still emit :warn — normalize silently.
+  defp normalize_level(:warn), do: :warning
+  defp normalize_level(level), do: level
 
   defp format_timestamp({date, {h, m, s, us}}) do
     # Build ISO8601 directly from Erlang timestamp to avoid NaiveDateTime API changes

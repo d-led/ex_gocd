@@ -356,24 +356,6 @@ defmodule ExGoCDWeb.AgentsLive do
           <span class="stats-value">{@pending_scheduled}</span>
         </div>
 
-        <%= if @registration_log != [] do %>
-          <details class="mb-2 text-xs" open>
-            <summary class="cursor-pointer text-gray-500 hover:text-gray-700">
-              Registration log (last {length(@registration_log)})
-            </summary>
-            <div class="mt-1 max-h-32 overflow-y-auto border rounded p-2 bg-gray-50 font-mono">
-              <%= for {uuid, host, result, time} <- Enum.take(@registration_log, 10) do %>
-                <div class={"flex gap-2 #{if result == :ok, do: "text-green-700", else: "text-red-600"}"}>
-                  <span class="w-12 shrink-0">{if result == :ok, do: "✓", else: "✗"}</span>
-                  <span class="w-36 shrink-0 truncate" title={uuid}>{String.slice(uuid, 0, 20)}</span>
-                  <span class="w-20 shrink-0">{host}</span>
-                  <span class="text-gray-400">{time && Calendar.strftime(time, "%H:%M:%S")}</span>
-                </div>
-              <% end %>
-            </div>
-          </details>
-        <% end %>
-
         <div class="search-box">
           <i class="fa fa-search" aria-hidden="true"></i>
           <form phx-change="filter" phx-submit="filter" id="agents-filter-form">
@@ -556,6 +538,53 @@ defmodule ExGoCDWeb.AgentsLive do
           </tbody>
         </table>
       </div>
+
+      <%= if @registration_log != [] do %>
+        <div class="registration-log" style="margin-top: 16px;">
+          <div class="page-header" style="margin-bottom: 8px;">
+            <h2 class="page-header_title" style="font-size: 18px;">
+              <span>Registration log (last {length(@registration_log)})</span>
+            </h2>
+          </div>
+          <div class="agents-table-container">
+            <table class="registration-log-table">
+              <thead>
+                <tr>
+                  <th style="width: 40px;"></th>
+                  <th>UUID</th>
+                  <th>Hostname</th>
+                  <th>Time</th>
+                  <th>Result</th>
+                </tr>
+              </thead>
+              <tbody>
+                <%= for {uuid, host, result, time} <- Enum.take(@registration_log, 10) do %>
+                  <tr class={if result == :ok, do: "", else: "disabled-row"}>
+                    <td style="text-align: center;">
+                      <span class={if result == :ok, do: "stats-enabled", else: "stats-disabled"}>
+                        {if result == :ok, do: "✓", else: "✗"}
+                      </span>
+                    </td>
+                    <td>
+                      <span title={uuid}>{String.slice(uuid, 0, 36)}</span>
+                      <%= if String.length(uuid) > 36 do %>
+                        <span class="none-specified">…</span>
+                      <% end %>
+                    </td>
+                    <td>{host}</td>
+                    <td class="text-gray-400">{time && Calendar.strftime(time, "%H:%M:%S")}</td>
+                    <td>
+                      <span class={status_class(if result == :ok, do: :idle, else: :lost_contact)}>
+                        {if result == :ok, do: "ok", else: "failed"}
+                      </span>
+                    </td>
+                  </tr>
+                <% end %>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      <% end %>
     </div>
     """
   end

@@ -889,18 +889,37 @@ defmodule ExGoCD.Scheduler do
     job = job_spec.job
 
     # Attach the pipeline trigger's trace context stored at enqueue time.
-    # This ensures inject_context produces a traceparent that links the
-    # Go agent's spans under the pipeline.trigger trace, even when
-    # assignment happens via try_assign_work (agent ping path).
-    VsmTracer.attach_ctx(job_spec[:enqueue_ctx])
+    # Falls back to creating a root span when no HTTP trigger context exists
+    # (e.g. timer-fired or material-polling triggers).
+    enqueue_ctx = job_spec[:enqueue_ctx]
 
-    # Enrich the parent scheduler.assign_work span with what was assigned
-    VsmTracer.set_attr("pipeline.name", pipeline)
-    VsmTracer.set_attr("pipeline.counter", pipeline_counter)
-    VsmTracer.set_attr("stage.name", stage)
-    VsmTracer.set_attr("stage.counter", stage_counter)
-    VsmTracer.set_attr("job.name", job)
-    VsmTracer.set_attr("build.id", build_id)
+    do_assign = fn ->
+      # Enrich the span with what was assigned
+      VsmTracer.set_attr("pipeline.name", pipeline)
+      VsmTracer.set_attr("pipeline.counter", pipeline_counter)
+      VsmTracer.set_attr("stage.name", stage)
+      VsmTracer.set_attr("stage.counter", stage_counter)
+      VsmTracer.set_attr("job.name", job)
+      VsmTracer.set_attr("build.id", build_id)
+
+      do_assign_and_send(agent_uuid, agent, job_spec, build_id, pipeline, pipeline_counter, stage, stage_counter, job)
+    end
+
+    if enqueue_ctx do
+      VsmTracer.attach_ctx(enqueue_ctx)
+      do_assign.()
+    else
+      VsmTracer.trace("job.assign_root", %{
+        "pipeline.name" => pipeline,
+        "pipeline.counter" => pipeline_counter,
+        "stage.name" => stage,
+        "stage.counter" => stage_counter,
+        "job.name" => job
+      }, do_assign)
+    end
+  end
+
+  defp do_assign_and_send(agent_uuid, agent, job_spec, build_id, pipeline, pipeline_counter, stage, stage_counter, job) do
 
     # Store the current OTel context so agent status reports (job.status_update,
     # job.complete) can continue this trace rather than creating orphan spans.
@@ -931,14 +950,16 @@ defmodule ExGoCD.Scheduler do
       }
       |> VsmTracer.inject_context()
 
-    # Debug: verify traceparent injection for Go agent cross-process tracing
+    # Debug: verify traceparent injection for Go agent cross-process tracing.
+    # No traceparent is expected when the scheduler fires outside an HTTP request
+    # (e.g. timer/material polling) — those builds create root spans on the agent.
     if payload["traceparent"] do
       Logger.debug(
         "[OTel] traceparent injected for build #{build_id}: #{String.slice(payload["traceparent"], 0, 55)}..."
       )
     else
-      Logger.warning(
-        "[OTel] No traceparent injected for build #{build_id} — agent spans will be orphaned"
+      Logger.debug(
+        "[OTel] No traceparent for build #{build_id} — agent will create root span"
       )
     end
 

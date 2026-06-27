@@ -95,11 +95,11 @@ defmodule ExGoCD.K8s do
   @doc """
   Tests connectivity to a Kubernetes cluster.
 
-  Tries to list pods with limit 1 in the configured namespace.
-  Returns `:ok` on success, or `{:error, reason}` on failure.
+  Lists pods (limit 1) in the given namespace. Wrapped in a Task
+  with a 2-second timeout to keep the UI snappy.
 
-  The `reason` is a human-readable string suitable for UI display.
-  The call is wrapped in a Task with a 5-second timeout to prevent hanging.
+  Returns `:ok` on success, or `{:error, reason}` where reason is
+  a human-readable string for UI display.
   """
   @spec ping(conn(), keyword()) :: :ok | {:error, String.t()}
   def ping(conn, opts \\ []) do
@@ -112,11 +112,11 @@ defmodule ExGoCD.K8s do
         @k8s_client.run(conn, operation)
       end)
 
-    case Task.yield(task, 5000) || Task.shutdown(task) do
+    case Task.yield(task, 2000) || Task.shutdown(task) do
       {:ok, {:ok, _}} -> :ok
       {:ok, {:error, error}} -> {:error, format_ping_error(error)}
       {:ok, other} -> {:error, "Unexpected response: #{inspect(other)}"}
-      nil -> {:error, "Connection timed out after 5 seconds"}
+      nil -> {:error, "Timed out — cluster unreachable"}
     end
   rescue
     e in RuntimeError -> {:error, Exception.message(e)}
