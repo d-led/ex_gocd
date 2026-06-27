@@ -488,6 +488,170 @@ defmodule ExGoCD.SchedulerTest do
     end
   end
 
+  # ── GoCD parity: DefaultSchedulingContext.findAgentsMatching ─────────────
+  # Mirrors: gocd/domain/src/test/.../DefaultSchedulingContextTest.java
+  #          gocd/domain/src/test/.../InstanceFactoryTest.java
+
+  describe "run_on_all_agents (GoCD parity)" do
+    test "includes all non-disabled agents: LostContact, Missing, Building, Idle" do
+      Scheduler.clear_queue()
+
+      # Register agents in various states
+      {:ok, idle} = Agents.register_agent(%{uuid: @uuid, hostname: "idle-a", ipaddress: "127.0.0.1"})
+      {:ok, building} = Agents.register_agent(%{uuid: @uuid_b, hostname: "bld-a", ipaddress: "127.0.0.2"})
+
+      # Set building agent state
+      Agents.update_agent_runtime_state(building.uuid, "Building")
+
+      # Schedule run_on_all_agents — should match BOTH (Idle + Building)
+      assert {:ok, count} =
+               Scheduler.schedule_job(%{
+                 "pipeline" => "p",
+                 "stage" => "s",
+                 "job" => "j",
+                 "run_on_all_agents" => true,
+                 "resources" => [],
+                 "environments" => []
+               })
+
+      assert count == 2
+    end
+
+    test "excludes disabled agents (GoCD findAgentsMatching skips isDisabled)" do
+      Scheduler.clear_queue()
+
+      {:ok, agent} = Agents.register_agent(%{uuid: @uuid, hostname: "agent-a", ipaddress: "127.0.0.1"})
+      Agents.disable_agent(agent.uuid)
+
+      assert {:ok, count} =
+               Scheduler.schedule_job(%{
+                 "pipeline" => "p",
+                 "stage" => "s",
+                 "job" => "j",
+                 "run_on_all_agents" => true,
+                 "resources" => [],
+                 "environments" => []
+               })
+
+      assert count == 0
+    end
+
+    test "zero matching agents returns count 0 (GoCD: CannotScheduleException)" do
+      Scheduler.clear_queue()
+
+      assert {:ok, count} =
+               Scheduler.schedule_job(%{
+                 "pipeline" => "p",
+                 "stage" => "s",
+                 "job" => "j",
+                 "run_on_all_agents" => true,
+                 "resources" => ["nonexistent-resource"],
+                 "environments" => []
+               })
+
+      # GoCD throws CannotScheduleException; we return count 0 gracefully
+      assert count == 0
+      assert Scheduler.pending_count() == 0
+    end
+
+    test "naming follows GoCD convention: {job}-runOnAll-{counter}" do
+      Scheduler.clear_queue()
+
+      {:ok, _} = Agents.register_agent(%{uuid: @uuid, hostname: "agent-a", ipaddress: "127.0.0.1"})
+
+      # Top-up with a regular job so try_assign picks the runOnAll entry
+      assert {:ok, _} =
+               Scheduler.schedule_job(%{
+                 "pipeline" => "p",
+                 "stage" => "s",
+                 "job" => "my-job",
+                 "run_on_all_agents" => true,
+                 "resources" => [],
+                 "environments" => []
+               })
+
+      # Trigger a regular job on top so runOnAll is first in queue
+      assert {:ok, _} =
+               Scheduler.schedule_job(%{"pipeline" => "p", "stage" => "s", "job" => "extra"})
+
+      AgentPresence.track(self(), @presence_topic, @uuid, %{})
+
+      # First assignment should be the runOnAll entry
+      assert {:assigned, spec} = Scheduler.try_assign_work_with_spec(@uuid)
+      assert spec.job =~ ~r/my-job-runonall-/
+    end
+
+    test "resource-matches all non-disabled agents (GoCD: findAgentsMatching with resources)" do
+      Scheduler.clear_queue()
+
+      {:ok, _} = Agents.register_agent(%{
+        uuid: @uuid, hostname: "agent-a", ipaddress: "127.0.0.1", resources: ["linux"]
+      })
+
+      {:ok, _} = Agents.register_agent(%{
+        uuid: @uuid_b, hostname: "agent-b", ipaddress: "127.0.0.2", resources: ["linux"]
+      })
+
+      # Disable agent B
+      Agents.disable_agent(@uuid_b)
+
+      assert {:ok, count} =
+               Scheduler.schedule_job(%{
+                 "pipeline" => "p",
+                 "stage" => "s",
+                 "job" => "j",
+                 "run_on_all_agents" => true,
+                 "resources" => ["linux"],
+                 "environments" => []
+               })
+
+      # Only agent A (enabled, has linux) should match
+      assert count == 1
+    end
+  end
+
+  # ── GoCD parity: DefaultSchedulingContext resource/environment matching ──
+
+  describe "find_agents_for_job (GoCD DefaultSchedulingContext parity)" do
+    test "no agents in DB returns empty (GoCD: shouldFindNoAgentsIfNoneExist)" do
+      assert Agents.find_agents_for_job(%{resources: ["linux"], environments: []}) == []
+      assert Agents.find_agents_for_job(%{resources: [], environments: []}) == []
+    end
+
+    test "no resources specified matches all enabled agents (GoCD: shouldFindAllAgentsIfNoResources)" do
+      {:ok, _} = Agents.register_agent(%{uuid: @uuid, hostname: "a", ipaddress: "127.0.0.1"})
+      {:ok, _} = Agents.register_agent(%{uuid: @uuid_b, hostname: "b", ipaddress: "127.0.0.2"})
+
+      agents = Agents.find_agents_for_job(%{resources: [], environments: []})
+      assert length(agents) == 2
+    end
+
+    test "excludes disabled agents (GoCD: shouldNotMatchDeniedAgents)" do
+      {:ok, agent} = Agents.register_agent(%{uuid: @uuid, hostname: "a", ipaddress: "127.0.0.1", resources: ["linux"]})
+      {:ok, _} = Agents.register_agent(%{uuid: @uuid_b, hostname: "b", ipaddress: "127.0.0.2", resources: ["linux"]})
+
+      Agents.disable_agent(agent.uuid)
+
+      agents = Agents.find_agents_for_job(%{resources: ["linux"], environments: []})
+      assert length(agents) == 1
+      assert hd(agents).uuid == @uuid_b
+    end
+
+    test "case-insensitive resource matching (GoCD: hasAllResources is case-insensitive)" do
+      {:ok, _} = Agents.register_agent(%{uuid: @uuid, hostname: "a", ipaddress: "127.0.0.1", resources: ["LINUX", "Docker"]})
+
+      agents = Agents.find_agents_for_job(%{resources: ["linux", "docker"], environments: []})
+      assert length(agents) == 1
+    end
+
+    test "agent must have ALL requested resources (GoCD: hasAllResources)" do
+      {:ok, _} = Agents.register_agent(%{uuid: @uuid, hostname: "a", ipaddress: "127.0.0.1", resources: ["linux"]})
+
+      agents = Agents.find_agents_for_job(%{resources: ["linux", "docker"], environments: []})
+      assert agents == []
+    end
+  end
+
   defp assert_unrestricted_job_assigned do
     {:ok, _} = Agents.register_agent(%{uuid: @uuid, hostname: "agent-a", ipaddress: "127.0.0.1"})
     n0 = Scheduler.pending_count()
