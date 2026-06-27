@@ -119,6 +119,9 @@ defmodule ExGoCDWeb.DashboardLive do
           {:error, :maintenance} ->
             {:noreply, put_flash(socket, :error, "Server is in maintenance mode. Cannot trigger pipelines.")}
 
+          {:error, :fan_in_mismatch} ->
+            {:noreply, put_flash(socket, :error, "Cannot trigger — dependency revision mismatch. Verify upstream pipelines.")}
+
           {:error, reason} when is_binary(reason) ->
             {:noreply, put_flash(socket, :error, "Trigger failed: #{String.slice(reason, 0, 200)}")}
 
