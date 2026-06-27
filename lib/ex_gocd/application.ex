@@ -1,9 +1,8 @@
 defmodule ExGoCD.Application do
-  # See https://hexdocs.pm/elixir/Application.html
-  # for more information on OTP Applications
   @moduledoc false
 
   use Application
+  require Logger
 
   @impl true
   def start(_type, _args) do
@@ -53,7 +52,18 @@ defmodule ExGoCD.Application do
     # See https://hexdocs.pm/elixir/Supervisor.html
     # for other strategies and supported options
     opts = [strategy: :one_for_one, name: ExGoCD.Supervisor]
-    Supervisor.start_link(children, opts)
+    result = Supervisor.start_link(children, opts)
+
+    # Clean up stale LostContact agents on startup (accumulate on DB resets)
+    unless skip_db? do
+      Task.start(fn ->
+        Process.sleep(2000)
+        cleaned = ExGoCD.Agents.cleanup_stale_lost_contact()
+        if cleaned > 0, do: Logger.info("Cleaned up #{cleaned} stale LostContact agents")
+      end)
+    end
+
+    result
   end
 
   # Tell Phoenix to update the endpoint configuration

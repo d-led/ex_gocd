@@ -52,13 +52,31 @@ defmodule ExGoCD.Agents do
       Mock.register_agent(attrs)
     else
       uuid = attrs["uuid"] || attrs[:uuid]
+      hostname = attrs["hostname"] || attrs[:hostname]
 
       case uuid && get_agent_by_uuid(uuid) do
         nil ->
-          %Agent{}
-          |> Agent.registration_changeset(attrs)
-          |> Repo.insert()
-          |> broadcast(:agent_registered)
+          # UUID not found. Check if a LostContact agent with same hostname exists
+          # (robust re-registration after DB reset or agent UUID change).
+          existing =
+            if hostname do
+              Repo.get_by(Agent, hostname: hostname, disabled: false, deleted: false)
+            end
+
+          case existing do
+            nil ->
+              %Agent{}
+              |> Agent.registration_changeset(attrs)
+              |> Repo.insert()
+              |> broadcast(:agent_registered)
+
+            agent ->
+              # Update existing agent with new UUID (re-registration)
+              agent
+              |> Agent.changeset(Map.put(attrs, "uuid", uuid))
+              |> Repo.update()
+              |> broadcast(:agent_updated)
+          end
 
         existing_agent ->
           existing_agent
@@ -518,6 +536,26 @@ defmodule ExGoCD.Agents do
       |> Repo.update()
       |> broadcast(:agent_deleted)
     end
+  end
+
+  @doc """
+  Cleans up stale LostContact agents that haven't been heard from in over 24 hours.
+  These accumulate when agents restart with different UUIDs after DB resets.
+  Returns the count of deleted agents.
+  """
+  def cleanup_stale_lost_contact do
+    cutoff = DateTime.add(DateTime.utc_now(), -86400, :second)
+
+    from(a in Agent,
+      where: a.state == "LostContact" and a.updated_at < ^cutoff and a.deleted == false
+    )
+    |> Repo.all()
+    |> Enum.reduce(0, fn agent, acc ->
+      case do_delete_agent(agent) do
+        {:ok, _} -> acc + 1
+        _ -> acc
+      end
+    end)
   end
 
   @doc """

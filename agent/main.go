@@ -223,10 +223,11 @@ func resolveAgentUUID(uuidFile string) string {
 	return id
 }
 
-// isValidUUID returns true if s is a valid UUID string.
+// isValidUUID returns true if s looks like a valid agent identifier.
+// We accept any non-empty string — our server stores UUIDs as strings
+// and supports human-readable IDs like "ci-agent-00000000-...".
 func isValidUUID(s string) bool {
-	_, err := uuid.Parse(s)
-	return err == nil
+	return len(strings.TrimSpace(s)) > 0
 }
 
 // writePidFile atomically writes the PID file (named {uuid}.pid, contains OS PID).
