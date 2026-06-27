@@ -126,5 +126,27 @@ services:
     depends_on:
       - fluentbit
 
+  # ---------------------------------------------------------------------------
+  # Kubernetes (k3s) — for elastic agent development/testing
+  # API: https://localhost:6443  Token: see /var/lib/rancher/k3s/server/node-token
+  # ---------------------------------------------------------------------------
+
+  k3s:
+    image: rancher/k3s:v1.31.5-k3s1
+    platform: linux/amd64
+    container_name: k3s
+    privileged: true
+    command: server --disable-agent --no-deploy traefik --no-deploy servicelb
+    ports:
+      - "6443:6443"
+    volumes:
+      - k3s-server:/var/lib/rancher/k3s
+      - /tmp/k3s-kubeconfig:/output
+    environment:
+      - K3S_TOKEN=exgocd-demo-token
+      - K3S_KUBECONFIG_OUTPUT=/output/kubeconfig.yaml
+      - K3S_KUBECONFIG_MODE=666
+
 volumes:
   data-postgres:
+  k3s-server:
