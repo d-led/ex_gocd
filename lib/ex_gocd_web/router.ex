@@ -289,6 +289,10 @@ defmodule ExGoCDWeb.Router do
     resources "/package_repositories", PackageRepositoryController, except: [:new, :edit]
     resources "/secret_configs", SecretConfigController, except: [:new, :edit]
     resources "/auth_configs", AuthConfigController, except: [:new, :edit]
+
+    get "/pipeline_group_permissions", PipelineGroupPermissionController, :index
+    post "/pipeline_group_permissions", PipelineGroupPermissionController, :create
+    delete "/pipeline_group_permissions", PipelineGroupPermissionController, :delete
   end
 
   scope "/api/current_user", ExGoCDWeb.API do

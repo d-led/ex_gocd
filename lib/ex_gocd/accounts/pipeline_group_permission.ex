@@ -5,6 +5,7 @@ defmodule ExGoCD.Accounts.PipelineGroupPermission do
   @moduledoc """
   A permission that grants a user a role (viewer, operator, admin) on a specific pipeline group.
   """
+  @derive {Jason.Encoder, only: [:id, :user_id, :pipeline_group, :role]}
   use Ecto.Schema
   import Ecto.Changeset
 
