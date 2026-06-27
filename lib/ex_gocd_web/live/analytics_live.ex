@@ -8,6 +8,7 @@ defmodule ExGoCDWeb.AnalyticsLive do
   use ExGoCDWeb, :live_view
 
   alias ExGoCD.Analytics
+  alias Contex.{Dataset, Plot, BarChart, LinePlot, PointPlot}
 
   @impl true
   def mount(_params, _session, socket) do
@@ -164,7 +165,7 @@ defmodule ExGoCDWeb.AnalyticsLive do
       </div>
     </div>
 
-    <.global_charts top_pipelines={@top_pipelines} top_agents={@top_agents} all_stats={@all_stats} />
+    <.global_charts all_stats={@all_stats} top_agents={@top_agents} />
 
     <div class="mt-6 bg-white rounded-lg border border-gray-200 shadow-sm">
       <div class="px-4 py-3 border-b border-gray-100">
@@ -215,100 +216,39 @@ defmodule ExGoCDWeb.AnalyticsLive do
     <div :if={@all_stats != []} class="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
       <div class="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
         <h3 class="text-sm font-semibold text-gray-700 mb-3">Pipeline Run Counts (30d)</h3>
-        <div class="h-64">
-          <canvas
-            id="global-pass-rate-chart"
-            phx-hook="ChartHook"
-            data-chart-type="bar"
-            data-chart-config={Jason.encode!(pass_rate_chart_config(@all_stats))}
-          >
-          </canvas>
-        </div>
+        <%= run_count_chart(@all_stats) %>
       </div>
       <div class="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
-        <h3 class="text-sm font-semibold text-gray-700 mb-3">Agent Job Distribution (7d)</h3>
-        <div class="h-64">
-          <canvas
-            id="global-agent-dist-chart"
-            phx-hook="ChartHook"
-            data-chart-type="doughnut"
-            data-chart-config={Jason.encode!(agent_dist_chart_config(@top_agents))}
-          >
-          </canvas>
-        </div>
+        <h3 class="text-sm font-semibold text-gray-700 mb-3">Agent Jobs (7d)</h3>
+        <%= agent_jobs_svg(@top_agents) %>
       </div>
     </div>
     """
   end
 
-  defp pass_rate_chart_config(stats) do
-    names = Enum.map(stats, & &1.name)
-    counts = Enum.map(stats, & &1.run_count)
-    statuses = Enum.map(stats, & &1.latest_status)
-    %{
-      data: %{
-        labels: names,
-        datasets: [%{
-          label: "Runs (30d)",
-          data: counts,
-          backgroundColor: statuses |> Enum.map(fn
-            "Passed" -> "#22c55e"
-            "Failed" -> "#ef4444"
-            _ -> "#6b7280"
-          end),
-          borderRadius: 4
-        }]
-      },
-      options: %{
-        scales: %{y: %{beginAtZero: true}},
-        plugins: %{legend: %{display: false}}
-      }
-    }
+  defp run_count_chart(stats) do
+    data = for s <- stats, do: [s.name, s.run_count]
+    dataset = Dataset.new(data, ["Pipeline", "Runs"])
+    chart = BarChart.new(dataset, type: :stacked)
+    plot = Plot.new(500, 240, chart)
+    Plot.to_svg(plot)
   end
 
-  defp agent_dist_chart_config(agents) do
-    labels = Enum.map(agents, fn a -> String.slice(a.agent_uuid, 0, 12) <> "…" end)
-    completed = Enum.map(agents, & &1.completed)
-    failed = Enum.map(agents, & &1.failed)
-    %{
-      data: %{
-        labels: labels,
-        datasets: [
-          %{label: "Completed", data: completed, backgroundColor: "#22c55e"},
-          %{label: "Failed", data: failed, backgroundColor: "#ef4444"}
-        ]
-      }
-    }
+  defp agent_jobs_svg(agents) do
+    data = for a <- agents, do: [String.slice(a.agent_uuid, 0, 12), a.total_jobs]
+    dataset = Dataset.new(data, ["Agent", "Jobs"])
+    chart = BarChart.new(dataset)
+    plot = Plot.new(500, 240, chart)
+    Plot.to_svg(plot)
   end
 
-  defp build_trend_chart_config(runs) do
+  defp build_duration_chart(runs) do
     sorted = Enum.sort_by(runs, & &1.counter, :asc)
-    labels = Enum.map(sorted, fn r -> "##{r.counter}" end)
-    durations = Enum.map(sorted, fn r -> r.build_time_sec || 0 end)
-    statuses = Enum.map(sorted, fn r -> r.status end)
-    %{
-      data: %{
-        labels: labels,
-        datasets: [%{
-          label: "Build Duration (sec)",
-          data: durations,
-          borderColor: "#3b82f6",
-          backgroundColor: "rgba(59,130,246,0.1)",
-          fill: true,
-          tension: 0.2,
-          pointBackgroundColor: statuses |> Enum.map(fn
-            "Passed" -> "#22c55e"
-            "Failed" -> "#ef4444"
-            _ -> "#6b7280"
-          end),
-          pointRadius: 4
-        }]
-      },
-      options: %{
-        plugins: %{legend: %{display: false}},
-        scales: %{y: %{beginAtZero: true, title: %{display: true, text: "Seconds"}}}
-      }
-    }
+    data = for r <- sorted, do: [r.counter, r.build_time_sec || 0]
+    dataset = Dataset.new(data, ["Run #", "Duration (sec)"])
+    chart = LinePlot.new(dataset)
+    plot = Plot.new(500, 240, chart)
+    Plot.to_svg(plot)
   end
 
   def pipelines_tab(assigns) do
@@ -395,15 +335,7 @@ defmodule ExGoCDWeb.AnalyticsLive do
 
         <div :if={@detail.recent_runs != []} class="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
           <h3 class="text-sm font-semibold text-gray-700 mb-3">Build Duration Trend</h3>
-          <div class="h-64">
-            <canvas
-              id="pipeline-build-trend-chart"
-              phx-hook="ChartHook"
-              data-chart-type="line"
-              data-chart-config={Jason.encode!(build_trend_chart_config(@detail.recent_runs))}
-            >
-            </canvas>
-          </div>
+          <%= build_duration_chart(@detail.recent_runs) %>
         </div>
 
         <div class="bg-white rounded-lg border border-gray-200 shadow-sm">
@@ -501,38 +433,18 @@ defmodule ExGoCDWeb.AnalyticsLive do
     ~H"""
     <div :if={@stats != []} class="mt-6 bg-white rounded-lg border border-gray-200 shadow-sm p-4">
       <h3 class="text-sm font-semibold text-gray-700 mb-3">Job Outcomes by Agent</h3>
-      <div class="h-64">
-        <canvas
-          id="agent-jobs-chart"
-          phx-hook="ChartHook"
-          data-chart-type="bar"
-          data-chart-config={Jason.encode!(agent_jobs_chart_config(@stats))}
-        >
-        </canvas>
-      </div>
+      <%= agent_jobs_svg(@stats) %>
     </div>
     """
   end
 
-  defp agent_jobs_chart_config(stats) do
+  defp agent_jobs_svg(stats) do
     sorted = stats |> Enum.sort_by(& &1.total_jobs, :desc) |> Enum.take(15)
-    labels = Enum.map(sorted, fn a -> String.slice(a.agent_uuid, 0, 12) <> "…" end)
-    completed = Enum.map(sorted, & &1.completed)
-    failed = Enum.map(sorted, & &1.failed)
-    cancelled = Enum.map(sorted, & &1.cancelled)
-    %{
-      data: %{
-        labels: labels,
-        datasets: [
-          %{label: "Completed", data: completed, backgroundColor: "#22c55e"},
-          %{label: "Failed", data: failed, backgroundColor: "#ef4444"},
-          %{label: "Cancelled", data: cancelled, backgroundColor: "#eab308"}
-        ]
-      },
-      options: %{
-        scales: %{x: %{stacked: true}, y: %{stacked: true}}
-      }
-    }
+    data = for a <- sorted, do: [String.slice(a.agent_uuid, 0, 12), a.completed, a.failed, a.cancelled]
+    dataset = Dataset.new(data, ["Agent", "Completed", "Failed", "Cancelled"])
+    chart = BarChart.new(dataset, type: :stacked)
+    plot = Plot.new(500, 280, chart)
+    Plot.to_svg(plot)
   end
 
   def vsm_tab(assigns) do
@@ -599,57 +511,18 @@ defmodule ExGoCDWeb.AnalyticsLive do
     ~H"""
     <div :if={@data != []} class="mt-6 bg-white rounded-lg border border-gray-200 shadow-sm p-4">
       <h3 class="text-sm font-semibold text-gray-700 mb-3">Cycle Time Trend (30 runs)</h3>
-      <div class="h-64">
-        <canvas
-          id="vsm-cycle-chart"
-          phx-hook="ChartHook"
-          data-chart-type="line"
-          data-chart-config={Jason.encode!(vsm_chart_config(@data))}
-        >
-        </canvas>
-      </div>
+      <%= vsm_duration_chart(@data) %>
     </div>
     """
   end
 
-  defp vsm_chart_config(data) do
+  defp vsm_duration_chart(data) do
     sorted = Enum.sort_by(data, & &1.counter, :asc)
-    labels = Enum.map(sorted, fn r -> "##{r.counter}" end)
-    durations = Enum.map(sorted, fn r -> r.total_duration_sec || 0 end)
-    stages = Enum.map(sorted, fn r -> r.stage_count end)
-    %{
-      data: %{
-        labels: labels,
-        datasets: [
-          %{
-            label: "Total Duration (sec)",
-            data: durations,
-            borderColor: "#3b82f6",
-            backgroundColor: "rgba(59,130,246,0.1)",
-            fill: false,
-            tension: 0.2,
-            yAxisID: "y"
-          },
-          %{
-            label: "Stage Count",
-            data: stages,
-            borderColor: "#f59e0b",
-            backgroundColor: "rgba(245,158,11,0.1)",
-            borderDash: [5, 5],
-            fill: false,
-            tension: 0.2,
-            yAxisID: "y1"
-          }
-        ]
-      },
-      options: %{
-        plugins: %{legend: %{display: true, position: "top"}},
-        scales: %{
-          y: %{beginAtZero: true, title: %{display: true, text: "Seconds"}, position: "left"},
-          y1: %{beginAtZero: true, title: %{display: true, text: "Stages"}, position: "right", grid: %{drawOnChartArea: false}}
-        }
-      }
-    }
+    rows = for r <- sorted, do: [r.counter, r.total_duration_sec || 0]
+    dataset = Dataset.new(rows, ["Run #", "Duration (sec)"])
+    chart = LinePlot.new(dataset)
+    plot = Plot.new(500, 240, chart)
+    Plot.to_svg(plot)
   end
 
   # Helpers

@@ -24,8 +24,6 @@ import { Socket } from "phoenix";
 import { LiveSocket } from "phoenix_live_view";
 import { hooks as colocatedHooks } from "phoenix-colocated/ex_gocd";
 import topbar from "../vendor/topbar";
-import ChartHook from "./chart-hook";
-import "chart.js/auto";
 
 const AgentsUpdates = {
   mounted() {
@@ -559,7 +557,6 @@ const liveSocket = new LiveSocket("/live", Socket, {
     AgentsUpdates,
     VSMGraph,
     ConsoleScroller,
-    ChartHook,
     ...colocatedHooks,
   },
 });

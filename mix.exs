@@ -93,6 +93,7 @@ defmodule ExGoCD.MixProject do
       {:logger_backends, "~> 1.0"},
       {:yaml_elixir, "~> 2.11"},
       {:ex_json_schema, "~> 0.10"},
+      {:contex, "~> 0.5.0"},
       {:open_api_spex, "~> 3.22"}
     ]
   end
