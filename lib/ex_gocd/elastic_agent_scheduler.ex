@@ -238,7 +238,7 @@ defmodule ExGoCD.ElasticAgentScheduler do
 
   # ── Pod spec builder ───────────────────────────────────────────────────────
 
-  defp build_pod_spec(agent_profile, cluster_profile, job, resources) do
+  defp build_pod_spec(agent_profile, _cluster_profile, job, resources) do
     image = ElasticAgentProfile.image(agent_profile)
     name = "gocd-elastic-#{agent_profile.name}-#{random_suffix()}"
     pull_policy = ElasticAgentProfile.image_pull_policy(agent_profile)
@@ -252,6 +252,9 @@ defmodule ExGoCD.ElasticAgentScheduler do
       ] ++ ElasticAgentProfile.env_vars(agent_profile)
 
     privileged = ElasticAgentProfile.privileged(agent_profile) == "true"
+    service_account = ElasticAgentProfile.service_account(agent_profile)
+    node_selector = ElasticAgentProfile.node_selector(agent_profile)
+    pod_annotations = ElasticAgentProfile.pod_annotations(agent_profile)
 
     spec = %{
       "metadata" => %{
@@ -259,7 +262,7 @@ defmodule ExGoCD.ElasticAgentScheduler do
         "labels" => %{
           "app" => "gocd-elastic-agent",
           "gocd-profile" => agent_profile.name,
-          "gocd-cluster" => cluster_profile.name
+          "gocd-cluster" => agent_profile.cluster_profile_id
         }
       },
       "spec" => %{
@@ -287,6 +290,24 @@ defmodule ExGoCD.ElasticAgentScheduler do
         "restartPolicy" => "Never"
       }
     }
+
+    spec = if service_account != "" do
+      put_in(spec, ["spec", "serviceAccountName"], service_account)
+    else
+      spec
+    end
+
+    spec = if map_size(node_selector) > 0 do
+      put_in(spec, ["spec", "nodeSelector"], node_selector)
+    else
+      spec
+    end
+
+    spec = if map_size(pod_annotations) > 0 do
+      put_in(spec, ["metadata", "annotations"], pod_annotations)
+    else
+      spec
+    end
 
     {:ok, spec}
   end

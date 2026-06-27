@@ -67,4 +67,12 @@ defmodule ExGoCD.ElasticAgentProfiles.ElasticAgentProfile do
   @doc "Service account name."
   def service_account(%__MODULE__{properties: props}), do: Map.get(props, "ServiceAccount", "")
   def service_account(_), do: ""
+
+  @doc "Node selector labels."
+  def node_selector(%__MODULE__{properties: props}), do: Map.get(props, "NodeSelector", %{})
+  def node_selector(_), do: %{}
+
+  @doc "Pod annotations."
+  def pod_annotations(%__MODULE__{properties: props}), do: Map.get(props, "PodAnnotations", %{})
+  def pod_annotations(_), do: %{}
 end

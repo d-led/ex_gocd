@@ -64,4 +64,21 @@ defmodule ExGoCD.ClusterProfilesTest do
       assert length(ClusterProfiles.list_by_plugin("k8s")) == 1
     end
   end
+
+  describe "maybe_auto_seed_k3s/0" do
+    test "returns :no_k3s when k3s is not available" do
+      assert ClusterProfiles.maybe_auto_seed_k3s() == :no_k3s
+    end
+
+    test "returns :ok when k3s-local profile already exists (idempotent)" do
+      {:ok, _} =
+        ClusterProfiles.create_profile(%{
+          name: "k3s-local",
+          plugin_id: "cd.go.contrib.elasticagent.kubernetes",
+          properties: %{"kubernetes_cluster_url" => "https://localhost:6443"}
+        })
+
+      assert ClusterProfiles.maybe_auto_seed_k3s() == :ok
+    end
+  end
 end

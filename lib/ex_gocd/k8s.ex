@@ -92,6 +92,92 @@ defmodule ExGoCD.K8s do
     end
   end
 
+  @doc """
+  Discover a local k3s cluster for development.
+
+  Tries, in order:
+  1. Read kubeconfig from `/tmp/k3s-kubeconfig/kubeconfig.yaml` (docker-compose k3s)
+  2. Fall back to `k3s kubectl config view` CLI
+
+  Returns `{:ok, config_map}` with keys: `"server"`, `"token"`, `"ca_cert"`, `"namespace"`
+  or `{:error, :not_found}` when no local k3s is available.
+  """
+  @spec discover_local_k3s() :: {:ok, map()} | {:error, :not_found | term()}
+  def discover_local_k3s do
+    kubeconfig_paths() |> Enum.find_value(&try_kubeconfig_file/1) |> case do
+      {:ok, _} = result -> result
+      nil -> try_k3s_cli()
+    end
+  end
+
+  defp kubeconfig_paths do
+    [
+      "/tmp/k3s-kubeconfig/kubeconfig.yaml",
+      System.get_env("KUBECONFIG"),
+      Path.join(System.user_home(), ".kube/config")
+    ]
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp try_kubeconfig_file(path) do
+    with true <- File.exists?(path),
+         {:ok, yaml} <- File.read(path),
+         {:ok, config} <- extract_k3s_config(yaml) do
+      {:ok, config}
+    else
+      _ -> nil
+    end
+  end
+
+  defp try_k3s_cli do
+    case System.find_executable("k3s") do
+      nil ->
+        {:error, :not_found}
+
+      k3s_path ->
+        {output, 0} = System.cmd(k3s_path, ["kubectl", "config", "view", "--raw"])
+        extract_k3s_config(output)
+    end
+  rescue
+    _ -> {:error, :not_found}
+  end
+
+  @doc false
+  def extract_k3s_config(yaml) do
+    with {:ok, parsed} <- YamlElixir.read_from_string(yaml),
+         [%{"clusters" => [%{"cluster" => cluster} | _]} | _] <- [parsed],
+         server <- cluster["server"] do
+      ca_cert = cluster["certificate-authority-data"]
+
+      token =
+        case parsed do
+          %{"users" => [%{"user" => %{"token" => t}} | _]} -> t
+          _ -> "exgocd-demo-token"
+        end
+
+      namespace =
+        case parsed do
+          %{"contexts" => [%{"context" => %{"namespace" => ns}} | _]} -> ns
+          _ -> "default"
+        end
+
+      # Rewrite docker internal hostname/k3s hostname to localhost for host access
+      local_server =
+        server
+        |> String.replace(~r{https?://k3s:}, "https://localhost:")
+        |> String.replace(~r{https?://host\.docker\.internal:}, "https://localhost:")
+
+      {:ok, %{
+        "server" => local_server,
+        "token" => token,
+        "ca_cert" => ca_cert,
+        "namespace" => namespace
+      }}
+    else
+      _ -> {:error, :invalid_kubeconfig}
+    end
+  end
+
   defp extract_pod_info(item) do
     %{
       name: get_in(item, ["metadata", "name"]),

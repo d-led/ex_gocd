@@ -4,7 +4,8 @@ defmodule ExGoCDWeb.AdminK8sLive do
 
   Manages:
   - Cluster Profiles: K8s API connection (server URL, token, CA cert, namespace)
-  - Elastic Agent Profiles: pod spec (image, memory, CPU, env vars)
+  - Elastic Agent Profiles: pod spec (image, memory, CPU, env vars, service account,
+    node selector, pod annotations)
 
   UX mirrors GoCD's kubernetes-elastic-agents plugin but with a modern LiveView
   form-based interface instead of JSON text fields.
@@ -18,6 +19,8 @@ defmodule ExGoCDWeb.AdminK8sLive do
 
   @impl true
   def mount(_params, _session, socket) do
+    k3s_status = ClusterProfiles.maybe_auto_seed_k3s()
+
     {:ok,
      assign(socket,
        page_title: "Elastic Agents",
@@ -29,7 +32,9 @@ defmodule ExGoCDWeb.AdminK8sLive do
        editing_cluster: nil,
        editing_agent: nil,
        cluster_form: empty_cluster_form(),
-       agent_form: empty_agent_form()
+       agent_form: empty_agent_form(),
+       k3s_status: k3s_status,
+       show_token: %{}
      )}
   end
 
@@ -181,7 +186,7 @@ defmodule ExGoCDWeb.AdminK8sLive do
   def render(assigns) do
     ~H"""
     <div class="p-6">
-      <h1 class="text-2xl font-bold mb-6">⚡ Elastic Agent Configurations</h1>
+      <h1 class="text-2xl font-bold mb-6">⚡ Elastic Agents</h1>
 
       <%!-- Flash messages --%>
       <div
@@ -189,6 +194,14 @@ defmodule ExGoCDWeb.AdminK8sLive do
         class="mb-4 p-3 bg-green-50 border border-green-200 rounded text-green-800"
       >
         {Phoenix.Flash.get(@flash, :info)}
+      </div>
+
+      <%!-- K3s auto-discovery status --%>
+      <div :if={@k3s_status == :ok} class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded text-blue-800 text-sm">
+        🖥️ Local k3s cluster detected — "k3s-local" profile auto-configured.
+      </div>
+      <div :if={@k3s_status == :no_k3s} class="mb-4 p-3 bg-amber-50 border border-amber-200 rounded text-amber-800 text-sm">
+        ℹ️ No local k3s detected. Add a cluster profile manually or start k3s via <code class="bg-amber-100 px-1 rounded">docker compose up k3s</code>.
       </div>
 
       <%!-- Cluster Profiles Section --%>
@@ -566,6 +579,50 @@ defmodule ExGoCDWeb.AdminK8sLive do
               ><%= @agent_form[:env_vars_text].value %></textarea>
             </div>
 
+            <div>
+              <label class="block text-sm font-medium mb-1">Service Account</label>
+              <input
+                type="text"
+                name="agent[service_account]"
+                value={@agent_form[:service_account].value}
+                class="w-full border rounded px-3 py-2"
+                placeholder="gocd-agent-sa"
+              />
+              <p class="text-xs text-gray-500 mt-1">
+                Kubernetes service account for the agent pod. Leave empty to use the namespace default.
+              </p>
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium mb-1">
+                Node Selector (one per line, KEY=VALUE)
+              </label>
+              <textarea
+                name="agent[node_selector_text]"
+                rows="2"
+                class="w-full border rounded px-3 py-2 font-mono text-xs"
+                placeholder="node-type=ci&#10;disk=ssd"
+              ><%= @agent_form[:node_selector_text].value %></textarea>
+              <p class="text-xs text-gray-500 mt-1">
+                Kubernetes node selector labels to constrain which nodes the pod runs on.
+              </p>
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium mb-1">
+                Pod Annotations (one per line, KEY=VALUE)
+              </label>
+              <textarea
+                name="agent[pod_annotations_text]"
+                rows="2"
+                class="w-full border rounded px-3 py-2 font-mono text-xs"
+                placeholder="sidecar.istio.io/inject=false&#10;team=platform"
+              ><%= @agent_form[:pod_annotations_text].value %></textarea>
+              <p class="text-xs text-gray-500 mt-1">
+                Kubernetes annotations added to the agent pod metadata.
+              </p>
+            </div>
+
             <div class="flex justify-end gap-2 pt-4">
               <button
                 type="button"
@@ -622,6 +679,9 @@ defmodule ExGoCDWeb.AdminK8sLive do
     |> Map.put(:image_pull_policy, ElasticAgentProfile.image_pull_policy(profile))
     |> Map.put(:privileged, ElasticAgentProfile.privileged(profile))
     |> Map.put(:env_vars_text, format_env_vars(ElasticAgentProfile.env_vars(profile)))
+    |> Map.put(:service_account, ElasticAgentProfile.service_account(profile))
+    |> Map.put(:node_selector_text, format_key_value(ElasticAgentProfile.node_selector(profile)))
+    |> Map.put(:pod_annotations_text, format_key_value(ElasticAgentProfile.pod_annotations(profile)))
     |> ElasticAgentProfile.changeset(%{})
     |> to_form()
   end
@@ -655,6 +715,30 @@ defmodule ExGoCDWeb.AdminK8sLive do
       end)
       |> Enum.reject(&is_nil/1)
 
+    node_selector =
+      (params["node_selector_text"] || "")
+      |> String.split("\n", trim: true)
+      |> Enum.map(&String.trim/1)
+      |> Enum.reject(&(&1 == ""))
+      |> Enum.reduce(%{}, fn line, acc ->
+        case String.split(line, "=", parts: 2) do
+          [k, v] -> Map.put(acc, String.trim(k), String.trim(v))
+          _ -> acc
+        end
+      end)
+
+    pod_annotations =
+      (params["pod_annotations_text"] || "")
+      |> String.split("\n", trim: true)
+      |> Enum.map(&String.trim/1)
+      |> Enum.reject(&(&1 == ""))
+      |> Enum.reduce(%{}, fn line, acc ->
+        case String.split(line, "=", parts: 2) do
+          [k, v] -> Map.put(acc, String.trim(k), String.trim(v))
+          _ -> acc
+        end
+      end)
+
     props = %{
       "Image" => Map.get(params, "image", "gocd/gocd-agent-docker-24.5.0"),
       "MaxMemory" => Map.get(params, "max_memory", "2Gi"),
@@ -663,7 +747,10 @@ defmodule ExGoCDWeb.AdminK8sLive do
       "MinCPU" => Map.get(params, "min_cpu", "1"),
       "ImagePullPolicy" => Map.get(params, "image_pull_policy", "IfNotPresent"),
       "Privileged" => Map.get(params, "privileged", "false"),
-      "Environment" => env_vars
+      "Environment" => env_vars,
+      "ServiceAccount" => Map.get(params, "service_account", ""),
+      "NodeSelector" => node_selector,
+      "PodAnnotations" => pod_annotations
     }
 
     %{
@@ -683,4 +770,10 @@ defmodule ExGoCDWeb.AdminK8sLive do
   end
 
   defp format_env_vars(_), do: ""
+
+  defp format_key_value(map) when is_map(map) do
+    Enum.map_join(map, "\n", fn {k, v} -> "#{k}=#{v}" end)
+  end
+
+  defp format_key_value(_), do: ""
 end

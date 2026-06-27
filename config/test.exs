@@ -52,7 +52,7 @@ config :phoenix, :plug_init_mode, :runtime
 # CI: generate JUnit XML report for dorny/test-reporter
 if System.get_env("CI") do
   config :junit_formatter,
-    report_file: "_build/test/lib/ex_gocd/test-junit-report.xml",
+    report_file: "test-junit-report.xml",
     print_report_file: true
 
   config :ex_unit,

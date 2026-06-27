@@ -8,6 +8,7 @@ defmodule ExGoCD.ClusterProfiles do
   import Ecto.Query, warn: false
   alias ExGoCD.Repo
   alias ExGoCD.ClusterProfiles.ClusterProfile
+  alias ExGoCD.K8s
 
   @doc "Returns all cluster profiles."
   def list_profiles do
@@ -40,5 +41,45 @@ defmodule ExGoCD.ClusterProfiles do
   @doc "Finds profiles by plugin_id."
   def list_by_plugin(plugin_id) do
     Repo.all(from p in ClusterProfile, where: p.plugin_id == ^plugin_id)
+  end
+
+  @doc """
+  Auto-discovers a local k3s cluster and seeds a "k3s-local" cluster profile
+  if none exists. Idempotent: does nothing if a profile named "k3s-local"
+  already exists or if k3s is not available.
+
+  Returns `:ok` (seeded or already exists) or `:no_k3s` (cluster not found).
+  """
+  @spec maybe_auto_seed_k3s() :: :ok | :no_k3s
+  def maybe_auto_seed_k3s do
+    existing =
+      Repo.exists?(from p in ClusterProfile, where: p.name == "k3s-local")
+
+    if existing do
+      :ok
+    else
+      case K8s.discover_local_k3s() do
+        {:ok, config} ->
+          %ClusterProfile{}
+          |> ClusterProfile.changeset(%{
+            name: "k3s-local",
+            plugin_id: "cd.go.contrib.elasticagent.kubernetes",
+            properties: %{
+              "kubernetes_cluster_url" => config["server"],
+              "bearer_token" => config["token"],
+              "kubernetes_cluster_ca_cert" => config["ca_cert"],
+              "namespace" => config["namespace"]
+            }
+          })
+          |> Repo.insert()
+          |> case do
+            {:ok, _} -> :ok
+            {:error, _} -> :ok
+          end
+
+        {:error, _} ->
+          :no_k3s
+      end
+    end
   end
 end

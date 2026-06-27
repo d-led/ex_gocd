@@ -58,7 +58,7 @@ jobs:
       env:
         CI: "true"
     - name: Run Elixir tests
-      run: mix test --formatter JUnitFormatter --formatter ExUnit.CLIFormatter
+      run: mix test
       env:
         DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ex_gocd_test
         CI: "true"

@@ -172,15 +172,15 @@ defmodule ExGoCDWeb.Layouts do
                   <ul class="site-sub-nav">
                     <li class="site-sub-nav_item">
                       <a
-                        href="/admin/elastic_agent_configurations"
+                        href="/admin/elastic_agents"
                         class={[
                           "site-sub-nav_link",
-                          if(active_sub_nav?(@current_path, "/admin/elastic_agent_configurations"),
+                          if(active_sub_nav?(@current_path, "/admin/elastic_agents"),
                             do: "is-active"
                           )
                         ]}
                       >
-                        Elastic Agent Configurations
+                        Elastic Agents
                       </a>
                     </li>
                     <li class="site-sub-nav_item">
