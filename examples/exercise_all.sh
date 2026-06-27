@@ -215,9 +215,9 @@ run_gocd_example() {
   docker compose -f "$compose_file" -p "$project" up -d --build 2>&1 | sed 's/^/  /'
 
   # ── Milestone 1: GoCD server healthy ───────────────────────────────────
-  if ! wait_for_http "${server_url}/go/api/version" $TIMEOUT_SERVER "GoCD server"; then
+  if ! wait_for_http "${server_url}/go/api/support" $TIMEOUT_SERVER "GoCD server"; then
     warn "GoCD server not healthy yet, checking with curl for debug..."
-    curl -sv "${server_url}/go/api/version" 2>&1 | head -20 || true
+    curl -sv "${server_url}/go/api/support" 2>&1 | head -20 || true
     ((failed++))
     docker compose -f "$compose_file" -p "$project" down -v 2>/dev/null || true
     return 1

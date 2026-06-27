@@ -6,7 +6,7 @@
 
 services:
   go-server:
-    image: gocd/gocd-server:latest
+    image: gocd/gocd-server:v25.4.0
     ports:
       - '8153:8153'
       - '8154:8154'
@@ -14,7 +14,7 @@ services:
       - godata:/godata
       - gohome:/home/go
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8153/go/api/version"]
+      test: ["CMD", "curl", "-f", "http://localhost:8153/go/api/support"]
       interval: 30s
       timeout: 10s
       retries: 10
