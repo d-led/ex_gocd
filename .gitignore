@@ -57,3 +57,4 @@ agent/gocd-agent.exe
 .mix/
 .hex/
 **/*results*.xml
+config/cipher.aes
