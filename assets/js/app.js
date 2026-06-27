@@ -24,6 +24,8 @@ import { Socket } from "phoenix";
 import { LiveSocket } from "phoenix_live_view";
 import { hooks as colocatedHooks } from "phoenix-colocated/ex_gocd";
 import topbar from "../vendor/topbar";
+import ChartHook from "./chart-hook";
+import "chart.js/auto";
 
 const AgentsUpdates = {
   mounted() {
@@ -553,7 +555,13 @@ const csrfToken = document
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: { _csrf_token: csrfToken },
-  hooks: { AgentsUpdates, VSMGraph, ConsoleScroller, ...colocatedHooks },
+  hooks: {
+    AgentsUpdates,
+    VSMGraph,
+    ConsoleScroller,
+    ChartHook,
+    ...colocatedHooks,
+  },
 });
 
 // Show progress bar on live navigation and form submits
