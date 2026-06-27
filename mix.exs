@@ -94,6 +94,7 @@ defmodule ExGoCD.MixProject do
       {:yaml_elixir, "~> 2.11"},
       {:ex_json_schema, "~> 0.10"},
       {:contex, "~> 0.5.0"},
+      {:k8s, "~> 2.8"},
       {:open_api_spex, "~> 3.22"}
     ]
   end

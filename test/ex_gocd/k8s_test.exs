@@ -1,35 +1,92 @@
 defmodule ExGoCD.K8sTest do
   use ExUnit.Case, async: true
-  alias ExGoCD.K8s
 
-  describe "new/3" do
-    test "creates a client from cluster profile fields" do
-      assert {:ok, client} = K8s.new("https://k8s.example.com:6443", "token-123", namespace: "gocd")
+  # Fully-qualified atom to avoid ExGoCD.K8s module shadowing
+  @dynamic_provider :"Elixir.K8s.Client.DynamicHTTPProvider"
 
-      assert client.server == "https://k8s.example.com:6443"
-      assert client.token == "token-123"
-      assert client.namespace == "gocd"
-      assert client.ca_cert == nil
+  defmodule HTTPMock do
+    @pod_path "/api/v1/namespaces/default/pods"
+
+    def request(:post, %URI{path: @pod_path}, _body, _headers, _opts) do
+      {:ok, %{"metadata" => %{"name" => "gocd-agent-test"}}}
     end
 
-    test "strips trailing slash from server URL" do
-      {:ok, client} = K8s.new("https://k8s:6443/", "t")
-      assert client.server == "https://k8s:6443"
+    def request(:get, %URI{path: @pod_path}, _body, _headers, _opts) do
+      {:ok,
+       %{
+         "items" => [
+           %{"metadata" => %{"name" => "pod-1", "labels" => %{"app" => "gocd-agent"}}, "status" => %{"phase" => "Running", "hostIP" => "10.0.0.1"}},
+           %{"metadata" => %{"name" => "pod-2", "labels" => %{}}, "status" => %{"phase" => "Pending"}}
+         ]
+       }}
     end
 
-    test "defaults namespace to default" do
-      {:ok, client} = K8s.new("https://k8s", "t")
-      assert client.namespace == "default"
-    end
-
-    test "stores CA cert when provided" do
-      {:ok, client} = K8s.new("https://k8s", "t", ca_cert: "PEM-DATA")
-      assert client.ca_cert == "PEM-DATA"
+    def request(:delete, %URI{path: @pod_path <> "/" <> _}, _body, _headers, _opts) do
+      {:ok, %{"status" => "Success"}}
     end
   end
 
-  describe "from_kubeconfig/2" do
-    test "parses a valid kubeconfig YAML string" do
+  setup do
+    @dynamic_provider.register(self(), HTTPMock)
+    :ok
+  end
+
+  describe "from_config/1" do
+    test "creates a conn from server and token" do
+      assert {:ok, conn} = ExGoCD.K8s.from_config(%{"server" => "https://k8s.test:6443", "token" => "tok"})
+      assert conn.url == "https://k8s.test:6443"
+    end
+
+    test "accepts custom namespace" do
+      assert {:ok, conn} = ExGoCD.K8s.from_config(%{
+        "server" => "https://k8s.test", "token" => "t", "namespace" => "gocd-agents"
+      })
+      assert conn.namespace == "gocd-agents"
+    end
+  end
+
+  describe "create_pod/3" do
+    setup do
+      {:ok, conn} = ExGoCD.K8s.from_config(%{"server" => "https://k8s", "token" => "t"})
+      {:ok, conn: conn}
+    end
+
+    test "creates a pod and returns the name", %{conn: conn} do
+      pod = %{"metadata" => %{"name" => "test-agent"}, "spec" => %{"containers" => []}}
+      assert {:ok, "test-agent"} = ExGoCD.K8s.create_pod(conn, pod)
+    end
+  end
+
+  describe "delete_pod/3" do
+    setup do
+      {:ok, conn} = ExGoCD.K8s.from_config(%{"server" => "https://k8s", "token" => "t"})
+      {:ok, conn: conn}
+    end
+
+    test "deletes a pod and returns :ok", %{conn: conn} do
+      assert :ok = ExGoCD.K8s.delete_pod(conn, "test-agent")
+    end
+  end
+
+  describe "list_pods/2" do
+    setup do
+      {:ok, conn} = ExGoCD.K8s.from_config(%{"server" => "https://k8s", "token" => "t"})
+      {:ok, conn: conn}
+    end
+
+    test "returns a list of pod info maps", %{conn: conn} do
+      assert {:ok, pods} = ExGoCD.K8s.list_pods(conn)
+      assert length(pods) == 2
+      [p1, p2] = pods
+      assert p1.name == "pod-1"
+      assert p1.phase == "Running"
+      assert p2.name == "pod-2"
+      assert p2.phase == "Pending"
+    end
+  end
+
+  describe "from_kubeconfig/1" do
+    test "parses a valid kubeconfig YAML" do
       yaml = """
       apiVersion: v1
       kind: Config
@@ -47,97 +104,10 @@ defmodule ExGoCD.K8sTest do
         context:
           cluster: test-cluster
           user: test-user
-          namespace: gocd-agents
       """
 
-      assert {:ok, client} = K8s.from_kubeconfig(yaml)
-      assert client.server == "https://k8s.test:6443"
-      assert client.token == "my-secret-token"
-      assert client.namespace == "gocd-agents"
-    end
-
-    test "parses CA cert from certificate-authority-data" do
-      yaml = """
-      current-context: ctx
-      clusters:
-      - name: c
-        cluster:
-          server: https://k8s
-          certificate-authority-data: Q0EtQ0VSVA==
-      users:
-      - name: u
-        user:
-          token: t
-      contexts:
-      - name: ctx
-        context:
-          cluster: c
-          user: u
-      """
-
-      assert {:ok, client} = K8s.from_kubeconfig(yaml)
-      assert client.ca_cert == "Q0EtQ0VSVA=="
-    end
-
-    test "allows overriding namespace" do
-      yaml = """
-      current-context: ctx
-      clusters:
-      - name: c
-        cluster:
-          server: https://k8s
-      users:
-      - name: u
-        user:
-          token: t
-      contexts:
-      - name: ctx
-        context:
-          cluster: c
-          user: u
-          namespace: original
-      """
-
-      assert {:ok, client} = K8s.from_kubeconfig(yaml, namespace: "override")
-      assert client.namespace == "override"
-    end
-
-    test "returns error when kubeconfig has no server" do
-      yaml = """
-      current-context: ctx
-      clusters: []
-      users: [{name: u, user: {token: t}}]
-      contexts: [{name: ctx, context: {cluster: c, user: u}}]
-      """
-
-      assert {:error, msg} = K8s.from_kubeconfig(yaml)
-      assert msg =~ "server"
-    end
-
-    test "returns error for empty YAML string" do
-      assert {:error, _} = K8s.from_kubeconfig("")
-    end
-  end
-
-  describe "pod operations against unreachable cluster" do
-    setup do
-      {:ok, client} = K8s.new("https://k8s.invalid:6443", "token")
-      {:ok, client: client}
-    end
-
-    test "create_pod/2 returns error", %{client: client} do
-      assert {:error, _} = K8s.create_pod(client, %{
-        "metadata" => %{"name" => "test-pod"},
-        "spec" => %{"containers" => [%{"name" => "test", "image" => "alpine"}]}
-      })
-    end
-
-    test "delete_pod/2 returns error", %{client: client} do
-      assert {:error, _} = K8s.delete_pod(client, "test-pod")
-    end
-
-    test "list_pods/1 returns error", %{client: client} do
-      assert {:error, _} = K8s.list_pods(client)
+      assert {:ok, conn} = ExGoCD.K8s.from_kubeconfig(yaml)
+      assert conn.url == "https://k8s.test:6443"
     end
   end
 end

@@ -9,6 +9,9 @@ end
 
 ExUnit.start()
 
+# Start the k8s DynamicHTTPProvider for disconnected testing
+K8s.Client.DynamicHTTPProvider.start_link(nil)
+
 # When running without Postgres (EX_GOCD_TEST_NO_DB=1), Repo is not started; skip sandbox.
 if System.get_env("EX_GOCD_TEST_NO_DB") != "1" do
   # {:shared, pid} allows GenServer processes (Scheduler, Poller) to access DB
