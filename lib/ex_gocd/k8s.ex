@@ -111,10 +111,12 @@ defmodule ExGoCD.K8s do
   end
 
   defp kubeconfig_paths do
+    # Only check k3s-specific paths, not arbitrary kubeconfig files.
+    # In dev, docker-compose k3s writes to /tmp/k3s-kubeconfig/kubeconfig.yaml.
+    # Fall back to KUBECONFIG env if explicitly set for k3s.
     [
       "/tmp/k3s-kubeconfig/kubeconfig.yaml",
-      System.get_env("KUBECONFIG"),
-      Path.join(System.user_home(), ".kube/config")
+      System.get_env("KUBECONFIG")
     ]
     |> Enum.reject(&is_nil/1)
   end
