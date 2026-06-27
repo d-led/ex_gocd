@@ -147,12 +147,21 @@ defmodule ExGoCD.Agents do
   Only excludes disabled/deleted agents — includes LostContact, Missing, Idle, Building.
   """
   @spec count_all_matching([String.t()]) :: integer()
+  def count_all_matching([]), do: count_all()
   def count_all_matching(resources) when is_list(resources) and resources != [] do
     agents = list_all_matching(resources)
     length(agents)
   end
 
-  def count_all_matching(_), do: count_idle()
+  def count_all_matching(_), do: count_all()
+
+  defp count_all do
+    if use_mock?() do
+      length(Mock.list_active_agents())
+    else
+      Repo.aggregate(from(a in Agent, where: a.deleted == false and a.disabled == false), :count, :id)
+    end
+  end
 
   @doc """
   Lists ALL agents matching the given resources (any state, not disabled/deleted).
@@ -205,6 +214,17 @@ defmodule ExGoCD.Agents do
     else
       from(a in Agent, where: a.state == "Idle" and a.disabled == false and a.deleted == false)
       |> Repo.all()
+    end
+  end
+
+  @doc "Returns a map of agent_uuid => agent for the given UUIDs."
+  def get_agents_by_uuids(uuids) when is_list(uuids) do
+    if uuids == [] do
+      %{}
+    else
+      from(a in Agent, where: a.uuid in ^uuids)
+      |> Repo.all()
+      |> Map.new(&{&1.uuid, &1})
     end
   end
 

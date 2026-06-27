@@ -122,7 +122,7 @@ defmodule ExGoCDWeb.DashboardLive do
           {:error, reason} when is_binary(reason) ->
             {:noreply, put_flash(socket, :error, "Trigger failed: #{String.slice(reason, 0, 200)}")}
 
-          {:error, reason} ->
+          {:error, _reason} ->
             {:noreply, put_flash(socket, :error, "Trigger failed.")}
         end
 

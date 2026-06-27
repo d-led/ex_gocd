@@ -6,6 +6,7 @@ defmodule ExGoCDWeb.StageDetailsLive do
   use ExGoCDWeb, :live_view
 
   alias ExGoCD.MockData
+  alias ExGoCD.Agents
 
   @impl true
   def mount(_params, _session, socket) do
@@ -120,12 +121,19 @@ defmodule ExGoCDWeb.StageDetailsLive do
   end
 
   defp map_db_jobs(job_instances) do
+    # Pre-fetch all agents referenced by these job instances
+    agent_uuids = Enum.map(job_instances, & &1.agent_uuid) |> Enum.reject(&is_nil/1) |> Enum.uniq()
+    agents_map = Agents.get_agents_by_uuids(agent_uuids)
+
     Enum.map(job_instances, fn ji ->
+      agent = Map.get(agents_map, ji.agent_uuid)
       %{
         name: ji.name,
         state: ji.state,
         result: ji.result,
         agent_uuid: ji.agent_uuid,
+        agent_resources: (agent && agent.resources) || [],
+        agent_hostname: (agent && agent.hostname) || ji.agent_uuid,
         duration: job_duration(ji),
         build_id: ji.id
       }
@@ -181,6 +189,8 @@ defmodule ExGoCDWeb.StageDetailsLive do
         state: "Completed",
         result: status,
         agent_uuid: "agent-1111-2222-3333",
+        agent_resources: ["mock"],
+        agent_hostname: "mock-agent",
         duration: duration,
         build_id: 1001
       }
@@ -356,6 +366,11 @@ defmodule ExGoCDWeb.StageDetailsLive do
                               <.link navigate={~p"/agents"} class="text-[#2d6ca2] hover:underline">
                                 {String.slice(job.agent_uuid, 0, 8)}
                               </.link>
+                              <span :if={job.agent_resources != []} class="ml-1">
+                                <%= for r <- job.agent_resources do %>
+                                  <span class="text-[9px] bg-gray-100 text-gray-500 px-1 py-0.5 rounded font-mono">{r}</span>
+                                <% end %>
+                              </span>
                             <% else %>
                               —
                             <% end %>
