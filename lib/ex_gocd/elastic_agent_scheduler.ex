@@ -79,7 +79,7 @@ defmodule ExGoCD.ElasticAgentScheduler do
   # ── Tick logic ─────────────────────────────────────────────────────────────
 
   defp check_and_scale(state) do
-    pending_jobs = get_pending_run_on_all_jobs()
+    pending_jobs = get_pending_jobs()
 
     Enum.reduce(pending_jobs, state, fn job, acc ->
       if needs_elastic_agent?(job) do
@@ -190,16 +190,10 @@ defmodule ExGoCD.ElasticAgentScheduler do
 
   # ── Job inspection ─────────────────────────────────────────────────────────
 
-  defp get_pending_run_on_all_jobs do
-    # Inspect the scheduler queue for run_on_all_agents entries
+  defp get_pending_jobs do
     case Scheduler.get_queue_state() do
-      %{in_memory_jobs: jobs} ->
-        Enum.filter(jobs, fn job ->
-          Map.get(job, :run_on_all_agents) == true or Map.get(job, "run_on_all_agents") == true
-        end)
-
-      _ ->
-        []
+      %{in_memory_jobs: jobs} -> jobs
+      _ -> []
     end
   end
 

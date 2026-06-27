@@ -33,7 +33,8 @@ defmodule ExGoCDWeb.AgentsLive do
        pending_scheduled: pending_scheduled_count(),
        is_user_admin: User.has_role?(current_user, :admin),
        current_user: current_user,
-       tracked_pods: %{}
+       tracked_pods: %{},
+       scheduler_events: []
      )}
   end
 
@@ -611,9 +612,9 @@ defmodule ExGoCDWeb.AgentsLive do
                 <%= if map_size(@tracked_pods) == 0 do %>
                   <tr>
                     <td colspan="8" class="text-center text-gray-500 py-4">
-                      No elastic agent pods tracked. Pods appear here when the scheduler creates them for
-                      <code>run_on_all_agents</code>
-                      jobs.
+                      No elastic agent pods tracked. Pods appear here when the
+                      scheduler creates them for pending jobs that have no
+                      matching idle agent.
                     </td>
                   </tr>
                 <% else %>
@@ -652,7 +653,7 @@ defmodule ExGoCDWeb.AgentsLive do
           </h2>
           <%= if Enum.empty?(@scheduler_events) do %>
             <div style="font-size: 13px; color: #9ca3af; font-style: italic;">
-              No events yet. The scheduler checks every 30s for pending run_on_all_agents jobs.
+              No events yet. The scheduler checks every 30s for pending jobs that need elastic agents.
             </div>
           <% else %>
             <div style="font-size: 13px; font-family: ui-monospace, monospace;">

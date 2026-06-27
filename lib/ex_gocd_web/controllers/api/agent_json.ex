@@ -71,7 +71,9 @@ defmodule ExGoCDWeb.API.AgentJSON do
       agent_bootstrapper_version: "20.5.0",
       resources: agent.resources || [],
       environments: format_environments(agent.environments || []),
-      build_state: build_state
+      build_state: build_state,
+      elastic_agent_id: agent.elastic_agent_id,
+      elastic_plugin_id: agent.elastic_plugin_id
     }
 
     if build_state == "Building" do

@@ -136,7 +136,7 @@ services:
     platform: linux/amd64
     container_name: k3s
     privileged: true
-    command: server --disable-agent --no-deploy traefik --no-deploy servicelb
+    command: server --disable-agent --disable traefik --disable servicelb
     ports:
       - "6443:6443"
     volumes:
