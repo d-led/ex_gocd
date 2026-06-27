@@ -10,6 +10,10 @@ defmodule ExGoCDWeb.StageDetailsLive do
 
   @impl true
   def mount(_params, _session, socket) do
+    if connected?(socket) do
+      ExGoCD.PubSub.subscribe(ExGoCD.PubSub.pipeline_topic())
+    end
+
     {:ok, assign(socket, :active_tab, "jobs")}
   end
 
@@ -68,6 +72,25 @@ defmodule ExGoCDWeb.StageDetailsLive do
   @impl true
   def handle_event("select_tab", %{"tab" => tab}, socket) do
     {:noreply, assign(socket, :active_tab, tab)}
+  end
+
+  @impl true
+  def handle_info({:pipeline_triggered, _name, _counter}, socket) do
+    {:noreply, refresh_stage(socket)}
+  end
+
+  def handle_info(:pipelines_updated, socket) do
+    {:noreply, refresh_stage(socket)}
+  end
+
+  defp refresh_stage(socket) do
+    stage = get_stage_details(
+      socket.assigns.pipeline_name,
+      socket.assigns.pipeline_counter,
+      socket.assigns.stage_name,
+      socket.assigns.stage_counter
+    )
+    assign(socket, :stage, stage)
   end
 
   # Helpers
@@ -134,6 +157,7 @@ defmodule ExGoCDWeb.StageDetailsLive do
         agent_uuid: ji.agent_uuid,
         agent_resources: (agent && agent.resources) || [],
         agent_hostname: (agent && agent.hostname) || ji.agent_uuid,
+        agent_type: agent_type(agent),
         duration: job_duration(ji),
         build_id: ji.id
       }
@@ -191,6 +215,7 @@ defmodule ExGoCDWeb.StageDetailsLive do
         agent_uuid: "agent-1111-2222-3333",
         agent_resources: ["mock"],
         agent_hostname: "mock-agent",
+        agent_type: "mock",
         duration: duration,
         build_id: 1001
       }
@@ -225,9 +250,33 @@ defmodule ExGoCDWeb.StageDetailsLive do
       result == "Passed" -> "bg-[#5cb85c]"
       result == "Failed" -> "bg-[#d9534f]"
       result == "Cancelled" -> "bg-[#f0ad4e]"
-      true -> "bg-gray-300"
+      true -> "bg-gray-400"
     end
   end
+
+  defp agent_type(nil), do: "—"
+  defp agent_type(agent) do
+    sandbox = agent.sandbox || ""
+    resources = agent.resources || []
+    elastic_id = agent.elastic_profile_id
+
+    cond do
+      elastic_id && String.contains?(sandbox, "k8s") -> "k8s-elastic"
+      elastic_id && String.contains?(sandbox, "docker") -> "docker-elastic"
+      "k8s" in resources -> "k8s"
+      "docker" in resources -> "docker"
+      elastic_id -> "elastic"
+      true -> "regular"
+    end
+  end
+
+  defp kind_color("k8s-elastic"), do: "bg-purple-100 text-purple-700"
+  defp kind_color("docker-elastic"), do: "bg-blue-100 text-blue-700"
+  defp kind_color("docker"), do: "bg-cyan-100 text-cyan-700"
+  defp kind_color("k8s"), do: "bg-purple-100 text-purple-700"
+  defp kind_color("elastic"), do: "bg-teal-100 text-teal-700"
+  defp kind_color("regular"), do: "bg-gray-100 text-gray-600"
+  defp kind_color(_), do: "bg-gray-100 text-gray-400"
 
   @impl true
   def render(assigns) do
@@ -339,6 +388,7 @@ defmodule ExGoCDWeb.StageDetailsLive do
                         <th class="px-6 py-3">State</th>
                         <th class="px-6 py-3">Result</th>
                         <th class="px-6 py-3">Agent</th>
+                        <th class="px-6 py-3">Kind</th>
                         <th class="px-6 py-3">Duration</th>
                       </tr>
                     </thead>
@@ -374,6 +424,14 @@ defmodule ExGoCDWeb.StageDetailsLive do
                             <% else %>
                               —
                             <% end %>
+                          </td>
+                          <td class="px-6 py-4">
+                            <span class={[
+                              "text-[9px] font-bold px-1.5 py-0.5 rounded uppercase",
+                              kind_color(job.agent_type)
+                            ]}>
+                              {job.agent_type}
+                            </span>
                           </td>
                           <td class="px-6 py-4">{format_duration(job.duration)}</td>
                         </tr>
