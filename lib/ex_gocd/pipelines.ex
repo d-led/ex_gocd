@@ -818,40 +818,50 @@ defmodule ExGoCD.Pipelines do
 
     material_revisions = build_material_revisions_map(pipeline, proposed)
 
-    env_vars = extract_trigger_variables(options, params)
-    build_cause = build_cause_map(options, material_revisions, env_vars, pipeline)
-    idle_count = Agents.count_idle()
+    # Filter gate: if ALL material changes are ignored by their filters, skip trigger.
+    # Mirrors GoCD's MaterialRevision.shouldBeIgnoredByFilterIn() + pipeline trigger gate.
+    if all_changes_ignored_by_filter?(pipeline, material_revisions) do
+      Logger.debug(
+        "[Pipelines] Pipeline '#{pipeline.name}' — all changes ignored by material filters, skipping trigger"
+      )
 
-    result =
-      Repo.transaction(fn ->
-        insert_triggered_instance(
-          pipeline,
-          proposed,
-          counter,
-          label,
-          now,
-          build_cause,
-          idle_count
-        )
-      end)
+      {:error, :filter_ignored}
+    else
+      env_vars = extract_trigger_variables(options, params)
+      build_cause = build_cause_map(options, material_revisions, env_vars, pipeline)
+      idle_count = Agents.count_idle()
 
-    case result do
-      {:ok, {instance, first_stage, stage_instance, job_instances}} ->
-        for ji <- job_instances do
-          job_config = Enum.find(first_stage.jobs, &(&1.id == ji.job_id))
-          schedule_job_if_config(pipeline, counter, stage_instance, job_config, ji, params)
-        end
+      result =
+        Repo.transaction(fn ->
+          insert_triggered_instance(
+            pipeline,
+            proposed,
+            counter,
+            label,
+            now,
+            build_cause,
+            idle_count
+          )
+        end)
 
-        Phoenix.PubSub.broadcast(ExGoCD.PubSub, "pipelines:updates", :pipelines_updated)
+      case result do
+        {:ok, {instance, first_stage, stage_instance, job_instances}} ->
+          for ji <- job_instances do
+            job_config = Enum.find(first_stage.jobs, &(&1.id == ji.job_id))
+            schedule_job_if_config(pipeline, counter, stage_instance, job_config, ji, params)
+          end
 
-        unless Map.get(options, :auto_trigger) do
-          Events.pipeline_triggered("anonymous", pipeline.name, counter)
-        end
+          Phoenix.PubSub.broadcast(ExGoCD.PubSub, "pipelines:updates", :pipelines_updated)
 
-        {:ok, instance}
+          unless Map.get(options, :auto_trigger) do
+            Events.pipeline_triggered("anonymous", pipeline.name, counter)
+          end
 
-      {:error, reason} ->
-        {:error, reason}
+          {:ok, instance}
+
+        {:error, reason} ->
+          {:error, reason}
+      end
     end
   end
 
@@ -1078,6 +1088,25 @@ defmodule ExGoCD.Pipelines do
         ]
       }
     end)
+  end
+
+  # ── Material filter gate (GoCD parity) ─────────────────────────────────
+
+  # Returns true if ALL material revisions are ignored by their material's filter.
+  # Mirrors GoCD's MaterialRevision.shouldBeIgnoredByFilterIn() logic.
+  defp all_changes_ignored_by_filter?(pipeline, material_revisions) do
+    materials = pipeline.materials || []
+
+    if materials == [] do
+      false
+    else
+      Enum.all?(material_revisions, fn rev ->
+        mat_id = rev["material"]["id"]
+        material = Enum.find(materials, &(&1.id == mat_id))
+        mods = rev["modifications"] || []
+        ExGoCD.Materials.MaterialFilter.all_ignored?(material, mods)
+      end)
+    end
   end
 
   defp trigger_message(options, material_revisions) do

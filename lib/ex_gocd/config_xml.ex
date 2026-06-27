@@ -94,6 +94,38 @@ defmodule ExGoCD.ConfigXml do
     })
   end
 
+  defp render_material(%{type: "svn"} = mat) do
+    tsc = mat.type_specific_config || %{}
+    check_externals = tsc["check_externals"]
+
+    base_attrs = %{
+      url: mat.url,
+      dest: mat.name || mat.url,
+      materialName: mat.name || mat.url,
+      autoUpdate: mat.auto_update != false
+    }
+
+    attrs =
+      base_attrs
+      |> maybe_put_attr(:username, mat.username)
+      |> maybe_put_attr(:password, tsc["password"])
+      |> maybe_put_attr(:checkexternals, check_externals)
+
+    tag2("svn", attrs)
+  end
+
+  defp render_material(%{type: "hg"} = mat) do
+    tag2("hg", %{url: mat.url || "", dest: mat.name || mat.url})
+  end
+
+  defp render_material(%{type: "p4"} = mat) do
+    tag2("p4", %{url: mat.url || "", dest: mat.name || mat.url})
+  end
+
+  defp render_material(%{type: "tfs"} = mat) do
+    tag2("tfs", %{url: mat.url || "", dest: mat.name || mat.url})
+  end
+
   defp render_material(mat), do: tag2(mat.type || "git", %{url: mat.url || ""})
 
   defp render_env_vars(vars) when is_map(vars) and map_size(vars) > 0 do
@@ -287,29 +319,45 @@ defmodule ExGoCD.ConfigXml do
   end
 
   defp parse_material(el) do
-    tag = elem(el, 1)
-
-    case tag do
-      :git ->
-        %{
-          type: "git",
-          url: to_string(attr(el, :url)),
-          branch: to_string(attr(el, :branch) || "master"),
-          name: to_string(attr(el, :materialName) || attr(el, :dest) || attr(el, :url)),
-          auto_update: attr(el, :autoUpdate) != "false"
-        }
-
-      :pipeline ->
-        %{
-          type: "dependency",
-          pipeline_name: to_string(attr(el, :pipelineName)),
-          stage_name: to_string(attr(el, :stageName) || "build"),
-          name: to_string(attr(el, :materialName) || attr(el, :pipelineName))
-        }
-
-      other ->
-        %{type: to_string(other), url: to_string(attr(el, :url) || "")}
+    case elem(el, 1) do
+      :git -> parse_git_material(el)
+      :pipeline -> parse_pipeline_material(el)
+      :svn -> parse_svn_material(el)
+      other -> %{type: to_string(other), url: to_string(attr(el, :url) || "")}
     end
+  end
+
+  defp parse_git_material(el) do
+    %{
+      type: "git",
+      url: to_string(attr(el, :url)),
+      branch: to_string(attr(el, :branch) || "master"),
+      name: to_string(attr(el, :materialName) || attr(el, :dest) || attr(el, :url)),
+      auto_update: attr(el, :autoUpdate) != "false"
+    }
+  end
+
+  defp parse_pipeline_material(el) do
+    %{
+      type: "dependency",
+      pipeline_name: to_string(attr(el, :pipelineName)),
+      stage_name: to_string(attr(el, :stageName) || "build"),
+      name: to_string(attr(el, :materialName) || attr(el, :pipelineName))
+    }
+  end
+
+  defp parse_svn_material(el) do
+    %{
+      type: "svn",
+      url: to_string(attr(el, :url)),
+      name: to_string(attr(el, :materialName) || attr(el, :dest) || attr(el, :url)),
+      username: svn_attr_str(el, :username),
+      auto_update: attr(el, :autoUpdate) != "false",
+      type_specific_config: %{
+        "check_externals" => attr(el, :checkexternals) == "true",
+        "password" => to_string(attr(el, :password) || "")
+      }
+    }
   end
 
   defp parse_env_vars(el) do
@@ -500,4 +548,19 @@ defmodule ExGoCD.ConfigXml do
       :error -> default
     end
   end
+
+  # ── SVN-specific helpers ────────────────────────────────────────────
+
+  defp svn_attr_str(el, name) do
+    case attr(el, name) do
+      "" -> nil
+      nil -> nil
+      val -> to_string(val)
+    end
+  end
+
+  defp maybe_put_attr(map, _key, nil), do: map
+  defp maybe_put_attr(map, _key, ""), do: map
+  defp maybe_put_attr(map, _key, false), do: map
+  defp maybe_put_attr(map, key, value), do: Map.put(map, key, value)
 end

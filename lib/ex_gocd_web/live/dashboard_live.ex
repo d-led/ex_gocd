@@ -371,6 +371,9 @@ defmodule ExGoCDWeb.DashboardLive do
   defp trigger_flash_message(_name, {:error, :fan_in_mismatch}),
     do: {:error, "Cannot trigger — dependency revision mismatch. Verify upstream pipelines."}
 
+  defp trigger_flash_message(_name, {:error, :filter_ignored}),
+    do: {:warning, "No changes to trigger — all modified files are ignored by material filter."}
+
   defp trigger_flash_message(_name, {:error, reason}) when is_binary(reason),
     do: {:error, "Trigger failed: #{String.slice(reason, 0, 200)}"}
 
