@@ -84,7 +84,7 @@ run_exgocd_example() {
 
   # ── Milestone 1: Server healthy ────────────────────────────────────────
   if ! wait_for_http "${server_url}/api/version" $TIMEOUT_SERVER "ex_gocd server"; then
-    ((failed++))
+    failed=$((failed + 1))
     docker compose -f "$compose_file" -p "$project" down -v 2>/dev/null || true
     return 1
   fi
@@ -117,7 +117,7 @@ run_exgocd_example() {
     curl -sf "${server_url}/api/stats" 2>/dev/null | python3 -m json.tool 2>/dev/null || true
     log "Debug: agent list"
     curl -sf "${server_url}/api/agents" 2>/dev/null | python3 -m json.tool 2>/dev/null || true
-    ((failed++))
+    failed=$((failed + 1))
     docker compose -f "$compose_file" -p "$project" down -v 2>/dev/null || true
     return 1
   fi
@@ -194,10 +194,10 @@ run_exgocd_example() {
 
   if [ "$job_done" = true ]; then
     echo -e "${GREEN}[PASS]${NC} $label"
-    ((passed++))
+    passed=$((passed + 1))
   else
     echo -e "${RED}[FAIL]${NC} $label — job did not complete"
-    ((failed++))
+    failed=$((failed + 1))
   fi
 }
 
@@ -218,7 +218,7 @@ run_gocd_example() {
   if ! wait_for_http "${server_url}/go/api/support" $TIMEOUT_SERVER "GoCD server"; then
     warn "GoCD server not healthy yet, checking with curl for debug..."
     curl -sv "${server_url}/go/api/support" 2>&1 | head -20 || true
-    ((failed++))
+    failed=$((failed + 1))
     docker compose -f "$compose_file" -p "$project" down -v 2>/dev/null || true
     return 1
   fi
@@ -228,7 +228,7 @@ run_gocd_example() {
   auto_key=$(docker exec "${project}-go-server-1" cat /godata/config/cruise-config.xml 2>/dev/null | grep -oE 'agentAutoRegisterKey="[^"]*"' | head -1 | cut -d'"' -f2)
   if [ -z "$auto_key" ]; then
     err "Could not read agent auto-register key from GoCD server config"
-    ((failed++))
+    failed=$((failed + 1))
     docker compose -f "$compose_file" -p "$project" down -v 2>/dev/null || true
     return 1
   fi
@@ -276,7 +276,7 @@ print(sum(1 for a in agents if a.get('agent_state')=='Idle'))
     err "No idle agent on GoCD server within ${TIMEOUT_AGENT}s"
     log "Debug: GoCD agent list"
     curl -sf "${server_url}/go/api/agents" -H "Accept: application/vnd.go.cd.v7+json" 2>/dev/null | python3 -m json.tool 2>/dev/null || true
-    ((failed++))
+    failed=$((failed + 1))
     docker compose -f "$compose_file" -p "$project" down -v 2>/dev/null || true
     return 1
   fi
@@ -286,7 +286,7 @@ print(sum(1 for a in agents if a.get('agent_state')=='Idle'))
   docker compose -f "$compose_file" -p "$project" --profile agent down -v 2>&1 | sed 's/^/  /'
 
   echo -e "${GREEN}[PASS]${NC} $label — agent registered with official GoCD server"
-  ((passed++))
+  passed=$((passed + 1))
 }
 
 # ---------------------------------------------------------------------------
