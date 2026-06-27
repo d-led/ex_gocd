@@ -256,13 +256,13 @@ defmodule ExGoCDWeb.StageDetailsLive do
 
   defp agent_type(nil), do: "—"
   defp agent_type(agent) do
-    sandbox = agent.sandbox || ""
+    wd = agent.working_dir || ""
     resources = agent.resources || []
-    elastic_id = agent.elastic_profile_id
+    elastic_id = agent.elastic_agent_id
 
     cond do
-      elastic_id && String.contains?(sandbox, "k8s") -> "k8s-elastic"
-      elastic_id && String.contains?(sandbox, "docker") -> "docker-elastic"
+      elastic_id && String.contains?(wd, "k8s") -> "k8s-elastic"
+      elastic_id && String.contains?(wd, "docker") -> "docker-elastic"
       "k8s" in resources -> "k8s"
       "docker" in resources -> "docker"
       elastic_id -> "elastic"
