@@ -147,7 +147,7 @@ describe("Admin dropdown — desktop viewport usability", () => {
         .eq(1)
         .within(() => {
           cy.get(".site-sub-nav_link").should("have.length", 5);
-          cy.contains("a", "Elastic Agent Configurations");
+          cy.contains("a", "Elastic Agents");
           cy.contains("a", "Config Repositories");
           cy.contains("a", "Artifact Stores");
           cy.contains("a", "Secret Management");
