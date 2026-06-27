@@ -286,6 +286,8 @@ defmodule ExGoCDWeb.Router do
 
     resources "/elastic_agent_profiles", ElasticAgentProfileController, except: [:new, :edit]
     resources "/cluster_profiles", ClusterProfileController, except: [:new, :edit]
+    resources "/package_repositories", PackageRepositoryController, except: [:new, :edit]
+    resources "/secret_configs", SecretConfigController, except: [:new, :edit]
   end
 
   scope "/api/current_user", ExGoCDWeb.API do
