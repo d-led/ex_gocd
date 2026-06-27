@@ -30,6 +30,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    command: >
+      sh -c "/app/bin/ex_gocd eval 'ExGoCD.Release.migrate()' && /app/bin/ex_gocd start"
     environment:
       DATABASE_URL: "ecto://postgres:postgres@postgres/ex_gocd_prod"
       SECRET_KEY_BASE: "demo-secret-key-base-do-not-use-in-production"
@@ -41,7 +43,8 @@ services:
       test: ["CMD", "curl", "-f", "http://localhost:4000/api/version"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 15
+      start_period: 30s
 
   ex-gocd-agent:
     image: ghcr.io/d-led/ex_gocd-agent:latest
