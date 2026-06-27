@@ -46,14 +46,29 @@ defmodule ExGoCDWeb.AgentsLive do
         _ -> :static
       end
 
+    socket = assign(socket, agent_type: agent_type, selected_agents: MapSet.new())
+
     socket =
       if agent_type == :k8s_pods do
-        assign(socket, tracked_pods: ExGoCD.ElasticAgentScheduler.tracked_pods())
+        socket
+        |> assign(tracked_pods: :loading)
+        |> start_async(:load_tracked_pods, fn ->
+          ExGoCD.ElasticAgentScheduler.tracked_pods()
+        end)
       else
         socket
       end
 
-    {:noreply, assign(socket, agent_type: agent_type, selected_agents: MapSet.new())}
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_async(:load_tracked_pods, {:ok, pods}, socket) do
+    {:noreply, assign(socket, tracked_pods: pods)}
+  end
+
+  def handle_async(:load_tracked_pods, {:exit, _reason}, socket) do
+    {:noreply, assign(socket, tracked_pods: %{})}
   end
 
   @impl true
@@ -577,14 +592,21 @@ defmodule ExGoCDWeb.AgentsLive do
               </tr>
             </thead>
             <tbody>
-              <%= if map_size(@tracked_pods) == 0 do %>
+              <%= if @tracked_pods == :loading do %>
                 <tr>
                   <td colspan="8" class="text-center text-gray-500 py-4">
-                    No elastic agent pods tracked. Pods appear here when the scheduler creates them for <code>run_on_all_agents</code> jobs.
+                    Loading tracked pods…
                   </td>
                 </tr>
               <% else %>
-                <%= for {_pod_name, pod} <- @tracked_pods do %>
+                <%= if map_size(@tracked_pods) == 0 do %>
+                  <tr>
+                    <td colspan="8" class="text-center text-gray-500 py-4">
+                      No elastic agent pods tracked. Pods appear here when the scheduler creates them for <code>run_on_all_agents</code> jobs.
+                    </td>
+                  </tr>
+                <% else %>
+                  <%= for {_pod_name, pod} <- @tracked_pods do %>
                   <tr>
                     <td class="font-mono text-sm">{pod.pod_name}</td>
                     <td>{pod.profile_name}</td>
@@ -607,6 +629,7 @@ defmodule ExGoCDWeb.AgentsLive do
                   </tr>
                 <% end %>
               <% end %>
+            <% end %>
             </tbody>
           </table>
         </div>

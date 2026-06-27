@@ -91,12 +91,12 @@ defmodule ExGoCD.GenServerRedactTest do
 
   describe "format_status integration" do
     test "GenServer with use ExGoCD.GenServerRedact redacts state on crash" do
-      # Start a GenServer that holds a password in state
-      {:ok, pid} = ExGoCD.RedactTestServer.start_link(%{password: "s3cret", name: "test"})
+      # Inline GenServer module for this test
+      {:ok, pid} = GenServer.start_link(RedactIntegrationServer, %{password: "s3cret", name: "test"})
 
       # sys:get_status returns {:status, pid, module, [pdict, run, parent, logs, items]}
       # The formatted state from format_status/2 is the last element of the items list.
-      {:status, _pid, _module, _details} = status = :sys.get_status(pid)
+      status = :sys.get_status(pid)
       formatted_state = status |> elem(3) |> List.last()
 
       assert formatted_state[:password] == "***REDACTED***"
@@ -104,5 +104,18 @@ defmodule ExGoCD.GenServerRedactTest do
 
       GenServer.stop(pid)
     end
+  end
+end
+
+defmodule RedactIntegrationServer do
+  @moduledoc false
+  use GenServer
+
+  @impl true
+  def init(state), do: {:ok, state}
+
+  @impl true
+  def format_status(_reason, [pdict, state]) do
+    [ExGoCD.GenServerRedact.redact_pdict(pdict), ExGoCD.GenServerRedact.redact(state)]
   end
 end
