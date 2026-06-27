@@ -177,6 +177,15 @@ defmodule ExGoCDWeb.Router do
     get "/agent/root_certificate", AdminAgentController, :root_certificate
   end
 
+  # GoCD Java agent compatibility: agent endpoints under /go prefix
+  scope "/go/admin", ExGoCDWeb do
+    pipe_through :agent_remoting
+
+    post "/agent", AdminAgentController, :register
+    get "/agent/token", AdminAgentController, :token
+    get "/agent/root_certificate", AdminAgentController, :root_certificate
+  end
+
   # API routes for agents and other resources (GoCD spec: api.go.cd)
   # Served at both /api and /go/api for compatibility with GoCD clients.
   scope "/api", ExGoCDWeb.API do
@@ -299,6 +308,8 @@ defmodule ExGoCDWeb.Router do
     delete "/notification_filters/:id", NotificationFilterController, :delete
 
     resources "/artifact_stores", ArtifactStoreController, except: [:new, :edit]
+    get "/site_url", SiteURLController, :show
+    get "/permissions", PermissionsController, :index
   end
 
   scope "/api/current_user", ExGoCDWeb.API do
