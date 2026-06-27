@@ -858,7 +858,7 @@ defmodule ExGoCD.Pipelines do
 
         stages_ordered = Enum.sort_by(pipeline.stages, & &1.id)
         first_stage = List.first(stages_ordered)
-        if is_nil(first_stage), do: raise("Pipeline has no stages")
+        if is_nil(first_stage), do: Repo.rollback({:error, "Pipeline '#{pipeline.name}' has no stages configured."})
 
         stage_instance =
           %StageInstance{}

@@ -68,6 +68,17 @@ defmodule ExGoCDWeb.AdminSchedulingLive do
     {:noreply, refresh_all(socket)}
   end
 
+  def handle_event("show_error", %{"index" => idx}, socket) do
+    errors = socket.assigns.recent_errors
+    {i, ""} = Integer.parse(idx)
+    error = Enum.at(errors, i)
+    {:noreply, assign(socket, :selected_error, error)}
+  end
+
+  def handle_event("close_error", _, socket) do
+    {:noreply, assign(socket, :selected_error, nil)}
+  end
+
   # -- private ----------------------------------------------------------------
 
   defp refresh_all(socket) do
@@ -76,8 +87,7 @@ defmodule ExGoCDWeb.AdminSchedulingLive do
     |> assign(:agents, fetch_agents())
     |> assign(:now, DateTime.utc_now())
     |> assign(:active_jobs, fetch_active_db_jobs())
-    |> assign(:recent_errors, fetch_recent_errors())
-    |> assign_match_analysis()
+    |> assign(:recent_errors, fetch_recent_errors())      |> assign(:selected_error, nil)    |> assign_match_analysis()
   end
 
   defp fetch_agents do
@@ -108,14 +118,22 @@ defmodule ExGoCDWeb.AdminSchedulingLive do
   defp format_error_message(entry) do
     detail = entry.details || %{}
     payload = detail["payload"] || detail[:payload] || %{}
-    msg = payload["exception.message"] || payload[:exception] || detail["error"] || ""
-    # Truncate long messages
-    if is_binary(msg) and String.length(msg) > 120 do
-      String.slice(msg, 0, 120) <> "..."
-    else
-      msg
-    end
+
+    payload["exception.message"] ||
+      payload[:exception] ||
+      detail["error"] ||
+      detail["message"] ||
+      format_map(detail)
   end
+
+  defp format_map(map) when is_map(map) and map_size(map) > 0 do
+    map
+    |> Enum.map(fn {k, v} -> "#{k}: #{inspect(v)}" end)
+    |> Enum.join(", ")
+    |> then(&String.slice(&1, 0, 200))
+  end
+
+  defp format_map(_), do: ""
 
   # Idle first, Building second, then everything else, then disabled last
   defp agent_sort_priority(agent) do
@@ -418,6 +436,7 @@ defmodule ExGoCDWeb.AdminSchedulingLive do
   def render(assigns) do
     ~H"""
     <div class="admin-scheduling min-h-screen bg-[#f4f8f9] text-[#333] font-sans pb-12">
+      <.error_modal :if={@selected_error} error={@selected_error} />
       <!-- Header -->
       <div class="bg-white border-b border-[#e9edef] px-6 py-4 flex justify-between items-center">
         <h1 class="text-xl font-semibold text-[#333] uppercase tracking-wide">
@@ -700,8 +719,9 @@ defmodule ExGoCDWeb.AdminSchedulingLive do
                   </tr>
                 </thead>
                 <tbody>
-                  <%= for err <- @recent_errors do %>
-                    <tr class="border-t border-red-100">
+                  <%= for {err, idx} <- Enum.with_index(@recent_errors) do %>
+                    <tr class="border-t border-red-100 hover:bg-red-50 cursor-pointer"
+                        phx-click="show_error" phx-value-index={idx}>
                       <td class="px-4 py-2 text-xs text-slate-500 tabular-nums whitespace-nowrap">
                         {format_duration(err.time, @now)} ago
                       </td>
@@ -816,4 +836,35 @@ defmodule ExGoCDWeb.AdminSchedulingLive do
   end
 
   defp format_mb(_), do: "—"
+
+  defp error_modal(assigns) do
+    ~H"""
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" phx-click="close_error">
+      <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto" phx-click-away="close_error">
+        <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+          <h3 class="text-lg font-semibold text-red-700">Error Details</h3>
+          <button phx-click="close_error" class="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
+        </div>
+        <div class="px-6 py-4 space-y-3">
+          <div>
+            <span class="text-xs font-bold text-gray-500 uppercase">Type</span>
+            <span class="ml-2 text-xs bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-bold">{@error.action}</span>
+          </div>
+          <div>
+            <span class="text-xs font-bold text-gray-500 uppercase">Time</span>
+            <span class="ml-2 text-sm text-gray-700">{@error.time}</span>
+          </div>
+          <div>
+            <span class="text-xs font-bold text-gray-500 uppercase">Resource</span>
+            <span class="ml-2 text-sm text-gray-700">{@error.resource || "—"}</span>
+          </div>
+          <div>
+            <span class="text-xs font-bold text-gray-500 uppercase">Message</span>
+            <pre class="mt-1 text-sm text-gray-800 bg-gray-50 p-3 rounded border border-gray-200 whitespace-pre-wrap break-words font-mono">{@error.message}</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+    """
+  end
 end

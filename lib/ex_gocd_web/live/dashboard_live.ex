@@ -1,6 +1,8 @@
 defmodule ExGoCDWeb.DashboardLive do
   use ExGoCDWeb, :live_view
 
+  require Logger
+
   alias ExGoCD.MockData
   alias ExGoCD.Pipelines
 
@@ -86,7 +88,13 @@ defmodule ExGoCDWeb.DashboardLive do
           if use_mock?() do
             {:ok, %{name: name}}
           else
-            Pipelines.trigger_pipeline(name)
+            try do
+              Pipelines.trigger_pipeline(name)
+            rescue
+              e ->
+                Logger.error("Pipeline trigger crashed: #{Exception.message(e)}")
+                {:error, Exception.message(e)}
+            end
           end
 
         case result do
@@ -97,10 +105,13 @@ defmodule ExGoCDWeb.DashboardLive do
              |> load_pipelines()}
 
           {:error, :pipeline_not_found} ->
-            {:noreply, put_flash(socket, :error, "Pipeline not found.")}
+            {:noreply, put_flash(socket, :error, "Pipeline '#{name}' not found.")}
 
-          {:error, _} ->
-            {:noreply, put_flash(socket, :error, "Failed to trigger pipeline.")}
+          {:error, reason} when is_binary(reason) ->
+            {:noreply, put_flash(socket, :error, "Trigger failed: #{String.slice(reason, 0, 200)}")}
+
+          {:error, reason} ->
+            {:noreply, put_flash(socket, :error, "Trigger failed: #{inspect(reason)}")}
         end
 
       false ->
