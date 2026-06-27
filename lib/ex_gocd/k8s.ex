@@ -15,8 +15,6 @@ defmodule ExGoCD.K8s do
   - No scheduling logic (see ElasticAgentScheduler)
   """
 
-  require Logger
-
   @type t :: %{
           server: String.t(),
           token: String.t(),
