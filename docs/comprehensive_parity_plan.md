@@ -211,6 +211,35 @@ GoCD Analytics provides 4 dashboard types. Our `/analytics/global` page needs pa
 **Status**: `/analytics/global` renders basic stats. Charts and time-series missing.
 **Priority**: P2. Depends on agent utilization snapshots and pipeline metric collection.
 
+**Update 2026-06-27**: Charts implemented with **Contex** (server-side SVG) — bar charts on global/pipelines/agents tabs, line charts on pipeline detail/VSM tabs. Zero JS dependency.
+
+### F.5 Pipeline/Stage Stats Embed 🟡
+- Pipeline detail pages show embedded charts (not just analytics page)
+- Stage detail pages show stage-level trends
+- Minute-by-minute build time distribution per pipeline
+- Job success rate sparklines in pipeline activity view
+**Priority**: P2
+
+### F.6 Gantt Chart View 🟡
+- Timeline view of all pipeline runs across groups
+- Stage/job overlap visualization for bottleneck detection
+- Dependency arrows between pipelines
+- Click-to-detail popovers
+**Candidate**: `phoenix_live_gantt` v0.4.0 (updated 2026-06-26, MIT, 154 downloads)
+**Priority**: P2
+
+---
+
+## Part H: Enhanced Compare Dialog 🟡
+
+GoCD's compare is much more powerful than comparing to the previous material revision:
+- User can **select any two pipeline instances** to compare (not just consecutive)
+- Dropdown pickers for from/to counter selection
+- Side-by-side diff of material revisions, configuration changes, artifact changes
+- Currently: `/compare/:pipeline/:from/with/:to` works but only links to consecutive runs
+
+**Priority**: P2. UX completeness.
+
 ---
 
 ## Part G: Pipeline Fan-In / Fan-Out (Material Chaining) 🔴

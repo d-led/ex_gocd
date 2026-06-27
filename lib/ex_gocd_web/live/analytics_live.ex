@@ -8,7 +8,7 @@ defmodule ExGoCDWeb.AnalyticsLive do
   use ExGoCDWeb, :live_view
 
   alias ExGoCD.Analytics
-  alias Contex.{Dataset, Plot, BarChart, LinePlot, PointPlot}
+  alias Contex.{Dataset, Plot, BarChart, LinePlot}
 
   @impl true
   def mount(_params, _session, socket) do
@@ -220,7 +220,7 @@ defmodule ExGoCDWeb.AnalyticsLive do
       </div>
       <div class="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
         <h3 class="text-sm font-semibold text-gray-700 mb-3">Agent Jobs (7d)</h3>
-        <%= agent_jobs_svg(@top_agents) %>
+        <%= agent_top_bar(@top_agents) %>
       </div>
     </div>
     """
@@ -234,7 +234,7 @@ defmodule ExGoCDWeb.AnalyticsLive do
     Plot.to_svg(plot)
   end
 
-  defp agent_jobs_svg(agents) do
+  defp agent_top_bar(agents) do
     data = for a <- agents, do: [String.slice(a.agent_uuid, 0, 12), a.total_jobs]
     dataset = Dataset.new(data, ["Agent", "Jobs"])
     chart = BarChart.new(dataset)
