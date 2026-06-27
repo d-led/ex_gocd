@@ -142,6 +142,44 @@ defmodule ExGoCD.Agents do
   end
 
   @doc """
+  Counts ALL agents matching the given resources (any state, not disabled/deleted).
+  Mirrors GoCD's DefaultSchedulingContext.findAgentsMatching().
+  Only excludes disabled/deleted agents — includes LostContact, Missing, Idle, Building.
+  """
+  @spec count_all_matching([String.t()]) :: integer()
+  def count_all_matching(resources) when is_list(resources) and resources != [] do
+    agents = list_all_matching(resources)
+    length(agents)
+  end
+
+  def count_all_matching(_), do: count_idle()
+
+  @doc """
+  Lists ALL agents matching the given resources (any state, not disabled/deleted).
+  """
+  def list_all_matching(resources) when is_list(resources) and resources != [] do
+    base =
+      if use_mock?() do
+        Mock.list_active_agents()
+      else
+        Repo.all(from a in Agent, where: a.deleted == false and a.disabled == false)
+      end
+
+    Enum.filter(base, fn agent ->
+      agent_resources = agent.resources || []
+      Enum.all?(resources, fn r -> r in agent_resources end)
+    end)
+  end
+
+  def list_all_matching(_resources) do
+    if use_mock?() do
+      Mock.list_active_agents()
+    else
+      Repo.all(from a in Agent, where: a.deleted == false and a.disabled == false)
+    end
+  end
+
+  @doc """
   Counts idle agents matching the given resources.
   An agent matches if its resources list contains ALL required resources.
   Used by run_on_all_agents to create one job instance per matching agent.

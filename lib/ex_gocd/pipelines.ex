@@ -878,10 +878,11 @@ defmodule ExGoCD.Pipelines do
 
         job_instances =
           Enum.flat_map(first_stage.jobs, fn job ->
-            # Count agents matching this job's resources (for run_on_all_agents)
+            # For run_on_all_agents: count ALL matching agents (not just idle).
+            # Mirrors GoCD's DefaultSchedulingContext.findAgentsMatching().
             matching =
               if job.run_on_all_agents || job.run_instance_count not in [nil, ""] do
-                Agents.count_idle_matching(job.resources || [])
+                Agents.count_all_matching(job.resources || [])
               else
                 idle_count
               end
@@ -891,12 +892,21 @@ defmodule ExGoCD.Pipelines do
             run_multiple = job.run_instance_count not in [nil, ""]
 
             for i <- 1..count do
+              # GoCD naming: {name}-runOnAll-{counter}
+              job_name =
+                if run_on_all do
+                  "#{job.name}-runOnAll-#{i}"
+                else
+                  job.name
+                end
+
               insert_job_instance(job, pipeline, stage_instance, first_stage, now,
                 run_on_all: run_on_all,
                 run_multiple: run_multiple,
                 count: count,
                 run_index: i,
-                counter: counter
+                counter: counter,
+                job_name: job_name
               )
             end
           end)
@@ -958,10 +968,17 @@ defmodule ExGoCD.Pipelines do
 
   defp insert_job_instance(job, pipeline, stage_instance, first_stage, scheduled_at, opts) do
     run_multiple = Keyword.get(opts, :run_multiple, false)
+    run_on_all = Keyword.get(opts, :run_on_all, false)
     count = Keyword.get(opts, :count, 1)
     i = Keyword.get(opts, :run_index, 1)
+    job_name = Keyword.get(opts, :job_name, job.name)
 
-    identifier_suffix = if run_multiple and count > 1, do: "/run-#{i}", else: ""
+    identifier_suffix =
+      cond do
+        run_on_all -> "/runOnAll-#{i}"
+        run_multiple and count > 1 -> "/run-#{i}"
+        true -> ""
+      end
 
     identifier =
       "#{pipeline.name}/#{Keyword.get(opts, :counter, 1)}/#{first_stage.name}/1/#{job.name}/1#{identifier_suffix}"
@@ -970,11 +987,11 @@ defmodule ExGoCD.Pipelines do
     |> JobInstance.changeset(%{
       stage_instance_id: stage_instance.id,
       job_id: job.id,
-      name: job.name,
+      name: job_name,
       state: "Scheduled",
       result: "Unknown",
       scheduled_at: scheduled_at,
-      run_on_all_agents: Keyword.get(opts, :run_on_all, false),
+      run_on_all_agents: run_on_all,
       run_multiple_instance: run_multiple,
       identifier: identifier
     })
