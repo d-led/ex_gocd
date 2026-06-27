@@ -168,7 +168,7 @@ defmodule ExGoCD.ArtifactIntegrityTest do
       assert found.id == store.id
 
       all = ArtifactStores.list_stores()
-      assert length(all) >= 1
+      assert all != []
     end
   end
 

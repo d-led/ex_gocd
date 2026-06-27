@@ -54,6 +54,7 @@ defmodule ExGoCD.LoggerJSON do
   @impl true
   def handle_event({level, _gl, {Logger, message, timestamp, metadata}}, state) do
     level = normalize_level(level)
+
     if Logger.compare_levels(level, state.level) != :lt do
       entry = %{
         "level" => Atom.to_string(level),

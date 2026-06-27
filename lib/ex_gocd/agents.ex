@@ -632,7 +632,7 @@ defmodule ExGoCD.Agents do
   Returns the count of deleted agents.
   """
   def cleanup_stale_lost_contact do
-    cutoff = DateTime.add(DateTime.utc_now(), -86400, :second)
+    cutoff = DateTime.add(DateTime.utc_now(), -86_400, :second)
 
     from(a in Agent,
       where: a.state == "LostContact" and a.updated_at < ^cutoff and a.deleted == false

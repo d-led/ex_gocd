@@ -57,9 +57,9 @@ defmodule ExGoCD.Crypto do
   def decrypt(_), do: :error
 
   @doc "Returns true if the cipher text looks like AES-encrypted."
-  @spec is_aes?(String.t()) :: boolean()
-  def is_aes?("AES:" <> _), do: true
-  def is_aes?(_), do: false
+  @spec aes?(String.t()) :: boolean()
+  def aes?("AES:" <> _), do: true
+  def aes?(_), do: false
 
   @doc "Securely compares two encrypted passwords (decrypts both before comparing)."
   @spec password_equals?(String.t(), String.t()) :: boolean()

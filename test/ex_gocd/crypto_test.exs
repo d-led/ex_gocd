@@ -41,16 +41,16 @@ defmodule ExGoCD.CryptoTest do
     end
   end
 
-  describe "is_aes?/1 (GoCD canDecrypt parity)" do
+  describe "aes?/1 (GoCD canDecrypt parity)" do
     test "returns true for AES-prefixed cipher text" do
-      cipher = Crypto.encrypt("test")
-      assert Crypto.is_aes?(cipher)
+      cipher = Crypto.encrypt("secret")
+      assert Crypto.aes?(cipher)
     end
 
     test "returns false for non-AES text" do
-      refute Crypto.is_aes?("plain-text")
-      refute Crypto.is_aes?("DES:old-format")
-      refute Crypto.is_aes?("")
+      refute Crypto.aes?("plain-text")
+      refute Crypto.aes?("DES:old-format")
+      refute Crypto.aes?("")
     end
   end
 

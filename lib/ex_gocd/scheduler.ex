@@ -903,32 +903,40 @@ defmodule ExGoCD.Scheduler do
       VsmTracer.set_attr("job.name", job)
       VsmTracer.set_attr("build.id", build_id)
 
-      do_assign_and_send(agent_uuid, agent, job_spec, build_id, pipeline, pipeline_counter, stage, stage_counter, job)
+      build_locator = "#{pipeline}/#{pipeline_counter}/#{stage}/#{stage_counter}/#{job}/1"
+      do_assign_and_send(agent_uuid, agent, job_spec, build_id, build_locator)
     end
 
     if enqueue_ctx do
       VsmTracer.attach_ctx(enqueue_ctx)
       do_assign.()
     else
-      VsmTracer.trace("job.assign_root", %{
-        "pipeline.name" => pipeline,
-        "pipeline.counter" => pipeline_counter,
-        "stage.name" => stage,
-        "stage.counter" => stage_counter,
-        "job.name" => job,
-        "trigger.type" => trigger_type
-      }, do_assign)
+      VsmTracer.trace(
+        "job.assign_root",
+        %{
+          "pipeline.name" => pipeline,
+          "pipeline.counter" => pipeline_counter,
+          "stage.name" => stage,
+          "stage.counter" => stage_counter,
+          "job.name" => job,
+          "trigger.type" => trigger_type
+        },
+        do_assign
+      )
     end
   end
 
-  defp do_assign_and_send(agent_uuid, agent, job_spec, build_id, pipeline, pipeline_counter, stage, stage_counter, job) do
-
+  defp do_assign_and_send(agent_uuid, agent, job_spec, build_id, build_locator) do
     # Store the current OTel context so agent status reports (job.status_update,
     # job.complete) can continue this trace rather than creating orphan spans.
     parent_ctx = VsmTracer.current_ctx()
     if parent_ctx, do: ExGoCD.VsmContextStore.put(build_id, parent_ctx)
 
-    build_locator = "#{pipeline}/#{pipeline_counter}/#{stage}/#{stage_counter}/#{job}/1"
+    pipeline = job_spec.pipeline
+    pipeline_counter = job_spec.pipeline_counter
+    stage = job_spec.stage
+    stage_counter = job_spec.stage_counter
+    job = job_spec.job
 
     build_command =
       (job_spec.build_command ||
@@ -960,9 +968,7 @@ defmodule ExGoCD.Scheduler do
         "[OTel] traceparent injected for build #{build_id}: #{String.slice(payload["traceparent"], 0, 55)}..."
       )
     else
-      Logger.debug(
-        "[OTel] No traceparent for build #{build_id} — agent will create root span"
-      )
+      Logger.debug("[OTel] No traceparent for build #{build_id} — agent will create root span")
     end
 
     opts = [
