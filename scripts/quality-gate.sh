@@ -20,6 +20,19 @@ pass_step() { echo -e "${GREEN}[PASS]${NC} $1"; PASS=$((PASS + 1)); }
 fail_step() { echo -e "${RED}[FAIL]${NC} $1"; FAIL=$((FAIL + 1)); die "Quality gate halted on failure."; }
 warn_step() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 
+# ── Elixir: Format check ────────────────────────────────────────────────
+
+echo "=== Elixir: mix format ==="
+mix format --check-formatted 2>&1 && FORMAT_OK=1 || FORMAT_OK=0
+if [ "$FORMAT_OK" -eq 1 ]; then
+  pass_step "Elixir format — all files formatted"
+else
+  echo "Some files are not formatted. Run 'mix format' and try again."
+  fail_step "Elixir format — unformatted files found"
+fi
+
+echo ""
+
 # ── Elixir: Compile with warnings-as-errors ─────────────────────────────
 
 echo "=== Elixir: Compile (warnings as errors on non-otel files) ==="

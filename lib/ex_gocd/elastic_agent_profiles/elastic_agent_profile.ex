@@ -25,7 +25,9 @@ defmodule ExGoCD.ElasticAgentProfiles.ElasticAgentProfile do
   # ---- Property accessors (mirrors GoCD's kubernetes elastic agent profile) ----
 
   @doc "Docker image for the agent pod."
-  def image(%__MODULE__{properties: props}), do: Map.get(props, "Image", "gocd/gocd-agent-docker-24.5.0")
+  def image(%__MODULE__{properties: props}),
+    do: Map.get(props, "Image", "gocd/gocd-agent-docker-24.5.0")
+
   def image(_), do: "gocd/gocd-agent-docker-24.5.0"
 
   @doc "Memory limit (e.g. 2Gi)."
@@ -45,7 +47,9 @@ defmodule ExGoCD.ElasticAgentProfiles.ElasticAgentProfile do
   def min_cpu(_), do: "1"
 
   @doc "Image pull policy: Always, IfNotPresent, Never."
-  def image_pull_policy(%__MODULE__{properties: props}), do: Map.get(props, "ImagePullPolicy", "IfNotPresent")
+  def image_pull_policy(%__MODULE__{properties: props}),
+    do: Map.get(props, "ImagePullPolicy", "IfNotPresent")
+
   def image_pull_policy(_), do: "IfNotPresent"
 
   @doc "Run pod as privileged."

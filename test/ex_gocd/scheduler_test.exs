@@ -497,8 +497,11 @@ defmodule ExGoCD.SchedulerTest do
       Scheduler.clear_queue()
 
       # Register agents in various states
-      {:ok, _idle} = Agents.register_agent(%{uuid: @uuid, hostname: "idle-a", ipaddress: "127.0.0.1"})
-      {:ok, building} = Agents.register_agent(%{uuid: @uuid_b, hostname: "bld-a", ipaddress: "127.0.0.2"})
+      {:ok, _idle} =
+        Agents.register_agent(%{uuid: @uuid, hostname: "idle-a", ipaddress: "127.0.0.1"})
+
+      {:ok, building} =
+        Agents.register_agent(%{uuid: @uuid_b, hostname: "bld-a", ipaddress: "127.0.0.2"})
 
       # Set building agent state
       Agents.update_agent_runtime_state(building.uuid, "Building")
@@ -520,7 +523,9 @@ defmodule ExGoCD.SchedulerTest do
     test "excludes disabled agents (GoCD findAgentsMatching skips isDisabled)" do
       Scheduler.clear_queue()
 
-      {:ok, agent} = Agents.register_agent(%{uuid: @uuid, hostname: "agent-a", ipaddress: "127.0.0.1"})
+      {:ok, agent} =
+        Agents.register_agent(%{uuid: @uuid, hostname: "agent-a", ipaddress: "127.0.0.1"})
+
       Agents.disable_agent(agent.uuid)
 
       assert {:ok, count} =
@@ -557,7 +562,8 @@ defmodule ExGoCD.SchedulerTest do
     test "naming follows GoCD convention: {job}-runOnAll-{counter}" do
       Scheduler.clear_queue()
 
-      {:ok, _} = Agents.register_agent(%{uuid: @uuid, hostname: "agent-a", ipaddress: "127.0.0.1"})
+      {:ok, _} =
+        Agents.register_agent(%{uuid: @uuid, hostname: "agent-a", ipaddress: "127.0.0.1"})
 
       # Top-up with a regular job so try_assign picks the runOnAll entry
       assert {:ok, _} =
@@ -584,13 +590,21 @@ defmodule ExGoCD.SchedulerTest do
     test "resource-matches all non-disabled agents (GoCD: findAgentsMatching with resources)" do
       Scheduler.clear_queue()
 
-      {:ok, _} = Agents.register_agent(%{
-        uuid: @uuid, hostname: "agent-a", ipaddress: "127.0.0.1", resources: ["linux"]
-      })
+      {:ok, _} =
+        Agents.register_agent(%{
+          uuid: @uuid,
+          hostname: "agent-a",
+          ipaddress: "127.0.0.1",
+          resources: ["linux"]
+        })
 
-      {:ok, _} = Agents.register_agent(%{
-        uuid: @uuid_b, hostname: "agent-b", ipaddress: "127.0.0.2", resources: ["linux"]
-      })
+      {:ok, _} =
+        Agents.register_agent(%{
+          uuid: @uuid_b,
+          hostname: "agent-b",
+          ipaddress: "127.0.0.2",
+          resources: ["linux"]
+        })
 
       # Disable agent B
       Agents.disable_agent(@uuid_b)
@@ -627,8 +641,21 @@ defmodule ExGoCD.SchedulerTest do
     end
 
     test "excludes disabled agents (GoCD: shouldNotMatchDeniedAgents)" do
-      {:ok, agent} = Agents.register_agent(%{uuid: @uuid, hostname: "a", ipaddress: "127.0.0.1", resources: ["linux"]})
-      {:ok, _} = Agents.register_agent(%{uuid: @uuid_b, hostname: "b", ipaddress: "127.0.0.2", resources: ["linux"]})
+      {:ok, agent} =
+        Agents.register_agent(%{
+          uuid: @uuid,
+          hostname: "a",
+          ipaddress: "127.0.0.1",
+          resources: ["linux"]
+        })
+
+      {:ok, _} =
+        Agents.register_agent(%{
+          uuid: @uuid_b,
+          hostname: "b",
+          ipaddress: "127.0.0.2",
+          resources: ["linux"]
+        })
 
       Agents.disable_agent(agent.uuid)
 
@@ -638,14 +665,26 @@ defmodule ExGoCD.SchedulerTest do
     end
 
     test "case-insensitive resource matching (GoCD: hasAllResources is case-insensitive)" do
-      {:ok, _} = Agents.register_agent(%{uuid: @uuid, hostname: "a", ipaddress: "127.0.0.1", resources: ["LINUX", "Docker"]})
+      {:ok, _} =
+        Agents.register_agent(%{
+          uuid: @uuid,
+          hostname: "a",
+          ipaddress: "127.0.0.1",
+          resources: ["LINUX", "Docker"]
+        })
 
       agents = Agents.find_agents_for_job(%{resources: ["linux", "docker"], environments: []})
       assert length(agents) == 1
     end
 
     test "agent must have ALL requested resources (GoCD: hasAllResources)" do
-      {:ok, _} = Agents.register_agent(%{uuid: @uuid, hostname: "a", ipaddress: "127.0.0.1", resources: ["linux"]})
+      {:ok, _} =
+        Agents.register_agent(%{
+          uuid: @uuid,
+          hostname: "a",
+          ipaddress: "127.0.0.1",
+          resources: ["linux"]
+        })
 
       agents = Agents.find_agents_for_job(%{resources: ["linux", "docker"], environments: []})
       assert agents == []

@@ -22,7 +22,9 @@ defmodule ExGoCD.ClusterProfiles.ClusterProfile do
   end
 
   @doc "Returns the server URL from properties."
-  def server_url(%__MODULE__{properties: props}), do: Map.get(props, "kubernetes_cluster_url") || Map.get(props, "server_url")
+  def server_url(%__MODULE__{properties: props}),
+    do: Map.get(props, "kubernetes_cluster_url") || Map.get(props, "server_url")
+
   def server_url(_), do: nil
 
   @doc "Returns the bearer token from properties."
@@ -30,7 +32,9 @@ defmodule ExGoCD.ClusterProfiles.ClusterProfile do
   def bearer_token(_), do: nil
 
   @doc "Returns the CA cert from properties."
-  def ca_cert(%__MODULE__{properties: props}), do: Map.get(props, "kubernetes_cluster_ca_cert") || Map.get(props, "ca_cert")
+  def ca_cert(%__MODULE__{properties: props}),
+    do: Map.get(props, "kubernetes_cluster_ca_cert") || Map.get(props, "ca_cert")
+
   def ca_cert(_), do: nil
 
   @doc "Returns the namespace from properties."

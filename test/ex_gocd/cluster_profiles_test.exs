@@ -54,7 +54,13 @@ defmodule ExGoCD.ClusterProfilesTest do
 
     test "list_by_plugin/1 filters by plugin_id" do
       ClusterProfiles.create_profile(%{name: "k8s-cluster", plugin_id: "k8s", properties: %{}})
-      ClusterProfiles.create_profile(%{name: "docker-cluster", plugin_id: "docker", properties: %{}})
+
+      ClusterProfiles.create_profile(%{
+        name: "docker-cluster",
+        plugin_id: "docker",
+        properties: %{}
+      })
+
       assert length(ClusterProfiles.list_by_plugin("k8s")) == 1
     end
   end

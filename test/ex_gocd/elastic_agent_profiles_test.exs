@@ -75,8 +75,20 @@ defmodule ExGoCD.ElasticAgentProfilesTest do
     end
 
     test "list_by_plugin/1 filters by plugin_id", %{cluster_id: cid} do
-      ElasticAgentProfiles.create_profile(%{name: "k8s-agent", plugin_id: "k8s", cluster_profile_id: cid, properties: %{}})
-      ElasticAgentProfiles.create_profile(%{name: "docker-agent", plugin_id: "docker", cluster_profile_id: cid, properties: %{}})
+      ElasticAgentProfiles.create_profile(%{
+        name: "k8s-agent",
+        plugin_id: "k8s",
+        cluster_profile_id: cid,
+        properties: %{}
+      })
+
+      ElasticAgentProfiles.create_profile(%{
+        name: "docker-agent",
+        plugin_id: "docker",
+        cluster_profile_id: cid,
+        properties: %{}
+      })
+
       assert length(ElasticAgentProfiles.list_by_plugin("k8s")) == 1
     end
   end

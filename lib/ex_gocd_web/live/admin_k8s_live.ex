@@ -38,13 +38,22 @@ defmodule ExGoCDWeb.AdminK8sLive do
   @impl true
   def handle_event("open_cluster_modal", %{"id" => id}, socket) do
     profile = ClusterProfiles.get_profile!(id)
-    {:noreply, assign(socket, show_cluster_modal: true, editing_cluster: profile,
-      cluster_form: cluster_to_form(profile))}
+
+    {:noreply,
+     assign(socket,
+       show_cluster_modal: true,
+       editing_cluster: profile,
+       cluster_form: cluster_to_form(profile)
+     )}
   end
 
   def handle_event("open_cluster_modal", _params, socket) do
-    {:noreply, assign(socket, show_cluster_modal: true, editing_cluster: nil,
-      cluster_form: empty_cluster_form())}
+    {:noreply,
+     assign(socket,
+       show_cluster_modal: true,
+       editing_cluster: nil,
+       cluster_form: empty_cluster_form()
+     )}
   end
 
   def handle_event("close_cluster_modal", _params, socket) do
@@ -104,13 +113,18 @@ defmodule ExGoCDWeb.AdminK8sLive do
   @impl true
   def handle_event("open_agent_modal", %{"id" => id}, socket) do
     profile = ElasticAgentProfiles.get_profile!(id)
-    {:noreply, assign(socket, show_agent_modal: true, editing_agent: profile,
-      agent_form: agent_to_form(profile))}
+
+    {:noreply,
+     assign(socket,
+       show_agent_modal: true,
+       editing_agent: profile,
+       agent_form: agent_to_form(profile)
+     )}
   end
 
   def handle_event("open_agent_modal", _params, socket) do
-    {:noreply, assign(socket, show_agent_modal: true, editing_agent: nil,
-      agent_form: empty_agent_form())}
+    {:noreply,
+     assign(socket, show_agent_modal: true, editing_agent: nil, agent_form: empty_agent_form())}
   end
 
   def handle_event("close_agent_modal", _params, socket) do
@@ -170,16 +184,21 @@ defmodule ExGoCDWeb.AdminK8sLive do
       <h1 class="text-2xl font-bold mb-6">⚡ Elastic Agent Configurations</h1>
 
       <%!-- Flash messages --%>
-      <div :if={Phoenix.Flash.get(@flash, :info)} class="mb-4 p-3 bg-green-50 border border-green-200 rounded text-green-800">
-        <%= Phoenix.Flash.get(@flash, :info) %>
+      <div
+        :if={Phoenix.Flash.get(@flash, :info)}
+        class="mb-4 p-3 bg-green-50 border border-green-200 rounded text-green-800"
+      >
+        {Phoenix.Flash.get(@flash, :info)}
       </div>
 
       <%!-- Cluster Profiles Section --%>
       <section class="mb-8">
         <div class="flex justify-between items-center mb-4">
           <h2 class="text-xl font-semibold">Cluster Profiles</h2>
-          <button phx-click="open_cluster_modal"
-                  class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm">
+          <button
+            phx-click="open_cluster_modal"
+            class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+          >
             + Add Cluster
           </button>
         </div>
@@ -192,20 +211,40 @@ defmodule ExGoCDWeb.AdminK8sLive do
           <%= for profile <- @cluster_profiles do %>
             <div class="border rounded-lg p-4 hover:shadow-md transition-shadow">
               <div class="flex justify-between items-start mb-2">
-                <h3 class="font-semibold text-lg"><%= profile.name || "Unnamed" %></h3>
-                <span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded"><%= profile.plugin_id %></span>
+                <h3 class="font-semibold text-lg">{profile.name || "Unnamed"}</h3>
+                <span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                  {profile.plugin_id}
+                </span>
               </div>
               <div class="text-sm text-gray-600 space-y-1">
-                <div><span class="font-medium">Server:</span> <%= ClusterProfile.server_url(profile) || "—" %></div>
-                <div><span class="font-medium">Namespace:</span> <%= ClusterProfile.namespace(profile) %></div>
-                <div><span class="font-medium">Token:</span> <%= if ClusterProfile.bearer_token(profile), do: "✓ Configured", else: "✗ Missing" %></div>
+                <div>
+                  <span class="font-medium">Server:</span> {ClusterProfile.server_url(profile) || "—"}
+                </div>
+                <div>
+                  <span class="font-medium">Namespace:</span> {ClusterProfile.namespace(profile)}
+                </div>
+                <div>
+                  <span class="font-medium">Token:</span> {if ClusterProfile.bearer_token(profile),
+                    do: "✓ Configured",
+                    else: "✗ Missing"}
+                </div>
               </div>
               <div class="flex gap-2 mt-3">
-                <button phx-click="open_cluster_modal" phx-value-id={profile.id}
-                        class="text-sm text-blue-600 hover:underline">Edit</button>
-                <button phx-click="delete_cluster" phx-value-id={profile.id}
-                        phx-confirm="Delete this cluster profile?"
-                        class="text-sm text-red-600 hover:underline">Delete</button>
+                <button
+                  phx-click="open_cluster_modal"
+                  phx-value-id={profile.id}
+                  class="text-sm text-blue-600 hover:underline"
+                >
+                  Edit
+                </button>
+                <button
+                  phx-click="delete_cluster"
+                  phx-value-id={profile.id}
+                  phx-confirm="Delete this cluster profile?"
+                  class="text-sm text-red-600 hover:underline"
+                >
+                  Delete
+                </button>
               </div>
             </div>
           <% end %>
@@ -216,9 +255,11 @@ defmodule ExGoCDWeb.AdminK8sLive do
       <section>
         <div class="flex justify-between items-center mb-4">
           <h2 class="text-xl font-semibold">Elastic Agent Profiles</h2>
-          <button phx-click="open_agent_modal"
-                  class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
-                  :if={!Enum.empty?(@cluster_profiles)}>
+          <button
+            :if={!Enum.empty?(@cluster_profiles)}
+            phx-click="open_agent_modal"
+            class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+          >
             + Add Agent Profile
           </button>
         </div>
@@ -231,22 +272,50 @@ defmodule ExGoCDWeb.AdminK8sLive do
           <%= for profile <- @agent_profiles do %>
             <div class="border rounded-lg p-4 hover:shadow-md transition-shadow">
               <div class="flex justify-between items-start mb-2">
-                <h3 class="font-semibold text-lg"><%= profile.name || "Unnamed" %></h3>
+                <h3 class="font-semibold text-lg">{profile.name || "Unnamed"}</h3>
                 <span class="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">k8s-agent</span>
               </div>
               <div class="text-sm text-gray-600 space-y-1">
-                <div><span class="font-medium">Image:</span> <%= ElasticAgentProfile.image(profile) %></div>
-                <div><span class="font-medium">Memory:</span> <%= ElasticAgentProfile.min_memory(profile) %> → <%= ElasticAgentProfile.max_memory(profile) %></div>
-                <div><span class="font-medium">CPU:</span> <%= ElasticAgentProfile.min_cpu(profile) %> → <%= ElasticAgentProfile.max_cpu(profile) %></div>
-                <div><span class="font-medium">Pull Policy:</span> <%= ElasticAgentProfile.image_pull_policy(profile) %></div>
-                <div><span class="font-medium">Privileged:</span> <%= ElasticAgentProfile.privileged(profile) %></div>
+                <div>
+                  <span class="font-medium">Image:</span> {ElasticAgentProfile.image(profile)}
+                </div>
+                <div>
+                  <span class="font-medium">Memory:</span> {ElasticAgentProfile.min_memory(profile)} → {ElasticAgentProfile.max_memory(
+                    profile
+                  )}
+                </div>
+                <div>
+                  <span class="font-medium">CPU:</span> {ElasticAgentProfile.min_cpu(profile)} → {ElasticAgentProfile.max_cpu(
+                    profile
+                  )}
+                </div>
+                <div>
+                  <span class="font-medium">Pull Policy:</span> {ElasticAgentProfile.image_pull_policy(
+                    profile
+                  )}
+                </div>
+                <div>
+                  <span class="font-medium">Privileged:</span> {ElasticAgentProfile.privileged(
+                    profile
+                  )}
+                </div>
               </div>
               <div class="flex gap-2 mt-3">
-                <button phx-click="open_agent_modal" phx-value-id={profile.id}
-                        class="text-sm text-blue-600 hover:underline">Edit</button>
-                <button phx-click="delete_agent" phx-value-id={profile.id}
-                        phx-confirm="Delete this agent profile?"
-                        class="text-sm text-red-600 hover:underline">Delete</button>
+                <button
+                  phx-click="open_agent_modal"
+                  phx-value-id={profile.id}
+                  class="text-sm text-blue-600 hover:underline"
+                >
+                  Edit
+                </button>
+                <button
+                  phx-click="delete_agent"
+                  phx-value-id={profile.id}
+                  phx-confirm="Delete this agent profile?"
+                  class="text-sm text-red-600 hover:underline"
+                >
+                  Delete
+                </button>
               </div>
             </div>
           <% end %>
@@ -254,128 +323,226 @@ defmodule ExGoCDWeb.AdminK8sLive do
       </section>
 
       <%!-- Cluster Profile Modal --%>
-      <div :if={@show_cluster_modal} class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-           phx-click-away="close_cluster_modal" phx-key="Escape" phx-key-action="close_cluster_modal">
+      <div
+        :if={@show_cluster_modal}
+        class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+        phx-click-away="close_cluster_modal"
+        phx-key="Escape"
+        phx-key-action="close_cluster_modal"
+      >
         <div class="bg-white rounded-lg p-6 w-full max-w-lg max-h-[80vh] overflow-y-auto shadow-xl">
-          <h2 class="text-lg font-bold mb-4"><%= if @editing_cluster, do: "Edit", else: "Add" %> Cluster Profile</h2>
+          <h2 class="text-lg font-bold mb-4">
+            {if @editing_cluster, do: "Edit", else: "Add"} Cluster Profile
+          </h2>
 
-          <.form for={@cluster_form} phx-change="validate_cluster" phx-submit="save_cluster" class="space-y-4">
+          <.form
+            for={@cluster_form}
+            phx-change="validate_cluster"
+            phx-submit="save_cluster"
+            class="space-y-4"
+          >
             <div>
               <label class="block text-sm font-medium mb-1">Name *</label>
-              <input type="text" name="cluster[name]" value={@cluster_form[:name].value}
-                     class="w-full border rounded px-3 py-2" placeholder="my-k8s-cluster" required />
+              <input
+                type="text"
+                name="cluster[name]"
+                value={@cluster_form[:name].value}
+                class="w-full border rounded px-3 py-2"
+                placeholder="my-k8s-cluster"
+                required
+              />
               <div :if={@cluster_form[:name].errors} class="text-red-600 text-sm mt-1">
-                <%= for err <- @cluster_form[:name].errors, do: err %>
+                {for err <- @cluster_form[:name].errors, do: err}
               </div>
             </div>
 
             <div>
               <label class="block text-sm font-medium mb-1">Kubernetes API Server URL *</label>
-              <input type="text" name="cluster[server_url]" value={@cluster_form[:server_url].value}
-                     class="w-full border rounded px-3 py-2 font-mono text-sm"
-                     placeholder="https://k8s.example.com:6443" />
+              <input
+                type="text"
+                name="cluster[server_url]"
+                value={@cluster_form[:server_url].value}
+                class="w-full border rounded px-3 py-2 font-mono text-sm"
+                placeholder="https://k8s.example.com:6443"
+              />
             </div>
 
             <div>
               <label class="block text-sm font-medium mb-1">Bearer Token</label>
-              <input type="password" name="cluster[bearer_token]" value={@cluster_form[:bearer_token].value}
-                     class="w-full border rounded px-3 py-2 font-mono text-sm"
-                     placeholder="eyJhbGciOi..." />
+              <input
+                type="password"
+                name="cluster[bearer_token]"
+                value={@cluster_form[:bearer_token].value}
+                class="w-full border rounded px-3 py-2 font-mono text-sm"
+                placeholder="eyJhbGciOi..."
+              />
             </div>
 
             <div>
               <label class="block text-sm font-medium mb-1">CA Certificate (PEM)</label>
-              <textarea name="cluster[ca_cert]" rows="3"
-                        class="w-full border rounded px-3 py-2 font-mono text-xs"
-                        placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----"><%= @cluster_form[:ca_cert].value %></textarea>
+              <textarea
+                name="cluster[ca_cert]"
+                rows="3"
+                class="w-full border rounded px-3 py-2 font-mono text-xs"
+                placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----"
+              ><%= @cluster_form[:ca_cert].value %></textarea>
             </div>
 
             <div>
               <label class="block text-sm font-medium mb-1">Namespace</label>
-              <input type="text" name="cluster[namespace]" value={@cluster_form[:namespace].value}
-                     class="w-full border rounded px-3 py-2" placeholder="default" />
+              <input
+                type="text"
+                name="cluster[namespace]"
+                value={@cluster_form[:namespace].value}
+                class="w-full border rounded px-3 py-2"
+                placeholder="default"
+              />
             </div>
 
             <div class="flex justify-end gap-2 pt-4">
-              <button type="button" phx-click="close_cluster_modal"
-                      class="px-4 py-2 border rounded hover:bg-gray-50">Cancel</button>
-              <button type="submit"
-                      class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Save</button>
+              <button
+                type="button"
+                phx-click="close_cluster_modal"
+                class="px-4 py-2 border rounded hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+              >
+                Save
+              </button>
             </div>
           </.form>
         </div>
       </div>
 
       <%!-- Elastic Agent Profile Modal --%>
-      <div :if={@show_agent_modal} class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-           phx-click-away="close_agent_modal" phx-key="Escape" phx-key-action="close_agent_modal">
+      <div
+        :if={@show_agent_modal}
+        class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+        phx-click-away="close_agent_modal"
+        phx-key="Escape"
+        phx-key-action="close_agent_modal"
+      >
         <div class="bg-white rounded-lg p-6 w-full max-w-lg max-h-[80vh] overflow-y-auto shadow-xl">
-          <h2 class="text-lg font-bold mb-4"><%= if @editing_agent, do: "Edit", else: "Add" %> Elastic Agent Profile</h2>
+          <h2 class="text-lg font-bold mb-4">
+            {if @editing_agent, do: "Edit", else: "Add"} Elastic Agent Profile
+          </h2>
 
-          <.form for={@agent_form} phx-change="validate_agent" phx-submit="save_agent" class="space-y-4">
+          <.form
+            for={@agent_form}
+            phx-change="validate_agent"
+            phx-submit="save_agent"
+            class="space-y-4"
+          >
             <div>
               <label class="block text-sm font-medium mb-1">Profile Name *</label>
-              <input type="text" name="agent[name]" value={@agent_form[:name].value}
-                     class="w-full border rounded px-3 py-2" placeholder="docker-agent" required />
+              <input
+                type="text"
+                name="agent[name]"
+                value={@agent_form[:name].value}
+                class="w-full border rounded px-3 py-2"
+                placeholder="docker-agent"
+                required
+              />
               <div :if={@agent_form[:name].errors} class="text-red-600 text-sm mt-1">
-                <%= for err <- @agent_form[:name].errors, do: err %>
+                {for err <- @agent_form[:name].errors, do: err}
               </div>
             </div>
 
             <div>
               <label class="block text-sm font-medium mb-1">Cluster Profile *</label>
-              <select name="agent[cluster_profile_id]" class="w-full border rounded px-3 py-2" required>
+              <select
+                name="agent[cluster_profile_id]"
+                class="w-full border rounded px-3 py-2"
+                required
+              >
                 <option value="">Select a cluster...</option>
                 <%= for cp <- @cluster_profiles do %>
                   <option value={cp.id} selected={@agent_form[:cluster_profile_id].value == cp.id}>
-                    <%= cp.name || cp.id %>
+                    {cp.name || cp.id}
                   </option>
                 <% end %>
               </select>
               <div :if={@agent_form[:cluster_profile_id].errors} class="text-red-600 text-sm mt-1">
-                <%= for err <- @agent_form[:cluster_profile_id].errors, do: err %>
+                {for err <- @agent_form[:cluster_profile_id].errors, do: err}
               </div>
             </div>
 
             <div>
               <label class="block text-sm font-medium mb-1">Docker Image *</label>
-              <input type="text" name="agent[image]" value={@agent_form[:image].value}
-                     class="w-full border rounded px-3 py-2 font-mono text-sm"
-                     placeholder="gocd/gocd-agent-docker-24.5.0" />
+              <input
+                type="text"
+                name="agent[image]"
+                value={@agent_form[:image].value}
+                class="w-full border rounded px-3 py-2 font-mono text-sm"
+                placeholder="gocd/gocd-agent-docker-24.5.0"
+              />
             </div>
 
             <div class="grid grid-cols-2 gap-3">
               <div>
                 <label class="block text-sm font-medium mb-1">Min Memory</label>
-                <input type="text" name="agent[min_memory]" value={@agent_form[:min_memory].value}
-                       class="w-full border rounded px-3 py-2" placeholder="1Gi" />
+                <input
+                  type="text"
+                  name="agent[min_memory]"
+                  value={@agent_form[:min_memory].value}
+                  class="w-full border rounded px-3 py-2"
+                  placeholder="1Gi"
+                />
               </div>
               <div>
                 <label class="block text-sm font-medium mb-1">Max Memory</label>
-                <input type="text" name="agent[max_memory]" value={@agent_form[:max_memory].value}
-                       class="w-full border rounded px-3 py-2" placeholder="2Gi" />
+                <input
+                  type="text"
+                  name="agent[max_memory]"
+                  value={@agent_form[:max_memory].value}
+                  class="w-full border rounded px-3 py-2"
+                  placeholder="2Gi"
+                />
               </div>
             </div>
 
             <div class="grid grid-cols-2 gap-3">
               <div>
                 <label class="block text-sm font-medium mb-1">Min CPU</label>
-                <input type="text" name="agent[min_cpu]" value={@agent_form[:min_cpu].value}
-                       class="w-full border rounded px-3 py-2" placeholder="1" />
+                <input
+                  type="text"
+                  name="agent[min_cpu]"
+                  value={@agent_form[:min_cpu].value}
+                  class="w-full border rounded px-3 py-2"
+                  placeholder="1"
+                />
               </div>
               <div>
                 <label class="block text-sm font-medium mb-1">Max CPU</label>
-                <input type="text" name="agent[max_cpu]" value={@agent_form[:max_cpu].value}
-                       class="w-full border rounded px-3 py-2" placeholder="2" />
+                <input
+                  type="text"
+                  name="agent[max_cpu]"
+                  value={@agent_form[:max_cpu].value}
+                  class="w-full border rounded px-3 py-2"
+                  placeholder="2"
+                />
               </div>
             </div>
 
             <div>
               <label class="block text-sm font-medium mb-1">Image Pull Policy</label>
               <select name="agent[image_pull_policy]" class="w-full border rounded px-3 py-2">
-                <option value="IfNotPresent" selected={@agent_form[:image_pull_policy].value == "IfNotPresent"}>IfNotPresent</option>
-                <option value="Always" selected={@agent_form[:image_pull_policy].value == "Always"}>Always</option>
-                <option value="Never" selected={@agent_form[:image_pull_policy].value == "Never"}>Never</option>
+                <option
+                  value="IfNotPresent"
+                  selected={@agent_form[:image_pull_policy].value == "IfNotPresent"}
+                >
+                  IfNotPresent
+                </option>
+                <option value="Always" selected={@agent_form[:image_pull_policy].value == "Always"}>
+                  Always
+                </option>
+                <option value="Never" selected={@agent_form[:image_pull_policy].value == "Never"}>
+                  Never
+                </option>
               </select>
             </div>
 
@@ -388,17 +555,31 @@ defmodule ExGoCDWeb.AdminK8sLive do
             </div>
 
             <div>
-              <label class="block text-sm font-medium mb-1">Environment Variables (one per line, KEY=VALUE)</label>
-              <textarea name="agent[env_vars_text]" rows="3"
-                        class="w-full border rounded px-3 py-2 font-mono text-xs"
-                        placeholder="GO_SERVER_URL=http://host.docker.internal:8153/go&#10;JAVA_HOME=/usr/lib/jvm/java-21"><%= @agent_form[:env_vars_text].value %></textarea>
+              <label class="block text-sm font-medium mb-1">
+                Environment Variables (one per line, KEY=VALUE)
+              </label>
+              <textarea
+                name="agent[env_vars_text]"
+                rows="3"
+                class="w-full border rounded px-3 py-2 font-mono text-xs"
+                placeholder="GO_SERVER_URL=http://host.docker.internal:8153/go&#10;JAVA_HOME=/usr/lib/jvm/java-21"
+              ><%= @agent_form[:env_vars_text].value %></textarea>
             </div>
 
             <div class="flex justify-end gap-2 pt-4">
-              <button type="button" phx-click="close_agent_modal"
-                      class="px-4 py-2 border rounded hover:bg-gray-50">Cancel</button>
-              <button type="submit"
-                      class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Save</button>
+              <button
+                type="button"
+                phx-click="close_agent_modal"
+                class="px-4 py-2 border rounded hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+              >
+                Save
+              </button>
             </div>
           </.form>
         </div>
