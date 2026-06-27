@@ -285,6 +285,7 @@ defmodule ExGoCDWeb.Router do
     post "/backups", BackupController, :create
 
     resources "/elastic_agent_profiles", ElasticAgentProfileController, except: [:new, :edit]
+    resources "/cluster_profiles", ClusterProfileController, except: [:new, :edit]
   end
 
   scope "/api/current_user", ExGoCDWeb.API do
