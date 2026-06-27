@@ -497,7 +497,7 @@ defmodule ExGoCD.SchedulerTest do
       Scheduler.clear_queue()
 
       # Register agents in various states
-      {:ok, idle} = Agents.register_agent(%{uuid: @uuid, hostname: "idle-a", ipaddress: "127.0.0.1"})
+      {:ok, _idle} = Agents.register_agent(%{uuid: @uuid, hostname: "idle-a", ipaddress: "127.0.0.1"})
       {:ok, building} = Agents.register_agent(%{uuid: @uuid_b, hostname: "bld-a", ipaddress: "127.0.0.2"})
 
       # Set building agent state
