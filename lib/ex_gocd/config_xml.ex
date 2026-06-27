@@ -14,6 +14,7 @@ defmodule ExGoCD.ConfigXml do
   def generate do
     pipelines = Pipelines.list_pipelines() |> Repo.preload([:materials, stages: [jobs: :tasks]])
     pipeline_xml = pipelines |> Enum.map(&render_pipeline/1) |> Enum.join("\n")
+
     """
     <?xml version="1.0" encoding="utf-8"?>
     <cruise xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="cruise-config.xsd" schemaVersion="120">
@@ -26,12 +27,19 @@ defmodule ExGoCD.ConfigXml do
   end
 
   defp esc(text) when is_binary(text) do
-    text |> String.replace("&", "&amp;") |> String.replace("<", "&lt;") |> String.replace(">", "&gt;") |> String.replace("\"", "&quot;")
+    text
+    |> String.replace("&", "&amp;")
+    |> String.replace("<", "&lt;")
+    |> String.replace(">", "&gt;")
+    |> String.replace("\"", "&quot;")
   end
+
   defp esc(other), do: to_string(other)
 
   defp attrs(kvs) do
-    Enum.map_join(kvs, " ", fn {k, v} -> "#{k}=\"#{if is_boolean(v), do: to_string(v), else: esc(v)}\"" end)
+    Enum.map_join(kvs, " ", fn {k, v} ->
+      "#{k}=\"#{if is_boolean(v), do: to_string(v), else: esc(v)}\""
+    end)
   end
 
   defp tag2(name, attrs_map) do
@@ -43,70 +51,126 @@ defmodule ExGoCD.ConfigXml do
   end
 
   defp render_pipeline(pipeline) do
-    tag3("pipeline", %{name: pipeline.name, isLocked: pipeline.locked},
+    tag3(
+      "pipeline",
+      %{name: pipeline.name, isLocked: pipeline.locked},
       tag3("params", %{}, render_params(pipeline)) <>
-      tag3("timer", %{onlyOnChanges: pipeline.timer_only_on_changes || false}, esc(pipeline.timer || "")) <>
-      tag3("materials", %{}, Enum.map_join(pipeline.materials || [], "", &render_material/1)) <>
-      tag3("environmentvariables", %{}, render_all_env_vars(pipeline)) <>
-      tag3("stages", %{}, Enum.map_join(pipeline.stages || [], "", &render_stage/1))
+        tag3(
+          "timer",
+          %{onlyOnChanges: pipeline.timer_only_on_changes || false},
+          esc(pipeline.timer || "")
+        ) <>
+        tag3("materials", %{}, Enum.map_join(pipeline.materials || [], "", &render_material/1)) <>
+        tag3("environmentvariables", %{}, render_all_env_vars(pipeline)) <>
+        tag3("stages", %{}, Enum.map_join(pipeline.stages || [], "", &render_stage/1))
     )
   end
 
   defp render_params(pipeline) do
-    (pipeline.parameters || %{}) |> Enum.map_join("", fn {k, v} -> tag3("param", %{name: k}, esc(v)) end)
+    (pipeline.parameters || %{})
+    |> Enum.map_join("", fn {k, v} -> tag3("param", %{name: k}, esc(v)) end)
   end
 
   defp render_all_env_vars(pipeline) do
-    render_env_vars(pipeline.environment_variables) <> render_secure_vars(pipeline.secure_variables)
+    render_env_vars(pipeline.environment_variables) <>
+      render_secure_vars(pipeline.secure_variables)
   end
 
   defp render_material(%{type: "git"} = mat) do
-    tag2("git", %{url: mat.url, branch: mat.branch || "master", dest: mat.name || mat.url, materialName: mat.name || mat.url, autoUpdate: mat.auto_update != false})
+    tag2("git", %{
+      url: mat.url,
+      branch: mat.branch || "master",
+      dest: mat.name || mat.url,
+      materialName: mat.name || mat.url,
+      autoUpdate: mat.auto_update != false
+    })
   end
+
   defp render_material(%{type: "dependency"} = mat) do
-    tag2("pipeline", %{pipelineName: mat.pipeline_name || mat.name, stageName: mat.stage_name || "build", materialName: mat.name})
+    tag2("pipeline", %{
+      pipelineName: mat.pipeline_name || mat.name,
+      stageName: mat.stage_name || "build",
+      materialName: mat.name
+    })
   end
+
   defp render_material(mat), do: tag2(mat.type || "git", %{url: mat.url || ""})
 
   defp render_env_vars(vars) when is_map(vars) and map_size(vars) > 0 do
-    vars |> Enum.reject(fn {_k, v} -> is_map(v) and v["secure"] end) |> Enum.map_join("", fn {k, v} ->
+    vars
+    |> Enum.reject(fn {_k, v} -> is_map(v) and v["secure"] end)
+    |> Enum.map_join("", fn {k, v} ->
       val = if is_map(v), do: v["value"] || v[:value] || "", else: v
       tag3("variable", %{name: k}, tag3("value", %{}, esc(val)))
     end)
   end
+
   defp render_env_vars(_), do: ""
 
   defp render_secure_vars(vars) when is_map(vars) and map_size(vars) > 0 do
-    vars |> Enum.filter(fn {_k, v} -> is_map(v) and v["secure"] end) |> Enum.map_join("", fn {k, v} ->
+    vars
+    |> Enum.filter(fn {_k, v} -> is_map(v) and v["secure"] end)
+    |> Enum.map_join("", fn {k, v} ->
       val = v["value"] || v[:value] || ""
       tag3("secureVariable", %{name: k}, tag3("encryptedValue", %{}, esc(val)))
     end)
   end
+
   defp render_secure_vars(_), do: ""
 
   defp render_stage(stage) do
-    tag3("stage", %{name: stage.name, fetchMaterials: stage.fetch_materials != false, cleanWorkingDir: stage.clean_working_directory || false},
+    tag3(
+      "stage",
+      %{
+        name: stage.name,
+        fetchMaterials: stage.fetch_materials != false,
+        cleanWorkingDir: stage.clean_working_directory || false
+      },
       tag2("approval", %{type: stage.approval_type || "success"}) <>
-      tag3("environmentvariables", %{}, render_env_vars(stage.environment_variables || %{}) <> render_secure_vars(stage.secure_variables || %{})) <>
-      tag3("jobs", %{}, Enum.map_join(stage.jobs || [], "", &render_job/1))
+        tag3(
+          "environmentvariables",
+          %{},
+          render_env_vars(stage.environment_variables || %{}) <>
+            render_secure_vars(stage.secure_variables || %{})
+        ) <>
+        tag3("jobs", %{}, Enum.map_join(stage.jobs || [], "", &render_job/1))
     )
   end
 
   defp render_job(job) do
     resources = Enum.map_join(job.resources || [], "", fn r -> tag3("resource", %{}, esc(r)) end)
     tasks = Enum.map_join(job.tasks || [], "", &render_task/1)
-    tag3("job", %{name: job.name, runInstanceCount: job.run_instance_count || 1, timeout: job.timeout || 0, runOnAllAgents: job.run_on_all_agents || false},
+
+    tag3(
+      "job",
+      %{
+        name: job.name,
+        runInstanceCount: job.run_instance_count || 1,
+        timeout: job.timeout || 0,
+        runOnAllAgents: job.run_on_all_agents || false
+      },
       tag3("resources", %{}, resources) <> tag3("tasks", %{}, tasks)
     )
   end
 
   defp render_task(%{type: "exec"} = task) do
-    args = Enum.map_join(task.args || task.arguments || [], "", fn a -> tag3("arg", %{}, esc(a)) end)
+    args =
+      Enum.map_join(task.args || task.arguments || [], "", fn a -> tag3("arg", %{}, esc(a)) end)
+
     tag3("exec", %{command: task.command || ""}, args)
   end
+
   defp render_task(%{type: "fetch"} = task) do
-    tag2("fetchartifact", %{pipeline: task.pipeline || "", stage: task.stage || "", job: task.job || "", srcfile: task.src_file || task.source || "", dest: task.dest || "", artifactOrigin: "gocd"})
+    tag2("fetchartifact", %{
+      pipeline: task.pipeline || "",
+      stage: task.stage || "",
+      job: task.job || "",
+      srcfile: task.src_file || task.source || "",
+      dest: task.dest || "",
+      artifactOrigin: "gocd"
+    })
   end
+
   defp render_task(_task), do: tag3("exec", %{command: "echo"}, tag3("arg", %{}, "unknown task"))
 
   # ── Import ────────────────────────────────────────────────────────
@@ -154,6 +218,7 @@ defmodule ExGoCD.ConfigXml do
               nil ->
                 Pipelines.create_pipeline(pipeline)
                 acc + 1
+
               existing ->
                 Pipelines.update_pipeline(existing, pipeline)
                 acc + 1
@@ -180,6 +245,7 @@ defmodule ExGoCD.ConfigXml do
 
   defp parse_pipeline(el) do
     timer_el = find_child(el, :timer)
+
     %{
       name: attr(el, :name) |> to_string(),
       locked: attr(el, :isLocked) == "true",
@@ -197,7 +263,9 @@ defmodule ExGoCD.ConfigXml do
   defp parse_params(el) do
     find_child(el, :params)
     |> case do
-      nil -> %{}
+      nil ->
+        %{}
+
       params_el ->
         find_elements(params_el, :param)
         |> Enum.reduce(%{}, fn p, acc ->
@@ -209,7 +277,9 @@ defmodule ExGoCD.ConfigXml do
   defp parse_materials(el) do
     find_child(el, :materials)
     |> case do
-      nil -> []
+      nil ->
+        []
+
       mats_el ->
         find_elements(mats_el)
         |> Enum.map(&parse_material/1)
@@ -218,16 +288,24 @@ defmodule ExGoCD.ConfigXml do
 
   defp parse_material(el) do
     tag = elem(el, 1)
+
     case tag do
       :git ->
-        %{type: "git", url: to_string(attr(el, :url)), branch: to_string(attr(el, :branch) || "master"),
+        %{
+          type: "git",
+          url: to_string(attr(el, :url)),
+          branch: to_string(attr(el, :branch) || "master"),
           name: to_string(attr(el, :materialName) || attr(el, :dest) || attr(el, :url)),
-          auto_update: attr(el, :autoUpdate) != "false"}
+          auto_update: attr(el, :autoUpdate) != "false"
+        }
 
       :pipeline ->
-        %{type: "dependency", pipeline_name: to_string(attr(el, :pipelineName)),
+        %{
+          type: "dependency",
+          pipeline_name: to_string(attr(el, :pipelineName)),
           stage_name: to_string(attr(el, :stageName) || "build"),
-          name: to_string(attr(el, :materialName) || attr(el, :pipelineName))}
+          name: to_string(attr(el, :materialName) || attr(el, :pipelineName))
+        }
 
       other ->
         %{type: to_string(other), url: to_string(attr(el, :url) || "")}
@@ -237,7 +315,9 @@ defmodule ExGoCD.ConfigXml do
   defp parse_env_vars(el) do
     find_child(el, :environmentvariables)
     |> case do
-      nil -> %{}
+      nil ->
+        %{}
+
       env_el ->
         find_elements(env_el, :variable)
         |> Enum.reduce(%{}, fn v, acc ->
@@ -252,7 +332,9 @@ defmodule ExGoCD.ConfigXml do
   defp parse_secure_vars(el) do
     find_child(el, :environmentvariables)
     |> case do
-      nil -> %{}
+      nil ->
+        %{}
+
       env_el ->
         find_elements(env_el, :secureVariable)
         |> Enum.reduce(%{}, fn v, acc ->
@@ -267,7 +349,9 @@ defmodule ExGoCD.ConfigXml do
   defp parse_stages(el) do
     find_child(el, :stages)
     |> case do
-      nil -> []
+      nil ->
+        []
+
       stages_el ->
         find_elements(stages_el, :stage)
         |> Enum.map(&parse_stage/1)
@@ -279,13 +363,12 @@ defmodule ExGoCD.ConfigXml do
       name: to_string(attr(el, :name)),
       fetch_materials: attr(el, :fetchMaterials) != "false",
       clean_working_directory: attr(el, :cleanWorkingDir) == "true",
-      approval_type: (
+      approval_type:
         find_child(el, :approval)
         |> case do
           nil -> "success"
           a -> to_string(attr(a, :type) || "success")
-        end
-      ),
+        end,
       environment_variables: parse_env_vars(el),
       secure_variables: parse_secure_vars(el),
       jobs: parse_jobs(el)
@@ -295,7 +378,9 @@ defmodule ExGoCD.ConfigXml do
   defp parse_jobs(el) do
     find_child(el, :jobs)
     |> case do
-      nil -> []
+      nil ->
+        []
+
       jobs_el ->
         find_elements(jobs_el, :job)
         |> Enum.map(&parse_job/1)
@@ -316,7 +401,9 @@ defmodule ExGoCD.ConfigXml do
   defp parse_resources(el) do
     find_child(el, :resources)
     |> case do
-      nil -> []
+      nil ->
+        []
+
       res_el ->
         find_elements(res_el, :resource) |> Enum.map(fn r -> text_content(r) |> to_string() end)
     end
@@ -325,7 +412,9 @@ defmodule ExGoCD.ConfigXml do
   defp parse_tasks(el) do
     find_child(el, :tasks)
     |> case do
-      nil -> []
+      nil ->
+        []
+
       tasks_el ->
         find_elements(tasks_el)
         |> Enum.map(&parse_task/1)
@@ -349,9 +438,15 @@ defmodule ExGoCD.ConfigXml do
   end
 
   defp parse_fetch_task(el) do
-    %{type: "fetch", pipeline: to_string(attr(el, :pipeline) || ""), stage: to_string(attr(el, :stage) || ""),
-      job: to_string(attr(el, :job) || ""), src_file: to_string(attr(el, :srcfile) || ""),
-      dest: to_string(attr(el, :dest) || ""), artifact_origin: to_string(attr(el, :artifactOrigin) || "gocd")}
+    %{
+      type: "fetch",
+      pipeline: to_string(attr(el, :pipeline) || ""),
+      stage: to_string(attr(el, :stage) || ""),
+      job: to_string(attr(el, :job) || ""),
+      src_file: to_string(attr(el, :srcfile) || ""),
+      dest: to_string(attr(el, :dest) || ""),
+      artifact_origin: to_string(attr(el, :artifactOrigin) || "gocd")
+    }
   end
 
   # ── xmerl navigation helpers ──────────────────────────────────────
@@ -361,6 +456,7 @@ defmodule ExGoCD.ConfigXml do
   end
 
   defp find_child(nil, _name), do: nil
+
   defp find_child(el, name) do
     el |> elem(8) |> Enum.find(&(elem(&1, 0) == :xmlElement and elem(&1, 1) == name))
   end
@@ -374,10 +470,13 @@ defmodule ExGoCD.ConfigXml do
   end
 
   defp attr(nil, _name), do: nil
+
   defp attr(el, name) do
     el
     |> elem(7)
-    |> Enum.find_value(nil, fn a -> if elem(a, 1) == name, do: elem(a, 8) |> to_string(), else: nil end)
+    |> Enum.find_value(nil, fn a ->
+      if elem(a, 1) == name, do: elem(a, 8) |> to_string(), else: nil
+    end)
   end
 
   defp text_content(el) do
@@ -394,6 +493,7 @@ defmodule ExGoCD.ConfigXml do
 
   defp parse_int(nil, default), do: default
   defp parse_int(str, default) when is_list(str), do: parse_int(to_string(str), default)
+
   defp parse_int(str, default) do
     case Integer.parse(str) do
       {n, _} -> n

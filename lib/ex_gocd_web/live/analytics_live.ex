@@ -216,11 +216,11 @@ defmodule ExGoCDWeb.AnalyticsLive do
     <div :if={@all_stats != []} class="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
       <div class="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
         <h3 class="text-sm font-semibold text-gray-700 mb-3">Pipeline Run Counts (30d)</h3>
-        <%= run_count_chart(@all_stats) %>
+        {run_count_chart(@all_stats)}
       </div>
       <div class="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
         <h3 class="text-sm font-semibold text-gray-700 mb-3">Agent Jobs (7d)</h3>
-        <%= agent_top_bar(@top_agents) %>
+        {agent_top_bar(@top_agents)}
       </div>
     </div>
     """
@@ -333,9 +333,12 @@ defmodule ExGoCDWeb.AnalyticsLive do
           </div>
         </div>
 
-        <div :if={@detail.recent_runs != []} class="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
+        <div
+          :if={@detail.recent_runs != []}
+          class="bg-white rounded-lg border border-gray-200 shadow-sm p-4"
+        >
           <h3 class="text-sm font-semibold text-gray-700 mb-3">Build Duration Trend</h3>
-          <%= build_duration_chart(@detail.recent_runs) %>
+          {build_duration_chart(@detail.recent_runs)}
         </div>
 
         <div class="bg-white rounded-lg border border-gray-200 shadow-sm">
@@ -433,14 +436,17 @@ defmodule ExGoCDWeb.AnalyticsLive do
     ~H"""
     <div :if={@stats != []} class="mt-6 bg-white rounded-lg border border-gray-200 shadow-sm p-4">
       <h3 class="text-sm font-semibold text-gray-700 mb-3">Job Outcomes by Agent</h3>
-      <%= agent_jobs_svg(@stats) %>
+      {agent_jobs_svg(@stats)}
     </div>
     """
   end
 
   defp agent_jobs_svg(stats) do
     sorted = stats |> Enum.sort_by(& &1.total_jobs, :desc) |> Enum.take(15)
-    data = for a <- sorted, do: [String.slice(a.agent_uuid, 0, 12), a.completed, a.failed, a.cancelled]
+
+    data =
+      for a <- sorted, do: [String.slice(a.agent_uuid, 0, 12), a.completed, a.failed, a.cancelled]
+
     dataset = Dataset.new(data, ["Agent", "Completed", "Failed", "Cancelled"])
     chart = BarChart.new(dataset, type: :stacked)
     plot = Plot.new(500, 280, chart)
@@ -511,7 +517,7 @@ defmodule ExGoCDWeb.AnalyticsLive do
     ~H"""
     <div :if={@data != []} class="mt-6 bg-white rounded-lg border border-gray-200 shadow-sm p-4">
       <h3 class="text-sm font-semibold text-gray-700 mb-3">Cycle Time Trend (30 runs)</h3>
-      <%= vsm_duration_chart(@data) %>
+      {vsm_duration_chart(@data)}
     </div>
     """
   end

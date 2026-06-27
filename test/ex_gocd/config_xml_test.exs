@@ -63,8 +63,13 @@ defmodule ExGoCD.ConfigXmlTest do
       assert material.name == "test-repo"
       assert material.auto_update == true
 
-      assert pipeline.environment_variables == %{"DEPLOY_ENV" => %{"value" => "staging", "secure" => false}}
-      assert pipeline.secure_variables == %{"SECRET_KEY" => %{"value" => "abc123", "secure" => true}}
+      assert pipeline.environment_variables == %{
+               "DEPLOY_ENV" => %{"value" => "staging", "secure" => false}
+             }
+
+      assert pipeline.secure_variables == %{
+               "SECRET_KEY" => %{"value" => "abc123", "secure" => true}
+             }
 
       assert [stage] = pipeline.stages
       assert stage.name == "build"

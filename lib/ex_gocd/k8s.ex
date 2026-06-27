@@ -24,12 +24,19 @@ defmodule ExGoCD.K8s do
   @doc "Creates a connection from explicit cluster profile fields."
   @spec from_config(map()) :: {:ok, conn()} | {:error, term()}
   def from_config(%{"server" => server, "token" => token} = config) do
-    ca_line = if config["ca_cert"], do: "    certificate-authority-data: #{config["ca_cert"]}", else: "    insecure-skip-tls-verify: true"
+    ca_line =
+      if config["ca_cert"],
+        do: "    certificate-authority-data: #{config["ca_cert"]}",
+        else: "    insecure-skip-tls-verify: true"
+
     ns = config["namespace"] || "default"
-    yaml = "apiVersion: v1\nkind: Config\ncurrent-context: default\n" <>
-           "clusters:\n- name: default\n  cluster:\n    server: #{server}\n#{ca_line}\n" <>
-           "users:\n- name: default\n  user:\n    token: #{token}\n" <>
-           "contexts:\n- name: default\n  context:\n    cluster: default\n    user: default\n    namespace: #{ns}\n"
+
+    yaml =
+      "apiVersion: v1\nkind: Config\ncurrent-context: default\n" <>
+        "clusters:\n- name: default\n  cluster:\n    server: #{server}\n#{ca_line}\n" <>
+        "users:\n- name: default\n  user:\n    token: #{token}\n" <>
+        "contexts:\n- name: default\n  context:\n    cluster: default\n    user: default\n    namespace: #{ns}\n"
+
     @k8s_conn.from_string(yaml)
   end
 
@@ -79,7 +86,9 @@ defmodule ExGoCD.K8s do
       {:ok, result} ->
         items = get_in(result, ["items"]) || []
         {:ok, Enum.map(items, &extract_pod_info/1)}
-      {:error, reason} -> {:error, reason}
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 

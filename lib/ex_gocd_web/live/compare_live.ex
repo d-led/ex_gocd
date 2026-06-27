@@ -136,7 +136,7 @@ defmodule ExGoCDWeb.CompareLive do
           </h1>
         </div>
       </div>
-
+      
     <!-- Comparison Content -->
       <div class="flex flex-col gap-6">
         <%= if Enum.empty?(@comparison.materials) do %>
@@ -266,7 +266,9 @@ defmodule ExGoCDWeb.CompareLive do
       <%= if @comparison.config_changed do %>
         <div class="flex items-center gap-2 bg-purple-50 border border-purple-200 rounded px-4 py-3 text-xs">
           <i class="fa fa-cog text-purple-500"></i>
-          <span class="text-purple-700 font-medium">Pipeline configuration changed between these runs.</span>
+          <span class="text-purple-700 font-medium">
+            Pipeline configuration changed between these runs.
+          </span>
           <.link
             navigate={~p"/pipelines/#{@pipeline_name}/#{@to_counter}/config_diff"}
             class="text-[#943a9e] hover:underline font-bold ml-auto"

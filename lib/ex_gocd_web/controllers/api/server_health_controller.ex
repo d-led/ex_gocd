@@ -15,10 +15,20 @@ defmodule ExGoCDWeb.API.ServerHealthController do
     messages =
       cond do
         maintenance ->
-          [%{level: "WARNING", message: "Server is in maintenance mode. Pipeline scheduling is paused."}]
+          [
+            %{
+              level: "WARNING",
+              message: "Server is in maintenance mode. Pipeline scheduling is paused."
+            }
+          ]
 
         disk_status == :critical ->
-          [%{level: "ERROR", message: "Disk space is critically low. Pipeline scheduling has been paused."}]
+          [
+            %{
+              level: "ERROR",
+              message: "Disk space is critically low. Pipeline scheduling has been paused."
+            }
+          ]
 
         disk_status == :warning ->
           [%{level: "WARNING", message: "Disk space is low."}]
@@ -33,6 +43,7 @@ defmodule ExGoCDWeb.API.ServerHealthController do
   end
 
   defp health_status([]), do: "OK"
+
   defp health_status(messages) do
     if Enum.any?(messages, &(&1.level == "ERROR")), do: "ERROR", else: "WARNING"
   end

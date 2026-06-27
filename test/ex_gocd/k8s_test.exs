@@ -7,15 +7,21 @@ defmodule ExGoCD.K8sTest do
 
   describe "from_config/1" do
     test "creates a conn from server and token" do
-      assert {:ok, conn} = ExGoCD.K8s.from_config(%{"server" => "https://k8s.test:6443", "token" => "tok"})
+      assert {:ok, conn} =
+               ExGoCD.K8s.from_config(%{"server" => "https://k8s.test:6443", "token" => "tok"})
+
       assert conn.url == "https://k8s.test:6443"
       assert conn.insecure_skip_tls_verify
     end
 
     test "accepts custom namespace" do
-      assert {:ok, conn} = ExGoCD.K8s.from_config(%{
-        "server" => "https://k8s.test", "token" => "t", "namespace" => "gocd-agents"
-      })
+      assert {:ok, conn} =
+               ExGoCD.K8s.from_config(%{
+                 "server" => "https://k8s.test",
+                 "token" => "t",
+                 "namespace" => "gocd-agents"
+               })
+
       assert conn.url == "https://k8s.test"
     end
   end

@@ -816,102 +816,23 @@ defmodule ExGoCD.Pipelines do
       |> Params.interpolate(params)
       |> String.replace("${COUNT}", to_string(counter))
 
-    natural_order = counter * 1.0
-
     material_revisions = build_material_revisions_map(pipeline, proposed)
 
     env_vars = extract_trigger_variables(options, params)
-
-    build_cause = %{
-      "approver" => Map.get(options, "approver", options[:approver]) || "anonymous",
-      "triggerMessage" => trigger_message(options, material_revisions),
-      "triggerForced" => Map.get(options, "triggerForced", false),
-      "materialRevisions" => material_revisions,
-      "configSnapshot" => pipeline_config_snapshot(pipeline)
-    }
-
-    build_cause =
-      if is_list(env_vars) and env_vars != [] do
-        Map.put(build_cause, "environmentVariables", env_vars)
-      else
-        build_cause
-      end
-
-    # Compute idle agent count OUTSIDE the transaction (DB query)
-    # For run_on_all_agents, each job needs its own matching agent count
+    build_cause = build_cause_map(options, material_revisions, env_vars, pipeline)
     idle_count = Agents.count_idle()
 
     result =
       Repo.transaction(fn ->
-        instance =
-          %PipelineInstance{}
-          |> PipelineInstance.changeset(%{
-            pipeline_id: pipeline.id,
-            counter: counter,
-            label: label,
-            natural_order: natural_order,
-            build_cause: build_cause
-          })
-          |> Repo.insert!()
-
-        insert_pipeline_material_revisions(instance.id, proposed)
-
-        stages_ordered = Enum.sort_by(pipeline.stages, & &1.id)
-        first_stage = List.first(stages_ordered)
-        if is_nil(first_stage), do: Repo.rollback({:error, "Pipeline '#{pipeline.name}' has no stages configured."})
-
-        stage_instance =
-          %StageInstance{}
-          |> StageInstance.changeset(%{
-            pipeline_instance_id: instance.id,
-            name: first_stage.name,
-            counter: 1,
-            order_id: 1,
-            state: "Building",
-            result: "Unknown",
-            approval_type: first_stage.approval_type,
-            created_time: now,
-            fetch_materials: first_stage.fetch_materials,
-            clean_working_dir: first_stage.clean_working_directory
-          })
-          |> Repo.insert!()
-
-        job_instances =
-          Enum.flat_map(first_stage.jobs, fn job ->
-            # For run_on_all_agents: count ALL matching agents (not just idle).
-            # Mirrors GoCD's DefaultSchedulingContext.findAgentsMatching().
-            matching =
-              if job.run_on_all_agents || job.run_instance_count not in [nil, ""] do
-                Agents.count_all_matching(job.resources || [])
-              else
-                idle_count
-              end
-
-            count = instance_count_for_job(job, matching)
-            run_on_all = job.run_on_all_agents || false
-            run_multiple = job.run_instance_count not in [nil, ""]
-
-            for i <- 1..count do
-              # GoCD naming: {name}-runOnAll-{counter}
-              job_name =
-                if run_on_all do
-                  "#{job.name}-runOnAll-#{i}"
-                else
-                  job.name
-                end
-
-              insert_job_instance(job, pipeline, stage_instance, first_stage, now,
-                run_on_all: run_on_all,
-                run_multiple: run_multiple,
-                count: count,
-                run_index: i,
-                counter: counter,
-                job_name: job_name
-              )
-            end
-          end)
-
-        {instance, first_stage, stage_instance, job_instances}
+        insert_triggered_instance(
+          pipeline,
+          proposed,
+          counter,
+          label,
+          now,
+          build_cause,
+          idle_count
+        )
       end)
 
     case result do
@@ -963,6 +884,127 @@ defmodule ExGoCD.Pipelines do
 
       true ->
         1
+    end
+  end
+
+  defp build_cause_map(options, material_revisions, env_vars, pipeline) do
+    base = %{
+      "approver" => Map.get(options, "approver", options[:approver]) || "anonymous",
+      "triggerMessage" => trigger_message(options, material_revisions),
+      "triggerForced" => Map.get(options, "triggerForced", false),
+      "materialRevisions" => material_revisions,
+      "configSnapshot" => pipeline_config_snapshot(pipeline)
+    }
+
+    if is_list(env_vars) and env_vars != [] do
+      Map.put(base, "environmentVariables", env_vars)
+    else
+      base
+    end
+  end
+
+  defp insert_triggered_instance(pipeline, proposed, counter, label, now, build_cause, idle_count) do
+    instance =
+      %PipelineInstance{}
+      |> PipelineInstance.changeset(%{
+        pipeline_id: pipeline.id,
+        counter: counter,
+        label: label,
+        natural_order: counter * 1.0,
+        build_cause: build_cause
+      })
+      |> Repo.insert!()
+
+    insert_pipeline_material_revisions(instance.id, proposed)
+
+    stages_ordered = Enum.sort_by(pipeline.stages, & &1.id)
+    first_stage = List.first(stages_ordered)
+
+    if is_nil(first_stage),
+      do: Repo.rollback({:error, "Pipeline '#{pipeline.name}' has no stages configured."})
+
+    stage_instance =
+      %StageInstance{}
+      |> StageInstance.changeset(%{
+        pipeline_instance_id: instance.id,
+        name: first_stage.name,
+        counter: 1,
+        order_id: 1,
+        state: "Building",
+        result: "Unknown",
+        approval_type: first_stage.approval_type,
+        created_time: now,
+        fetch_materials: first_stage.fetch_materials,
+        clean_working_dir: first_stage.clean_working_directory
+      })
+      |> Repo.insert!()
+
+    job_instances =
+      flat_map_job_instances(
+        first_stage.jobs,
+        pipeline,
+        stage_instance,
+        first_stage,
+        now,
+        counter,
+        idle_count
+      )
+
+    {instance, first_stage, stage_instance, job_instances}
+  end
+
+  defp flat_map_job_instances(
+         jobs,
+         pipeline,
+         stage_instance,
+         first_stage,
+         now,
+         counter,
+         idle_count
+       ) do
+    Enum.flat_map(jobs, fn job ->
+      matching =
+        if job.run_on_all_agents || job.run_instance_count not in [nil, ""] do
+          Agents.count_all_matching(job.resources || [])
+        else
+          idle_count
+        end
+
+      count = instance_count_for_job(job, matching)
+      run_on_all = job.run_on_all_agents || false
+      run_multiple = job.run_instance_count not in [nil, ""]
+
+      insert_named_jobs(job, pipeline, stage_instance, first_stage, now,
+        counter: counter,
+        count: count,
+        run_on_all: run_on_all,
+        run_multiple: run_multiple
+      )
+    end)
+  end
+
+  defp insert_named_jobs(job, pipeline, stage_instance, first_stage, now, opts) do
+    count = Keyword.fetch!(opts, :count)
+    run_on_all = Keyword.fetch!(opts, :run_on_all)
+    counter = Keyword.fetch!(opts, :counter)
+    run_multiple = Keyword.fetch!(opts, :run_multiple)
+
+    for i <- 1..count do
+      job_name =
+        if run_on_all do
+          "#{job.name}-runOnAll-#{i}"
+        else
+          job.name
+        end
+
+      insert_job_instance(job, pipeline, stage_instance, first_stage, now,
+        run_on_all: run_on_all,
+        run_multiple: run_multiple,
+        count: count,
+        run_index: i,
+        counter: counter,
+        job_name: job_name
+      )
     end
   end
 
@@ -1579,7 +1621,9 @@ defmodule ExGoCD.Pipelines do
         "Failed"
 
       stages != [] and
-        Enum.all?(stages, fn s -> s.state == "Completed" and s.result in ["Passed", "Unknown"] end) ->
+          Enum.all?(stages, fn s ->
+            s.state == "Completed" and s.result in ["Passed", "Unknown"]
+          end) ->
         "Passed"
 
       stages != [] ->
@@ -1787,7 +1831,9 @@ defmodule ExGoCD.Pipelines do
 
     if current_idx && current_idx > 0 do
       previous_stage = Enum.at(stages, current_idx - 1)
-      newer_pi = find_newer_pipeline_with_passed_previous(pipeline, previous_stage, pipeline_instance)
+
+      newer_pi =
+        find_newer_pipeline_with_passed_previous(pipeline, previous_stage, pipeline_instance)
 
       if newer_pi && stage_not_run_in_pipeline?(newer_pi, stage_instance.name) do
         trigger_stage_in_pipeline(pipeline, newer_pi, stage_instance.name, current_idx)
@@ -1833,13 +1879,31 @@ defmodule ExGoCD.Pipelines do
     if stage_config do
       now = DateTime.utc_now()
 
-      case do_insert_and_schedule_stage(pipeline, newer_pi, stage_config, stage_name, order_idx, now) do
+      case do_insert_and_schedule_stage(
+             pipeline,
+             newer_pi,
+             stage_config,
+             stage_name,
+             order_idx,
+             now
+           ) do
         {:ok, {new_si, jobs}} ->
-          schedule_next_jobs(pipeline, newer_pi.counter, new_si, stage_config.jobs, jobs, pipeline.parameters || %{})
+          schedule_next_jobs(
+            pipeline,
+            newer_pi.counter,
+            new_si,
+            stage_config.jobs,
+            jobs,
+            pipeline.parameters || %{}
+          )
+
           :ok
 
         error ->
-          Logger.warning("trigger_current_stage_in_newer_pipeline failed for #{pipeline.name}/#{stage_name}: #{inspect(error)}")
+          Logger.warning(
+            "trigger_current_stage_in_newer_pipeline failed for #{pipeline.name}/#{stage_name}: #{inspect(error)}"
+          )
+
           :ok
       end
     end
@@ -1887,16 +1951,25 @@ defmodule ExGoCD.Pipelines do
 
     env_vars =
       cond do
-        is_list(env_vars) -> Params.interpolate(env_vars, params)
-        is_map(env_vars) -> Enum.map(env_vars, fn {k, v} -> %{"name" => k, "value" => Params.interpolate(v, params)} end)
-        true -> env_vars
+        is_list(env_vars) ->
+          Params.interpolate(env_vars, params)
+
+        is_map(env_vars) ->
+          Enum.map(env_vars, fn {k, v} ->
+            %{"name" => k, "value" => Params.interpolate(v, params)}
+          end)
+
+        true ->
+          env_vars
       end
 
     secure_vars =
       Map.get(options, :secure_variables) || Map.get(options, "secure_variables") || %{}
 
     if is_map(secure_vars) and map_size(secure_vars) > 0 do
-      secure_list = Enum.map(secure_vars, fn {k, v} -> %{"name" => k, "value" => v, "secure" => true} end)
+      secure_list =
+        Enum.map(secure_vars, fn {k, v} -> %{"name" => k, "value" => v, "secure" => true} end)
+
       (List.wrap(env_vars) ++ secure_list) |> Enum.uniq_by(& &1["name"])
     else
       env_vars

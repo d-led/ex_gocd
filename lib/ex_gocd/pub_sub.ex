@@ -2,9 +2,7 @@ defmodule ExGoCD.PubSub do
   @moduledoc """
   Central PubSub for live view updates.
 
-  ## Topics
-    #{@pipeline_topic} — pipeline/ stage/ job state changes
-    #{@agent_topic} — agent registration, state, enable/disable
+  Topics: pipelines:updates, agents:updates
   """
 
   @pipeline_topic "pipelines:updates"

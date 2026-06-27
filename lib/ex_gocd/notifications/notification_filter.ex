@@ -1,5 +1,6 @@
 defmodule ExGoCD.Notifications.NotificationFilter do
-  @derive {Jason.Encoder, only: [:id, :user_id, :pipeline_name, :stage_name, :event, :match_committer]}
+  @derive {Jason.Encoder,
+           only: [:id, :user_id, :pipeline_name, :stage_name, :event, :match_committer]}
   use Ecto.Schema
   import Ecto.Changeset
 

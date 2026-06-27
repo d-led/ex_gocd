@@ -93,11 +93,20 @@ defmodule ExGoCDWeb.AdminSchedulingLiveTest do
         Repo.insert!(%Stage{} |> Stage.changeset(%{name: "build", pipeline_id: pipeline.id}))
 
       job =
-        Repo.insert!(%Job{} |> Job.changeset(%{name: "compile", stage_id: stage.id, resources: ["linux"]}))
+        Repo.insert!(
+          %Job{}
+          |> Job.changeset(%{name: "compile", stage_id: stage.id, resources: ["linux"]})
+        )
 
-      Repo.insert!(%Task{} |> Task.changeset(%{
-        type: "exec", command: "echo", arguments: ["hello"], job_id: job.id
-      }))
+      Repo.insert!(
+        %Task{}
+        |> Task.changeset(%{
+          type: "exec",
+          command: "echo",
+          arguments: ["hello"],
+          job_id: job.id
+        })
+      )
 
       now = DateTime.utc_now()
       pi = insert_pipeline_instance(pipeline.id, 1)
@@ -118,11 +127,20 @@ defmodule ExGoCDWeb.AdminSchedulingLiveTest do
         Repo.insert!(%Stage{} |> Stage.changeset(%{name: "build", pipeline_id: pipeline.id}))
 
       job =
-        Repo.insert!(%Job{} |> Job.changeset(%{name: "test", stage_id: stage.id, resources: ["linux"]}))
+        Repo.insert!(
+          %Job{}
+          |> Job.changeset(%{name: "test", stage_id: stage.id, resources: ["linux"]})
+        )
 
-      Repo.insert!(%Task{} |> Task.changeset(%{
-        type: "exec", command: "echo", arguments: ["test"], job_id: job.id
-      }))
+      Repo.insert!(
+        %Task{}
+        |> Task.changeset(%{
+          type: "exec",
+          command: "echo",
+          arguments: ["test"],
+          job_id: job.id
+        })
+      )
 
       now = DateTime.utc_now()
       pi = insert_pipeline_instance(pipeline.id, 1)
@@ -144,11 +162,20 @@ defmodule ExGoCDWeb.AdminSchedulingLiveTest do
         Repo.insert!(%Stage{} |> Stage.changeset(%{name: "build", pipeline_id: pipeline.id}))
 
       job =
-        Repo.insert!(%Job{} |> Job.changeset(%{name: "ai-train", stage_id: stage.id, resources: ["tpu", "v100"]}))
+        Repo.insert!(
+          %Job{}
+          |> Job.changeset(%{name: "ai-train", stage_id: stage.id, resources: ["tpu", "v100"]})
+        )
 
-      Repo.insert!(%Task{} |> Task.changeset(%{
-        type: "exec", command: "python", arguments: ["train.py"], job_id: job.id
-      }))
+      Repo.insert!(
+        %Task{}
+        |> Task.changeset(%{
+          type: "exec",
+          command: "python",
+          arguments: ["train.py"],
+          job_id: job.id
+        })
+      )
 
       now = DateTime.utc_now()
       pi = insert_pipeline_instance(pipeline.id, 1)

@@ -207,7 +207,10 @@
           <%= if @users == [] do %>
             <div class="open-mode-banner">
               <span>🔓</span>
-              <span><strong>Open mode</strong> — No admin configured yet. All pages are accessible without login.</span>
+              <span>
+                <strong>Open mode</strong>
+                — No admin configured yet. All pages are accessible without login.
+              </span>
             </div>
           <% end %>
           <form method="POST" action="/auth/login">
@@ -230,7 +233,11 @@
             <div class="user-chips">
               <%= for user <- @users do %>
                 <form method="POST" action="/auth/login" style="display:inline">
-                  <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
+                  <input
+                    type="hidden"
+                    name="_csrf_token"
+                    value={Phoenix.Controller.get_csrf_token()}
+                  />
                   <input type="hidden" name="session[username]" value={user.username} />
                   <button
                     type="submit"

@@ -2,7 +2,11 @@ defmodule ExGoCD.PackageRepositoriesTest do
   use ExGoCD.DataCase
   alias ExGoCD.PackageRepositories
 
-  @valid %{name: "docker-hub", plugin_id: "docker-registry", configuration: %{"registry_url" => "https://index.docker.io"}}
+  @valid %{
+    name: "docker-hub",
+    plugin_id: "docker-registry",
+    configuration: %{"registry_url" => "https://index.docker.io"}
+  }
 
   test "CRUD for package repositories" do
     assert [] = PackageRepositories.list_repos()

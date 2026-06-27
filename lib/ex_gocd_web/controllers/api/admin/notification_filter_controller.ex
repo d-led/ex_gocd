@@ -8,8 +8,11 @@ defmodule ExGoCDWeb.API.Admin.NotificationFilterController do
 
   def create(conn, %{"notification_filter" => params}) do
     case Notifications.create_filter(params) do
-      {:ok, filter} -> conn |> put_status(:created) |> json(%{data: filter})
-      {:error, cs} -> conn |> put_status(:unprocessable_entity) |> json(%{errors: changeset_errors(cs)})
+      {:ok, filter} ->
+        conn |> put_status(:created) |> json(%{data: filter})
+
+      {:error, cs} ->
+        conn |> put_status(:unprocessable_entity) |> json(%{errors: changeset_errors(cs)})
     end
   end
 
@@ -18,5 +21,9 @@ defmodule ExGoCDWeb.API.Admin.NotificationFilterController do
     conn |> json(%{message: "Filter deleted"})
   end
 
-  defp changeset_errors(cs), do: Ecto.Changeset.traverse_errors(cs, fn {m, o} -> Enum.reduce(o, m, fn {k, v}, a -> String.replace(a, "%{#{k}}", to_string(v)) end) end)
+  defp changeset_errors(cs),
+    do:
+      Ecto.Changeset.traverse_errors(cs, fn {m, o} ->
+        Enum.reduce(o, m, fn {k, v}, a -> String.replace(a, "%{#{k}}", to_string(v)) end)
+      end)
 end

@@ -369,7 +369,7 @@ defmodule ExGoCDWeb.PipelineActivityLive do
                   </.link>
                 <% end %>
               </div>
-
+              
     <!-- Commit messages: every material, full text, no clipping -->
               <%= if Enum.any?(run.modifications, & &1.comment) do %>
                 <div class="flex flex-col gap-0.5">
@@ -381,7 +381,7 @@ defmodule ExGoCDWeb.PipelineActivityLive do
                 </div>
               <% end %>
             </div>
-
+            
     <!-- Stage pipeline: compact horizontal strip -->
             <div class="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 border-l border-gray-100">
               <%= for {stage, idx} <- Enum.with_index(run.stages) do %>

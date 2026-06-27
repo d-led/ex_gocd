@@ -2,7 +2,10 @@ defmodule ExGoCD.AuthConfigsTest do
   use ExGoCD.DataCase
   alias ExGoCD.AuthConfigs
 
-  @valid %{plugin_id: "cd.go.authentication.ldap", properties: %{"ldap_url" => "ldap://example.com"}}
+  @valid %{
+    plugin_id: "cd.go.authentication.ldap",
+    properties: %{"ldap_url" => "ldap://example.com"}
+  }
 
   test "CRUD for auth configs" do
     assert [] = AuthConfigs.list_configs()

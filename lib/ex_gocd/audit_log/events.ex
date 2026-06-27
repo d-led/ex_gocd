@@ -74,9 +74,16 @@ defmodule ExGoCD.AuditLog.Events do
   """
   @spec admin_cleanup_stuck_jobs(String.t(), non_neg_integer(), String.t() | nil) :: :ok
   def admin_cleanup_stuck_jobs(actor, count, remote_ip \\ nil) do
-    emit("admin.cleanup_stuck_jobs", actor, nil, nil, %{
-      count: count
-    }, remote_ip)
+    emit(
+      "admin.cleanup_stuck_jobs",
+      actor,
+      nil,
+      nil,
+      %{
+        count: count
+      },
+      remote_ip
+    )
   end
 
   @doc """

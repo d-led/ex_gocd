@@ -14,6 +14,8 @@ defmodule ExGoCD.ArtifactStores.ArtifactStore do
   @optional_fields ~w(properties)a
 
   def changeset(store, attrs) do
-    store |> cast(attrs, @required_fields ++ @optional_fields) |> validate_required(@required_fields)
+    store
+    |> cast(attrs, @required_fields ++ @optional_fields)
+    |> validate_required(@required_fields)
   end
 end

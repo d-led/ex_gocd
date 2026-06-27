@@ -82,56 +82,13 @@ defmodule ExGoCDWeb.DashboardLive do
   def handle_event("trigger_pipeline", %{"name" => name}, socket) do
     user = socket.assigns[:current_user]
 
-    case ExGoCD.Policies.permit?(ExGoCD.Policies.EnvironmentPolicy, :trigger_pipeline, user) do
-      true ->
-        result =
-          if use_mock?() do
-            {:ok, %{name: name}}
-          else
-            try do
-              Pipelines.trigger_pipeline(name)
-            rescue
-              e ->
-                Logger.error("Pipeline trigger crashed: #{Exception.message(e)}")
-                {:error, Exception.message(e)}
-            end
-          end
-
-        case result do
-          {:ok, _instance} ->
-            {:noreply,
-             socket
-             |> put_flash(:info, "Pipeline #{name} triggered.")
-             |> load_pipelines()}
-
-          {:error, :pipeline_not_found} ->
-            {:noreply, put_flash(socket, :error, "Pipeline '#{name}' not found.")}
-
-          {:error, :already_triggered} ->
-            {:noreply, put_flash(socket, :error, "Pipeline '#{name}' was just triggered — wait a moment.")}
-
-          {:error, :paused} ->
-            {:noreply, put_flash(socket, :error, "Pipeline '#{name}' is paused. Unpause first.")}
-
-          {:error, :locked} ->
-            {:noreply, put_flash(socket, :error, "Pipeline '#{name}' is locked. Unlock first.")}
-
-          {:error, :maintenance} ->
-            {:noreply, put_flash(socket, :error, "Server is in maintenance mode. Cannot trigger pipelines.")}
-
-          {:error, :fan_in_mismatch} ->
-            {:noreply, put_flash(socket, :error, "Cannot trigger — dependency revision mismatch. Verify upstream pipelines.")}
-
-          {:error, reason} when is_binary(reason) ->
-            {:noreply, put_flash(socket, :error, "Trigger failed: #{String.slice(reason, 0, 200)}")}
-
-          {:error, _reason} ->
-            {:noreply, put_flash(socket, :error, "Trigger failed.")}
-        end
-
-      false ->
-        {:noreply,
-         put_flash(socket, :error, "You do not have operate permissions for this pipeline.")}
+    if ExGoCD.Policies.permit?(ExGoCD.Policies.EnvironmentPolicy, :trigger_pipeline, user) do
+      result = if use_mock?(), do: {:ok, %{name: name}}, else: safe_trigger(name)
+      {kind, msg} = trigger_flash_message(name, result)
+      {:noreply, socket |> put_flash(kind, msg) |> load_pipelines()}
+    else
+      {:noreply,
+       put_flash(socket, :error, "You do not have operate permissions for this pipeline.")}
     end
   end
 
@@ -385,6 +342,39 @@ defmodule ExGoCDWeb.DashboardLive do
 
     {:noreply, socket}
   end
+
+  defp safe_trigger(name) do
+    Pipelines.trigger_pipeline(name)
+  rescue
+    e ->
+      Logger.error("Pipeline trigger crashed: #{Exception.message(e)}")
+      {:error, Exception.message(e)}
+  end
+
+  defp trigger_flash_message(name, {:ok, _}), do: {:info, "Pipeline #{name} triggered."}
+
+  defp trigger_flash_message(name, {:error, :pipeline_not_found}),
+    do: {:error, "Pipeline '#{name}' not found."}
+
+  defp trigger_flash_message(name, {:error, :already_triggered}),
+    do: {:error, "Pipeline '#{name}' was just triggered — wait a moment."}
+
+  defp trigger_flash_message(name, {:error, :paused}),
+    do: {:error, "Pipeline '#{name}' is paused. Unpause first."}
+
+  defp trigger_flash_message(name, {:error, :locked}),
+    do: {:error, "Pipeline '#{name}' is locked. Unlock first."}
+
+  defp trigger_flash_message(_name, {:error, :maintenance}),
+    do: {:error, "Server is in maintenance mode. Cannot trigger pipelines."}
+
+  defp trigger_flash_message(_name, {:error, :fan_in_mismatch}),
+    do: {:error, "Cannot trigger — dependency revision mismatch. Verify upstream pipelines."}
+
+  defp trigger_flash_message(_name, {:error, reason}) when is_binary(reason),
+    do: {:error, "Trigger failed: #{String.slice(reason, 0, 200)}"}
+
+  defp trigger_flash_message(_name, {:error, _}), do: {:error, "Trigger failed."}
 
   # Fetch details helper
   defp fetch_stage_summary_details(pipeline_name, pipeline_counter, stage_name) do

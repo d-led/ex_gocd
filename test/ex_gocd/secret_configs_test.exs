@@ -2,7 +2,12 @@ defmodule ExGoCD.SecretConfigsTest do
   use ExGoCD.DataCase
   alias ExGoCD.SecretConfigs
 
-  @valid %{name: "vault-prod", plugin_id: "hashicorp-vault", configuration: %{"vault_url" => "https://vault.example.com"}, description: "Production Vault"}
+  @valid %{
+    name: "vault-prod",
+    plugin_id: "hashicorp-vault",
+    configuration: %{"vault_url" => "https://vault.example.com"},
+    description: "Production Vault"
+  }
 
   test "CRUD for secret configs" do
     assert [] = SecretConfigs.list_configs()

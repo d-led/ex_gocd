@@ -87,7 +87,9 @@ defmodule ExGoCDWeb.AdminSchedulingLive do
     |> assign(:agents, fetch_agents())
     |> assign(:now, DateTime.utc_now())
     |> assign(:active_jobs, fetch_active_db_jobs())
-    |> assign(:recent_errors, fetch_recent_errors())      |> assign(:selected_error, nil)    |> assign_match_analysis()
+    |> assign(:recent_errors, fetch_recent_errors())
+    |> assign(:selected_error, nil)
+    |> assign_match_analysis()
   end
 
   defp fetch_agents do
@@ -106,6 +108,7 @@ defmodule ExGoCDWeb.AdminSchedulingLive do
     |> Enum.take(10)
     |> Enum.map(fn entry ->
       _detail = entry.details || %{}
+
       %{
         time: entry.inserted_at,
         action: entry.action,
@@ -207,7 +210,8 @@ defmodule ExGoCDWeb.AdminSchedulingLive do
       end)
       |> Enum.sort_by(fn m ->
         # Stuck jobs first, then by pipeline name + counter for stable order
-        {!is_nil(m.stuck_reason), job_field(m.job, :pipeline_name) || "", job_field(m.job, :pipeline_counter) || 0}
+        {!is_nil(m.stuck_reason), job_field(m.job, :pipeline_name) || "",
+         job_field(m.job, :pipeline_counter) || 0}
       end)
 
     assign(socket, :job_matches, job_matches)
@@ -474,8 +478,8 @@ defmodule ExGoCDWeb.AdminSchedulingLive do
               {@queue_state.in_memory_count} in memory &middot; {@queue_state.db_count} in DB
             </p>
           </div>
-
-          <!-- Agent Summary Card -->
+          
+    <!-- Agent Summary Card -->
           <div class="bg-white border border-[#e9edef] rounded p-4">
             <p class="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">Agent Summary</p>
             <div class="flex items-center gap-6">
@@ -506,7 +510,7 @@ defmodule ExGoCDWeb.AdminSchedulingLive do
             </div>
           </div>
         </div>
-
+        
     <!-- Pending Jobs Table -->
         <div class="bg-white border border-[#e9edef] rounded">
           <div class="px-4 py-3 border-b border-[#e9edef]">
@@ -537,15 +541,24 @@ defmodule ExGoCDWeb.AdminSchedulingLive do
                   <%= for match <- @job_matches do %>
                     <tr class={"border-t border-[#e9edef] #{if match.stuck_reason, do: "bg-red-50", else: ""}"}>
                       <td class="px-4 py-3 font-mono text-xs">
-                        <.link navigate={job_detail_path(match.job)} class="text-[#943a9e] hover:underline">
+                        <.link
+                          navigate={job_detail_path(match.job)}
+                          class="text-[#943a9e] hover:underline"
+                        >
                           {job_label(match.job)}
                         </.link>
                         <div class="flex items-center gap-2 mt-0.5">
-                          <.link navigate={job_activity_path(match.job)} class="text-[10px] text-slate-400 hover:text-slate-600">
+                          <.link
+                            navigate={job_activity_path(match.job)}
+                            class="text-[10px] text-slate-400 hover:text-slate-600"
+                          >
                             activity
                           </.link>
                           <span class="text-slate-300">·</span>
-                          <.link navigate={job_vsm_path(match.job)} class="text-[10px] text-slate-400 hover:text-slate-600">
+                          <.link
+                            navigate={job_vsm_path(match.job)}
+                            class="text-[10px] text-slate-400 hover:text-slate-600"
+                          >
                             VSM
                           </.link>
                         </div>
@@ -646,11 +659,17 @@ defmodule ExGoCDWeb.AdminSchedulingLive do
                           {job_label(job)}
                         </.link>
                         <div class="flex items-center gap-2 mt-0.5">
-                          <.link navigate={job_activity_path(job)} class="text-[10px] text-slate-400 hover:text-slate-600">
+                          <.link
+                            navigate={job_activity_path(job)}
+                            class="text-[10px] text-slate-400 hover:text-slate-600"
+                          >
                             activity
                           </.link>
                           <span class="text-slate-300">·</span>
-                          <.link navigate={job_vsm_path(job)} class="text-[10px] text-slate-400 hover:text-slate-600">
+                          <.link
+                            navigate={job_vsm_path(job)}
+                            class="text-[10px] text-slate-400 hover:text-slate-600"
+                          >
                             VSM
                           </.link>
                         </div>
@@ -664,11 +683,16 @@ defmodule ExGoCDWeb.AdminSchedulingLive do
                             "Completing" -> "bg-purple-50 text-purple-700"
                             _ -> "bg-slate-100 text-slate-600"
                           end
-                        ]}>{job.state}</span>
+                        ]}>
+                          {job.state}
+                        </span>
                       </td>
                       <td class="px-4 py-3">
                         <%= if (uuid = job.agent_uuid) && uuid != "" && agent_job_history_path(uuid) do %>
-                          <.link navigate={agent_job_history_path(uuid)} class="text-xs text-slate-600 hover:text-[#943a9e] font-mono hover:underline">
+                          <.link
+                            navigate={agent_job_history_path(uuid)}
+                            class="text-xs text-slate-600 hover:text-[#943a9e] font-mono hover:underline"
+                          >
                             {String.slice(uuid, 0, 8)}…
                           </.link>
                         <% else %>
@@ -681,7 +705,9 @@ defmodule ExGoCDWeb.AdminSchedulingLive do
                         <% else %>
                           <div class="flex flex-wrap gap-1">
                             <%= for r <- job.resources do %>
-                              <span class="text-xs bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded">{r}</span>
+                              <span class="text-xs bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded">
+                                {r}
+                              </span>
                             <% end %>
                           </div>
                         <% end %>
@@ -720,8 +746,11 @@ defmodule ExGoCDWeb.AdminSchedulingLive do
                 </thead>
                 <tbody>
                   <%= for {err, idx} <- Enum.with_index(@recent_errors) do %>
-                    <tr class="border-t border-red-100 hover:bg-red-50 cursor-pointer"
-                        phx-click="show_error" phx-value-index={idx}>
+                    <tr
+                      class="border-t border-red-100 hover:bg-red-50 cursor-pointer"
+                      phx-click="show_error"
+                      phx-value-index={idx}
+                    >
                       <td class="px-4 py-2 text-xs text-slate-500 tabular-nums whitespace-nowrap">
                         {format_duration(err.time, @now)} ago
                       </td>
@@ -740,7 +769,7 @@ defmodule ExGoCDWeb.AdminSchedulingLive do
             </div>
           </div>
         <% end %>
-
+        
     <!-- Agents Table -->
         <div class="bg-white border border-[#e9edef] rounded">
           <div class="px-4 py-3 border-b border-[#e9edef]">
@@ -839,16 +868,29 @@ defmodule ExGoCDWeb.AdminSchedulingLive do
 
   defp error_modal(assigns) do
     ~H"""
-    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" phx-click="close_error">
-      <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto" phx-click-away="close_error">
+    <div
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+      phx-click="close_error"
+    >
+      <div
+        class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto"
+        phx-click-away="close_error"
+      >
         <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
           <h3 class="text-lg font-semibold text-red-700">Error Details</h3>
-          <button phx-click="close_error" class="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
+          <button
+            phx-click="close_error"
+            class="text-gray-400 hover:text-gray-600 text-xl leading-none"
+          >
+            &times;
+          </button>
         </div>
         <div class="px-6 py-4 space-y-3">
           <div>
             <span class="text-xs font-bold text-gray-500 uppercase">Type</span>
-            <span class="ml-2 text-xs bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-bold">{@error.action}</span>
+            <span class="ml-2 text-xs bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-bold">
+              {@error.action}
+            </span>
           </div>
           <div>
             <span class="text-xs font-bold text-gray-500 uppercase">Time</span>

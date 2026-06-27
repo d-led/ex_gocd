@@ -148,6 +148,7 @@ defmodule ExGoCD.Agents do
   """
   @spec count_all_matching([String.t()]) :: integer()
   def count_all_matching([]), do: count_all()
+
   def count_all_matching(resources) when is_list(resources) and resources != [] do
     agents = list_all_matching(resources)
     length(agents)
@@ -159,7 +160,11 @@ defmodule ExGoCD.Agents do
     if use_mock?() do
       length(Mock.list_active_agents())
     else
-      Repo.aggregate(from(a in Agent, where: a.deleted == false and a.disabled == false), :count, :id)
+      Repo.aggregate(
+        from(a in Agent, where: a.deleted == false and a.disabled == false),
+        :count,
+        :id
+      )
     end
   end
 

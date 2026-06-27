@@ -84,12 +84,14 @@ defmodule ExGoCDWeb.StageDetailsLive do
   end
 
   defp refresh_stage(socket) do
-    stage = get_stage_details(
-      socket.assigns.pipeline_name,
-      socket.assigns.pipeline_counter,
-      socket.assigns.stage_name,
-      socket.assigns.stage_counter
-    )
+    stage =
+      get_stage_details(
+        socket.assigns.pipeline_name,
+        socket.assigns.pipeline_counter,
+        socket.assigns.stage_name,
+        socket.assigns.stage_counter
+      )
+
     assign(socket, :stage, stage)
   end
 
@@ -145,11 +147,14 @@ defmodule ExGoCDWeb.StageDetailsLive do
 
   defp map_db_jobs(job_instances) do
     # Pre-fetch all agents referenced by these job instances
-    agent_uuids = Enum.map(job_instances, & &1.agent_uuid) |> Enum.reject(&is_nil/1) |> Enum.uniq()
+    agent_uuids =
+      Enum.map(job_instances, & &1.agent_uuid) |> Enum.reject(&is_nil/1) |> Enum.uniq()
+
     agents_map = Agents.get_agents_by_uuids(agent_uuids)
 
     Enum.map(job_instances, fn ji ->
       agent = Map.get(agents_map, ji.agent_uuid)
+
       %{
         name: ji.name,
         state: ji.state,
@@ -255,6 +260,7 @@ defmodule ExGoCDWeb.StageDetailsLive do
   end
 
   defp agent_type(nil), do: "—"
+
   defp agent_type(agent) do
     wd = agent.working_dir || ""
     resources = agent.resources || []
@@ -418,7 +424,9 @@ defmodule ExGoCDWeb.StageDetailsLive do
                               </.link>
                               <span :if={job.agent_resources != []} class="ml-1">
                                 <%= for r <- job.agent_resources do %>
-                                  <span class="text-[9px] bg-gray-100 text-gray-500 px-1 py-0.5 rounded font-mono">{r}</span>
+                                  <span class="text-[9px] bg-gray-100 text-gray-500 px-1 py-0.5 rounded font-mono">
+                                    {r}
+                                  </span>
                                 <% end %>
                               </span>
                             <% else %>

@@ -7,15 +7,21 @@ defmodule ExGoCDWeb.API.Admin.SecretConfigController do
 
   def create(conn, %{"secret_config" => params}) do
     case SecretConfigs.create_config(params) do
-      {:ok, config} -> conn |> put_status(:created) |> render(:show, config: config)
-      {:error, cs} -> conn |> put_status(:unprocessable_entity) |> json(%{errors: changeset_errors(cs)})
+      {:ok, config} ->
+        conn |> put_status(:created) |> render(:show, config: config)
+
+      {:error, cs} ->
+        conn |> put_status(:unprocessable_entity) |> json(%{errors: changeset_errors(cs)})
     end
   end
 
   def update(conn, %{"id" => id, "secret_config" => params}) do
     case SecretConfigs.update_config(SecretConfigs.get_config!(id), params) do
-      {:ok, config} -> render(conn, :show, config: config)
-      {:error, cs} -> conn |> put_status(:unprocessable_entity) |> json(%{errors: changeset_errors(cs)})
+      {:ok, config} ->
+        render(conn, :show, config: config)
+
+      {:error, cs} ->
+        conn |> put_status(:unprocessable_entity) |> json(%{errors: changeset_errors(cs)})
     end
   end
 
@@ -24,5 +30,9 @@ defmodule ExGoCDWeb.API.Admin.SecretConfigController do
     conn |> put_status(:no_content) |> json(%{message: "Deleted"})
   end
 
-  defp changeset_errors(cs), do: Ecto.Changeset.traverse_errors(cs, fn {m, o} -> Enum.reduce(o, m, fn {k, v}, a -> String.replace(a, "%{#{k}}", to_string(v)) end) end)
+  defp changeset_errors(cs),
+    do:
+      Ecto.Changeset.traverse_errors(cs, fn {m, o} ->
+        Enum.reduce(o, m, fn {k, v}, a -> String.replace(a, "%{#{k}}", to_string(v)) end)
+      end)
 end

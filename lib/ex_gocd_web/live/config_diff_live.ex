@@ -103,7 +103,10 @@ defmodule ExGoCDWeb.ConfigDiffLive do
       <div class="max-w-5xl mx-auto pt-6 px-4">
         <%!-- Breadcrumbs --%>
         <nav class="flex items-center gap-1 text-xs text-slate-400 mb-4" aria-label="Breadcrumb">
-          <.link navigate={~p"/pipeline/activity/#{@pipeline_name}"} class="text-[#943a9e] hover:underline">
+          <.link
+            navigate={~p"/pipeline/activity/#{@pipeline_name}"}
+            class="text-[#943a9e] hover:underline"
+          >
             {@pipeline_name}
           </.link>
           <span>/</span>
@@ -129,7 +132,9 @@ defmodule ExGoCDWeb.ConfigDiffLive do
             <%= if @diff == nil do %>
               <div class="bg-white rounded border border-[#d6e0e2] p-8 text-center text-slate-400 shadow-sm">
                 <p class="text-sm">No configuration changes detected.</p>
-                <p class="text-xs mt-1">The pipeline configuration is identical to the previous run.</p>
+                <p class="text-xs mt-1">
+                  The pipeline configuration is identical to the previous run.
+                </p>
               </div>
             <% else %>
               <% changes = flatten_diff(@diff) %>
@@ -146,17 +151,26 @@ defmodule ExGoCDWeb.ConfigDiffLive do
                     <%= for {type, path, old_val, new_val} <- changes do %>
                       <details class="group" open>
                         <summary class="px-4 py-2 cursor-pointer hover:bg-slate-50/50 flex items-center gap-2 select-none">
-                          <span class="text-[10px] text-slate-300 group-open:rotate-90 transition-transform">▶</span>
+                          <span class="text-[10px] text-slate-300 group-open:rotate-90 transition-transform">
+                            ▶
+                          </span>
                           <span class={
                             case type do
-                              :added -> "text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700"
-                              :removed -> "text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-red-50 text-red-700"
-                              :changed -> "text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-amber-50 text-amber-700"
+                              :added ->
+                                "text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700"
+
+                              :removed ->
+                                "text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-red-50 text-red-700"
+
+                              :changed ->
+                                "text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-amber-50 text-amber-700"
                             end
                           }>
                             {type}
                           </span>
-                          <span class="text-xs text-slate-600 font-medium">{section_label(path)}</span>
+                          <span class="text-xs text-slate-600 font-medium">
+                            {section_label(path)}
+                          </span>
                         </summary>
                         <div class="px-10 py-3 bg-slate-50/30">
                           <%= if type == :added do %>
@@ -168,18 +182,28 @@ defmodule ExGoCDWeb.ConfigDiffLive do
                           <%= if type == :removed do %>
                             <div class="text-xs">
                               <span class="text-slate-400">Was: </span>
-                              <span class="text-red-700 font-mono line-through">{format_val(old_val)}</span>
+                              <span class="text-red-700 font-mono line-through">
+                                {format_val(old_val)}
+                              </span>
                             </div>
                           <% end %>
                           <%= if type == :changed do %>
                             <div class="grid grid-cols-2 gap-4 text-xs">
                               <div class="bg-red-50/50 rounded p-2 border border-red-100">
-                                <div class="text-[10px] font-bold uppercase text-red-400 mb-1">Before</div>
-                                <div class="text-red-700 font-mono break-all">{format_val(old_val)}</div>
+                                <div class="text-[10px] font-bold uppercase text-red-400 mb-1">
+                                  Before
+                                </div>
+                                <div class="text-red-700 font-mono break-all">
+                                  {format_val(old_val)}
+                                </div>
                               </div>
                               <div class="bg-emerald-50/50 rounded p-2 border border-emerald-100">
-                                <div class="text-[10px] font-bold uppercase text-emerald-400 mb-1">After</div>
-                                <div class="text-emerald-700 font-mono break-all">{format_val(new_val)}</div>
+                                <div class="text-[10px] font-bold uppercase text-emerald-400 mb-1">
+                                  After
+                                </div>
+                                <div class="text-emerald-700 font-mono break-all">
+                                  {format_val(new_val)}
+                                </div>
                               </div>
                             </div>
                           <% end %>

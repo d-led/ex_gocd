@@ -36,7 +36,10 @@ defmodule ExGoCDWeb.FeedsController do
       |> Enum.map(fn inst ->
         pipeline = Enum.find(pipelines, &(&1.id == inst.pipeline_id))
         pipeline_name = if pipeline, do: pipeline.name, else: "unknown"
-        updated = (inst.inserted_at && Calendar.strftime(inst.inserted_at, "%Y-%m-%dT%H:%M:%SZ")) || now
+
+        updated =
+          (inst.inserted_at && Calendar.strftime(inst.inserted_at, "%Y-%m-%dT%H:%M:%SZ")) || now
+
         label = inst.label || "Unknown"
 
         """
@@ -67,11 +70,13 @@ defmodule ExGoCDWeb.FeedsController do
     """
   end
 
-  defp esc(text), do: String.replace(text || "", ~w(& < > " ')a, fn
-    "&" -> "&amp;"
-    "<" -> "&lt;"
-    ">" -> "&gt;"
-    "\"" -> "&quot;"
-    "'" -> "&apos;"
-  end)
+  defp esc(text),
+    do:
+      String.replace(text || "", ~w(& < > " ')a, fn
+        "&" -> "&amp;"
+        "<" -> "&lt;"
+        ">" -> "&gt;"
+        "\"" -> "&quot;"
+        "'" -> "&apos;"
+      end)
 end

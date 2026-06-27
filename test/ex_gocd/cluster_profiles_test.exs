@@ -5,8 +5,16 @@ defmodule ExGoCD.ClusterProfilesTest do
   alias ExGoCD.ClusterProfiles.ClusterProfile
 
   describe "cluster profiles" do
-    @valid_attrs %{plugin_id: "cd.go.contrib.elasticagent.kubernetes", properties: %{"go_server_url" => "https://gocd.example.com"}}
-    @update_attrs %{properties: %{"go_server_url" => "https://new.example.com", "kubernetes_cluster_url" => "https://k8s.example.com"}}
+    @valid_attrs %{
+      plugin_id: "cd.go.contrib.elasticagent.kubernetes",
+      properties: %{"go_server_url" => "https://gocd.example.com"}
+    }
+    @update_attrs %{
+      properties: %{
+        "go_server_url" => "https://new.example.com",
+        "kubernetes_cluster_url" => "https://k8s.example.com"
+      }
+    }
 
     test "list_profiles/0 returns all profiles" do
       assert [] = ClusterProfiles.list_profiles()

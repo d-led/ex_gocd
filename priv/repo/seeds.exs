@@ -358,125 +358,126 @@ unless Repo.get_by(Pipeline, name: "release-pipeline") do
   if mock_mode?.() do
     now = DateTime.utc_now()
 
-  history = [
-    %{
-      counter: 4,
-      label: "4",
-      status: "Passed",
-      stage_results: ["Passed", "Passed", "Passed"],
-      triggered_by: "Triggered by dmitry",
-      minutes_ago: 10,
-      comment: "fix: resolve deployment timeout issue"
-    },
-    %{
-      counter: 3,
-      label: "3",
-      status: "Failed",
-      stage_results: ["Passed", "Failed", "Unknown"],
-      triggered_by: "Triggered by dmitry",
-      minutes_ago: 30,
-      comment: "feat: add health check endpoint"
-    },
-    %{
-      counter: 2,
-      label: "2",
-      status: "Building",
-      stage_results: ["Passed", "Building", "Unknown"],
-      triggered_by: "Triggered by dmitry",
-      minutes_ago: 45,
-      comment: "refactor: extract config module"
-    },
-    %{
-      counter: 1,
-      label: "1",
-      status: "Passed",
-      stage_results: ["Passed", "Passed", "Passed"],
-      triggered_by: "Triggered manually by admin",
-      minutes_ago: 120,
-      comment: "initial pipeline setup with multi-stage config"
-    }
-  ]
+    history = [
+      %{
+        counter: 4,
+        label: "4",
+        status: "Passed",
+        stage_results: ["Passed", "Passed", "Passed"],
+        triggered_by: "Triggered by dmitry",
+        minutes_ago: 10,
+        comment: "fix: resolve deployment timeout issue"
+      },
+      %{
+        counter: 3,
+        label: "3",
+        status: "Failed",
+        stage_results: ["Passed", "Failed", "Unknown"],
+        triggered_by: "Triggered by dmitry",
+        minutes_ago: 30,
+        comment: "feat: add health check endpoint"
+      },
+      %{
+        counter: 2,
+        label: "2",
+        status: "Building",
+        stage_results: ["Passed", "Building", "Unknown"],
+        triggered_by: "Triggered by dmitry",
+        minutes_ago: 45,
+        comment: "refactor: extract config module"
+      },
+      %{
+        counter: 1,
+        label: "1",
+        status: "Passed",
+        stage_results: ["Passed", "Passed", "Passed"],
+        triggered_by: "Triggered manually by admin",
+        minutes_ago: 120,
+        comment: "initial pipeline setup with multi-stage config"
+      }
+    ]
 
-  Enum.each(history, fn run ->
-    ts = DateTime.add(now, -run.minutes_ago * 60, :second)
+    Enum.each(history, fn run ->
+      ts = DateTime.add(now, -run.minutes_ago * 60, :second)
 
-    pi =
-      %PipelineInstance{}
-      |> PipelineInstance.changeset(%{
-        counter: run.counter,
-        label: run.label,
-        natural_order: run.counter * 1.0,
-        build_cause: %{
-          "triggerMessage" => run.triggered_by,
-          "approver" => "dmitry",
-          "materialRevisions" => [
-            %{
-              "type" => "git",
-              "url" => "https://github.com/d-led/ex_gocd.git",
-              "branch" => "main",
-              "modifications" => [
-                %{
-                  "revision" => "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0",
-                  "username" => "Dmitry Ledentsov <dmlled@yahoo.com>",
-                  "comment" => run.comment,
-                  "modifiedAt" => ts |> DateTime.to_iso8601()
-                }
-              ]
-            }
-          ]
-        },
-        pipeline_id: pipeline.id,
-        inserted_at: ts,
-        updated_at: ts
-      })
-      |> Repo.insert!()
-
-    # Create stage instances for this run
-    Enum.zip(stages, run.stage_results)
-    |> Enum.with_index(1)
-    |> Enum.each(fn {{stage, result}, scounter} ->
-      resolved_result = if result in ["Building"], do: "Unknown", else: result
-      si =
-        %StageInstance{}
-        |> StageInstance.changeset(%{
-          name: stage.name,
-          counter: scounter,
-          order_id: scounter,
-          state:
-            case result do
-              "Unknown" -> "Awaiting"
-              "Building" -> "Building"
-              _ -> "Completed"
-            end,
-          result: resolved_result,
-          pipeline_instance_id: pi.id,
+      pi =
+        %PipelineInstance{}
+        |> PipelineInstance.changeset(%{
+          counter: run.counter,
+          label: run.label,
+          natural_order: run.counter * 1.0,
+          build_cause: %{
+            "triggerMessage" => run.triggered_by,
+            "approver" => "dmitry",
+            "materialRevisions" => [
+              %{
+                "type" => "git",
+                "url" => "https://github.com/d-led/ex_gocd.git",
+                "branch" => "main",
+                "modifications" => [
+                  %{
+                    "revision" => "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0",
+                    "username" => "Dmitry Ledentsov <dmlled@yahoo.com>",
+                    "comment" => run.comment,
+                    "modifiedAt" => ts |> DateTime.to_iso8601()
+                  }
+                ]
+              }
+            ]
+          },
+          pipeline_id: pipeline.id,
           inserted_at: ts,
           updated_at: ts
         })
         |> Repo.insert!()
 
-      # Create job instances for each stage
-      Repo.all(from(j in Job, where: j.stage_id == ^stage.id))
-      |> Enum.each(fn job ->
-        %JobInstance{}
-        |> JobInstance.changeset(%{
-          name: job.name,
-          state:
-            case result do
-              "Unknown" -> "Awaiting"
-              "Building" -> "Building"
-              _ -> "Completed"
-            end,
-          result: resolved_result,
-          stage_instance_id: si.id,
-          scheduled_at: ts,
-          inserted_at: ts,
-          updated_at: ts
-        })
-        |> Repo.insert!()
+      # Create stage instances for this run
+      Enum.zip(stages, run.stage_results)
+      |> Enum.with_index(1)
+      |> Enum.each(fn {{stage, result}, scounter} ->
+        resolved_result = if result in ["Building"], do: "Unknown", else: result
+
+        si =
+          %StageInstance{}
+          |> StageInstance.changeset(%{
+            name: stage.name,
+            counter: scounter,
+            order_id: scounter,
+            state:
+              case result do
+                "Unknown" -> "Awaiting"
+                "Building" -> "Building"
+                _ -> "Completed"
+              end,
+            result: resolved_result,
+            pipeline_instance_id: pi.id,
+            inserted_at: ts,
+            updated_at: ts
+          })
+          |> Repo.insert!()
+
+        # Create job instances for each stage
+        Repo.all(from(j in Job, where: j.stage_id == ^stage.id))
+        |> Enum.each(fn job ->
+          %JobInstance{}
+          |> JobInstance.changeset(%{
+            name: job.name,
+            state:
+              case result do
+                "Unknown" -> "Awaiting"
+                "Building" -> "Building"
+                _ -> "Completed"
+              end,
+            result: resolved_result,
+            stage_instance_id: si.id,
+            scheduled_at: ts,
+            inserted_at: ts,
+            updated_at: ts
+          })
+          |> Repo.insert!()
+        end)
       end)
     end)
-  end)
   end
 
   IO.puts("Seeded: release-pipeline (stages: build → test → deploy, 4 historical runs)")
@@ -519,69 +520,99 @@ unless Repo.get_by(Pipeline, name: "build-linux") do
   if mock_mode?.() do
     now = DateTime.utc_now()
 
-  [
-    %{c: 3, status: "Failed", s1: "Passed", s2: "Failed",
-      trigger: "Modified by Dmitry Ledentsov",
-      comment: "fix: update ci configuration for linux build"},
-    %{c: 2, status: "Passed", s1: "Passed", s2: "Passed",
-      trigger: "Modified by Dmitry Ledentsov",
-      comment: "feat: add linux build pipeline with docker support"},
-    %{c: 1, status: "Passed", s1: "Passed", s2: "Passed",
-      trigger: "Triggered manually by admin",
-      comment: "initial pipeline setup for linux builds"}
-  ]
-  |> Enum.each(fn r ->
-    ts = DateTime.add(now, -r.c * 600, :second)
+    [
+      %{
+        c: 3,
+        status: "Failed",
+        s1: "Passed",
+        s2: "Failed",
+        trigger: "Modified by Dmitry Ledentsov",
+        comment: "fix: update ci configuration for linux build"
+      },
+      %{
+        c: 2,
+        status: "Passed",
+        s1: "Passed",
+        s2: "Passed",
+        trigger: "Modified by Dmitry Ledentsov",
+        comment: "feat: add linux build pipeline with docker support"
+      },
+      %{
+        c: 1,
+        status: "Passed",
+        s1: "Passed",
+        s2: "Passed",
+        trigger: "Triggered manually by admin",
+        comment: "initial pipeline setup for linux builds"
+      }
+    ]
+    |> Enum.each(fn r ->
+      ts = DateTime.add(now, -r.c * 600, :second)
 
-    pi =
-      %PipelineInstance{}
-      |> PipelineInstance.changeset(%{
-        counter: r.c, label: to_string(r.c), natural_order: r.c * 1.0,
-        build_cause: %{
-          "approver" => "dmitry",
-          "triggerMessage" => r.trigger,
-          "materialRevisions" => [
-            %{
-              "type" => "git", "url" => "https://github.com/d-led/ex_gocd.git", "branch" => "main",
-              "modifications" => [
-                %{
-                  "revision" => "05172d07f4f4a0765243628b94f6840f8dc5411a",
-                  "username" => "Dmitry Ledentsov <dmlled@yahoo.com>",
-                  "comment" => r.comment,
-                  "modifiedAt" => ts |> DateTime.to_iso8601()
-                }
-              ]
-            }
-          ]
-        },
-        pipeline_id: pipeline.id, inserted_at: ts, updated_at: ts
-      })
-      |> Repo.insert!()
-
-    for {stage, result, counter} <- [{build_stage, r.s1, 1}, {test_stage, r.s2, 2}] do
-      state = if result == "Failed", do: "Completed", else: "Completed"
-
-      si =
-        %StageInstance{}
-        |> StageInstance.changeset(%{
-          name: stage.name, counter: counter, order_id: counter,
-          state: state, result: result, pipeline_instance_id: pi.id,
-          inserted_at: ts, updated_at: ts
+      pi =
+        %PipelineInstance{}
+        |> PipelineInstance.changeset(%{
+          counter: r.c,
+          label: to_string(r.c),
+          natural_order: r.c * 1.0,
+          build_cause: %{
+            "approver" => "dmitry",
+            "triggerMessage" => r.trigger,
+            "materialRevisions" => [
+              %{
+                "type" => "git",
+                "url" => "https://github.com/d-led/ex_gocd.git",
+                "branch" => "main",
+                "modifications" => [
+                  %{
+                    "revision" => "05172d07f4f4a0765243628b94f6840f8dc5411a",
+                    "username" => "Dmitry Ledentsov <dmlled@yahoo.com>",
+                    "comment" => r.comment,
+                    "modifiedAt" => ts |> DateTime.to_iso8601()
+                  }
+                ]
+              }
+            ]
+          },
+          pipeline_id: pipeline.id,
+          inserted_at: ts,
+          updated_at: ts
         })
         |> Repo.insert!()
 
-      Repo.all(from j in Job, where: j.stage_id == ^stage.id)
-      |> Enum.each(fn job ->
-        %JobInstance{}
-        |> JobInstance.changeset(%{
-          name: job.name, state: state, result: result,
-          stage_instance_id: si.id, scheduled_at: ts,
-          inserted_at: ts, updated_at: ts
-        })
-        |> Repo.insert!()
-      end)
-    end
-  end)
+      for {stage, result, counter} <- [{build_stage, r.s1, 1}, {test_stage, r.s2, 2}] do
+        state = if result == "Failed", do: "Completed", else: "Completed"
+
+        si =
+          %StageInstance{}
+          |> StageInstance.changeset(%{
+            name: stage.name,
+            counter: counter,
+            order_id: counter,
+            state: state,
+            result: result,
+            pipeline_instance_id: pi.id,
+            inserted_at: ts,
+            updated_at: ts
+          })
+          |> Repo.insert!()
+
+        Repo.all(from j in Job, where: j.stage_id == ^stage.id)
+        |> Enum.each(fn job ->
+          %JobInstance{}
+          |> JobInstance.changeset(%{
+            name: job.name,
+            state: state,
+            result: result,
+            stage_instance_id: si.id,
+            scheduled_at: ts,
+            inserted_at: ts,
+            updated_at: ts
+          })
+          |> Repo.insert!()
+        end)
+      end
+    end)
   end
 
   IO.puts("Seeded: build-linux (build → test, 3 historical runs)")
@@ -593,7 +624,11 @@ end
 unless Repo.get_by(Pipeline, name: "deploy-staging") do
   pipeline =
     %Pipeline{}
-    |> Pipeline.changeset(%{name: "deploy-staging", group: "Deployment", label_template: "${COUNT}"})
+    |> Pipeline.changeset(%{
+      name: "deploy-staging",
+      group: "Deployment",
+      label_template: "${COUNT}"
+    })
     |> Repo.insert!()
 
   deploy_stage =
@@ -622,67 +657,97 @@ unless Repo.get_by(Pipeline, name: "deploy-staging") do
   if mock_mode?.() do
     now = DateTime.utc_now()
 
-  [
-    %{c: 234, status: "Passed", s1: "Passed", s2: "Passed",
-      trigger: "Triggered by build-linux",
-      comment: "deploy: staging deployment successful"},
-    %{c: 233, status: "Passed", s1: "Passed", s2: "Passed",
-      trigger: "Triggered by build-linux",
-      comment: "deploy: smoke tests passed on staging"},
-    %{c: 232, status: "Passed", s1: "Passed", s2: "Passed",
-      trigger: "Triggered manually by admin",
-      comment: "deploy: initial staging setup"}
-  ]
-  |> Enum.each(fn r ->
-    ts = DateTime.add(now, -r.c * 600, :second)
+    [
+      %{
+        c: 234,
+        status: "Passed",
+        s1: "Passed",
+        s2: "Passed",
+        trigger: "Triggered by build-linux",
+        comment: "deploy: staging deployment successful"
+      },
+      %{
+        c: 233,
+        status: "Passed",
+        s1: "Passed",
+        s2: "Passed",
+        trigger: "Triggered by build-linux",
+        comment: "deploy: smoke tests passed on staging"
+      },
+      %{
+        c: 232,
+        status: "Passed",
+        s1: "Passed",
+        s2: "Passed",
+        trigger: "Triggered manually by admin",
+        comment: "deploy: initial staging setup"
+      }
+    ]
+    |> Enum.each(fn r ->
+      ts = DateTime.add(now, -r.c * 600, :second)
 
-    pi =
-      %PipelineInstance{}
-      |> PipelineInstance.changeset(%{
-        counter: r.c, label: to_string(r.c), natural_order: r.c * 1.0,
-        build_cause: %{
-          "approver" => "dmitry",
-          "triggerMessage" => r.trigger,
-          "materialRevisions" => [
-            %{
-              "type" => "git", "url" => "https://github.com/d-led/ex_gocd.git", "branch" => "main",
-              "modifications" => [
-                %{
-                  "revision" => "05172d07f4f4a0765243628b94f6840f8dc5411a",
-                  "username" => "Dmitry Ledentsov <dmlled@yahoo.com>",
-                  "comment" => r.comment,
-                  "modifiedAt" => ts |> DateTime.to_iso8601()
-                }
-              ]
-            }
-          ]
-        },
-        pipeline_id: pipeline.id, inserted_at: ts, updated_at: ts
-      })
-      |> Repo.insert!()
-
-    for {stage, result, counter} <- [{deploy_stage, r.s1, 1}, {smoke_stage, r.s2, 2}] do
-      si =
-        %StageInstance{}
-        |> StageInstance.changeset(%{
-          name: stage.name, counter: counter, order_id: counter,
-          state: "Completed", result: result, pipeline_instance_id: pi.id,
-          inserted_at: ts, updated_at: ts
+      pi =
+        %PipelineInstance{}
+        |> PipelineInstance.changeset(%{
+          counter: r.c,
+          label: to_string(r.c),
+          natural_order: r.c * 1.0,
+          build_cause: %{
+            "approver" => "dmitry",
+            "triggerMessage" => r.trigger,
+            "materialRevisions" => [
+              %{
+                "type" => "git",
+                "url" => "https://github.com/d-led/ex_gocd.git",
+                "branch" => "main",
+                "modifications" => [
+                  %{
+                    "revision" => "05172d07f4f4a0765243628b94f6840f8dc5411a",
+                    "username" => "Dmitry Ledentsov <dmlled@yahoo.com>",
+                    "comment" => r.comment,
+                    "modifiedAt" => ts |> DateTime.to_iso8601()
+                  }
+                ]
+              }
+            ]
+          },
+          pipeline_id: pipeline.id,
+          inserted_at: ts,
+          updated_at: ts
         })
         |> Repo.insert!()
 
-      Repo.all(from j in Job, where: j.stage_id == ^stage.id)
-      |> Enum.each(fn job ->
-        %JobInstance{}
-        |> JobInstance.changeset(%{
-          name: job.name, state: "Completed", result: result,
-          stage_instance_id: si.id, scheduled_at: ts,
-          inserted_at: ts, updated_at: ts
-        })
-        |> Repo.insert!()
-      end)
-    end
-  end)
+      for {stage, result, counter} <- [{deploy_stage, r.s1, 1}, {smoke_stage, r.s2, 2}] do
+        si =
+          %StageInstance{}
+          |> StageInstance.changeset(%{
+            name: stage.name,
+            counter: counter,
+            order_id: counter,
+            state: "Completed",
+            result: result,
+            pipeline_instance_id: pi.id,
+            inserted_at: ts,
+            updated_at: ts
+          })
+          |> Repo.insert!()
+
+        Repo.all(from j in Job, where: j.stage_id == ^stage.id)
+        |> Enum.each(fn job ->
+          %JobInstance{}
+          |> JobInstance.changeset(%{
+            name: job.name,
+            state: "Completed",
+            result: result,
+            stage_instance_id: si.id,
+            scheduled_at: ts,
+            inserted_at: ts,
+            updated_at: ts
+          })
+          |> Repo.insert!()
+        end)
+      end
+    end)
   end
 
   IO.puts("Seeded: deploy-staging (deploy → smoke-tests, 3 historical runs)")
@@ -694,25 +759,25 @@ alias ExGoCD.AgentJobRuns.AgentJobRun
 
 if mock_mode?.() do
   unless Repo.get_by(AgentJobRun, build_id: "demo-build-1") do
-  %AgentJobRun{}
-  |> AgentJobRun.changeset(%{
-    agent_uuid: "00000000-0000-0000-0000-000000000001",
-    build_id: "demo-build-1",
-    pipeline_name: "demo",
-    pipeline_counter: 1,
-    stage_name: "build",
-    stage_counter: 1,
-    job_name: "default",
-    state: "Completed",
-    result: "Passed",
-    console_log: "Hello, this is a mock console log from the seeds script!\n"
-  })
-  |> Repo.insert!()
+    %AgentJobRun{}
+    |> AgentJobRun.changeset(%{
+      agent_uuid: "00000000-0000-0000-0000-000000000001",
+      build_id: "demo-build-1",
+      pipeline_name: "demo",
+      pipeline_counter: 1,
+      stage_name: "build",
+      stage_counter: 1,
+      job_name: "default",
+      state: "Completed",
+      result: "Passed",
+      console_log: "Hello, this is a mock console log from the seeds script!\n"
+    })
+    |> Repo.insert!()
 
-  IO.puts("Seeded mock agent job run for build-agent-01.example.com")
-else
-  IO.puts("Mock job run already exists, skipping seed")
-end
+    IO.puts("Seeded mock agent job run for build-agent-01.example.com")
+  else
+    IO.puts("Mock job run already exists, skipping seed")
+  end
 
   # Fold demo: multi-step job with collapsible sections
   unless Repo.get_by(AgentJobRun, build_id: "demo-fold-1") do
@@ -847,71 +912,101 @@ unless Repo.get_by(Pipeline, name: "two-stage-demo") do
 
   # Seed 3 historical runs (mock mode only)
   if mock_mode?.() do
-  now = DateTime.utc_now()
+    now = DateTime.utc_now()
 
-  [
-    %{c: 3, status: "Failed", s1: "Passed", s2: "Failed",
-      trigger: "Modified by Dmitry Ledentsov",
-      comment: "fix: resolve race condition in test setup"},
-    %{c: 2, status: "Passed", s1: "Passed", s2: "Passed",
-      trigger: "Modified by Dmitry Ledentsov",
-      comment: "feat: add parallel test execution"},
-    %{c: 1, status: "Passed", s1: "Passed", s2: "Passed",
-      trigger: "Triggered manually by admin",
-      comment: "initial two-stage pipeline configuration"}
-  ]
-  |> Enum.each(fn r ->
-    ts = DateTime.add(now, -r.c * 600, :second)
+    [
+      %{
+        c: 3,
+        status: "Failed",
+        s1: "Passed",
+        s2: "Failed",
+        trigger: "Modified by Dmitry Ledentsov",
+        comment: "fix: resolve race condition in test setup"
+      },
+      %{
+        c: 2,
+        status: "Passed",
+        s1: "Passed",
+        s2: "Passed",
+        trigger: "Modified by Dmitry Ledentsov",
+        comment: "feat: add parallel test execution"
+      },
+      %{
+        c: 1,
+        status: "Passed",
+        s1: "Passed",
+        s2: "Passed",
+        trigger: "Triggered manually by admin",
+        comment: "initial two-stage pipeline configuration"
+      }
+    ]
+    |> Enum.each(fn r ->
+      ts = DateTime.add(now, -r.c * 600, :second)
 
-    pi =
-      %PipelineInstance{}
-      |> PipelineInstance.changeset(%{
-        counter: r.c, label: to_string(r.c), natural_order: r.c * 1.0,
-        build_cause: %{
-          "approver" => "dmitry",
-          "triggerMessage" => r.trigger,
-          "materialRevisions" => [
-            %{
-              "type" => "git", "url" => "https://github.com/d-led/ex_gocd.git", "branch" => "main",
-              "modifications" => [
-                %{
-                  "revision" => "05172d07f4f4a0765243628b94f6840f8dc5411a",
-                  "username" => "Dmitry Ledentsov <dmlled@yahoo.com>",
-                  "comment" => r.comment,
-                  "modifiedAt" => ts |> DateTime.to_iso8601()
-                }
-              ]
-            }
-          ]
-        },
-        pipeline_id: pipeline.id, inserted_at: ts, updated_at: ts
-      })
-      |> Repo.insert!()
-
-    for {stage, result, counter} <- [{build_stage, r.s1, 1}, {test_stage, r.s2, 2}] do
-      state = if result == "Failed", do: "Completed", else: "Completed"
-
-      si =
-        %StageInstance{}
-        |> StageInstance.changeset(%{
-          name: stage.name, counter: counter, order_id: counter,
-          state: state, result: result, pipeline_instance_id: pi.id,
-          inserted_at: ts, updated_at: ts
+      pi =
+        %PipelineInstance{}
+        |> PipelineInstance.changeset(%{
+          counter: r.c,
+          label: to_string(r.c),
+          natural_order: r.c * 1.0,
+          build_cause: %{
+            "approver" => "dmitry",
+            "triggerMessage" => r.trigger,
+            "materialRevisions" => [
+              %{
+                "type" => "git",
+                "url" => "https://github.com/d-led/ex_gocd.git",
+                "branch" => "main",
+                "modifications" => [
+                  %{
+                    "revision" => "05172d07f4f4a0765243628b94f6840f8dc5411a",
+                    "username" => "Dmitry Ledentsov <dmlled@yahoo.com>",
+                    "comment" => r.comment,
+                    "modifiedAt" => ts |> DateTime.to_iso8601()
+                  }
+                ]
+              }
+            ]
+          },
+          pipeline_id: pipeline.id,
+          inserted_at: ts,
+          updated_at: ts
         })
         |> Repo.insert!()
 
-      Repo.all(from j in Job, where: j.stage_id == ^stage.id)
-      |> Enum.each(fn job ->
-        %JobInstance{}
-        |> JobInstance.changeset(%{
-          name: job.name, state: state, result: result,
-          stage_instance_id: si.id, scheduled_at: ts,
-          inserted_at: ts, updated_at: ts
-        })
-        |> Repo.insert!()
-      end)
-    end
-  end)
+      for {stage, result, counter} <- [{build_stage, r.s1, 1}, {test_stage, r.s2, 2}] do
+        state = if result == "Failed", do: "Completed", else: "Completed"
+
+        si =
+          %StageInstance{}
+          |> StageInstance.changeset(%{
+            name: stage.name,
+            counter: counter,
+            order_id: counter,
+            state: state,
+            result: result,
+            pipeline_instance_id: pi.id,
+            inserted_at: ts,
+            updated_at: ts
+          })
+          |> Repo.insert!()
+
+        Repo.all(from j in Job, where: j.stage_id == ^stage.id)
+        |> Enum.each(fn job ->
+          %JobInstance{}
+          |> JobInstance.changeset(%{
+            name: job.name,
+            state: state,
+            result: result,
+            stage_instance_id: si.id,
+            scheduled_at: ts,
+            inserted_at: ts,
+            updated_at: ts
+          })
+          |> Repo.insert!()
+        end)
+      end
+    end)
   end
 
   IO.puts("Seeded: two-stage-demo (build → test, 3 historical runs)")

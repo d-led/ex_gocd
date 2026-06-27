@@ -5,7 +5,10 @@ defmodule ExGoCD.ElasticAgentProfilesTest do
   alias ExGoCD.ElasticAgentProfiles.ElasticAgentProfile
 
   describe "elastic agent profiles" do
-    @valid_attrs %{plugin_id: "cd.go.contrib.elasticagent.kubernetes", properties: %{"Image" => "alpine"}}
+    @valid_attrs %{
+      plugin_id: "cd.go.contrib.elasticagent.kubernetes",
+      properties: %{"Image" => "alpine"}
+    }
     @update_attrs %{properties: %{"Image" => "ubuntu", "MaxMemory" => "512Mi"}}
 
     test "list_profiles/0 returns all profiles" do

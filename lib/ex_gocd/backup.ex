@@ -51,7 +51,11 @@ defmodule ExGoCD.Backup do
       send(pid, {:backup_complete, result, filepath})
     end)
 
-    {:reply, :ok, %{status: "Running", message: "Backup started at #{DateTime.utc_now() |> DateTime.to_string()}..."}}
+    {:reply, :ok,
+     %{
+       status: "Running",
+       message: "Backup started at #{DateTime.utc_now() |> DateTime.to_string()}..."
+     }}
   end
 
   def handle_call(:status, _from, state) do
@@ -82,6 +86,7 @@ defmodule ExGoCD.Backup do
     case parse_db_url(db_url) do
       {:ok, opts} ->
         {args, env} = pg_dump_cmd(opts, filepath)
+
         case System.cmd("pg_dump", args, env: env, stderr_to_stdout: true) do
           {output, 0} -> {:ok, output}
           {output, _} -> {:error, String.trim(output)}
