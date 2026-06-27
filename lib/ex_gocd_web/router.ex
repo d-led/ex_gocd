@@ -297,6 +297,8 @@ defmodule ExGoCDWeb.Router do
     get "/notification_filters", NotificationFilterController, :index
     post "/notification_filters", NotificationFilterController, :create
     delete "/notification_filters/:id", NotificationFilterController, :delete
+
+    resources "/artifact_stores", ArtifactStoreController, except: [:new, :edit]
   end
 
   scope "/api/current_user", ExGoCDWeb.API do
