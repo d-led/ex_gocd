@@ -23,9 +23,7 @@ warn_step() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 # ── Elixir: Compile with warnings-as-errors ─────────────────────────────
 
 echo "=== Elixir: Compile (warnings as errors on non-otel files) ==="
-# Clean stale project .beam files only (not deps) — avoids "redefining module" warnings
-mix clean 2>/dev/null || true
-COMPILE_OUT=$(mix compile --warnings-as-errors 2>&1) && COMPILE_OK=1 || COMPILE_OK=0
+COMPILE_OUT=$(mix compile --force --warnings-as-errors 2>&1) && COMPILE_OK=1 || COMPILE_OK=0
 OTEL_WARNINGS=$(echo "$COMPILE_OUT" | grep -c "lib/ex_gocd/otel" || true)
 OTHER_WARNINGS=$(echo "$COMPILE_OUT" | grep -c "warning:" || true)
 REAL_WARNINGS=$((OTHER_WARNINGS - OTEL_WARNINGS))
