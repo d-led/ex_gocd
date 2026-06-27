@@ -30,6 +30,7 @@ defmodule ExGoCD.ElasticAgentScheduler do
 
   @tick_ms 30_000
   @idle_timeout_seconds 300
+  @max_events 50
 
   # ── Client API ────────────────────────────────────────────────────────────
 
@@ -42,6 +43,11 @@ defmodule ExGoCD.ElasticAgentScheduler do
     GenServer.call(__MODULE__, :tracked_pods)
   end
 
+  @doc "Return recent scheduler events (for admin UI)."
+  def recent_events do
+    GenServer.call(__MODULE__, :recent_events)
+  end
+
   # ── Server callbacks ───────────────────────────────────────────────────────
 
   @impl true
@@ -50,12 +56,16 @@ defmodule ExGoCD.ElasticAgentScheduler do
       schedule_tick()
     end
 
-    {:ok, %{pods: %{}, tick_timer: nil}}
+    {:ok, %{pods: %{}, events: [], tick_timer: nil}}
   end
 
   @impl true
   def handle_call(:tracked_pods, _from, state) do
     {:reply, state.pods, state}
+  end
+
+  def handle_call(:recent_events, _from, state) do
+    {:reply, state.events, state}
   end
 
   @impl true
@@ -77,7 +87,7 @@ defmodule ExGoCD.ElasticAgentScheduler do
         |> maybe_create_pod(job)
         |> tap(fn
           %{pods: pods} when map_size(pods) > map_size(acc.pods) ->
-            Logger.info("[ElasticAgentScheduler] Created pod for job: #{inspect(job_name(job))}")
+            log_event(acc, :info, "Created pod for job #{job_name(job)}")
 
           _ ->
             :ok
@@ -95,22 +105,18 @@ defmodule ExGoCD.ElasticAgentScheduler do
 
     case find_matching_profile(resources) do
       nil ->
-        Logger.debug(
-          "[ElasticAgentScheduler] No elastic agent profile matches resources: #{inspect(resources)}"
-        )
-
-        state
+        log_event(state, :info, "No elastic profile matches resources: #{inspect(resources)}")
 
       {agent_profile, cluster_profile} ->
         {:ok, pod_spec} = build_pod_spec(agent_profile, cluster_profile, job, resources)
         conn = build_k8s_conn(cluster_profile)
 
         if is_nil(conn) do
-          Logger.warning(
-            "[ElasticAgentScheduler] Cannot build K8s connection — cluster profile may be incomplete"
+          log_event(
+            state,
+            :error,
+            "Cannot build K8s connection — cluster profile '#{cluster_profile.name}' may be incomplete"
           )
-
-          state
         else
           namespace = ClusterProfile.namespace(cluster_profile)
 
@@ -119,9 +125,7 @@ defmodule ExGoCD.ElasticAgentScheduler do
               track_pod(state, pod_name, agent_profile, cluster_profile, job)
 
             {:error, reason} ->
-              Logger.warning("[ElasticAgentScheduler] Failed to create pod: #{inspect(reason)}")
-
-              state
+              log_event(state, :error, "Failed to create pod: #{inspect(reason)}")
           end
         end
     end
@@ -133,12 +137,13 @@ defmodule ExGoCD.ElasticAgentScheduler do
         idle_too_long?(info) or pod_in_error?(info)
       end)
 
-    Enum.each(to_delete, fn {pod_name, info} ->
-      conn = build_k8s_conn_from_pod(info)
-      namespace = info[:namespace] || "default"
-      K8s.delete_pod(conn, pod_name, namespace: namespace)
-      Logger.info("[ElasticAgentScheduler] Deleted idle/error pod: #{pod_name}")
-    end)
+    state =
+      Enum.reduce(to_delete, state, fn {pod_name, info}, acc ->
+        conn = build_k8s_conn_from_pod(info)
+        namespace = info[:namespace] || "default"
+        K8s.delete_pod(conn, pod_name, namespace: namespace)
+        log_event(acc, :info, "Deleted idle/error pod: #{pod_name}")
+      end)
 
     %{state | pods: Map.new(remaining)}
   end
@@ -366,5 +371,35 @@ defmodule ExGoCD.ElasticAgentScheduler do
     |> :crypto.strong_rand_bytes()
     |> Base.encode32(case: :lower)
     |> binary_part(0, 5)
+  end
+
+  # ── Event log (aggregated by type+message, latest timestamp) ───────────────
+
+  defp log_event(state, level, message) do
+    Logger.log(level, "[ElasticAgentScheduler] #{message}")
+    now = DateTime.utc_now()
+    key = {level, message}
+
+    events =
+      state.events
+      |> Enum.reject(fn e -> {e.level, e.message} == key end)
+      |> then(
+        &[
+          %{
+            level: level,
+            message: message,
+            at: now,
+            count: (find_event(state.events, key)[:count] || 0) + 1
+          }
+          | &1
+        ]
+      )
+      |> Enum.take(@max_events)
+
+    %{state | events: events}
+  end
+
+  defp find_event(events, key) do
+    Enum.find(events, fn e -> {e.level, e.message} == key end)
   end
 end

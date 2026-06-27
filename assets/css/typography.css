@@ -1,0 +1,178 @@
+/*
+ * Typography system — modern CI feel, better than GitHub Actions.
+ *
+ * Principles:
+ * 1. Consistent type scale (no ad-hoc font sizes)
+ * 2. Tabular figures for all data columns (digits align vertically)
+ * 3. Monospace for machine data (UUIDs, IPs, build IDs, paths)
+ * 4. Tight letter-spacing on headings, tracked-out on uppercase
+ * 5. Consistent spacing rhythm (multiples of 4px)
+ */
+
+/* ── Type Scale ─────────────────────────────────────────────────────── */
+
+:root {
+  --text-xs:   0.75rem;   /* 12px · metadata, timestamps */
+  --text-sm:   0.8125rem; /* 13px · table cells, compact UI */
+  --text-base: 0.875rem;  /* 14px · body, buttons */
+  --text-md:   1rem;      /* 16px · emphasized body */
+  --text-lg:   1.125rem;  /* 18px · section headings */
+  --text-xl:   1.25rem;   /* 20px · page headings */
+  --text-2xl:  1.5rem;    /* 24px · hero */
+  --text-3xl:  2rem;      /* 32px · landing */
+
+  /* ── Spacing Rhythm (multiples of 4px) ──────────────────────────── */
+  --space-4:  0.25rem;
+  --space-8:  0.5rem;
+  --space-12: 0.75rem;
+  --space-16: 1rem;
+  --space-20: 1.25rem;
+  --space-24: 1.5rem;
+  --space-32: 2rem;
+  --space-48: 3rem;
+}
+
+/* ── Global Typography ──────────────────────────────────────────────── */
+
+body {
+  font-family: "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-size: var(--text-base);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Headings ───────────────────────────────────────────────────────── */
+
+.page-header_title {
+  font-size: var(--text-xl);
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+}
+
+.page-header_title span {
+  font-size: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+}
+
+h2.page-header_title {
+  font-size: var(--text-lg);
+  font-weight: 600;
+}
+
+/* ── Tabular Figures — data columns that should align ──────────────── */
+
+.agents-table td:nth-child(6),  /* Free Space */
+.agents-table td:nth-child(4),  /* IP Address (when numeric) */
+.stats-value,
+[data-tabular] {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Monospace for Machine Data ────────────────────────────────────── */
+
+.agent-name,
+.uuid,
+.build-id,
+[data-monospace] {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: var(--text-sm);
+  color: #374151;
+}
+
+/* ── Table Typography ───────────────────────────────────────────────── */
+
+.agents-table {
+  font-size: var(--text-sm);
+  line-height: 1.4;
+}
+
+.agents-table thead th {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #6b7280;
+}
+
+.agents-table tbody td {
+  vertical-align: middle;
+  padding: var(--space-8) var(--space-12);
+}
+
+/* Row hover (agents, pipelines, etc.) */
+.agents-table tbody tr:hover {
+  background: rgba(148, 58, 158, 0.04); /* $go-primary at 4% */
+  transition: background 150ms ease;
+}
+
+/* ── Status & Badges ────────────────────────────────────────────────── */
+
+.status-idle,
+.status-building,
+.status-disabled,
+.status-lost-contact,
+.status-pending {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+/* ── Stats Bar ──────────────────────────────────────────────────────── */
+
+.agents-stats {
+  font-size: var(--text-sm);
+  line-height: 1.2;
+}
+
+.agents-stats .stats-value {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Registration Log ──────────────────────────────────────────────── */
+
+.registration-log {
+  font-size: var(--text-sm);
+}
+
+/* ── Buttons ────────────────────────────────────────────────────────── */
+
+.btn-small {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+/* ── Uppercase Labels ───────────────────────────────────────────────── */
+
+.tab-button {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+/* ── Secondary / Metadata Text ──────────────────────────────────────── */
+
+.none-specified,
+.text-muted {
+  font-size: var(--text-xs);
+  color: #9ca3af;
+}
+
+/* ── Inputs ─────────────────────────────────────────────────────────── */
+
+.search-box input {
+  font-size: var(--text-sm);
+  line-height: 1.4;
+}
+
+/* ── Flash Messages ─────────────────────────────────────────────────── */
+
+.flash {
+  font-size: var(--text-sm);
+  line-height: 1.4;
+}

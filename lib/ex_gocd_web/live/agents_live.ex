@@ -51,9 +51,12 @@ defmodule ExGoCDWeb.AgentsLive do
     socket =
       if agent_type == :k8s_pods do
         socket
-        |> assign(tracked_pods: :loading)
+        |> assign(tracked_pods: :loading, scheduler_events: [])
         |> start_async(:load_tracked_pods, fn ->
-          ExGoCD.ElasticAgentScheduler.tracked_pods()
+          %{
+            pods: ExGoCD.ElasticAgentScheduler.tracked_pods(),
+            events: ExGoCD.ElasticAgentScheduler.recent_events()
+          }
         end)
       else
         socket
@@ -63,12 +66,12 @@ defmodule ExGoCDWeb.AgentsLive do
   end
 
   @impl true
-  def handle_async(:load_tracked_pods, {:ok, pods}, socket) do
-    {:noreply, assign(socket, tracked_pods: pods)}
+  def handle_async(:load_tracked_pods, {:ok, %{pods: pods, events: events}}, socket) do
+    {:noreply, assign(socket, tracked_pods: pods, scheduler_events: events)}
   end
 
   def handle_async(:load_tracked_pods, {:exit, _reason}, socket) do
-    {:noreply, assign(socket, tracked_pods: %{})}
+    {:noreply, assign(socket, tracked_pods: %{}, scheduler_events: [])}
   end
 
   @impl true
@@ -384,6 +387,12 @@ defmodule ExGoCDWeb.AgentsLive do
             {disabled_count(@agents, @agent_type)}
           </span>
 
+          <%= if @agent_type == :elastic do %>
+            <span class="stats-label">Profiles</span>
+            <span class="stats-separator">:</span>
+            <span class="stats-value">{elastic_profile_count(@agents)}</span>
+          <% end %>
+
           <span class="stats-label">Queued jobs</span>
           <span class="stats-separator">:</span>
           <span class="stats-value">{@pending_scheduled}</span>
@@ -635,6 +644,37 @@ defmodule ExGoCDWeb.AgentsLive do
             </tbody>
           </table>
         </div>
+
+        <%!-- Scheduler Events --%>
+        <div style="margin-top: 24px;">
+          <h2 class="page-header_title" style="font-size: 16px; margin-bottom: 8px;">
+            Recent Scheduler Events
+          </h2>
+          <%= if Enum.empty?(@scheduler_events) do %>
+            <div style="font-size: 13px; color: #9ca3af; font-style: italic;">
+              No events yet. The scheduler checks every 30s for pending run_on_all_agents jobs.
+            </div>
+          <% else %>
+            <div style="font-size: 13px; font-family: ui-monospace, monospace;">
+              <%= for ev <- @scheduler_events do %>
+                <div style={"display: flex; gap: 8px; padding: 4px 0; border-bottom: 1px solid #e5e7eb; color: #{event_color(ev.level)}"}>
+                  <span style="white-space: nowrap; opacity: 0.7;">
+                    {Calendar.strftime(ev.at, "%H:%M:%S")}
+                  </span>
+                  <span style="font-weight: 600; text-transform: uppercase; min-width: 45px;">
+                    {ev.level}
+                  </span>
+                  <span style="flex: 1;">
+                    {ev.message}
+                    <%= if ev.count > 1 do %>
+                      <span style="opacity: 0.5;">(×{ev.count})</span>
+                    <% end %>
+                  </span>
+                </div>
+              <% end %>
+            </div>
+          <% end %>
+        </div>
       <% end %>
 
       <%= if @registration_log != [] do %>
@@ -730,6 +770,13 @@ defmodule ExGoCDWeb.AgentsLive do
     |> Enum.count(& &1.disabled)
   end
 
+  defp elastic_profile_count(agents) do
+    agents
+    |> Enum.filter(&(&1.elastic_agent_id not in [nil, ""]))
+    |> Enum.uniq_by(& &1.elastic_agent_id)
+    |> length()
+  end
+
   defp pending_count(_agents, _type) do
     # Agents in Pending config state (awaiting approval)
     0
@@ -789,4 +836,10 @@ defmodule ExGoCDWeb.AgentsLive do
     do: Calendar.strftime(dt, "%H:%M:%S")
 
   defp format_pod_time(_), do: "—"
+
+  defp event_color(:error), do: "#dc2626"
+  defp event_color(:warning), do: "#d97706"
+  defp event_color(:warn), do: "#d97706"
+  defp event_color(:info), do: "#374151"
+  defp event_color(_), do: "#6b7280"
 end

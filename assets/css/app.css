@@ -104,6 +104,9 @@
 
 /* This file is for your main application CSS */
 
+/* Import typography system */
+@import "./typography.css";
+
 /* Import GoCD styles */
 @import "./gocd/site_header.css";
 @import "./gocd/dropdown.css";
