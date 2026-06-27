@@ -2,6 +2,8 @@ defmodule ExGoCD.AnalyticsTest do
   use ExGoCD.DataCase, async: true
 
   alias ExGoCD.Analytics
+  alias ExGoCD.Repo
+  import Ecto.Query
 
   import ExGoCD.PipelinesFixtures,
     only: [
@@ -128,5 +130,110 @@ defmodule ExGoCD.AnalyticsTest do
     end
   end
 
-  # ── Helpers kept: none — all moved to ExGoCD.PipelinesFixtures ──
+  describe "agent_analytics/1" do
+    test "returns empty list when no agent job runs exist" do
+      result = Analytics.agent_analytics(7)
+      assert result == []
+    end
+  end
+
+  describe "agent_utilization/3" do
+    test "returns 0.0 when no transitions exist" do
+      start_dt = ~U[2026-01-01 00:00:00Z]
+      end_dt = ~U[2026-01-02 00:00:00Z]
+      util = Analytics.agent_utilization("unknown-uuid", start_dt, end_dt)
+      assert util == 0.0
+    end
+
+    test "returns 0.0 when agent is always idle" do
+      uuid = "cccc0000-e29b-41d4-a716-446655440003"
+      start_dt = ~U[2026-01-01 00:00:00Z]
+      end_dt = ~U[2026-01-01 01:00:00Z]
+
+      Analytics.record_agent_transition(uuid, "Idle", "Idle")
+      util = Analytics.agent_utilization(uuid, start_dt, end_dt)
+      assert util == 0.0
+    end
+
+    test "returns utilization ratio when agent does work" do
+      uuid = "dddd0000-e29b-41d4-a716-446655440004"
+      start_dt = ~U[2026-01-01 00:00:00Z]
+      mid_dt = ~U[2026-01-01 00:30:00Z]
+      end_dt = ~U[2026-01-01 01:00:00Z]
+
+      # Agent busy for 30 min of 60 min window → 0.5
+      Analytics.record_agent_transition(uuid, "Idle", "Building")
+      Analytics.record_agent_transition(uuid, "Building", "Idle")
+
+      # Override transitioned_at to specific times
+      Repo.update_all(
+        from(t in ExGoCD.Analytics.AgentTransition,
+          where: t.agent_uuid == ^uuid and t.to_state == "Building"
+        ),
+        set: [transitioned_at: start_dt]
+      )
+
+      Repo.update_all(
+        from(t in ExGoCD.Analytics.AgentTransition,
+          where: t.agent_uuid == ^uuid and t.to_state == "Idle"
+        ),
+        set: [transitioned_at: mid_dt]
+      )
+
+      util = Analytics.agent_utilization(uuid, start_dt, end_dt)
+      assert util == 0.5
+    end
+  end
+
+  describe "vsm_trends/2" do
+    test "returns empty list when no pipeline instances exist" do
+      result = Analytics.vsm_trends("no-such-pipeline", 30)
+      assert result == []
+    end
+
+    test "returns VSM data for pipeline with stage instances" do
+      {pipeline, _, _} = insert_pipeline_with_jobs("vsm-test-pipe", 1)
+
+      pi = insert_pipeline_instance_by_name("vsm-test-pipe", 1, @now)
+      si = insert_stage_instance(pi.id, "build", created_time: @now)
+
+      insert_job_instance(si.id, "compile", @now, DateTime.add(@now, 60, :second))
+
+      result = Analytics.vsm_trends("vsm-test-pipe", 30)
+
+      assert length(result) == 1
+      run = hd(result)
+      assert run.counter == 1
+      assert run.stage_count == 1
+      assert length(run.stages) == 1
+    end
+  end
+
+  describe "calc_mttr (Mean Time To Recovery)" do
+    test "returns nil when all pipelines pass" do
+      {pipeline, _, _} = insert_pipeline_with_jobs("mttr-all-pass", 1)
+
+      pi1 = insert_pipeline_instance_by_name("mttr-all-pass", 1, @now)
+      si1 = insert_stage_instance(pi1.id, "build", created_time: @now)
+      insert_job_instance(si1.id, "compile", @now, DateTime.add(@now, 60, :second))
+      # Mark stage as passed
+      Repo.update_all(from(s in ExGoCD.Pipelines.StageInstance, where: s.id == ^si1.id),
+        set: [result: "Passed"])
+
+      result = Analytics.pipeline_analytics("mttr-all-pass", 30)
+      assert is_nil(result.mttr_sec)
+    end
+  end
+
+  describe "avg_build_time" do
+    test "returns nil when no completed stages exist" do
+      {pipeline, _, _} = insert_pipeline_with_jobs("build-time-pipe", 1)
+
+      pi = insert_pipeline_instance_by_name("build-time-pipe", 1, @now)
+      _si = insert_stage_instance(pi.id, "build", created_time: @now)
+
+      result = Analytics.pipeline_analytics("build-time-pipe", 30)
+      assert is_nil(result.avg_build_time_sec)
+    end
+  end
 end
