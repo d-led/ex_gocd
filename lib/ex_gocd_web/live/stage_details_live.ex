@@ -419,16 +419,25 @@ defmodule ExGoCDWeb.StageDetailsLive do
                           </td>
                           <td class="px-6 py-4">
                             <%= if job.agent_uuid do %>
-                              <.link navigate={~p"/agents"} class="text-[#2d6ca2] hover:underline">
-                                {String.slice(job.agent_uuid, 0, 8)}
+                              <.link
+                                navigate={~p"/agents"}
+                                class="text-[#2d6ca2] hover:underline font-medium"
+                              >
+                                {job.agent_hostname}
                               </.link>
-                              <span :if={job.agent_resources != []} class="ml-1">
-                                <%= for r <- job.agent_resources do %>
-                                  <span class="text-[9px] bg-gray-100 text-gray-500 px-1 py-0.5 rounded font-mono">
-                                    {r}
-                                  </span>
-                                <% end %>
-                              </span>
+                              <div
+                                class="text-[10px] text-gray-400 font-mono mt-0.5"
+                                title={job.agent_uuid}
+                              >
+                                {String.slice(job.agent_uuid, 0, 8)}
+                                <span :if={job.agent_resources != []} class="ml-1">
+                                  <%= for r <- job.agent_resources do %>
+                                    <span class="text-[9px] bg-gray-100 text-gray-500 px-1 py-0.5 rounded font-mono">
+                                      {r}
+                                    </span>
+                                  <% end %>
+                                </span>
+                              </div>
                             <% else %>
                               —
                             <% end %>

@@ -547,11 +547,14 @@ defmodule ExGoCDWeb.AgentsLive do
                 <td>
                   <a
                     href={"/agents/#{agent.uuid}/job_run_history"}
-                    title={agent.uuid}
+                    title={"UUID: #{agent.uuid}"}
                     class="agent-name"
                   >
                     {agent.hostname}
                   </a>
+                  <div class="text-[10px] text-gray-400 font-mono">
+                    {String.slice(agent.uuid, 0, 8)}
+                  </div>
                 </td>
                 <td>{agent.working_dir || ""}</td>
                 <td>{agent.operating_system || ""}</td>
