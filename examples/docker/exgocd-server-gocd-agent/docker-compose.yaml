@@ -52,7 +52,7 @@ services:
     depends_on:
       - ex-gocd-server
     environment:
-      GO_SERVER_URL: "http://ex-gocd-server:4000/go"
+      GO_SERVER_URL: "http://ex-gocd-server:4000"
       AGENT_AUTO_REGISTER_KEY: "ex-gocd-demo-cookie"
       AGENT_AUTO_REGISTER_RESOURCES: "java,alpine"
       AGENT_AUTO_REGISTER_ENVIRONMENTS: "staging"
