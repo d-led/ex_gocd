@@ -13,7 +13,6 @@ services:
     volumes:
       - godata:/godata
       - gohome:/home/go
-      - ./gocd-config/cruise-config.xml:/godata/config/cruise-config.xml
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8153/go/api/support"]
       interval: 30s
@@ -25,13 +24,12 @@ services:
     build:
       context: ../../../agent
       dockerfile: Dockerfile
-    depends_on:
-      go-server:
-        condition: service_healthy
+    profiles:
+      - agent
     environment:
       AGENT_SERVER_URL: "http://go-server:8153/go"
-      EX_GOCD_DEMO_COOKIE: "ex-gocd-demo-cookie"
-      AGENT_AUTO_REGISTER_KEY: "123456789abcdef"
+      EX_GOCD_DEMO_COOKIE: ""
+      AGENT_AUTO_REGISTER_KEY: "${AGENT_AUTO_REGISTER_KEY:-123456789abcdef}"
       AGENT_AUTO_REGISTER_RESOURCES: "go,linux"
       AGENT_AUTO_REGISTER_ENVIRONMENTS: "staging"
 

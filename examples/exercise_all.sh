@@ -210,9 +210,9 @@ run_gocd_example() {
 
   banner "$label"
 
-  # ── Start ──────────────────────────────────────────────────────────────
+  # ── Start GoCD server only (agent uses profile, started later) ─────────
   log "Starting $project (GoCD server takes ~2-3 min to start)..."
-  docker compose -f "$compose_file" -p "$project" up -d --build 2>&1 | sed 's/^/  /'
+  docker compose -f "$compose_file" -p "$project" up -d --build go-server 2>&1 | sed 's/^/  /'
 
   # ── Milestone 1: GoCD server healthy ───────────────────────────────────
   if ! wait_for_http "${server_url}/go/api/support" $TIMEOUT_SERVER "GoCD server"; then
@@ -222,6 +222,21 @@ run_gocd_example() {
     docker compose -f "$compose_file" -p "$project" down -v 2>/dev/null || true
     return 1
   fi
+
+  # ── Read auto-generated agent auto-register key ─────────────────────────
+  local auto_key
+  auto_key=$(docker exec "${project}-go-server-1" cat /godata/config/cruise-config.xml 2>/dev/null | grep -oE 'agentAutoRegisterKey="[^"]*"' | head -1 | cut -d'"' -f2)
+  if [ -z "$auto_key" ]; then
+    err "Could not read agent auto-register key from GoCD server config"
+    ((failed++))
+    docker compose -f "$compose_file" -p "$project" down -v 2>/dev/null || true
+    return 1
+  fi
+  log "GoCD auto-register key: $auto_key"
+
+  # ── Start agent with correct key ───────────────────────────────────────
+  log "Starting ex_gocd agent with correct key..."
+  AGENT_AUTO_REGISTER_KEY="$auto_key" docker compose -f "$compose_file" -p "$project" --profile agent up -d --build ex-gocd-agent 2>&1 | sed 's/^/  /'
 
   # ── Milestone 2: Agent visible & idle ──────────────────────────────────
   log "Waiting for agent to register and become idle..."
@@ -268,7 +283,7 @@ print(sum(1 for a in agents if a.get('agent_state')=='Idle'))
 
   # ── Teardown ────────────────────────────────────────────────────────────
   log "Tearing down $project..."
-  docker compose -f "$compose_file" -p "$project" down -v 2>&1 | sed 's/^/  /'
+  docker compose -f "$compose_file" -p "$project" --profile agent down -v 2>&1 | sed 's/^/  /'
 
   echo -e "${GREEN}[PASS]${NC} $label — agent registered with official GoCD server"
   ((passed++))

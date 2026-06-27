@@ -308,6 +308,11 @@ defmodule ExGoCDWeb.Router do
     post "/access_tokens/:id/revoke", PersonalAccessTokenController, :revoke
   end
 
+  scope "/api/feeds", ExGoCDWeb do
+    pipe_through :api
+    get "/pipelines.xml", FeedsController, :pipelines
+  end
+
   scope "/go/api/current_user", ExGoCDWeb.API do
     pipe_through :api
 
