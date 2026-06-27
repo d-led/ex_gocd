@@ -93,45 +93,49 @@ defmodule ExGoCD.K8s do
   end
 
   @doc """
-  Tests connectivity to a Kubernetes cluster.
+  Tests connectivity to a Kubernetes cluster by querying the API.
 
-  Opens a raw TCP connection to the API server host:port with a
-  2-second connect timeout. This is reliable because OS-level TCP
-  connect timeouts are actually enforced (unlike HTTP client hangs
-  that can't be interrupted by Task.shutdown).
+  Lists pods (limit 1) via the k8s API. Runs in a linked process that
+  is brutally killed (:kill) after 2 seconds — unlike Task.shutdown,
+  Process.exit(:kill) can interrupt blocking NIF calls.
 
   Returns `:ok` on success, or `{:error, reason}` where reason is
   a human-readable string for UI display.
   """
   @spec ping(conn(), keyword()) :: :ok | {:error, String.t()}
-  def ping(conn, _opts \\ []) do
-    uri = URI.parse(conn.url)
-    host = String.to_charlist(uri.host)
-    port = uri.port || (if uri.scheme == "https", do: 443, else: 80)
+  def ping(conn, opts \\ []) do
+    ns = Keyword.get(opts, :namespace, "default")
+    parent = self()
 
-    case :gen_tcp.connect(host, port, [{:active, false}, :binary], 2000) do
-      {:ok, sock} ->
-        :gen_tcp.close(sock)
+    task =
+      Task.async(fn ->
+        path_params = [namespace: ns, limit: 1]
+        operation = @k8s_client.list("v1", "Pod", path_params)
+        result = @k8s_client.run(conn, operation)
+        send(parent, {:ping_result, result})
+      end)
+
+    receive do
+      {:ping_result, {:ok, _}} ->
         :ok
 
-      {:error, :timeout} ->
+      {:ping_result, {:error, error}} ->
+        {:error, format_error(error)}
+    after
+      2000 ->
+        Process.exit(task.pid, :kill)
         {:error, "Timed out — cluster unreachable"}
-
-      {:error, :econnrefused} ->
-        {:error, "Connection refused — is the cluster running?"}
-
-      {:error, :nxdomain} ->
-        {:error, "DNS resolution failed — check server URL"}
-
-      {:error, :enetunreach} ->
-        {:error, "Network unreachable"}
-
-      {:error, reason} ->
-        {:error, "Cannot connect: #{reason}"}
     end
-  rescue
-    e in RuntimeError -> {:error, Exception.message(e)}
   end
+
+  @doc false
+  def format_error(%{reason: :connect_timeout}), do: "Connection timed out"
+  def format_error(%{reason: :nxdomain}), do: "DNS resolution failed — check URL"
+  def format_error(%{reason: :econnrefused}), do: "Connection refused — cluster running?"
+  def format_error(%{reason: :ssl_error}), do: "TLS error — check CA certificate"
+  def format_error(%{reason: :not_found}), do: "Connected but namespace not found"
+  def format_error(%{message: msg}) when is_binary(msg), do: msg
+  def format_error(other), do: "Error: #{inspect(other)}"
 
   @doc """
   Discover a local k3s cluster for development.

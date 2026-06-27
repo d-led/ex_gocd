@@ -5,6 +5,7 @@
 
 defmodule ExGoCD.AgentRegistry do
   use GenServer
+  use ExGoCD.GenServerRedact
 
   alias ExGoCD.AgentJobRuns
   alias ExGoCD.Agents

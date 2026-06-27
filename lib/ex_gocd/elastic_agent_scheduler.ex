@@ -17,6 +17,7 @@ defmodule ExGoCD.ElasticAgentScheduler do
      - If pod is in error state → delete pod
   """
   use GenServer
+  use ExGoCD.GenServerRedact
   require Logger
 
   alias ExGoCD.Agents

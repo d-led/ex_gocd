@@ -1,5 +1,6 @@
 defmodule ExGoCD.Materials.Poller do
   use GenServer
+  use ExGoCD.GenServerRedact
   require Logger
 
   alias ExGoCD.Materials.ScmClient

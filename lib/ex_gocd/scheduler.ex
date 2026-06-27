@@ -4,6 +4,7 @@
 
 defmodule ExGoCD.Scheduler do
   use GenServer
+  use ExGoCD.GenServerRedact
 
   import Ecto.Query
   require Logger
