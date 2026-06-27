@@ -291,23 +291,26 @@ defmodule ExGoCD.ElasticAgentScheduler do
       }
     }
 
-    spec = if service_account != "" do
-      put_in(spec, ["spec", "serviceAccountName"], service_account)
-    else
-      spec
-    end
+    spec =
+      if service_account != "" do
+        put_in(spec, ["spec", "serviceAccountName"], service_account)
+      else
+        spec
+      end
 
-    spec = if map_size(node_selector) > 0 do
-      put_in(spec, ["spec", "nodeSelector"], node_selector)
-    else
-      spec
-    end
+    spec =
+      if map_size(node_selector) > 0 do
+        put_in(spec, ["spec", "nodeSelector"], node_selector)
+      else
+        spec
+      end
 
-    spec = if map_size(pod_annotations) > 0 do
-      put_in(spec, ["metadata", "annotations"], pod_annotations)
-    else
-      spec
-    end
+    spec =
+      if map_size(pod_annotations) > 0 do
+        put_in(spec, ["metadata", "annotations"], pod_annotations)
+      else
+        spec
+      end
 
     {:ok, spec}
   end

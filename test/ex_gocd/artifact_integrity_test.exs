@@ -2,7 +2,17 @@ defmodule ExGoCD.ArtifactIntegrityTest do
   use ExGoCD.DataCase, async: false
 
   alias ExGoCD.Pipelines
-  alias ExGoCD.Pipelines.{Job, JobInstance, Pipeline, PipelineInstance, Stage, StageInstance, Task}
+
+  alias ExGoCD.Pipelines.{
+    Job,
+    JobInstance,
+    Pipeline,
+    PipelineInstance,
+    Stage,
+    StageInstance,
+    Task
+  }
+
   alias ExGoCD.Repo
 
   import Ecto.Query

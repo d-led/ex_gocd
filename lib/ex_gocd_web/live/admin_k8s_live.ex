@@ -125,7 +125,8 @@ defmodule ExGoCDWeb.AdminK8sLive do
 
   def handle_event("recheck_cluster", %{"id" => id}, socket) do
     # Mark as checking
-    socket = put_in(socket.assigns.connection_status, Map.put(socket.assigns.connection_status, id, nil))
+    socket =
+      put_in(socket.assigns.connection_status, Map.put(socket.assigns.connection_status, id, nil))
 
     case ClusterProfiles.get_profile(id) do
       nil ->
@@ -223,10 +224,16 @@ defmodule ExGoCDWeb.AdminK8sLive do
       </div>
 
       <%!-- K3s auto-discovery status --%>
-      <div :if={@k3s_status == :ok} class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded text-blue-800 text-sm">
+      <div
+        :if={assigns[:k3s_status] == :ok}
+        class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded text-blue-800 text-sm"
+      >
         🖥️ Local k3s cluster detected — "k3s-local" profile auto-configured.
       </div>
-      <div :if={@k3s_status == :no_k3s} class="mb-4 p-3 bg-amber-50 border border-amber-200 rounded text-amber-800 text-sm">
+      <div
+        :if={assigns[:k3s_status] == :no_k3s}
+        class="mb-4 p-3 bg-amber-50 border border-amber-200 rounded text-amber-800 text-sm"
+      >
         ℹ️ No local k3s detected. Add a cluster profile manually or start k3s via <code class="bg-amber-100 px-1 rounded">docker compose up k3s</code>.
       </div>
 
@@ -268,7 +275,7 @@ defmodule ExGoCDWeb.AdminK8sLive do
                     else: "✗ Missing"}
                 </div>
                 <div class="mt-2">
-                  {connection_status_badge(@connection_status[profile.id])}
+                  {connection_status_badge(get_conn_status(assigns, profile.id))}
                 </div>
               </div>
               <div class="flex gap-2 mt-3">
@@ -717,7 +724,10 @@ defmodule ExGoCDWeb.AdminK8sLive do
     |> Map.put(:env_vars_text, format_env_vars(ElasticAgentProfile.env_vars(profile)))
     |> Map.put(:service_account, ElasticAgentProfile.service_account(profile))
     |> Map.put(:node_selector_text, format_key_value(ElasticAgentProfile.node_selector(profile)))
-    |> Map.put(:pod_annotations_text, format_key_value(ElasticAgentProfile.pod_annotations(profile)))
+    |> Map.put(
+      :pod_annotations_text,
+      format_key_value(ElasticAgentProfile.pod_annotations(profile))
+    )
     |> ElasticAgentProfile.changeset(%{})
     |> to_form()
   end
@@ -815,6 +825,10 @@ defmodule ExGoCDWeb.AdminK8sLive do
 
   # ── Connection status helpers ──────────────────────────────────────────────
 
+  defp get_conn_status(assigns, profile_id) do
+    Map.get(assigns, :connection_status, %{}) |> Map.get(profile_id)
+  end
+
   defp connection_status_badge(nil) do
     Phoenix.HTML.raw("""
     <span class="inline-flex items-center gap-1 text-xs text-gray-500">
@@ -844,6 +858,7 @@ defmodule ExGoCDWeb.AdminK8sLive do
 
   defp connection_status_badge({:error, reason}) when is_binary(reason) do
     escaped = Phoenix.HTML.html_escape(reason) |> Phoenix.HTML.safe_to_string()
+
     Phoenix.HTML.raw("""
     <span class="inline-flex items-center gap-1 text-xs text-red-700" title="#{escaped}">
       <span class="w-2 h-2 bg-red-500 rounded-full"></span>

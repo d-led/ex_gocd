@@ -130,8 +130,17 @@ defmodule ExGoCDWeb.AgentsLiveTest do
 
   describe "registration log" do
     test "shows registration log after agents register", %{conn: conn} do
-      Agents.register_agent(%{uuid: "reglog-0000-0000-0000-000000000001", hostname: "agent-a", ipaddress: "10.0.0.1"})
-      Agents.register_agent(%{uuid: "reglog-0000-0000-0000-000000000002", hostname: "agent-b", ipaddress: "10.0.0.2"})
+      Agents.register_agent(%{
+        uuid: "reglog-0000-0000-0000-000000000001",
+        hostname: "agent-a",
+        ipaddress: "10.0.0.1"
+      })
+
+      Agents.register_agent(%{
+        uuid: "reglog-0000-0000-0000-000000000002",
+        hostname: "agent-b",
+        ipaddress: "10.0.0.2"
+      })
 
       {:ok, _view, html} = live(conn, ~p"/agents")
       assert html =~ "Registration log"
@@ -140,7 +149,12 @@ defmodule ExGoCDWeb.AgentsLiveTest do
     end
 
     test "shows both successes and failures", %{conn: conn} do
-      Agents.register_agent(%{uuid: "reglog-0000-0000-0000-000000000003", hostname: "agent-ok", ipaddress: "10.0.0.3"})
+      Agents.register_agent(%{
+        uuid: "reglog-0000-0000-0000-000000000003",
+        hostname: "agent-ok",
+        ipaddress: "10.0.0.3"
+      })
+
       Agents.register_agent(%{uuid: "bad-uuid-xxxxxxxx", hostname: ""})
 
       {:ok, _view, html} = live(conn, ~p"/agents")
@@ -149,7 +163,12 @@ defmodule ExGoCDWeb.AgentsLiveTest do
     end
 
     test "agent appears immediately after registration", %{conn: conn} do
-      Agents.register_agent(%{uuid: "presence-0000-0000-0000-000000000001", hostname: "presence-test", ipaddress: "10.0.0.4"})
+      Agents.register_agent(%{
+        uuid: "presence-0000-0000-0000-000000000001",
+        hostname: "presence-test",
+        ipaddress: "10.0.0.4"
+      })
+
       {:ok, view, _html} = live(conn, ~p"/agents")
       assert render(view) =~ "presence-test"
     end

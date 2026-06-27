@@ -32,7 +32,8 @@ defmodule ExGoCD.Agents do
   @doc "Returns the last 30 registration attempts (success + failure) sorted newest first."
   def registration_log do
     try do
-      :ets.tab2list(@reg_log_table) |> Enum.sort_by(fn {_k, _h, _r, t} -> t end, {:desc, DateTime})
+      :ets.tab2list(@reg_log_table)
+      |> Enum.sort_by(fn {_k, _h, _r, t} -> t end, {:desc, DateTime})
     rescue
       _ -> []
     catch
@@ -123,6 +124,7 @@ defmodule ExGoCD.Agents do
     ip = attrs["ipaddress"] || attrs[:ipaddress] || "unknown"
     status = if outcome == :ok, do: "success", else: "failed"
     actor = "agent:#{String.slice(uuid || "", 0, 8)}"
+
     ExGoCD.AuditLog.log(actor, "agent_registration",
       resource_type: "agent",
       resource_name: hostname,
@@ -350,10 +352,47 @@ defmodule ExGoCD.Agents do
   include the same cookie or we do not update.
   """
   def touch_agent_on_heartbeat(uuid, runtime_attrs) when is_binary(uuid) do
-    case get_agent_by_uuid(uuid) do
-      nil -> {:error, :not_found}
-      agent -> update_agent_on_heartbeat(agent, runtime_attrs)
-    end
+    hostname = runtime_attrs["hostName"] || runtime_attrs["hostname"]
+
+    result =
+      case get_agent_by_uuid(uuid) do
+        nil ->
+          # UUID not found — try hostname-based lookup for re-registration
+          existing =
+            if hostname do
+              Repo.get_by(Agent, hostname: hostname, disabled: false, deleted: false)
+            end
+
+          case existing do
+            nil ->
+              {:error, :not_found}
+
+            agent ->
+              # Re-assign UUID to existing agent (robust re-registration)
+              agent
+              |> Agent.changeset(%{"uuid" => uuid})
+              |> Repo.update()
+              |> case do
+                {:ok, updated} -> update_agent_on_heartbeat(updated, runtime_attrs)
+                {:error, _} -> {:error, :not_found}
+              end
+          end
+
+        agent ->
+          update_agent_on_heartbeat(agent, runtime_attrs)
+      end
+
+    outcome =
+      case result do
+        :ok -> :ok
+        {:ok, _} -> :ok
+        {:error, _} -> :error
+        other -> other
+      end
+
+    log_registration(uuid, hostname || "unknown", outcome)
+    log_registration_audit(uuid, hostname || "unknown", outcome, runtime_attrs)
+    result
   end
 
   defp update_agent_on_heartbeat(agent, runtime_attrs) do

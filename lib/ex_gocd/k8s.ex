@@ -123,9 +123,14 @@ defmodule ExGoCD.K8s do
   end
 
   @doc false
-  def format_ping_error(%{reason: :connect_timeout}), do: "Connection timed out — cluster unreachable"
+  def format_ping_error(%{reason: :connect_timeout}),
+    do: "Connection timed out — cluster unreachable"
+
   def format_ping_error(%{reason: :nxdomain}), do: "DNS resolution failed — check server URL"
-  def format_ping_error(%{reason: :econnrefused}), do: "Connection refused — is the cluster running?"
+
+  def format_ping_error(%{reason: :econnrefused}),
+    do: "Connection refused — is the cluster running?"
+
   def format_ping_error(%{reason: :ssl_error}), do: "TLS error — check CA certificate"
   def format_ping_error(%{reason: :not_found}), do: "Connected but namespace not found"
   def format_ping_error(%{message: msg}) when is_binary(msg), do: "Error: #{msg}"
@@ -143,7 +148,9 @@ defmodule ExGoCD.K8s do
   """
   @spec discover_local_k3s() :: {:ok, map()} | {:error, :not_found | term()}
   def discover_local_k3s do
-    kubeconfig_paths() |> Enum.find_value(&try_kubeconfig_file/1) |> case do
+    kubeconfig_paths()
+    |> Enum.find_value(&try_kubeconfig_file/1)
+    |> case do
       {:ok, _} = result -> result
       nil -> try_k3s_cli()
     end
@@ -208,12 +215,13 @@ defmodule ExGoCD.K8s do
         |> String.replace(~r{https?://k3s:}, "https://localhost:")
         |> String.replace(~r{https?://host\.docker\.internal:}, "https://localhost:")
 
-      {:ok, %{
-        "server" => local_server,
-        "token" => token,
-        "ca_cert" => ca_cert,
-        "namespace" => namespace
-      }}
+      {:ok,
+       %{
+         "server" => local_server,
+         "token" => token,
+         "ca_cert" => ca_cert,
+         "namespace" => namespace
+       }}
     else
       _ -> {:error, :invalid_kubeconfig}
     end

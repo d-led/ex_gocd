@@ -218,7 +218,8 @@ defmodule ExGoCD.AnalyticsTest do
       insert_job_instance(si1.id, "compile", @now, DateTime.add(@now, 60, :second))
       # Mark stage as passed
       Repo.update_all(from(s in ExGoCD.Pipelines.StageInstance, where: s.id == ^si1.id),
-        set: [result: "Passed"])
+        set: [result: "Passed"]
+      )
 
       result = Analytics.pipeline_analytics("mttr-all-pass", 30)
       assert is_nil(result.mttr_sec)

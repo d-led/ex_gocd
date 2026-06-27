@@ -83,7 +83,10 @@ defmodule ExGoCD.K8sTest do
       assert {:ok, config} = ExGoCD.K8s.extract_k3s_config(yaml)
       assert config["server"] == "https://localhost:6443"
       assert config["token"] == "my-k3s-token"
-      assert config["ca_cert"] == "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCmZha2UtY2EKLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo="
+
+      assert config["ca_cert"] ==
+               "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCmZha2UtY2EKLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo="
+
       assert config["namespace"] == "gocd-agents"
     end
 

@@ -357,7 +357,7 @@ defmodule ExGoCDWeb.AgentsLive do
         </div>
 
         <%= if @registration_log != [] do %>
-          <details class="mb-2 text-xs">
+          <details class="mb-2 text-xs" open>
             <summary class="cursor-pointer text-gray-500 hover:text-gray-700">
               Registration log (last {length(@registration_log)})
             </summary>
