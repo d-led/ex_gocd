@@ -288,6 +288,7 @@ defmodule ExGoCDWeb.Router do
     resources "/cluster_profiles", ClusterProfileController, except: [:new, :edit]
     resources "/package_repositories", PackageRepositoryController, except: [:new, :edit]
     resources "/secret_configs", SecretConfigController, except: [:new, :edit]
+    resources "/auth_configs", AuthConfigController, except: [:new, :edit]
   end
 
   scope "/api/current_user", ExGoCDWeb.API do

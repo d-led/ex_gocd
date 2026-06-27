@@ -104,11 +104,11 @@
 | B20 | Admin server config — wire UI | 🟡 | Deferred — caused 500 errors in Docker CI |
 | B2 | Job comment API: `POST /api/pipelines/:name/:counter/comment` | ✅ | Done |
 | B3 | Stage run-failed-jobs / run-selected-jobs APIs | ✅ | `rerun_failed_jobs/4` + 3 tests + API route |
-| B4 | Config XML import/export | M | Serialize DB → cruise-config.xml |
+| B4 | Config XML import/export | ✅ | Export + import via :xmerl parser, upload UI at /admin/config_xml |
 | B5 | Disk space monitor / artifact auto-cleanup | ✅ | `ExGoCD.Monitors.DiskSpace` GenServer, wired into scheduler checker chain |
 | B6 | Artifact MD5 verification on downstream fetch | ✅ | Done |
 
-### 🟢 P2: Enterprise Features
+### 🟢 P2: Other Features
 
 | # | Gap | Effort | Notes |
 |---|-----|--------|-------|
@@ -117,11 +117,11 @@
 | B9 | Pipeline group administration | M | Delegate admin per group |
 | B10 | Email notifications | M | Swoosh + PubSub + filter schema |
 | B11 | Roles & auth configs CRUD | M | Bodyguard extension |
-| B12 | Elastic agent profiles | L | Schema + API |
-| B13 | Cluster profiles | L | Schema + API |
-| B14 | Package repositories | L | Schema + API |
-| B15 | Secret configs | L | Schema + API |
-| B16 | Plugin info API | S | Metadata endpoint |
+| B12 | Elastic agent profiles | ✅ | Schema + CRUD API at /api/admin/elastic_agent_profiles |
+| B13 | Cluster profiles | ✅ | Schema + CRUD API at /api/admin/cluster_profiles |
+| B14 | Package repositories | ✅ | Schema + CRUD API at /api/admin/package_repositories |
+| B15 | Secret configs | ✅ | Schema + CRUD API at /api/admin/secret_configs |
+| B16 | Plugin info API | ✅ | Metadata endpoint |
 
 ### 🔵 P3: Analytics Expansion
 
