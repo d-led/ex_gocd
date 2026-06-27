@@ -87,7 +87,7 @@ defmodule ExGoCD.Agents.Mock do
         hostname: "elastic-agent-k8s-abc123",
         ipaddress: "10.244.0.15",
         elastic_agent_id: "k8s-elastic-agent-abc123",
-        elastic_plugin_id: "cd.go.contrib.elastic-agent.kubernetes",
+        elastic_plugin_id: "ex_gocd.elasticagent.kubernetes",
         disabled: false,
         deleted: false,
         environments: [],

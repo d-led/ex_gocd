@@ -32,7 +32,8 @@ defmodule ExGoCDWeb.AgentsLive do
        current_path: "/agents",
        pending_scheduled: pending_scheduled_count(),
        is_user_admin: User.has_role?(current_user, :admin),
-       current_user: current_user
+       current_user: current_user,
+       tracked_pods: %{}
      )}
   end
 
@@ -41,7 +42,15 @@ defmodule ExGoCDWeb.AgentsLive do
     agent_type =
       case params["type"] do
         "elastic" -> :elastic
+        "k8s_pods" -> :k8s_pods
         _ -> :static
+      end
+
+    socket =
+      if agent_type == :k8s_pods do
+        assign(socket, tracked_pods: ExGoCD.ElasticAgentScheduler.tracked_pods())
+      else
+        socket
       end
 
     {:noreply, assign(socket, agent_type: agent_type, selected_agents: MapSet.new())}
@@ -277,10 +286,18 @@ defmodule ExGoCDWeb.AgentsLive do
         >
           ELASTIC
         </button>
+        <button
+          type="button"
+          class={"tab-button " <> if @agent_type == :k8s_pods, do: "active", else: ""}
+          phx-click="switch_tab"
+          phx-value-type="k8s_pods"
+        >
+          K8S PODS
+        </button>
       </div>
       
     <!-- Bulk Actions & Stats -->
-      <div class="agents-controls">
+      <div :if={@agent_type != :k8s_pods} class="agents-controls">
         <%= if @is_user_admin do %>
           <div class="bulk-actions" id="bulk-actions">
             <button
@@ -373,7 +390,7 @@ defmodule ExGoCDWeb.AgentsLive do
       </div>
       
     <!-- Agents Table -->
-      <div class="agents-table-container">
+      <div :if={@agent_type != :k8s_pods} class="agents-table-container">
         <table class="agents-table">
           <thead>
             <tr>
@@ -540,6 +557,61 @@ defmodule ExGoCDWeb.AgentsLive do
         </table>
       </div>
 
+      <%!-- K8s Elastic Agent Pods --%>
+      <%= if @agent_type == :k8s_pods do %>
+        <div class="page-header" style="margin-top: 24px;">
+          <h2 class="page-header_title">Tracked Elastic Agent Pods</h2>
+        </div>
+        <div class="agents-table-container" style="margin-top: 8px;">
+          <table class="agents-table">
+            <thead>
+              <tr>
+                <th>Pod Name</th>
+                <th>Profile</th>
+                <th>Cluster</th>
+                <th>Namespace</th>
+                <th>Job</th>
+                <th>Resources</th>
+                <th>Status</th>
+                <th>Created</th>
+              </tr>
+            </thead>
+            <tbody>
+              <%= if map_size(@tracked_pods) == 0 do %>
+                <tr>
+                  <td colspan="8" class="text-center text-gray-500 py-4">
+                    No elastic agent pods tracked. Pods appear here when the scheduler creates them for <code>run_on_all_agents</code> jobs.
+                  </td>
+                </tr>
+              <% else %>
+                <%= for {_pod_name, pod} <- @tracked_pods do %>
+                  <tr>
+                    <td class="font-mono text-sm">{pod.pod_name}</td>
+                    <td>{pod.profile_name}</td>
+                    <td>{pod.cluster_name}</td>
+                    <td>{pod.namespace}</td>
+                    <td>{pod.job_name}</td>
+                    <td>{Enum.join(pod.resources, ", ")}</td>
+                    <td>
+                      <%= if pod.error do %>
+                        <span class="text-red-700">Error</span>
+                      <% else %>
+                        <%= if pod.agent_uuid do %>
+                          <span class="text-green-700">Registered</span>
+                        <% else %>
+                          <span class="text-amber-700">Pending</span>
+                        <% end %>
+                      <% end %>
+                    </td>
+                    <td class="text-sm text-gray-500">{format_pod_time(pod.created_at)}</td>
+                  </tr>
+                <% end %>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      <% end %>
+
       <%= if @registration_log != [] do %>
         <div class="registration-log" style="margin-top: 16px;">
           <div class="page-header" style="margin-bottom: 8px;">
@@ -602,6 +674,8 @@ defmodule ExGoCDWeb.AgentsLive do
   defp filtered_agents(agents, :elastic) do
     Enum.filter(agents, &(&1.elastic_agent_id || &1.elastic_plugin_id))
   end
+
+  defp filtered_agents(_agents, :k8s_pods), do: []
 
   defp displayed_agents(agents, type, filter, sort_column, sort_order) do
     agents
@@ -708,4 +782,9 @@ defmodule ExGoCDWeb.AgentsLive do
 
     assign(socket, agents: new_agents, selected_agents: selected)
   end
+
+  defp format_pod_time(nil), do: "—"
+  defp format_pod_time(dt) when is_struct(dt, DateTime), do: Calendar.strftime(dt, "%H:%M:%S")
+  defp format_pod_time(dt) when is_struct(dt, NaiveDateTime), do: Calendar.strftime(dt, "%H:%M:%S")
+  defp format_pod_time(_), do: "—"
 end

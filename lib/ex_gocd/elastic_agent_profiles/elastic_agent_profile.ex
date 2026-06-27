@@ -6,7 +6,7 @@ defmodule ExGoCD.ElasticAgentProfiles.ElasticAgentProfile do
   @foreign_key_type :binary_id
   schema "elastic_agent_profiles" do
     field :name, :string
-    field :plugin_id, :string, default: "cd.go.contrib.elasticagent.kubernetes"
+    field :plugin_id, :string, default: "ex_gocd.elasticagent.kubernetes"
     field :cluster_profile_id, :string
     field :properties, :map, default: %{}
 

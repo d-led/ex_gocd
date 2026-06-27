@@ -13,7 +13,7 @@ defmodule ExGoCD.ElasticAgentProfilesTest do
       {:ok, cluster} =
         ClusterProfiles.create_profile(%{
           name: "test-cluster",
-          plugin_id: "cd.go.contrib.elasticagent.kubernetes",
+          plugin_id: "ex_gocd.elasticagent.kubernetes",
           properties: %{"kubernetes_cluster_url" => "https://k8s.test:6443"}
         })
 
@@ -22,7 +22,7 @@ defmodule ExGoCD.ElasticAgentProfilesTest do
 
     @valid_attrs %{
       name: "test-agent",
-      plugin_id: "cd.go.contrib.elasticagent.kubernetes",
+      plugin_id: "ex_gocd.elasticagent.kubernetes",
       properties: %{"Image" => "alpine"}
     }
     @update_attrs %{properties: %{"Image" => "ubuntu", "MaxMemory" => "512Mi"}}
@@ -34,7 +34,7 @@ defmodule ExGoCD.ElasticAgentProfilesTest do
         ElasticAgentProfiles.create_profile(Map.put(@valid_attrs, :cluster_profile_id, cid))
 
       assert [%ElasticAgentProfile{}] = ElasticAgentProfiles.list_profiles()
-      assert profile.plugin_id == "cd.go.contrib.elasticagent.kubernetes"
+      assert profile.plugin_id == "ex_gocd.elasticagent.kubernetes"
     end
 
     test "get_profile!/1 returns the profile", %{cluster_id: cid} do
@@ -42,14 +42,14 @@ defmodule ExGoCD.ElasticAgentProfilesTest do
         ElasticAgentProfiles.create_profile(Map.put(@valid_attrs, :cluster_profile_id, cid))
 
       found = ElasticAgentProfiles.get_profile!(profile.id)
-      assert found.plugin_id == "cd.go.contrib.elasticagent.kubernetes"
+      assert found.plugin_id == "ex_gocd.elasticagent.kubernetes"
     end
 
     test "create_profile/1 with valid data creates a profile", %{cluster_id: cid} do
       {:ok, profile} =
         ElasticAgentProfiles.create_profile(Map.put(@valid_attrs, :cluster_profile_id, cid))
 
-      assert profile.plugin_id == "cd.go.contrib.elasticagent.kubernetes"
+      assert profile.plugin_id == "ex_gocd.elasticagent.kubernetes"
       assert profile.properties == %{"Image" => "alpine"}
     end
 

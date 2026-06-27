@@ -34,7 +34,7 @@ defmodule ExGoCD.ElasticAgentSchedulerTest do
       {:ok, cluster} =
         ClusterProfiles.create_profile(%{
           name: "test-k8s",
-          plugin_id: "cd.go.contrib.elasticagent.kubernetes",
+          plugin_id: "ex_gocd.elasticagent.kubernetes",
           properties: %{
             "kubernetes_cluster_url" => "https://k8s.test:6443",
             "bearer_token" => "test-token"
@@ -44,7 +44,7 @@ defmodule ExGoCD.ElasticAgentSchedulerTest do
       {:ok, profile} =
         ElasticAgentProfiles.create_profile(%{
           name: "docker-agent",
-          plugin_id: "cd.go.contrib.elasticagent.kubernetes",
+          plugin_id: "ex_gocd.elasticagent.kubernetes",
           cluster_profile_id: cluster.id,
           properties: %{"Image" => "alpine:latest"}
         })
@@ -80,7 +80,7 @@ defmodule ExGoCD.ElasticAgentSchedulerTest do
       {:ok, cluster} =
         ClusterProfiles.create_profile(%{
           name: "spec-test",
-          plugin_id: "cd.go.contrib.elasticagent.kubernetes",
+          plugin_id: "ex_gocd.elasticagent.kubernetes",
           properties: %{
             "kubernetes_cluster_url" => "https://k8s.test:6443",
             "bearer_token" => "tok"
@@ -90,7 +90,7 @@ defmodule ExGoCD.ElasticAgentSchedulerTest do
       {:ok, profile} =
         ElasticAgentProfiles.create_profile(%{
           name: "spec-agent",
-          plugin_id: "cd.go.contrib.elasticagent.kubernetes",
+          plugin_id: "ex_gocd.elasticagent.kubernetes",
           cluster_profile_id: cluster.id,
           properties: %{
             "Image" => "gocd-agent:latest",

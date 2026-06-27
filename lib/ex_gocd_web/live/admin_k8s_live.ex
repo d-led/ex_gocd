@@ -775,7 +775,7 @@ defmodule ExGoCDWeb.AdminK8sLive do
 
     %{
       name: Map.get(params, "name"),
-      plugin_id: "cd.go.contrib.elasticagent.kubernetes",
+      plugin_id: "ex_gocd.elasticagent.kubernetes",
       properties: props
     }
   end
@@ -834,7 +834,7 @@ defmodule ExGoCDWeb.AdminK8sLive do
 
     %{
       name: Map.get(params, "name"),
-      plugin_id: "cd.go.contrib.elasticagent.kubernetes",
+      plugin_id: "ex_gocd.elasticagent.kubernetes",
       cluster_profile_id: Map.get(params, "cluster_profile_id"),
       properties: props
     }

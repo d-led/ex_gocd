@@ -63,7 +63,7 @@ defmodule ExGoCD.ClusterProfiles do
           %ClusterProfile{}
           |> ClusterProfile.changeset(%{
             name: "k3s-local",
-            plugin_id: "cd.go.contrib.elasticagent.kubernetes",
+            plugin_id: "ex_gocd.elasticagent.kubernetes",
             properties: %{
               "kubernetes_cluster_url" => config["server"],
               "bearer_token" => config["token"],

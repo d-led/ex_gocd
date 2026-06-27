@@ -7,7 +7,7 @@ defmodule ExGoCD.ClusterProfilesTest do
   describe "cluster profiles" do
     @valid_attrs %{
       name: "test-cluster",
-      plugin_id: "cd.go.contrib.elasticagent.kubernetes",
+      plugin_id: "ex_gocd.elasticagent.kubernetes",
       properties: %{"kubernetes_cluster_url" => "https://k8s.test:6443"}
     }
     @update_attrs %{
@@ -74,7 +74,7 @@ defmodule ExGoCD.ClusterProfilesTest do
       {:ok, _} =
         ClusterProfiles.create_profile(%{
           name: "k3s-local",
-          plugin_id: "cd.go.contrib.elasticagent.kubernetes",
+          plugin_id: "ex_gocd.elasticagent.kubernetes",
           properties: %{"kubernetes_cluster_url" => "https://localhost:6443"}
         })
 

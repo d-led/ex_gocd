@@ -129,11 +129,19 @@ defmodule ExGoCD.K8s do
   end
 
   @doc false
-  def format_error(%{reason: :connect_timeout}), do: "Connection timed out"
-  def format_error(%{reason: :nxdomain}), do: "DNS resolution failed — check URL"
+  def format_error(%{reason: :unauthorized}), do: "Unauthorized — invalid token"
+  def format_error(%{reason: :forbidden}), do: "Forbidden — token lacks permissions"
+  def format_error(%{reason: :connect_timeout}), do: "Connection timed out — unreachable"
+  def format_error(%{reason: :nxdomain}), do: "DNS resolution failed — check server URL"
   def format_error(%{reason: :econnrefused}), do: "Connection refused — cluster running?"
   def format_error(%{reason: :ssl_error}), do: "TLS error — check CA certificate"
-  def format_error(%{reason: :not_found}), do: "Connected but namespace not found"
+  def format_error(%{reason: :not_found}), do: "Connected — namespace not found"
+
+  # HTTP response with status code embedded (k8s client wraps these)
+  def format_error(%{status: 401}), do: "Unauthorized — verify bearer token"
+  def format_error(%{status: 403}), do: "Forbidden — insufficient RBAC permissions"
+  def format_error(%{status: code}) when is_integer(code), do: "HTTP #{code}"
+
   def format_error(%{message: msg}) when is_binary(msg), do: msg
   def format_error(other), do: "Error: #{inspect(other)}"
 

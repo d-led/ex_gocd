@@ -6,7 +6,7 @@ defmodule ExGoCD.GenServerRedact do
   ## OTP guidance
 
   When a GenServer terminates abnormally, SASL's error logger calls
-  `sys:get_status/1`, which calls `format_status(:terminate, [pdict, state])`.
+  `sys:get_status/1`, which calls `c:GenServer.format_status/2`.
   Without a custom implementation, the entire process state and the last
   message are dumped — including API keys, passwords, and tokens.
 
@@ -17,29 +17,22 @@ defmodule ExGoCD.GenServerRedact do
 
       use ExGoCD.GenServerRedact
 
-  This adds a safe `format_status/2` that redacts known-sensitive keys
-  from maps in state and process dictionary.  Individual GenServers can
-  override `c:GenServer.format_status/2` for custom redaction rules.
+  This makes `format_status/2` overridable (if not already) and provides
+  a default that redacts known-sensitive keys. Individual GenServers can
+  override for custom redaction rules.
 
-  ## Redacted keys
+  ## Redacted patterns
 
-  The following keys are replaced with `"***REDACTED***"` in any map
-  (nested up to 3 levels deep):
-  - password, pass, pwd
-  - token, api_key, apikey, secret, access_key, secret_key
-  - cookie, auth, credential, bearer
-  - private_key, ssh_key, tls_key
+  Keys matching any of these regex patterns are replaced with
+  `"***REDACTED***"` (checked up to 3 levels deep):
+  - `password`, `passwd`, `secret`, `token`
+  - `_key` suffix (e.g. `api_key`, `access_key`, `secret_key`)
+  - `cookie`, `credential`, `bearer`
   """
 
   @redacted_value "***REDACTED***"
   @max_depth 3
 
-  @sensitive_keys ~w(
-    password pass pwd
-    token api_key apikey secret access_key secret_key
-    cookie auth credential bearer
-    private_key ssh_key tls_key
-  )
   @sensitive_patterns [
     ~r/password/i,
     ~r/passwd/i,
@@ -55,12 +48,11 @@ defmodule ExGoCD.GenServerRedact do
     quote do
       @impl true
       def format_status(reason, [pdict, state]) do
-        [ExGoCD.GenServerRedact.redact_pdict(pdict), ExGoCD.GenServerRedact.redact(state)]
-        |> ExGoCD.GenServerRedact.handle_format_status(reason)
+        [
+          ExGoCD.GenServerRedact.redact_pdict(pdict),
+          ExGoCD.GenServerRedact.redact(state)
+        ]
       end
-
-      @doc false
-      def format_status(_reason, [_pdict, _state] = result), do: result
     end
   end
 
@@ -114,15 +106,6 @@ defmodule ExGoCD.GenServerRedact do
   end
 
   def redact_pdict(pdict), do: pdict
-
-  @doc false
-  def handle_format_status([pdict, state], :terminate) do
-    [pdict, state]
-  end
-
-  def handle_format_status([pdict, state], _reason) do
-    [pdict, state]
-  end
 
   defp sensitive_key?(key) when is_atom(key), do: sensitive_key?(Atom.to_string(key))
   defp sensitive_key?(key) when is_binary(key), do: Enum.any?(@sensitive_patterns, &Regex.match?(&1, key))

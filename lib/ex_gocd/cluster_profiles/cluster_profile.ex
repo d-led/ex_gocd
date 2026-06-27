@@ -6,7 +6,7 @@ defmodule ExGoCD.ClusterProfiles.ClusterProfile do
   @foreign_key_type :binary_id
   schema "cluster_profiles" do
     field :name, :string
-    field :plugin_id, :string, default: "cd.go.contrib.elasticagent.kubernetes"
+    field :plugin_id, :string, default: "ex_gocd.elasticagent.kubernetes"
     field :properties, :map, default: %{}
     timestamps()
   end
