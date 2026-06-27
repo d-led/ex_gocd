@@ -71,11 +71,16 @@ func Connect(ctx context.Context, cfg *config.Config, tlsConfig *tls.Config) (*C
 	return c, nil
 }
 
-// Send queues a message to be sent
-func (c *Connection) Send(msg *protocol.Message) {
+// Send queues a message to be sent. Returns error if connection is closed
+// or send buffer is full (backpressure).
+func (c *Connection) Send(msg *protocol.Message) error {
 	select {
 	case c.send <- msg:
+		return nil
 	case <-c.done:
+		return fmt.Errorf("connection closed")
+	default:
+		return fmt.Errorf("send buffer full")
 	}
 }
 
@@ -128,7 +133,10 @@ func (c *Connection) readPump() {
 
 		// Send ACK for messages that request it
 		if msg.AckId != "" {
-			c.Send(protocol.AckMessage(msg.AckId))
+			if err := c.Send(protocol.AckMessage(msg.AckId)); err != nil {
+				// Log dropped ACK — server will resend, this is non-fatal
+				fmt.Printf("[websocket] dropped ack %s: %v\n", msg.AckId, err)
+			}
 		}
 
 		select {

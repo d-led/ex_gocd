@@ -214,7 +214,9 @@ func (a *Agent) runWithConnection(ctx context.Context, tlsConfig *tls.Config) er
 	agentlog.Logger.Info().Msg("WebSocket connected")
 
 	// Send join so the server establishes the channel
-	a.sendJoin()
+	if err := a.sendJoin(); err != nil {
+		return fmt.Errorf("failed to send join: %w", err)
+	}
 
 	hsSpan.SetStatus(codes.Ok, "connected")
 	hsSpan.End()
@@ -266,7 +268,8 @@ func (a *Agent) runWithConnection(ctx context.Context, tlsConfig *tls.Config) er
 				return fmt.Errorf("WebSocket connection closed")
 			}
 			if err := a.handleMessage(msg); err != nil {
-				agentlog.Logger.Info().Err(err).Msg("Error handling message")
+				agentlog.Logger.Warn().Err(err).Msg("Fatal server message, reconnecting")
+				return err
 			}
 		}
 	}
@@ -348,17 +351,19 @@ func (a *Agent) handleMessage(msg *protocol.Message) error {
 }
 
 // sendJoin sends the initial join so the server establishes the channel (once per connection).
-func (a *Agent) sendJoin() {
+func (a *Agent) sendJoin() error {
 	info := a.getRuntimeInfo()
 	msg := protocol.JoinMessage(info)
-	a.conn.Send(msg)
+	return a.conn.Send(msg)
 }
 
 // sendPing sends a ping/heartbeat to the server
 func (a *Agent) sendPing() {
 	info := a.getRuntimeInfo()
 	msg := protocol.PingMessage(info)
-	a.conn.Send(msg)
+	if err := a.conn.Send(msg); err != nil {
+		agentlog.Logger.Warn().Err(err).Msg("Failed to send ping")
+	}
 }
 
 // getRuntimeInfo returns current agent runtime information
@@ -595,7 +600,14 @@ func (a *Agent) runOneCommand(ctx context.Context, build *protocol.Build, cmd *p
 	// Graceful cancellation: SIGTERM → wait grace period → SIGKILL
 	cancelDone := make(chan struct{})
 	defer close(cancelDone)
-	go gracefulCancel(cmdCtx, c, cancelDone)
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				agentlog.Logger.Error().Interface("panic", r).Msg("gracefulCancel goroutine panicked")
+			}
+		}()
+		gracefulCancel(cmdCtx, c, cancelDone)
+	}()
 
 	// Merge environment variables.
 	// Base is the agent's own environment (so docker, PATH, etc. are inherited).
@@ -620,8 +632,16 @@ func (a *Agent) runOneCommand(ctx context.Context, build *protocol.Build, cmd *p
 	}
 
 	if build.ConsoleUrl != "" {
-		stdoutPipe, _ := c.StdoutPipe()
-		stderrPipe, _ := c.StderrPipe()
+		var stdoutPipe, stderrPipe io.ReadCloser
+		var pipeErr error
+		stdoutPipe, pipeErr = c.StdoutPipe()
+		if pipeErr != nil {
+			agentlog.Logger.Warn().Err(pipeErr).Str("build_id", build.BuildId).Msg("Failed to create stdout pipe")
+		}
+		stderrPipe, pipeErr = c.StderrPipe()
+		if pipeErr != nil {
+			agentlog.Logger.Warn().Err(pipeErr).Str("build_id", build.BuildId).Msg("Failed to create stderr pipe")
+		}
 		c.Stdin = nil
 		if err := c.Start(); err != nil {
 			cmdSpan.RecordError(err)
@@ -725,6 +745,7 @@ func (a *Agent) httpClient() (*http.Client, error) {
 		Transport: &http.Transport{
 			TLSClientConfig: tlsConfig,
 		},
+		Timeout: 60 * time.Second,
 	}, nil
 }
 
@@ -1158,15 +1179,18 @@ func (a *Agent) postConsole(consoleURL, body string) error {
 	}
 	req.Header.Set("Content-Type", "text/plain; charset=utf-8")
 
-	client, err := a.httpClient()
-	var doer interface {
-		Do(*http.Request) (*http.Response, error)
-	} = http.DefaultClient
-	if err == nil && client != nil {
-		doer = client
+	var client *http.Client
+	if parsed, _ := url.Parse(validatedURL); parsed != nil && parsed.Scheme == "https" {
+		var err error
+		client, err = a.httpClient()
+		if err != nil {
+			return fmt.Errorf("failed to create TLS HTTP client for console post: %w", err)
+		}
+	} else {
+		client = &http.Client{Timeout: 30 * time.Second}
 	}
 
-	resp, err := doer.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}

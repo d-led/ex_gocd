@@ -181,7 +181,9 @@ func resolveAgentUUID(uuidFile string) string {
 	// Force fresh UUID
 	if os.Getenv("AGENT_NEW_UUID") == "1" {
 		id := uuid.New().String()
-		os.WriteFile(uuidFile, []byte(id), 0644)
+		if err := os.WriteFile(uuidFile, []byte(id), 0644); err != nil {
+			agentlog.Logger.Warn().Err(err).Str("file", uuidFile).Msg("Failed to persist agent UUID")
+		}
 		agentlog.Logger.Info().Str("uuid", id).Msg("fresh agent UUID generated")
 		return id
 	}
@@ -191,7 +193,9 @@ func resolveAgentUUID(uuidFile string) string {
 		if !isValidUUID(id) {
 			agentlog.Logger.Warn().Str("invalid_uuid", id).Msg("AGENT_UUID env is not a valid UUID, generating fresh one")
 		} else {
-			os.WriteFile(uuidFile, []byte(id), 0644)
+			if err := os.WriteFile(uuidFile, []byte(id), 0644); err != nil {
+				agentlog.Logger.Warn().Err(err).Str("file", uuidFile).Msg("Failed to persist agent UUID from env")
+			}
 			agentlog.Logger.Info().Str("uuid", id).Msg("using supplied agent UUID")
 			return id
 		}
@@ -212,7 +216,9 @@ func resolveAgentUUID(uuidFile string) string {
 
 	// Generate new
 	id := uuid.New().String()
-	os.WriteFile(uuidFile, []byte(id), 0644)
+	if err := os.WriteFile(uuidFile, []byte(id), 0644); err != nil {
+		agentlog.Logger.Warn().Err(err).Str("file", uuidFile).Msg("Failed to persist agent UUID")
+	}
 	agentlog.Logger.Info().Str("uuid", id).Msg("generated new agent UUID")
 	return id
 }

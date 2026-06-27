@@ -64,6 +64,11 @@ func (r *Relay) Start() (port int, err error) {
 	}
 
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				agentlog.Logger.Error().Interface("panic", r).Msg("OTLP relay goroutine panicked")
+			}
+		}()
 		agentlog.Logger.Info().
 			Int("port", r.port).
 			Str("local_ep", r.localEP).

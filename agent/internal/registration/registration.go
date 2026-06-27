@@ -94,6 +94,7 @@ func (r *Registrar) readServerCACert() error {
 				InsecureSkipVerify: r.config.InsecureSkipVerify,
 			},
 		},
+		Timeout: 30 * time.Second,
 	}
 
 	caCertURL := serverURL.String() + "/admin/agent/root_certificate"
@@ -278,6 +279,7 @@ func (r *Registrar) createHTTPClient(withClientCert bool) (*http.Client, error) 
 		Transport: &http.Transport{
 			TLSClientConfig: tlsConfig,
 		},
+		Timeout: 60 * time.Second,
 	}, nil
 }
 
