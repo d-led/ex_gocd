@@ -117,7 +117,7 @@
 | — | Elastic agent scheduler (Phase 9-10) | — | ✅ ~1100 lines: GenServer tick, k8s pod lifecycle, idle cleanup, orphan reaper, cluster profile auto-seed. K8s-only. |
 | — | Enhanced compare dialog (Phase 11) | M | Any-two-instance pickers, side-by-side diff |
 | — | Gantt chart view (Phase 12) | M | Timeline + dependency arrows. Candidate: `phoenix_live_gantt` |
-| — | Embedded pipeline/stage stats (Phase 13) | S | Stats charts in pipeline/stage detail pages (not just analytics page) |
+| — | Embedded pipeline/stage stats (Phase 13) | S | ✅ Stage details "Trends" tab with last 10 runs duration + pass/fail chart |
 
 ### 🔵 P3: Analytics — ✅ Done
 

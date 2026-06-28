@@ -10,7 +10,38 @@ defmodule ExGoCD.Analytics do
   alias ExGoCD.Analytics.AgentTransition
   alias ExGoCD.Analytics.AgentSnapshot
   alias ExGoCD.Agents
-  alias ExGoCD.Pipelines.{Pipeline, PipelineInstance}
+  alias ExGoCD.Pipelines.{Pipeline, PipelineInstance, StageInstance}
+
+  @doc """
+  Returns the last `limit` stage runs for a pipeline/stage with result and duration.
+  For embedded stage-level trend display.
+  """
+  def stage_trends(pipeline_name, stage_name, limit \\ 10) do
+    pipeline =
+      Repo.one(from p in Pipeline, where: p.name == ^pipeline_name, select: p.id)
+
+    if pipeline do
+      from(si in StageInstance,
+        join: pi in PipelineInstance,
+        on: si.pipeline_instance_id == pi.id,
+        where: pi.pipeline_id == ^pipeline and si.name == ^stage_name,
+        order_by: [desc: pi.counter],
+        limit: ^limit,
+        select: %{
+          counter: pi.counter,
+          result: si.result,
+          state: si.state,
+          duration: si.duration,
+          scheduled_at: si.scheduled_at,
+          completed_at: si.completed_at
+        }
+      )
+      |> Repo.all()
+      |> Enum.reverse()
+    else
+      []
+    end
+  end
 
   def pipeline_analytics(pipeline_name, days \\ 30) do
     cutoff = DateTime.add(DateTime.utc_now(), -days * 86_400, :second)

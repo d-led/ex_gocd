@@ -7,6 +7,7 @@ defmodule ExGoCDWeb.StageDetailsLive do
 
   alias ExGoCD.MockData
   alias ExGoCD.Agents
+  alias ExGoCD.Analytics
 
   @impl true
   def mount(_params, _session, socket) do
@@ -25,6 +26,7 @@ defmodule ExGoCDWeb.StageDetailsLive do
     stage_counter = String.to_integer(params["stage_counter"])
 
     stage = get_stage_details(pipeline_name, pipeline_counter, stage_name, stage_counter)
+    trends = Analytics.stage_trends(pipeline_name, stage_name, 10)
 
     {:noreply,
      socket
@@ -33,6 +35,7 @@ defmodule ExGoCDWeb.StageDetailsLive do
      |> assign(:stage_name, stage_name)
      |> assign(:stage_counter, stage_counter)
      |> assign(:stage, stage)
+     |> assign(:trends, trends)
      |> assign(
        :page_title,
        "#{pipeline_name} / #{pipeline_counter} / #{stage_name} / #{stage_counter}"
@@ -391,6 +394,13 @@ defmodule ExGoCDWeb.StageDetailsLive do
             >
               Console Log
             </button>
+            <button
+              phx-click="select_tab"
+              phx-value-tab="trends"
+              class={"px-4 py-3 text-xs font-bold font-mono tracking-wide border-b-2 " <> if @active_tab == "trends", do: "border-[#2d6ca2] text-[#2d6ca2]", else: "border-transparent text-gray-500 hover:text-gray-700"}
+            >
+              Trends
+            </button>
           </nav>
 
           <div class="p-6">
@@ -510,6 +520,54 @@ defmodule ExGoCDWeb.StageDetailsLive do
                   <div class="text-yellow-500">
                     [go] Stage completed. Invalidation triggers cleared.
                   </div>
+                </div>
+              <% "trends" -> %>
+                <div>
+                  <%= if @trends == [] do %>
+                    <p class="text-gray-400 text-xs">No historical data for this stage yet.</p>
+                  <% else %>
+                    <% max_dur = Enum.max_by(@trends, &(&1.duration || 0)).duration || 1 %>
+                    <div class="space-y-2">
+                      <%= for t <- @trends do %>
+                        <% dur = t.duration || 0 %>
+                        <% pct = if max_dur > 0, do: Float.round(dur / max_dur * 100, 1), else: 0 %>
+                        <div
+                          class="flex items-center gap-2.5 text-xs"
+                          title={"##{t.counter}: #{t.result}, #{format_duration(t.duration)}"}
+                        >
+                          <span class="w-12 shrink-0 text-right tabular-nums font-mono text-gray-500">
+                            ##{t.counter}
+                          </span>
+                          <span class={[
+                            "w-14 shrink-0 text-center text-[10px] font-bold px-1.5 py-0.5 rounded uppercase",
+                            if(t.result == "Passed",
+                              do: "bg-green-100 text-green-700",
+                              else: "bg-red-100 text-red-700"
+                            )
+                          ]}>
+                            {t.result}
+                          </span>
+                          <div class="flex-1 h-5 bg-gray-100 rounded overflow-hidden min-w-0">
+                            <% bar_color =
+                              if(t.result == "Passed", do: "bg-green-400", else: "bg-red-400") %>
+                            <div
+                              class={"h-full rounded transition-all #{bar_color}"}
+                              style={"width:#{pct}%"}
+                            >
+                            </div>
+                          </div>
+                          <span class="w-14 shrink-0 text-right tabular-nums font-semibold text-gray-700">
+                            {format_duration(t.duration)}
+                          </span>
+                        </div>
+                      <% end %>
+                    </div>
+                    <div class="mt-3 text-[10px] text-gray-400">
+                      <% passed = Enum.count(@trends, &(&1.result == "Passed")) %> Last {length(
+                        @trends
+                      )} runs: {passed} passed, {length(@trends) - passed} failed
+                    </div>
+                  <% end %>
                 </div>
             <% end %>
           </div>
