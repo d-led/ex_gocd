@@ -95,7 +95,7 @@
 | Admin dropdown | ✅ | CSS-driven with JS edge guard; mobile responsive with vertical list + phx-update="ignore" |
 | Plugins removed | ✅ | No plugin architecture — ex_gocd bakes in features directly. Removed from UI and nav. |
 | Roles CRUD | ✅ | Schema + migration + API at `/api/admin/security/roles`. GoCD parity: `delete_role` validates not-in-use. |
-| Clustering (libcluster + Horde) | ✅ | Multi-node OTP cluster. Gossip/Epmd topology. `Horde.Registry` + `Horde.DynamicSupervisor`. `ClusterInfoServer` polls singleton locations. Admin "Clustering" tab. Plugin architecture documented. `process-compose.cluster.yaml` for 2 nodes. |
+| Clustering (libcluster + Horde) | ✅ | Multi-node OTP cluster. Gossip/Epmd topology. `Horde.Registry` + `Horde.DynamicSupervisor`. `ClusterInfoServer` polls singleton locations. Admin "Clustering" tab. Plugin architecture documented (5 slots: AuthProvider, AgentSelector, PipelineGrouper, OrgHierarchy, NotificationSink). `process-compose.cluster.yaml` for 2 nodes. All 10 singletons distributed. |
 
 ---
 
@@ -116,12 +116,13 @@
 | B9 | Pipeline group administration | M | ✅ `PipelineGroupPolicy` with operate/admin/view, wired into stage approval, 9 tests |
 | B10-B16 | Notifications, roles, elastic profiles, cluster profiles, packages, secrets, plugins | — | ✅ All done |
 | — | Elastic agent scheduler (Phase 9-10) | — | ✅ ~1100 lines: GenServer tick, k8s pod lifecycle, idle cleanup, orphan reaper, cluster profile auto-seed. K8s-only. |
-| — | Clustering (libcluster + Horde) | — | ✅ Milestones 1-2 done: multi-node cluster, admin UI, plugin architecture doc |
+| — | Clustering (libcluster + Horde) | — | ✅ Milestones 1-3 done: multi-node cluster, admin UI, 10 distributed singletons |
 | — | Enhanced compare dialog (Phase 11) | M | Any-two-instance pickers, side-by-side diff |
 | — | Gantt chart view (Phase 12) | M | Timeline + dependency arrows. Candidate: `phoenix_live_gantt` |
-| — | Convert singletons to Horde distributed | M | Planned (see `clustering_plugin_plan.md`), not started |
-| — | Auth plugin (Ueberauth/LDAP) in plugins/managed/ | L | Plugin architecture ready, not started |
+| — | Plugin Registry + first plugin (AgentSelector) | M | Plugin Registry GenServer, wire RegionalAffinity into Scheduler |
 | — | OTEL process propagator for cross-node traces | S | Not started |
+| — | Auth plugin (Ueberauth/LDAP) in plugins/managed/ | L | Plugin architecture ready, not started |
+| — | Org Hierarchy plugin (pipeline group isolation) | M | Department-scoped pipeline access, org tree → auth policy |
 
 ### 🔵 P3: Analytics — ✅ Done
 
