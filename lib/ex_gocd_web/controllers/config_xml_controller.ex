@@ -1,8 +1,10 @@
 defmodule ExGoCDWeb.ConfigXmlController do
   @moduledoc """
-  Config XML export and import at /admin/config_xml.
+  Config XML export, import, and version revert at /admin/config_xml.
   """
   use ExGoCDWeb, :controller
+
+  alias ExGoCD.ConfigVersion
 
   def index(conn, _params) do
     render(conn, :index)
@@ -19,17 +21,7 @@ defmodule ExGoCDWeb.ConfigXmlController do
   def import_xml(conn, %{"file" => %{path: path, filename: _filename}}) do
     case File.read(path) do
       {:ok, xml} ->
-        case ExGoCD.ConfigXml.import_from_xml(xml) do
-          {:ok, count} ->
-            conn
-            |> put_flash(:info, "Imported #{count} pipeline(s) successfully.")
-            |> redirect(to: "/admin/pipelines")
-
-          {:error, reason} ->
-            conn
-            |> put_flash(:error, "Import failed: #{reason}")
-            |> redirect(to: "/admin/config_xml")
-        end
+        do_import(conn, xml)
 
       {:error, reason} ->
         conn
@@ -42,5 +34,40 @@ defmodule ExGoCDWeb.ConfigXmlController do
     conn
     |> put_flash(:error, "Please select a cruise-config.xml file to upload.")
     |> redirect(to: "/admin/config_xml")
+  end
+
+  @doc "Revert to a previous config version by ID."
+  def revert(conn, %{"version_id" => version_id}) do
+    case Integer.parse(version_id) do
+      {id, _} ->
+        version = ConfigVersion.get!(id)
+        xml = version.config_xml || config_json_to_xml(version.config_json)
+        do_import(conn, xml)
+
+      :error ->
+        conn
+        |> put_flash(:error, "Invalid version ID.")
+        |> redirect(to: "/admin/config_xml")
+    end
+  end
+
+  defp do_import(conn, xml) do
+    case ExGoCD.ConfigXml.import_from_xml(xml) do
+      {:ok, count} ->
+        ExGoCD.ConfigSnapshot.after_mutation("admin", "config reverted from version")
+
+        conn
+        |> put_flash(:info, "Imported #{count} pipeline(s) successfully.")
+        |> redirect(to: "/admin/config_xml")
+
+      {:error, reason} ->
+        conn
+        |> put_flash(:error, "Import failed: #{reason}")
+        |> redirect(to: "/admin/config_xml")
+    end
+  end
+
+  defp config_json_to_xml(config_json) do
+    ExGoCD.ConfigXml.generate()
   end
 end

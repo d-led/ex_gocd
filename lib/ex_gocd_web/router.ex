@@ -160,6 +160,7 @@ defmodule ExGoCDWeb.Router do
       get "/admin/config_xml/download", ConfigXmlController, :show
       get "/go/admin/config_xml", ConfigXmlController, :index
       post "/admin/config_xml/import", ConfigXmlController, :import_xml
+      post "/admin/config_xml/revert/:version_id", ConfigXmlController, :revert
     end
   end
 

@@ -59,7 +59,8 @@
               <th class="py-1.5 pr-4 font-semibold">When</th>
               <th class="py-1.5 pr-4 font-semibold">Hash</th>
               <th class="py-1.5 pr-4 font-semibold">By</th>
-              <th class="py-1.5 font-semibold">Reason</th>
+              <th class="py-1.5 pr-4 font-semibold">Reason</th>
+              <th class="py-1.5 font-semibold"></th>
             </tr>
           </thead>
           <tbody>
@@ -72,7 +73,23 @@
                   {String.slice(v.config_hash, 0, 12)}
                 </td>
                 <td class="py-1.5 pr-4 text-slate-600">{v.changed_by}</td>
-                <td class="py-1.5 text-slate-600">{v.change_reason}</td>
+                <td class="py-1.5 pr-4 text-slate-600">{v.change_reason}</td>
+                <td class="py-1.5">
+                  <form
+                    action={"/admin/config_xml/revert/#{v.id}"}
+                    method="post"
+                    onsubmit="return confirm('Revert config to this version?')"
+                  >
+                    <input
+                      type="hidden"
+                      name="_csrf_token"
+                      value={Phoenix.Controller.get_csrf_token()}
+                    />
+                    <button class="text-[10px] font-semibold text-amber-700 hover:text-amber-900 hover:underline">
+                      Revert
+                    </button>
+                  </form>
+                </td>
               </tr>
             <% end %>
           </tbody>
