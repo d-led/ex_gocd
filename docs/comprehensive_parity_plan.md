@@ -1,6 +1,6 @@
 # Comprehensive GoCD Feature Parity Plan
 
-*Audited 2026-06-22. Updated 2026-06-28. 832 ExUnit tests (0 skipped), 16/16 quality gate.*
+*Audited 2026-06-22. Updated 2026-06-28. 848 ExUnit tests (0 skipped), 16/16 quality gate.*
 
 > This is the single source of truth. Supersedes: `parity_roadmap_plan.md`, `vsm_parity_plan.md`, `auth_and_env_plan.md`, `external-ci-pipeline-sync-plan.md`.
 
@@ -112,7 +112,7 @@
 |---|-----|--------|-------|
 | B7 | Full config repos engine (PaC) | XL | YAML parsing, git polling, merge engine. Data model phases 0-2 done in `external-ci-pipeline-sync-plan.md`. |
 | B8 | External auth (LDAP/OAuth/GitHub) | L | Ueberauth or :eldap |
-| B9 | Pipeline group administration | M | Delegate admin per group |
+| B9 | Pipeline group administration | M | ✅ `PipelineGroupPolicy` with operate/admin/view, wired into stage approval, 9 tests |
 | B10-B16 | Notifications, roles, elastic profiles, cluster profiles, packages, secrets, plugins | — | ✅ All done |
 | — | Elastic agent scheduler (Phase 9-10) | — | ✅ ~1100 lines: GenServer tick, k8s pod lifecycle, idle cleanup, orphan reaper, cluster profile auto-seed. K8s-only. |
 | — | Enhanced compare dialog (Phase 11) | M | Any-two-instance pickers, side-by-side diff |
@@ -145,7 +145,7 @@ All B17-B21 complete: agent transitions schema, utilization snapshots (5-min Gen
 |----------|-------|--------|--------|
 | **P0** | — | — | ✅ DONE |
 | **P1** | — | — | ✅ DONE |
-| **P2** | Config repos engine, external auth, pipeline groups, compare dialog, gantt | M-XL | Remaining gaps |
+| **P2** | Config repos engine, external auth, compare dialog, gantt | M-XL | Remaining gaps |
 | **P3** | — | — | ✅ DONE (Analytics) |
 | **P4** | Feeds XML, mailserver, SCMs API, health API, permissions, etc. | S | Quick checkbox wins |
 
