@@ -1,0 +1,79 @@
+version: "0.5"
+
+# ── ex_gocd clustered process-compose configuration ────────────────────
+# Starts 2 Phoenix instances in a libcluster-based OTP cluster.
+#
+# Prerequisites: docker compose up -d postgres jaeger otel-collector
+# Usage:         process-compose -f process-compose.cluster.yaml up
+# Stop:          process-compose -f process-compose.cluster.yaml down
+#
+# https://f1bonacc1.github.io/process-compose/
+
+log_location: /tmp/ex_gocd_cluster.log
+log_level: info
+is_strict: true
+
+processes:
+  # ── Phoenix Server :4000 ────────────────────────────────────────────
+  server-4000:
+    command: "elixir --name ex_gocd@127.0.0.1 --cookie ex-gocd-demo-cookie -S mix phx.server"
+    working_dir: "."
+    environment:
+      - "PORT=4000"
+      - "EX_GOCD_DEMO_COOKIE=ex-gocd-demo-cookie"
+      - "LOG_LEVEL=warning"
+      - "MIX_ENV=dev"
+    readiness_probe:
+      http_get:
+        host: localhost
+        port: 4000
+        path: /pipelines
+      initial_delay_seconds: 2
+      period_seconds: 5
+      timeout_seconds: 30
+    availability:
+      restart: always
+      max_restarts: 0
+
+  # ── Phoenix Server :5000 ────────────────────────────────────────────
+  server-5000:
+    command: "elixir --name ex_gocd2@127.0.0.1 --cookie ex-gocd-demo-cookie -S mix phx.server"
+    working_dir: "."
+    environment:
+      - "PORT=5000"
+      - "EX_GOCD_DEMO_COOKIE=ex-gocd-demo-cookie"
+      - "LOG_LEVEL=warning"
+      - "MIX_ENV=dev"
+    depends_on:
+      server-4000:
+        condition: process_healthy
+    readiness_probe:
+      http_get:
+        host: localhost
+        port: 5000
+        path: /pipelines
+      initial_delay_seconds: 2
+      period_seconds: 5
+      timeout_seconds: 30
+    availability:
+      restart: always
+      max_restarts: 0
+
+  # ── CI Agent ────────────────────────────────────────────────────────
+  ci-agent:
+    command: "go run ."
+    working_dir: "agent"
+    environment:
+      - "AGENT_SERVER_URL=http://127.0.0.1:4000"
+      - "AGENT_WORK_DIR=/tmp/ex_gocd_agent_work"
+      - "AGENT_CI_MODE=1"
+      - "AGENT_AUTO_REGISTER_RESOURCES=elixir,postgres"
+      - "AGENT_HOSTNAME=ci-agent"
+      - "AGENT_UUID=00010000-1000-4000-a000-000000000001"
+      - "EX_GOCD_DEMO_COOKIE=ex-gocd-demo-cookie"
+    depends_on:
+      server-4000:
+        condition: process_healthy
+    availability:
+      restart: always
+      max_restarts: 0

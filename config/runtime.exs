@@ -26,7 +26,7 @@ if System.get_env("PHX_SERVER") do
   config :ex_gocd, ExGoCDWeb.Endpoint, server: true
 end
 
-if config_env() != :prod do
+if config_env() == :dev do
   config :ex_gocd, ExGoCDWeb.Endpoint,
     http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 end

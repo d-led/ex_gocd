@@ -24,24 +24,43 @@ defmodule ExGoCD.Application do
     # ETS table for cross-process trace context propagation (assign → agent report)
     ExGoCD.VsmContextStore.setup()
 
-    base = [
-      ExGoCDWeb.Telemetry,
-      {DNSCluster, query: Application.get_env(:ex_gocd, :dns_cluster_query) || :ignore},
-      {Phoenix.PubSub, name: ExGoCD.PubSub},
-      ExGoCDWeb.AgentPresence,
-      ExGoCD.Scheduler,
-      ExGoCD.AgentRegistry,
-      ExGoCD.TestAgentSupervisor,
-      ExGoCDWeb.Endpoint,
-      ExGoCD.Materials.Poller,
-      ExGoCD.Materials.TimerScheduler,
-      ExGoCD.Pipelines.ConsoleActivityMonitor,
-      ExGoCD.MaintenanceMode,
-      ExGoCD.SchedulingChecker.TriggerMonitor,
-      ExGoCD.Monitors.DiskSpace,
-      ExGoCD.ElasticAgentScheduler,
-      ExGoCD.Analytics.SnapshotCollector
+    # ── Cluster infrastructure ────────────────────────────────────────
+    topologies = cluster_topologies()
+
+    cluster_children = [
+      {Cluster.Supervisor, [topologies, [name: ExGoCD.ClusterSupervisor]]},
+      {Horde.Registry, [name: ExGoCD.HordeRegistry, keys: :unique, members: :auto]},
+      {Horde.DynamicSupervisor,
+       [
+         name: ExGoCD.HordeSupervisor,
+         strategy: :one_for_one,
+         restart: :transient,
+         distribution_strategy: Horde.UniformDistribution,
+         process_redistribution: :passive,
+         members: :auto
+       ]},
+      ExGoCD.ClusterInfoServer
     ]
+
+    base =
+      [
+        ExGoCDWeb.Telemetry,
+        {DNSCluster, query: Application.get_env(:ex_gocd, :dns_cluster_query) || :ignore},
+        {Phoenix.PubSub, name: ExGoCD.PubSub},
+        ExGoCDWeb.AgentPresence,
+        ExGoCD.Scheduler,
+        ExGoCD.AgentRegistry,
+        ExGoCD.TestAgentSupervisor,
+        ExGoCDWeb.Endpoint,
+        ExGoCD.Materials.Poller,
+        ExGoCD.Materials.TimerScheduler,
+        ExGoCD.Pipelines.ConsoleActivityMonitor,
+        ExGoCD.MaintenanceMode,
+        ExGoCD.SchedulingChecker.TriggerMonitor,
+        ExGoCD.Monitors.DiskSpace,
+        ExGoCD.ElasticAgentScheduler,
+        ExGoCD.Analytics.SnapshotCollector
+      ] ++ cluster_children
 
     children =
       if skip_db? do
@@ -75,5 +94,16 @@ defmodule ExGoCD.Application do
   def config_change(changed, _new, removed) do
     ExGoCDWeb.Endpoint.config_change(changed, removed)
     :ok
+  end
+
+  defp cluster_topologies do
+    case System.get_env("ERLANG_SEED_NODES", "")
+         |> String.split(",", trim: true)
+         |> Enum.map(&String.trim/1)
+         |> Enum.reject(&(&1 == ""))
+         |> Enum.map(&String.to_atom/1) do
+      [] -> [default: [strategy: Cluster.Strategy.Gossip]]
+      seeds -> [default: [strategy: Cluster.Strategy.Epmd, config: [hosts: seeds]]]
+    end
   end
 end

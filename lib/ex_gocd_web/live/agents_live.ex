@@ -907,7 +907,9 @@ defmodule ExGoCDWeb.AgentsLive do
   end
 
   defp pending_scheduled_count do
-    if Process.whereis(ExGoCD.Scheduler), do: ExGoCD.Scheduler.pending_count(), else: 0
+    if ExGoCD.DistSingleton.whereis(ExGoCD.Scheduler),
+      do: ExGoCD.Scheduler.pending_count(),
+      else: 0
   end
 
   defp status_text(:disabled), do: "Disabled"

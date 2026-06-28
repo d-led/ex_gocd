@@ -96,7 +96,9 @@ defmodule ExGoCD.MixProject do
       {:ex_json_schema, "~> 0.10"},
       {:contex, "~> 0.5.0"},
       {:k8s, "~> 2.8"},
-      {:open_api_spex, "~> 3.22"}
+      {:open_api_spex, "~> 3.22"},
+      {:libcluster, "~> 3.4"},
+      {:horde, "~> 0.10"}
     ]
   end
 
