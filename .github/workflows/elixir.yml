@@ -125,11 +125,24 @@ jobs:
           cache-to: type=gha,mode=min
 
   publish-agent:
-    name: Build and publish Agent Docker image
+    name: Build and publish Agent Docker image (${{ matrix.variant.name }})
     runs-on: ubuntu-latest
     needs: build
     # Only run publish on push to main or tags matching v*
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    strategy:
+      fail-fast: false
+      matrix:
+        variant:
+          - name: minimal
+            suffix: ""
+            extra_packages: ""
+          - name: standard
+            suffix: "-standard"
+            extra_packages: "build-essential openssl-dev python3 nodejs npm"
+          - name: full
+            suffix: "-full"
+            extra_packages: "build-essential openssl-dev python3 nodejs npm openjdk21-jdk subversion clang rust cargo dotnet8-sdk"
 
     steps:
       - name: Checkout Code
@@ -149,16 +162,21 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Extract metadata (tags, labels) for Agent
+        if: github.ref == 'refs/heads/main' || matrix.variant.name == 'minimal'
         id: meta-agent
         uses: docker/metadata-action@v6
         with:
           images: ghcr.io/${{ github.repository }}-agent
           tags: |
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
-            type=ref,event=tag,pattern=^v[0-9]
-            type=ref,event=branch
+            type=raw,value=${{ matrix.variant.name }},enable=${{ github.ref == 'refs/heads/main' }}
+            type=ref,event=tag,pattern=^v[0-9],suffix=${{ matrix.variant.suffix }},enable=${{ matrix.variant.name == 'minimal' }}
+            type=ref,event=tag,pattern=^v[0-9]\\.[0-9],suffix=${{ matrix.variant.suffix }},enable=${{ matrix.variant.name == 'minimal' }}
+            type=ref,event=tag,pattern=^v[0-9]\\.[0-9]\\.[0-9],suffix=${{ matrix.variant.suffix }},enable=${{ matrix.variant.name == 'minimal' }}
+          flavor: |
+            latest=${{ matrix.variant.name == 'minimal' }}
 
       - name: Build and push Agent Docker image
+        if: github.ref == 'refs/heads/main' || matrix.variant.name == 'minimal'
         uses: docker/build-push-action@v7
         with:
           context: ./agent
@@ -167,6 +185,8 @@ jobs:
           push: true
           tags: ${{ steps.meta-agent.outputs.tags }}
           labels: ${{ steps.meta-agent.outputs.labels }}
+          build-args: |
+            EXTRA_PACKAGES=${{ matrix.variant.extra_packages }}
           cache-from: type=gha
           cache-to: type=gha,mode=min
 

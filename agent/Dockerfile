@@ -25,6 +25,14 @@ FROM alpine:latest
 # Install runtime dependencies needed for SCM checkout and execution
 RUN apk add --no-cache ca-certificates git bash openssh-client curl
 
+# Optional extra packages for custom agent variants (space-separated apk package list)
+# e.g.: build-essential openssl-dev python3 nodejs npm openjdk21-jdk subversion
+ARG EXTRA_PACKAGES=""
+RUN if [ -n "$EXTRA_PACKAGES" ]; then \
+      echo "Installing extra packages: $EXTRA_PACKAGES"; \
+      apk add --no-cache $EXTRA_PACKAGES; \
+    fi
+
 WORKDIR /app
 
 # Copy compiled agent binary
