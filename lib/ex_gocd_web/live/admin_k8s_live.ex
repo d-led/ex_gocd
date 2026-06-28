@@ -58,7 +58,7 @@ defmodule ExGoCDWeb.AdminK8sLive do
   end
 
   @impl true
-  def handle_async({:check_conn, id}, {id, status}, socket) do
+  def handle_async({:check_conn, id}, {:ok, {id, status}}, socket) do
     {:noreply,
      put_in(
        socket.assigns.connection_status,
@@ -66,6 +66,7 @@ defmodule ExGoCDWeb.AdminK8sLive do
      )}
   end
 
+  @impl true
   def handle_async({:check_conn, id}, {:exit, reason}, socket) do
     msg =
       case reason do
@@ -75,6 +76,12 @@ defmodule ExGoCDWeb.AdminK8sLive do
 
     status_map = Map.get(socket.assigns, :connection_status, %{})
     {:noreply, assign(socket, :connection_status, Map.put(status_map, id, {:error, msg}))}
+  end
+
+  # Catch-all — never crash on unexpected async results
+  def handle_async({:check_conn, id}, unexpected, socket) do
+    status_map = Map.get(socket.assigns, :connection_status, %{})
+    {:noreply, assign(socket, :connection_status, Map.put(status_map, id, {:error, "Unexpected: #{inspect(unexpected)}"}))}
   end
 
   # ── Cluster Profile actions ───────────────────────────────────────────────
