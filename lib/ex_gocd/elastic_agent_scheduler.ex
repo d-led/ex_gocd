@@ -69,7 +69,6 @@ defmodule ExGoCD.ElasticAgentScheduler do
   end
 
   @impl true
-  @impl true
   def handle_info(:tick, state) do
     state =
       try do
@@ -379,7 +378,7 @@ defmodule ExGoCD.ElasticAgentScheduler do
     env_vars =
       [
         %{"name" => "AGENT_SERVER_URL", "value" => server_url()},
-        %{"name" => "AGENT_AUTO_REGISTER_KEY", "value" => ExGoCD.Agents.agent_cookie()},
+        %{"name" => "AGENT_AUTO_REGISTER_KEY", "value" => agent_cookie()},
         %{"name" => "AGENT_AUTO_REGISTER_RESOURCES", "value" => Enum.join(resources, ",")},
         %{"name" => "AGENT_AUTO_REGISTER_ENVIRONMENTS", "value" => env_string(job)},
         %{"name" => "AGENT_HOSTNAME", "value" => name}
@@ -489,6 +488,10 @@ defmodule ExGoCD.ElasticAgentScheduler do
   defp server_url do
     Application.get_env(:ex_gocd, :elastic_agent_server_url) ||
       "http://host.docker.internal:4000/go"
+  end
+
+  defp agent_cookie do
+    Application.get_env(:ex_gocd, :agent_cookie) || "ex-gocd-demo-cookie"
   end
 
   defp env_string(job) do
