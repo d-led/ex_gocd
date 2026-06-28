@@ -40,8 +40,30 @@ defmodule ExGoCD.Mailer do
     |> Email.from(@from)
     |> Email.to(user_email)
     |> Email.subject(subject)
-    |> Email.html_body(html_body(pipeline_name, stage_name, event, result, pipeline_counter, stage_counter, triggered_by, materials))
-    |> Email.text_body(text_body(pipeline_name, stage_name, event, result, pipeline_counter, stage_counter, triggered_by, materials))
+    |> Email.html_body(
+      html_body(
+        pipeline_name,
+        stage_name,
+        event,
+        result,
+        pipeline_counter,
+        stage_counter,
+        triggered_by,
+        materials
+      )
+    )
+    |> Email.text_body(
+      text_body(
+        pipeline_name,
+        stage_name,
+        event,
+        result,
+        pipeline_counter,
+        stage_counter,
+        triggered_by,
+        materials
+      )
+    )
     |> deliver()
   end
 
@@ -49,7 +71,8 @@ defmodule ExGoCD.Mailer do
 
   defp subject_line(pipeline_name, stage_name, event, stage_counter) do
     locator =
-      if stage_counter, do: "#{pipeline_name}/#{stage_name}/#{stage_counter}",
+      if stage_counter,
+        do: "#{pipeline_name}/#{stage_name}/#{stage_counter}",
         else: "#{pipeline_name}/#{stage_name}"
 
     "Stage [#{locator}] #{event}"
@@ -84,13 +107,15 @@ defmodule ExGoCD.Mailer do
                       #{pipeline} &rsaquo; #{stage}
                     </td>
                   </tr>
-                  #{if p_ctr && s_ctr do """
-                  <tr>
-                    <td style="font-size:13px;color:rgba(255,255,255,0.75);padding-top:4px">
-                      ##{p_ctr} / #{stage} ##{s_ctr}
-                    </td>
-                  </tr>
-                  """ end}
+                  #{if p_ctr && s_ctr do
+      """
+      <tr>
+        <td style="font-size:13px;color:rgba(255,255,255,0.75);padding-top:4px">
+          ##{p_ctr} / #{stage} ##{s_ctr}
+        </td>
+      </tr>
+      """
+    end}
                 </table>
               </td>
             </tr>
@@ -98,27 +123,33 @@ defmodule ExGoCD.Mailer do
             <!-- Details -->
             <tr><td style="padding:24px 32px">
 
-              #{if triggered_by do """
-              <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:20px;border:1px solid #e5e7eb;border-radius:6px">
-                <tr>
-                  <td style="padding:12px 16px;font-size:13px;color:#6b7280">
-                    Triggered by <strong style="color:#374151">#{triggered_by}</strong>
-                  </td>
-                </tr>
-              </table>
-              """ end}
+              #{if triggered_by do
+      """
+      <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:20px;border:1px solid #e5e7eb;border-radius:6px">
+        <tr>
+          <td style="padding:12px 16px;font-size:13px;color:#6b7280">
+            Triggered by <strong style="color:#374151">#{triggered_by}</strong>
+          </td>
+        </tr>
+      </table>
+      """
+    end}
 
-              #{if detail_url do """
-              <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px">
-                <tr><td align="center">
-                  <a href="#{detail_url}" target="_blank" style="display:inline-block;background:#3b82f6;color:#fff;text-decoration:none;padding:10px 28px;border-radius:6px;font-size:14px;font-weight:600">
-                    View Stage Details &rarr;
-                  </a>
-                </td></tr>
-              </table>
-              """ end}
+              #{if detail_url do
+      """
+      <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px">
+        <tr><td align="center">
+          <a href="#{detail_url}" target="_blank" style="display:inline-block;background:#3b82f6;color:#fff;text-decoration:none;padding:10px 28px;border-radius:6px;font-size:14px;font-weight:600">
+            View Stage Details &rarr;
+          </a>
+        </td></tr>
+      </table>
+      """
+    end}
 
-              #{if materials != [] do material_changes_html(materials) end}
+              #{if materials != [] do
+      material_changes_html(materials)
+    end}
 
             </td></tr>
 
@@ -170,13 +201,15 @@ defmodule ExGoCD.Mailer do
                     #{if m[:date], do: "on #{m[:date]}", else: ""}
                   </td>
                 </tr>
-                #{if m[:comment] && m[:comment] != "" do """
-                <tr>
-                  <td style="font-size:13px;color:#374151;font-style:italic;padding-top:4px">
-                    #{m[:comment]}
-                  </td>
-                </tr>
-                """ end}
+                #{if m[:comment] && m[:comment] != "" do
+          """
+          <tr>
+            <td style="font-size:13px;color:#374151;font-style:italic;padding-top:4px">
+              #{m[:comment]}
+            </td>
+          </tr>
+          """
+        end}
               </table>
             </td>
           </tr>
@@ -195,9 +228,9 @@ defmodule ExGoCD.Mailer do
 
     parts =
       [
-        (if detail_url, do: "See details: #{detail_url}", else: nil),
-        (if triggered_by, do: "Triggered by #{triggered_by}", else: nil),
-        (if materials != [], do: material_changes_text(materials), else: nil),
+        if(detail_url, do: "See details: #{detail_url}", else: nil),
+        if(triggered_by, do: "Triggered by #{triggered_by}", else: nil),
+        if(materials != [], do: material_changes_text(materials), else: nil),
         "Sent by ex_gocd"
       ]
       |> Enum.reject(&is_nil/1)
@@ -227,6 +260,7 @@ defmodule ExGoCD.Mailer do
 
   defp stage_detail_url(_pipeline, nil, _stage, _s_ctr), do: nil
   defp stage_detail_url(_pipeline, _p_ctr, _stage, nil), do: nil
+
   defp stage_detail_url(pipeline, p_ctr, stage, s_ctr) do
     "#{@site_url}/pipelines/#{pipeline}/#{p_ctr}/#{stage}/#{s_ctr}"
   end

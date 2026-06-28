@@ -46,7 +46,7 @@ defmodule ExGoCD.Agents do
     cond do
       is_map_key(attrs, "disabled") or is_map_key(attrs, :disabled) -> attrs
       is_map_key(attrs, "uuid") -> Map.put(attrs, "disabled", false)
-      true -> Map.put(attrs, :disabled, false)
+      true -> attrs |> Map.put(:disabled, false)
     end
   end
 
@@ -96,54 +96,58 @@ defmodule ExGoCD.Agents do
     if use_mock?() do
       Mock.register_agent(attrs)
     else
-      uuid = attrs["uuid"] || attrs[:uuid]
-      hostname = attrs["hostname"] || attrs[:hostname]
+      do_register(attrs)
+    end
+  end
 
-      result =
-        case uuid && get_agent_by_uuid(uuid) do
-          %Agent{} = existing_agent ->
-            # UUID found → update existing agent (GoCD parity: findAgentAndRefreshStatus)
-            existing_agent
-            |> Agent.changeset(ensure_disabled_false(attrs))
-            |> Repo.update()
-            |> broadcast(:agent_updated)
+  defp do_register(attrs) do
+    uuid = attrs["uuid"] || attrs[:uuid]
+    hostname = attrs["hostname"] || attrs[:hostname]
 
-          nil ->
-            # UUID not found → try hostname lookup, but only for orphaned agents
-            stale_by_hostname =
-              if hostname do
-                Repo.one(
-                  from a in Agent,
-                    where: a.hostname == ^hostname,
-                    where: a.disabled == true or a.deleted == true,
-                    order_by: [desc: a.updated_at],
-                    limit: 1
-                )
-              end
+    case uuid && get_agent_by_uuid(uuid) do
+      %Agent{} = existing_agent ->
+        existing_agent
+        |> Agent.changeset(ensure_disabled_false(attrs))
+        |> Repo.update()
+        |> broadcast(:agent_updated)
 
-            case stale_by_hostname do
-              %Agent{} = agent ->
-                # Reassign stale agent to new UUID (hostname re-registration)
-                agent
-                |> Agent.changeset(ensure_disabled_false(attrs))
-                |> Repo.update()
-                |> broadcast(:agent_updated)
+      nil ->
+        register_by_hostname_or_new(attrs, hostname)
+    end
+  end
 
-              nil ->
-                # Brand new agent: create (GoCD parity: createFromLiveAgent)
-                attrs_with_disabled = ensure_disabled_false(attrs)
+  defp register_by_hostname_or_new(attrs, hostname) do
+    stale = find_stale_agent_by_hostname(hostname)
+    uuid = attrs["uuid"] || attrs[:uuid]
 
-                %Agent{}
-                |> Agent.registration_changeset(attrs_with_disabled)
-                |> Repo.insert()
-                |> broadcast(:agent_registered)
-            end
-        end
+    result =
+      if stale do
+        stale
+        |> Agent.changeset(ensure_disabled_false(attrs))
+        |> Repo.update()
+        |> broadcast(:agent_updated)
+      else
+        %Agent{}
+        |> Agent.registration_changeset(ensure_disabled_false(attrs))
+        |> Repo.insert()
+        |> broadcast(:agent_registered)
+      end
 
-      outcome = elem(result, 0)
-      log_registration(uuid || "unknown", hostname || "unknown", outcome)
-      log_registration_audit(uuid, hostname, outcome, attrs)
-      result
+    outcome = elem(result, 0)
+    log_registration(uuid || "unknown", hostname || "unknown", outcome)
+    log_registration_audit(uuid, hostname, outcome, attrs)
+    result
+  end
+
+  defp find_stale_agent_by_hostname(hostname) do
+    if hostname do
+      Repo.one(
+        from a in Agent,
+          where: a.hostname == ^hostname,
+          where: a.disabled == true or a.deleted == true,
+          order_by: [desc: a.updated_at],
+          limit: 1
+      )
     end
   end
 

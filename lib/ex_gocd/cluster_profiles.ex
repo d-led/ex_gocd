@@ -94,45 +94,48 @@ defmodule ExGoCD.ClusterProfiles do
   """
   @spec check_connection(ClusterProfile.t()) :: :ok | {:error, String.t() | :incomplete}
   def check_connection(%ClusterProfile{} = profile) do
-    # Try raw kubeconfig first (kind, GKE, etc.)
     kubeconfig = ClusterProfile.kubeconfig_yaml(profile)
 
     if kubeconfig && kubeconfig != "" do
-      case K8s.from_kubeconfig(kubeconfig) do
-        {:ok, conn} ->
-          K8s.ping(conn, namespace: ClusterProfile.namespace(profile))
-
-        {:error, reason} ->
-          {:error, "Invalid kubeconfig: #{inspect(reason)}"}
-      end
+      ping_via_kubeconfig(kubeconfig, profile)
     else
-      server = ClusterProfile.server_url(profile)
-      token = ClusterProfile.bearer_token(profile)
-      client_cert = ClusterProfile.client_cert(profile)
-      client_key = ClusterProfile.client_key(profile)
+      ping_via_fields(profile)
+    end
+  end
 
-      has_token = token != nil and token != ""
-      has_cert = client_cert != nil and client_key != nil and client_cert != "" and client_key != ""
+  defp ping_via_kubeconfig(kubeconfig, profile) do
+    case K8s.from_kubeconfig(kubeconfig) do
+      {:ok, conn} -> K8s.ping(conn, namespace: ClusterProfile.namespace(profile))
+      {:error, reason} -> {:error, "Invalid kubeconfig: #{inspect(reason)}"}
+    end
+  end
 
-      if is_nil(server) or server == "" or not (has_token or has_cert) do
-        {:error, :incomplete}
-      else
-        config = %{
-          "server" => server,
-          "token" => token,
-          "ca_cert" => ClusterProfile.ca_cert(profile),
-          "namespace" => ClusterProfile.namespace(profile),
-          "client_cert" => client_cert,
-          "client_key" => client_key
-        }
+  defp ping_via_fields(profile) do
+    server = ClusterProfile.server_url(profile)
+    token = ClusterProfile.bearer_token(profile)
+    client_cert = ClusterProfile.client_cert(profile)
+    client_key = ClusterProfile.client_key(profile)
 
-        case K8s.from_config(config) do
-          {:ok, conn} ->
-            K8s.ping(conn, namespace: ClusterProfile.namespace(profile))
+    has_token = token != nil and token != ""
 
-          {:error, reason} ->
-            {:error, "Invalid config: #{inspect(reason)}"}
-        end
+    has_cert =
+      client_cert != nil and client_key != nil and client_cert != "" and client_key != ""
+
+    if is_nil(server) or server == "" or not (has_token or has_cert) do
+      {:error, :incomplete}
+    else
+      config = %{
+        "server" => server,
+        "token" => token,
+        "ca_cert" => ClusterProfile.ca_cert(profile),
+        "namespace" => ClusterProfile.namespace(profile),
+        "client_cert" => client_cert,
+        "client_key" => client_key
+      }
+
+      case K8s.from_config(config) do
+        {:ok, conn} -> K8s.ping(conn, namespace: ClusterProfile.namespace(profile))
+        {:error, reason} -> {:error, "Invalid config: #{inspect(reason)}"}
       end
     end
   end

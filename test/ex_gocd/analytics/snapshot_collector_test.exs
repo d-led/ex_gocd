@@ -8,7 +8,14 @@ defmodule ExGoCD.Analytics.SnapshotCollectorTest do
     test "inserts a snapshot row with required fields" do
       snap =
         %AgentSnapshot{}
-        |> AgentSnapshot.changeset(%{total: 5, idle: 3, building: 2, disabled: 0, lost_contact: 0, elastic: 0})
+        |> AgentSnapshot.changeset(%{
+          total: 5,
+          idle: 3,
+          building: 2,
+          disabled: 0,
+          lost_contact: 0,
+          elastic: 0
+        })
         |> Repo.insert!()
 
       assert snap.total == 5
@@ -32,12 +39,24 @@ defmodule ExGoCD.Analytics.SnapshotCollectorTest do
   describe "analytics queries" do
     test "agent_snapshot_trends/1 returns recent rows" do
       AgentSnapshot.changeset(%AgentSnapshot{}, %{
-        total: 3, idle: 2, building: 1, disabled: 0, lost_contact: 0, elastic: 0
-      }) |> Repo.insert!()
+        total: 3,
+        idle: 2,
+        building: 1,
+        disabled: 0,
+        lost_contact: 0,
+        elastic: 0
+      })
+      |> Repo.insert!()
 
       AgentSnapshot.changeset(%AgentSnapshot{}, %{
-        total: 5, idle: 3, building: 2, disabled: 0, lost_contact: 0, elastic: 0
-      }) |> Repo.insert!()
+        total: 5,
+        idle: 3,
+        building: 2,
+        disabled: 0,
+        lost_contact: 0,
+        elastic: 0
+      })
+      |> Repo.insert!()
 
       trends = Analytics.agent_snapshot_trends(24)
       # Both rows are within the 24-hour window
@@ -47,15 +66,27 @@ defmodule ExGoCD.Analytics.SnapshotCollectorTest do
 
     test "latest_agent_snapshot/0 returns most recent" do
       AgentSnapshot.changeset(%AgentSnapshot{}, %{
-        total: 1, idle: 1, building: 0, disabled: 0, lost_contact: 0, elastic: 0
-      }) |> Repo.insert!()
+        total: 1,
+        idle: 1,
+        building: 0,
+        disabled: 0,
+        lost_contact: 0,
+        elastic: 0
+      })
+      |> Repo.insert!()
 
       # Small delay so inserted_at differs
       Process.sleep(100)
 
       AgentSnapshot.changeset(%AgentSnapshot{}, %{
-        total: 7, idle: 4, building: 3, disabled: 0, lost_contact: 0, elastic: 0
-      }) |> Repo.insert!()
+        total: 7,
+        idle: 4,
+        building: 3,
+        disabled: 0,
+        lost_contact: 0,
+        elastic: 0
+      })
+      |> Repo.insert!()
 
       latest = Analytics.latest_agent_snapshot()
       assert latest.total == 7

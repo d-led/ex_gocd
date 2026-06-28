@@ -73,11 +73,14 @@ defmodule ExGoCD.TestAgent do
   def terminate(_reason, state) do
     # Deregister from DB so the agent doesn’t linger after cleanup.
     case Agents.get_agent_by_uuid(state.uuid) do
-      nil -> :ok
+      nil ->
+        :ok
+
       agent ->
         _ = Agents.disable_agent(agent)
         _ = Agents.delete_agent(agent)
     end
+
     :ok
   end
 

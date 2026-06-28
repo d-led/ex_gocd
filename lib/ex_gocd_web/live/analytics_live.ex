@@ -60,7 +60,12 @@ defmodule ExGoCDWeb.AnalyticsLive do
   defp load_global(socket) do
     socket
     |> assign(:top_pipelines, Analytics.top_pipelines_by_wait_time(7, 10))
-    |> assign(:top_agents, Analytics.top_agents_by_utilization(7, 10))
+    |> assign(
+      :top_agents,
+      Analytics.enriched_agent_analytics(7)
+      |> Enum.sort_by(& &1.total_jobs, :desc)
+      |> Enum.take(10)
+    )
     |> assign(:all_pipeline_stats, Analytics.all_pipelines_analytics(30))
   end
 
@@ -78,6 +83,7 @@ defmodule ExGoCDWeb.AnalyticsLive do
     |> assign(:snapshot_trends, Analytics.agent_snapshot_trends(24))
     |> assign(:latest_snapshot, Analytics.latest_agent_snapshot())
   end
+
   defp load_vsm(socket, nil), do: assign(socket, :vsm_data, [])
   defp load_vsm(socket, name), do: assign(socket, :vsm_data, Analytics.vsm_trends(name, 30))
 
@@ -154,11 +160,9 @@ defmodule ExGoCDWeb.AnalyticsLive do
               <% else %>
                 <%= for a <- @top_agents do %>
                   <tr class="border-t border-gray-50">
-                    <td
-                      class="px-4 py-2.5 font-mono text-xs text-gray-700 truncate max-w-[120px]"
-                      title={a.agent_uuid}
-                    >
-                      {String.slice(a.agent_uuid, 0, 12) <> "…"}
+                    <td class="px-4 py-2.5 font-medium text-gray-800" title={a.agent_uuid}>
+                      {a.hostname}
+                      <span class="ml-1.5"><.agent_type_badge type={a.agent_type} /></span>
                     </td>
                     <td class="px-4 py-2.5 text-right tabular-nums font-medium">{a.total_jobs}</td>
                     <td class="px-4 py-2.5 text-right tabular-nums text-green-600">{a.completed}</td>
@@ -242,7 +246,7 @@ defmodule ExGoCDWeb.AnalyticsLive do
   end
 
   defp agent_top_bar(agents) do
-    data = for a <- agents, do: [String.slice(a.agent_uuid, 0, 12), a.total_jobs]
+    data = for a <- agents, do: [String.slice(a.hostname || a.agent_uuid, 0, 20), a.total_jobs]
     dataset = Dataset.new(data, ["Agent", "Jobs"])
     chart = BarChart.new(dataset)
     plot = Plot.new(500, 240, chart)
@@ -436,7 +440,9 @@ defmodule ExGoCDWeb.AnalyticsLive do
             <tbody>
               <%= if Enum.empty?(@stats) do %>
                 <tr>
-                  <td colspan="5" class="px-4 py-6 text-center text-gray-400">No agent job data yet</td>
+                  <td colspan="5" class="px-4 py-6 text-center text-gray-400">
+                    No agent job data yet
+                  </td>
                 </tr>
               <% else %>
                 <%= for a <- Enum.sort_by(@stats, & &1.total_jobs, :desc) do %>
@@ -493,7 +499,8 @@ defmodule ExGoCDWeb.AnalyticsLive do
     sorted = stats |> Enum.sort_by(& &1.total_jobs, :desc) |> Enum.take(15)
 
     data =
-      for a <- sorted, do: [String.slice(a.hostname || a.agent_uuid, 0, 16), a.completed, a.failed]
+      for a <- sorted,
+          do: [String.slice(a.hostname || a.agent_uuid, 0, 16), a.completed, a.failed]
 
     dataset = Dataset.new(data, ["Agent", "Completed", "Failed"])
     chart = BarChart.new(dataset, type: :stacked)

@@ -250,46 +250,43 @@ defmodule ExGoCD.ElasticAgentScheduler do
     known_pod_names = MapSet.new(Map.keys(state.pods))
 
     Enum.reduce(ElasticAgentProfiles.list_profiles(), state, fn profile, acc ->
-      cluster = ClusterProfiles.get_profile(profile.cluster_profile_id)
-
-      if is_nil(cluster) do
-        acc
-      else
-        conn = build_k8s_conn(cluster)
-        namespace = ClusterProfile.namespace(cluster)
-
-        if is_nil(conn) do
-          acc
-        else
-          case K8s.list_pods(conn, namespace: namespace) do
-            {:ok, pods} ->
-              Enum.reduce(pods, acc, fn pod, acc2 ->
-                pod_name = pod.name
-                labels = pod.labels
-
-                # Only care about gocd-elastic-agent pods
-                if labels["app"] == "gocd-elastic-agent" and
-                     not MapSet.member?(known_pod_names, pod_name) do
-                  age_seconds = pod_age_seconds(pod)
-
-                  # Delete orphan pods older than 10 minutes
-                  if age_seconds > 600 do
-                    K8s.delete_pod(conn, pod_name, namespace: namespace)
-                    log_event(acc2, :info, "Reaped orphan pod #{pod_name} (age: #{age_seconds}s)")
-                  else
-                    acc2
-                  end
-                else
-                  acc2
-                end
-              end)
-
-            {:error, _} ->
-              acc
-          end
-        end
-      end
+      reap_profile_orphans(acc, profile, known_pod_names)
     end)
+  end
+
+  defp reap_profile_orphans(state, profile, known_pod_names) do
+    cluster = ClusterProfiles.get_profile(profile.cluster_profile_id)
+
+    if is_nil(cluster),
+      do: state,
+      else: reap_cluster_orphans(state, profile, cluster, known_pod_names)
+  end
+
+  defp reap_cluster_orphans(state, _profile, cluster, known_pod_names) do
+    conn = build_k8s_conn(cluster)
+    namespace = ClusterProfile.namespace(cluster)
+    if is_nil(conn), do: state, else: list_and_reap(state, conn, namespace, known_pod_names)
+  end
+
+  defp list_and_reap(state, conn, namespace, known_pod_names) do
+    case K8s.list_pods(conn, namespace: namespace) do
+      {:ok, pods} ->
+        Enum.reduce(pods, state, fn pod, acc ->
+          pod_name = pod.name
+
+          if pod.labels["app"] == "gocd-elastic-agent" and
+               not MapSet.member?(known_pod_names, pod_name) and
+               pod_age_seconds(pod) > 600 do
+            K8s.delete_pod(conn, pod_name, namespace: namespace)
+            log_event(acc, :info, "Reaped orphan pod #{pod_name} (age: #{pod_age_seconds(pod)}s)")
+          else
+            acc
+          end
+        end)
+
+      {:error, _} ->
+        state
+    end
   end
 
   defp pod_age_seconds(pod) do
@@ -383,7 +380,10 @@ defmodule ExGoCD.ElasticAgentScheduler do
         %{"name" => "AGENT_AUTO_REGISTER_ENVIRONMENTS", "value" => env_string(job)},
         %{"name" => "AGENT_HOSTNAME", "value" => name},
         %{"name" => "AGENT_AUTO_REGISTER_ELASTIC_AGENT_ID", "value" => agent_profile.id},
-        %{"name" => "AGENT_AUTO_REGISTER_ELASTIC_PLUGIN_ID", "value" => "ex_gocd.elasticagent.kubernetes"}
+        %{
+          "name" => "AGENT_AUTO_REGISTER_ELASTIC_PLUGIN_ID",
+          "value" => "ex_gocd.elasticagent.kubernetes"
+        }
       ] ++ ElasticAgentProfile.env_vars(agent_profile)
 
     privileged = ElasticAgentProfile.privileged(agent_profile) == "true"
@@ -448,7 +448,8 @@ defmodule ExGoCD.ElasticAgentScheduler do
       end
 
     # Docker Desktop macOS: seccomp not supported in nested containers
-    spec = put_in(spec, ["spec", "securityContext"], %{"seccompProfile" => %{"type" => "Unconfined"}})
+    spec =
+      put_in(spec, ["spec", "securityContext"], %{"seccompProfile" => %{"type" => "Unconfined"}})
 
     # No CNI (--flannel-backend=none): use host network
     spec = put_in(spec, ["spec", "hostNetwork"], true)

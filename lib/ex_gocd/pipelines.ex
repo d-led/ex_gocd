@@ -1807,7 +1807,14 @@ defmodule ExGoCD.Pipelines do
 
   # GoCD parity: dispatch notifications when a stage completes.
   # Maps stage result to notification event type.
-  defp dispatch_stage_notification(pipeline_name, stage_name, result, pipeline_counter, stage_counter, triggered_by) do
+  defp dispatch_stage_notification(
+         pipeline_name,
+         stage_name,
+         result,
+         pipeline_counter,
+         stage_counter,
+         triggered_by
+       ) do
     event =
       case result do
         "Passed" -> "Passes"
@@ -1847,7 +1854,14 @@ defmodule ExGoCD.Pipelines do
         pi = stage_loaded.pipeline_instance
         triggered_by = (pi.build_cause || %{})["trigger_message"] || "triggered"
 
-        dispatch_stage_notification(pipeline.name, stage.name, stage_result, pi.counter, stage_loaded.counter, triggered_by)
+        dispatch_stage_notification(
+          pipeline.name,
+          stage.name,
+          stage_result,
+          pi.counter,
+          stage_loaded.counter,
+          triggered_by
+        )
 
         if stage_result == "Failed" and pipeline.lock_behavior == "lockOnFailure" do
           pipeline
