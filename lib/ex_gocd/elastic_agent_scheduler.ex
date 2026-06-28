@@ -495,7 +495,7 @@ defmodule ExGoCD.ElasticAgentScheduler do
 
   defp server_url do
     Application.get_env(:ex_gocd, :elastic_agent_server_url) ||
-      "http://host.docker.internal:4000/go"
+      "http://host.docker.internal:4000"
   end
 
   defp agent_cookie do

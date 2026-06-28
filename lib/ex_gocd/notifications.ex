@@ -29,7 +29,7 @@ defmodule ExGoCD.Notifications do
 
   Events: "Passes", "Fails", "Breaks", "Fixed", "Cancelled", "All"
   """
-  def dispatch(pipeline_name, stage_name, event, stage_result) do
+  def dispatch(pipeline_name, stage_name, event, stage_result, opts \\ []) do
     matched =
       Repo.all(
         from f in NotificationFilter,
@@ -39,22 +39,24 @@ defmodule ExGoCD.Notifications do
       )
 
     Enum.each(matched, fn filter ->
-      deliver(filter, pipeline_name, stage_name, event, stage_result)
+      deliver(filter, pipeline_name, stage_name, event, stage_result, opts)
     end)
 
     length(matched)
   end
 
-  defp deliver(filter, pipeline_name, stage_name, event, result) do
-    # Look up user email from notification filter's user association
+  defp deliver(filter, pipeline_name, stage_name, event, result, opts) do
     user = ExGoCD.Accounts.get_user!(filter.user_id)
 
-    ExGoCD.Mailer.stage_notification(
-      user.email,
-      pipeline_name,
-      stage_name,
-      event,
-      result
+    ExGoCD.Mailer.stage_notification(user.email,
+      pipeline_name: pipeline_name,
+      stage_name: stage_name,
+      event: event,
+      result: result,
+      pipeline_counter: opts[:pipeline_counter],
+      stage_counter: opts[:stage_counter],
+      triggered_by: opts[:triggered_by],
+      materials: opts[:materials] || []
     )
   end
 end
