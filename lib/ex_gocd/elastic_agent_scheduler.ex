@@ -381,7 +381,9 @@ defmodule ExGoCD.ElasticAgentScheduler do
         %{"name" => "AGENT_AUTO_REGISTER_KEY", "value" => agent_cookie()},
         %{"name" => "AGENT_AUTO_REGISTER_RESOURCES", "value" => Enum.join(resources, ",")},
         %{"name" => "AGENT_AUTO_REGISTER_ENVIRONMENTS", "value" => env_string(job)},
-        %{"name" => "AGENT_HOSTNAME", "value" => name}
+        %{"name" => "AGENT_HOSTNAME", "value" => name},
+        %{"name" => "AGENT_AUTO_REGISTER_ELASTIC_AGENT_ID", "value" => agent_profile.id},
+        %{"name" => "AGENT_AUTO_REGISTER_ELASTIC_PLUGIN_ID", "value" => "ex_gocd.elasticagent.kubernetes"}
       ] ++ ElasticAgentProfile.env_vars(agent_profile)
 
     privileged = ElasticAgentProfile.privileged(agent_profile) == "true"
