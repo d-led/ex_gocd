@@ -1,8 +1,8 @@
 defmodule ExGoCD.DistSingleton do
   @moduledoc """
-  Cluster-wide singleton support via Horde.Registry.
+  Cluster-wide singleton helpers via Horde.Registry.
 
-  Falls back to local name registration when Horde is not running (test).
+  Falls back to local name when Horde registry is not running (test).
   """
 
   def via_horde(module) do
@@ -10,16 +10,6 @@ defmodule ExGoCD.DistSingleton do
       {:via, Horde.Registry, {ExGoCD.HordeRegistry, module}}
     else
       module
-    end
-  end
-
-  def start_link(module, args, gen_server_opts \\ []) do
-    opts = Keyword.put(gen_server_opts, :name, via_horde(module))
-
-    case GenServer.start_link(module, args, opts) do
-      {:ok, pid} -> {:ok, pid}
-      {:error, {:already_started, _pid}} -> :ignore
-      other -> other
     end
   end
 

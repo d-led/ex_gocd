@@ -27,20 +27,6 @@ defmodule ExGoCD.Application do
     # ── Cluster infrastructure ────────────────────────────────────────
     topologies = cluster_topologies()
 
-    singleton_starter = fn ->
-      :timer.sleep(500)
-      ExGoCD.DistSupervisor.start_singleton(ExGoCD.Scheduler, [])
-      ExGoCD.DistSupervisor.start_singleton(ExGoCD.ElasticAgentScheduler, [])
-      ExGoCD.DistSupervisor.start_singleton(ExGoCD.Analytics.SnapshotCollector, [])
-      ExGoCD.DistSupervisor.start_singleton(ExGoCD.Materials.Poller, [])
-      ExGoCD.DistSupervisor.start_singleton(ExGoCD.Pipelines.ConsoleActivityMonitor, [])
-      ExGoCD.DistSupervisor.start_singleton(ExGoCD.MaintenanceMode, [])
-      ExGoCD.DistSupervisor.start_singleton(ExGoCD.Backup, [])
-      ExGoCD.DistSupervisor.start_singleton(ExGoCD.Monitors.DiskSpace, [])
-      ExGoCD.DistSupervisor.start_singleton(ExGoCD.AgentRegistry, [])
-      ExGoCD.DistSupervisor.start_singleton(ExGoCD.SchedulingChecker.TriggerMonitor, [])
-    end
-
     cluster_children = [
       {Cluster.Supervisor, [topologies, [name: ExGoCD.ClusterSupervisor]]},
       {Horde.Registry, [name: ExGoCD.HordeRegistry, keys: :unique, members: :auto]},
@@ -53,7 +39,6 @@ defmodule ExGoCD.Application do
          process_redistribution: :passive,
          members: :auto
        ]},
-      {Task, singleton_starter},
       ExGoCD.ClusterInfoServer
     ]
 
@@ -63,9 +48,18 @@ defmodule ExGoCD.Application do
         {DNSCluster, query: Application.get_env(:ex_gocd, :dns_cluster_query) || :ignore},
         {Phoenix.PubSub, name: ExGoCD.PubSub},
         ExGoCDWeb.AgentPresence,
+        ExGoCD.Scheduler,
+        ExGoCD.AgentRegistry,
         ExGoCD.TestAgentSupervisor,
         ExGoCDWeb.Endpoint,
-        ExGoCD.Materials.TimerScheduler
+        ExGoCD.Materials.Poller,
+        ExGoCD.Materials.TimerScheduler,
+        ExGoCD.Pipelines.ConsoleActivityMonitor,
+        ExGoCD.MaintenanceMode,
+        ExGoCD.SchedulingChecker.TriggerMonitor,
+        ExGoCD.Monitors.DiskSpace,
+        ExGoCD.ElasticAgentScheduler,
+        ExGoCD.Analytics.SnapshotCollector
       ] ++ cluster_children
 
     children =

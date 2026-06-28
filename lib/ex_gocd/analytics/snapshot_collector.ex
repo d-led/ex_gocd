@@ -22,12 +22,12 @@ defmodule ExGoCD.Analytics.SnapshotCollector do
       :ignore
     else
       interval = Keyword.get(opts, :interval_ms, @default_interval_ms)
-      ExGoCD.DistSingleton.start_link(__MODULE__, interval)
+      GenServer.start_link(__MODULE__, interval, name: __MODULE__)
     end
   end
 
   def snapshot_now do
-    ExGoCD.DistSingleton.call(__MODULE__, :snapshot)
+    GenServer.call(__MODULE__, :snapshot)
   end
 
   # -- Callbacks --

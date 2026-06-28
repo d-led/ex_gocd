@@ -13,17 +13,17 @@ defmodule ExGoCD.Backup do
   # ── Client API ─────────────────────────────────────────────────────
 
   def start_link(opts \\ []) do
-    ExGoCD.DistSingleton.start_link(__MODULE__, opts)
+    GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
 
   @doc "Initiates a backup. Returns :ok if started, {:error, :already_running} if a backup is in progress."
   def create do
-    ExGoCD.DistSingleton.call(__MODULE__, :create)
+    GenServer.call(__MODULE__, :create)
   end
 
   @doc "Returns the current backup status: %{status: String.t(), message: String.t()}"
   def status do
-    ExGoCD.DistSingleton.call(__MODULE__, :status)
+    GenServer.call(__MODULE__, :status)
   end
 
   # ── Server Callbacks ───────────────────────────────────────────────

@@ -25,7 +25,7 @@ defmodule ExGoCD.Pipelines.ConsoleActivityMonitor do
 
   @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(opts \\ []) do
-    ExGoCD.DistSingleton.start_link(__MODULE__, opts)
+    GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
 
   @impl true

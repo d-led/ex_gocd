@@ -16,7 +16,7 @@ defmodule ExGoCD.SchedulingChecker.TriggerMonitor do
   # ── Client API ──────────────────────────────────────────────────────────
 
   def start_link(opts \\ []) do
-    ExGoCD.DistSingleton.start_link(__MODULE__, opts)
+    GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
 
   @doc """
