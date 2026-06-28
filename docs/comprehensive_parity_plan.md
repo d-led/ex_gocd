@@ -65,7 +65,7 @@
 | Artifact tree browser | ✅ | Recursive directory listing in JobDetailsLive |
 | Console live streaming | ✅ | PubSub-based console subscription |
 | Config XML export/import | ✅ | Generate + import via :xmerl parser, UI at /admin/config_xml |
-| Config versioning (snapshots) | 🟡 | `ConfigVersion` schema + `ConfigSnapshot` capture (all sections, encrypted secrets). Missing: auto-hook on mutations, history UI, revert. |
+| Config versioning (snapshots) | ✅ | `ConfigVersion` schema + `ConfigSnapshot` capture (all sections, encrypted secrets). Auto-hook on mutations, history UI at `/admin/config_xml`, revert mechanism. |
 | MD5 checksums | ✅ | Agent sends checksums; server stores |
 | Maintenance mode | 🟡 | Admin UI toggle (local assign); needs server-wide GenServer wiring |
 | Stage cancel | ✅ | `cancel_stage/3` with transaction |
