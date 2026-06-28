@@ -67,4 +67,19 @@ defmodule ExGoCDWeb.API.TestController do
       |> json(%{error: "Forbidden: Test mode is not enabled."})
     end
   end
+
+  def stop_agents(conn, _params) do
+    repo_config = Application.get_env(:ex_gocd, ExGoCD.Repo) || []
+    is_sandbox? = repo_config[:pool] == Ecto.Adapters.SQL.Sandbox
+
+    if System.get_env("EX_GOCD_TEST_MODE") == "1" or is_sandbox? or
+         Application.get_env(:ex_gocd, :env) == :dev do
+      ExGoCD.TestAgentSupervisor.stop_all_agents()
+      json(conn, %{message: "All simulated agents stopped and deregistered."})
+    else
+      conn
+      |> put_status(403)
+      |> json(%{error: "Forbidden: Test mode is not enabled."})
+    end
+  end
 end

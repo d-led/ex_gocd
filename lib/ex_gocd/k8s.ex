@@ -255,11 +255,26 @@ defmodule ExGoCD.K8s do
   end
 
   defp extract_pod_info(item) do
+    created = get_in(item, ["metadata", "creationTimestamp"])
+
+    created_at =
+      case created do
+        ts when is_binary(ts) ->
+          case DateTime.from_iso8601(ts) do
+            {:ok, dt, _} -> dt
+            _ -> nil
+          end
+
+        _ ->
+          nil
+      end
+
     %{
       name: get_in(item, ["metadata", "name"]),
       phase: get_in(item, ["status", "phase"]),
       host_ip: get_in(item, ["status", "hostIP"]),
-      labels: get_in(item, ["metadata", "labels"]) || %{}
+      labels: get_in(item, ["metadata", "labels"]) || %{},
+      created_at: created_at
     }
   end
 

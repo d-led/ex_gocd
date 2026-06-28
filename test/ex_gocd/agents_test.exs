@@ -267,7 +267,7 @@ defmodule ExGoCD.AgentsTest do
 
     test "returns {:error, :not_found} when agent uuid does not exist" do
       assert {:error, :not_found} =
-               Agents.mark_lost_contact("00000000-0000-0000-0000-000000000000")
+               Agents.mark_lost_contact("dead0000-0000-0000-0000-000000000000")
     end
   end
 
@@ -289,7 +289,7 @@ defmodule ExGoCD.AgentsTest do
 
     test "returns :error when agent not found" do
       assert {:error, :not_found} =
-               Agents.update_agent_runtime_state("00000000-0000-0000-0000-000000000000", "Idle")
+               Agents.update_agent_runtime_state("dead0000-0000-0000-0000-000000000000", "Idle")
     end
   end
 

@@ -107,7 +107,7 @@ defmodule ExGoCD.SchedulerTest do
 
     test "returns :agent_not_found when agent uuid is not in DB" do
       _ = Scheduler.schedule_job(%{})
-      result = Scheduler.try_assign_work("00000000-0000-0000-0000-000000000000")
+      result = Scheduler.try_assign_work("dead0000-0000-0000-0000-000000000000")
       assert result in [:agent_not_found, :agent_not_connected]
     end
 

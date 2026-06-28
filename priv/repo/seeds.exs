@@ -761,7 +761,7 @@ if mock_mode?.() do
   unless Repo.get_by(AgentJobRun, build_id: "demo-build-1") do
     %AgentJobRun{}
     |> AgentJobRun.changeset(%{
-      agent_uuid: "00000000-0000-0000-0000-000000000001",
+      agent_uuid: "00010000-0000-0000-0000-000000000001",
       build_id: "demo-build-1",
       pipeline_name: "demo",
       pipeline_counter: 1,
@@ -807,7 +807,7 @@ if mock_mode?.() do
 
     %AgentJobRun{}
     |> AgentJobRun.changeset(%{
-      agent_uuid: "00000000-0000-0000-0000-000000000001",
+      agent_uuid: "00010000-0000-0000-0000-000000000001",
       build_id: "demo-fold-1",
       pipeline_name: "demo",
       pipeline_counter: 4,

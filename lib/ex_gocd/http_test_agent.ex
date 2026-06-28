@@ -6,6 +6,7 @@ defmodule ExGoCD.HTTPTestAgent do
   require Logger
   import Bitwise
 
+  alias ExGoCD.Agents
   alias ExGoCD.TestAgent.UUID
 
   @default_ping_interval 3000
@@ -51,6 +52,20 @@ defmodule ExGoCD.HTTPTestAgent do
     send(self(), :register_and_connect)
 
     {:ok, state}
+  end
+
+  @impl true
+  def terminate(_reason, state) do
+    # Deregister from DB so the agent doesn’t linger after cleanup.
+    case Agents.get_agent_by_uuid(state.uuid) do
+      nil -> :ok
+      agent ->
+        _ = Agents.disable_agent(agent)
+        _ = Agents.delete_agent(agent)
+    end
+
+    if state.socket, do: :gen_tcp.close(state.socket)
+    :ok
   end
 
   @impl true

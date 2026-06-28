@@ -17,7 +17,7 @@ defmodule ExGoCD.Agents.Mock do
       # Idle, enabled agent
       %Agent{
         id: 1,
-        uuid: "00000000-0000-0000-0000-000000000001",
+        uuid: "00010000-0000-0000-0000-000000000001",
         hostname: "build-agent-01.example.com",
         ipaddress: "192.168.1.10",
         elastic_agent_id: nil,
@@ -39,7 +39,7 @@ defmodule ExGoCD.Agents.Mock do
       # Building agent
       %Agent{
         id: 2,
-        uuid: "00000000-0000-0000-0000-000000000002",
+        uuid: "00020000-0000-0000-0000-000000000002",
         hostname: "build-agent-02.example.com",
         ipaddress: "192.168.1.11",
         elastic_agent_id: nil,
@@ -61,7 +61,7 @@ defmodule ExGoCD.Agents.Mock do
       # Disabled agent
       %Agent{
         id: 3,
-        uuid: "00000000-0000-0000-0000-000000000003",
+        uuid: "00030000-0000-0000-0000-000000000003",
         hostname: "build-agent-03.example.com",
         ipaddress: "192.168.1.12",
         elastic_agent_id: nil,
@@ -83,7 +83,7 @@ defmodule ExGoCD.Agents.Mock do
       # Elastic agent (Kubernetes)
       %Agent{
         id: 4,
-        uuid: "00000000-0000-0000-0000-000000000004",
+        uuid: "00040000-0000-0000-0000-000000000004",
         hostname: "elastic-agent-k8s-abc123",
         ipaddress: "10.244.0.15",
         elastic_agent_id: "k8s-elastic-agent-abc123",
@@ -105,7 +105,7 @@ defmodule ExGoCD.Agents.Mock do
       # Lost contact agent
       %Agent{
         id: 5,
-        uuid: "00000000-0000-0000-0000-000000000005",
+        uuid: "00050000-0000-0000-0000-000000000005",
         hostname: "build-agent-offline",
         ipaddress: "192.168.1.13",
         elastic_agent_id: nil,
@@ -127,7 +127,7 @@ defmodule ExGoCD.Agents.Mock do
       # Agent with no resources or environments
       %Agent{
         id: 6,
-        uuid: "00000000-0000-0000-0000-000000000006",
+        uuid: "00060000-0000-0000-0000-000000000006",
         hostname: "vanilla-agent",
         ipaddress: "192.168.1.14",
         elastic_agent_id: nil,
@@ -149,7 +149,7 @@ defmodule ExGoCD.Agents.Mock do
       # Agent with low disk space
       %Agent{
         id: 7,
-        uuid: "00000000-0000-0000-0000-000000000007",
+        uuid: "00070000-0000-0000-0000-000000000007",
         hostname: "build-agent-low-space",
         ipaddress: "192.168.1.15",
         elastic_agent_id: nil,

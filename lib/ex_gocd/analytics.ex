@@ -8,6 +8,7 @@ defmodule ExGoCD.Analytics do
   alias ExGoCD.Repo
   alias ExGoCD.AgentJobRuns.AgentJobRun
   alias ExGoCD.Analytics.AgentTransition
+  alias ExGoCD.Analytics.AgentSnapshot
   alias ExGoCD.Pipelines.{Pipeline, PipelineInstance}
 
   def pipeline_analytics(pipeline_name, days \\ 30) do
@@ -312,5 +313,43 @@ defmodule ExGoCD.Analytics do
         calc_busy(rest, ws, we, nil, acc)
       end
     end
+  end
+
+  # -- Agent Snapshots (B18) --
+
+  @doc """
+  Agent snapshot counts for the last N hours, for utilization trend charts.
+  Returns list of %{captured_at, idle, building, disabled, lost_contact, elastic}.
+  """
+  def agent_snapshot_trends(hours \\ 24) do
+    cutoff = DateTime.add(DateTime.utc_now(), -hours * 3600, :second)
+
+    Repo.all(
+      from s in AgentSnapshot,
+        where: s.inserted_at >= ^cutoff,
+        order_by: [asc: s.inserted_at]
+    )
+    |> Enum.map(fn s ->
+      %{
+        captured_at: s.inserted_at,
+        total: s.total,
+        idle: s.idle,
+        building: s.building,
+        disabled: s.disabled,
+        lost_contact: s.lost_contact,
+        elastic: s.elastic
+      }
+    end)
+  end
+
+  @doc """
+  Latest agent snapshot counts, for the current-status donut/bar in Analytics.
+  """
+  def latest_agent_snapshot do
+    Repo.one(
+      from s in AgentSnapshot,
+        order_by: [desc: s.inserted_at, desc: s.id],
+        limit: 1
+    )
   end
 end

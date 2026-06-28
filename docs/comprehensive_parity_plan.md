@@ -134,7 +134,7 @@
 | # | Gap | Notes |
 |---|-----|-------|
 | B17 | Agent state transitions tracking | Schema exists (`agent_transition`) |
-| B18 | Agent utilization snapshots | Periodic GenServer needed |
+| B18 | Agent utilization snapshots | ✅ Done — Schema + periodic GenServer + analytics queries |
 | B19 | Pipeline workflow chains | Traversal logic needed |
 | B20 | VSM trend across runs | Query exists; UI charts needed |
 | B21 | Analytics UI with Chart.js | LiveView exists; chart integration pending |

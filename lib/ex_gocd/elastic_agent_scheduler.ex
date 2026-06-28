@@ -69,10 +69,21 @@ defmodule ExGoCD.ElasticAgentScheduler do
   end
 
   @impl true
+  @impl true
   def handle_info(:tick, state) do
-    state = cleanup_idle_pods(state)
-    state = check_and_scale(state)
-    state = maintain_min_agents(state)
+    state =
+      try do
+        state
+        |> cleanup_idle_pods()
+        |> check_and_scale()
+        |> maintain_min_agents()
+        |> reap_orphan_pods()
+      rescue
+        e ->
+          log_event(state, :error, "Tick error: #{Exception.message(e)}")
+          state
+      end
+
     schedule_tick()
     {:noreply, state}
   end
@@ -138,22 +149,26 @@ defmodule ExGoCD.ElasticAgentScheduler do
   end
 
   defp create_single_min_pod(state, profile, cluster, conn, i) do
+    label = "standby-#{i}"
+
     {:ok, pod_spec} =
       build_pod_spec(
         profile,
         cluster,
-        %{job: "min-agent-#{i}", resources: [], environments: []},
+        %{job: label, resources: [], environments: []},
         []
       )
 
     case K8s.create_pod(conn, pod_spec, namespace: ClusterProfile.namespace(cluster)) do
       {:ok, pod_name} ->
         state
-        |> track_pod(pod_name, profile, cluster, %{job: "min-agent-#{i}", resources: []})
-        |> then(fn s -> log_event(s, :info, "Created min-agent pod #{pod_name}") end)
+        |> track_pod(pod_name, profile, cluster, %{job: label, resources: []})
+        |> then(fn s ->
+          log_event(s, :info, "Created standby pod #{pod_name} for profile #{profile.name}")
+        end)
 
       {:error, reason} ->
-        log_event(state, :error, "Failed to create min-agent pod: #{inspect(reason)}")
+        log_event(state, :error, "Failed to create standby pod: #{inspect(reason)}")
     end
   end
 
@@ -230,6 +245,61 @@ defmodule ExGoCD.ElasticAgentScheduler do
     info[:error] == true
   end
 
+  # ── Orphan pod reaper ─────────────────────────────────────────────────────
+
+  defp reap_orphan_pods(state) do
+    known_pod_names = MapSet.new(Map.keys(state.pods))
+
+    Enum.reduce(ElasticAgentProfiles.list_profiles(), state, fn profile, acc ->
+      cluster = ClusterProfiles.get_profile(profile.cluster_profile_id)
+
+      if is_nil(cluster) do
+        acc
+      else
+        conn = build_k8s_conn(cluster)
+        namespace = ClusterProfile.namespace(cluster)
+
+        if is_nil(conn) do
+          acc
+        else
+          case K8s.list_pods(conn, namespace: namespace) do
+            {:ok, pods} ->
+              Enum.reduce(pods, acc, fn pod, acc2 ->
+                pod_name = pod.name
+                labels = pod.labels
+
+                # Only care about gocd-elastic-agent pods
+                if labels["app"] == "gocd-elastic-agent" and
+                     not MapSet.member?(known_pod_names, pod_name) do
+                  age_seconds = pod_age_seconds(pod)
+
+                  # Delete orphan pods older than 10 minutes
+                  if age_seconds > 600 do
+                    K8s.delete_pod(conn, pod_name, namespace: namespace)
+                    log_event(acc2, :info, "Reaped orphan pod #{pod_name} (age: #{age_seconds}s)")
+                  else
+                    acc2
+                  end
+                else
+                  acc2
+                end
+              end)
+
+            {:error, _} ->
+              acc
+          end
+        end
+      end
+    end)
+  end
+
+  defp pod_age_seconds(pod) do
+    case pod.created_at do
+      %DateTime{} = dt -> DateTime.diff(DateTime.utc_now(), dt)
+      _ -> 0
+    end
+  end
+
   defp track_pod(state, pod_name, agent_profile, cluster_profile, job) do
     pods =
       Map.put(state.pods, pod_name, %{
@@ -250,8 +320,12 @@ defmodule ExGoCD.ElasticAgentScheduler do
   # ── Job inspection ─────────────────────────────────────────────────────────
 
   defp get_pending_jobs do
-    case Scheduler.get_queue_state() do
-      %{in_memory_jobs: jobs} -> jobs
+    try do
+      case Scheduler.get_queue_state() do
+        %{in_memory_jobs: jobs} -> jobs
+        _ -> []
+      end
+    rescue
       _ -> []
     end
   end

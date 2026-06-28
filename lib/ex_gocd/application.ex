@@ -39,7 +39,8 @@ defmodule ExGoCD.Application do
       ExGoCD.MaintenanceMode,
       ExGoCD.SchedulingChecker.TriggerMonitor,
       ExGoCD.Monitors.DiskSpace,
-      ExGoCD.ElasticAgentScheduler
+      ExGoCD.ElasticAgentScheduler,
+      ExGoCD.Analytics.SnapshotCollector
     ]
 
     children =

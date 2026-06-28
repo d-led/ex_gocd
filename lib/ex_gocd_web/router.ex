@@ -204,6 +204,7 @@ defmodule ExGoCDWeb.Router do
     get "/stats", StatsController, :show
     post "/test/start_agents", TestController, :start_agents
     post "/test/start_http_agents", TestController, :start_http_agents
+    delete "/test/agents", TestController, :stop_agents
 
     # Agent management (matching GoCD's agent API spec)
     post "/agents/register", AgentController, :register

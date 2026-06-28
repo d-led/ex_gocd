@@ -75,6 +75,30 @@ defmodule ExGoCDWeb.AdminK8sLive do
     {:noreply, socket}
   end
 
+  # Catch-all for legacy save_cluster async keys
+  def handle_async({:check_conn, id}, {:ok, {id, status}}, socket) do
+    {:noreply,
+     put_in(
+       socket.assigns.connection_status,
+       Map.put(socket.assigns.connection_status, id, status)
+     )}
+  end
+
+  def handle_async({:check_conn, _id}, {:exit, _reason}, socket) do
+    {:noreply, socket}
+  end
+
+  # Catch-all — never crash on unexpected async
+  def handle_async(_key, _result, socket) do
+    {:noreply, socket}
+  end
+
+  # Catch-all for stray messages (e.g. late ping results from K8s.ping)
+  @impl true
+  def handle_info(_msg, socket) do
+    {:noreply, socket}
+  end
+
   # ── Cluster Profile actions ───────────────────────────────────────────────
 
   @impl true
@@ -454,12 +478,12 @@ defmodule ExGoCDWeb.AdminK8sLive do
       <%!-- Cluster Profile Modal --%>
       <div
         :if={@show_cluster_modal}
-        class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+        class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4"
         phx-click-away="close_cluster_modal"
+        phx-window-keydown="close_cluster_modal"
         phx-key="Escape"
-        phx-key-action="close_cluster_modal"
       >
-        <div class="bg-white rounded-lg p-6 w-full max-w-lg max-h-[80vh] overflow-y-auto shadow-xl">
+        <div class="bg-white rounded-lg p-4 sm:p-6 w-full max-w-[95vw] sm:max-w-lg max-h-[85vh] overflow-y-auto shadow-xl">
           <h2 class="text-lg font-bold mb-4">
             {if @editing_cluster, do: "Edit", else: "Add"} Cluster Profile
           </h2>
@@ -550,12 +574,12 @@ defmodule ExGoCDWeb.AdminK8sLive do
       <%!-- Elastic Agent Profile Modal --%>
       <div
         :if={@show_agent_modal}
-        class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+        class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4"
         phx-click-away="close_agent_modal"
+        phx-window-keydown="close_agent_modal"
         phx-key="Escape"
-        phx-key-action="close_agent_modal"
       >
-        <div class="bg-white rounded-lg p-6 w-full max-w-lg max-h-[80vh] overflow-y-auto shadow-xl">
+        <div class="bg-white rounded-lg p-4 sm:p-6 w-full max-w-[95vw] sm:max-w-lg max-h-[85vh] overflow-y-auto shadow-xl">
           <h2 class="text-lg font-bold mb-4">
             {if @editing_agent, do: "Edit", else: "Add"} Elastic Agent Profile
           </h2>

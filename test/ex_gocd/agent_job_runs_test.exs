@@ -44,7 +44,7 @@ defmodule ExGoCD.AgentJobRunsTest do
     test "returns error when agent not found" do
       assert {:error, :agent_not_found} =
                AgentJobRuns.create_run(
-                 "00000000-0000-0000-0000-000000000000",
+                 "dead0000-0000-0000-0000-000000000000",
                  "test-job-123",
                  "p",
                  "s",
