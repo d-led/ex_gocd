@@ -69,9 +69,7 @@ describe("Pipeline Dashboard", () => {
 
     it("admin dropdown hovers work after navigating Back", () => {
       // Navigate to a sub-page first
-      cy.get(".pipeline_name", { timeout: 5000 })
-        .first()
-        .click();
+      cy.get(".pipeline_name", { timeout: 5000 }).first().click();
 
       cy.url({ timeout: 5000 }).should("include", "/pipelines/");
 

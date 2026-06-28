@@ -609,7 +609,7 @@ defmodule ExGoCD.ConfigXml do
   end
 
   defp render_environments do
-    alias ExGoCD.Pipelines.Environment
+    alias ExGoCD.Environments.Environment
 
     envs = Repo.all(Environment)
 

@@ -203,7 +203,7 @@ defmodule ExGoCD.ConfigSnapshot do
 
   defp environments_config do
     alias ExGoCD.Repo
-    alias ExGoCD.Pipelines.Environment
+    alias ExGoCD.Environments.Environment
 
     Repo.all(Environment)
     |> Enum.map(fn e ->

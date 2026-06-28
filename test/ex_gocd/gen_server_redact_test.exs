@@ -94,7 +94,8 @@ defmodule ExGoCD.GenServerRedactTest do
     # has a compile-order edge case in ExUnit that we haven't fully isolated yet.
     @tag :skip
     test "GenServer with use ExGoCD.GenServerRedact redacts state on crash" do
-      {:ok, pid} = GenServer.start_link(RedactIntegrationHelper, %{password: "s3cret", name: "test"})
+      {:ok, pid} =
+        GenServer.start_link(RedactIntegrationHelper, %{password: "s3cret", name: "test"})
 
       status = :sys.get_status(pid)
       formatted_state = status |> elem(3) |> List.last()

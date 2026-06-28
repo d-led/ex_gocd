@@ -346,7 +346,7 @@ defmodule ExGoCDWeb.AdminK8sLive do
                   <%= if ClusterProfile.client_cert(profile) && ClusterProfile.client_key(profile) do %>
                     ✓ Client certificate
                   <% else %>
-                    <%= if ClusterProfile.bearer_token(profile), do: "✓ Configured", else: "✗ Missing" %>
+                    {if ClusterProfile.bearer_token(profile), do: "✓ Configured", else: "✗ Missing"}
                   <% end %>
                 </div>
                 <div class="mt-2">

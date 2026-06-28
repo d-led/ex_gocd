@@ -117,34 +117,40 @@ defmodule ExGoCD.ElasticAgentScheduler do
     else
       cluster = ClusterProfiles.get_profile(profile.cluster_profile_id)
 
-      if cluster do
+      if is_nil(cluster) do
+        log_event(state, :error, "No cluster profile for elastic profile #{profile.name}")
+      else
         conn = build_k8s_conn(cluster)
 
-        if conn do
-          Enum.reduce(1..(min - profile_pods), state, fn i, acc ->
-            {:ok, pod_spec} =
-              build_pod_spec(profile, cluster, %{job: "min-agent-#{i}", resources: [], environments: []},
-                [])
-
-            namespace = ClusterProfile.namespace(cluster)
-
-            case K8s.create_pod(conn, pod_spec, namespace: namespace) do
-              {:ok, pod_name} ->
-                track_pod(acc, pod_name, profile, cluster, %{job: "min-agent-#{i}", resources: []})
-                |> then(fn s -> log_event(s, :info, "Created min-agent pod #{pod_name} for profile #{profile.name}") end)
-
-              {:error, reason} ->
-                log_event(acc, :error, "Failed to create min-agent pod: #{inspect(reason)}")
-            end
-          end)
+        if is_nil(conn) do
+          log_event(state, :error, "Cannot build K8s conn for min-agents of #{profile.name}")
         else
-          log_event(state, :error,
-            "Cannot build K8s connection for min-agents of profile #{profile.name}")
+          create_min_pods(state, profile, cluster, conn, min - profile_pods)
         end
-      else
-        log_event(state, :error, "No cluster profile for elastic profile #{profile.name}")
       end
     end
+  end
+
+  defp create_min_pods(state, profile, cluster, conn, count) do
+    Enum.reduce(1..count, state, fn i, acc ->
+      {:ok, pod_spec} =
+        build_pod_spec(
+          profile,
+          cluster,
+          %{job: "min-agent-#{i}", resources: [], environments: []},
+          []
+        )
+
+      case K8s.create_pod(conn, pod_spec, namespace: ClusterProfile.namespace(cluster)) do
+        {:ok, pod_name} ->
+          acc
+          |> track_pod(pod_name, profile, cluster, %{job: "min-agent-#{i}", resources: []})
+          |> then(fn s -> log_event(s, :info, "Created min-agent pod #{pod_name}") end)
+
+        {:error, reason} ->
+          log_event(acc, :error, "Failed to create min-agent pod: #{inspect(reason)}")
+      end
+    end)
   end
 
   # ── Pod lifecycle ──────────────────────────────────────────────────────────
