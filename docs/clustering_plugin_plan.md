@@ -1,6 +1,17 @@
 # Clustering & Plugin Architecture Plan
 
-*Created 2026-06-28.*
+*Created 2026-06-28. Updated 2026-06-28.*
+
+## Status: Milestones 1-2 Complete ✅
+
+- ✅ libcluster + Horde infrastructure (Gossip/Epmd topology)
+- ✅ ClusterInfoServer broadcasting singleton locations via PubSub
+- ✅ Admin "Clustering" tab at /admin/clustering
+- ✅ process-compose.cluster.yaml (2 nodes: :4000 + :5000)
+- ✅ Plugin architecture documented with 5 extension points
+- 🟡 Milestone 3: Convert singletons to Horde registration (planned, not started)
+- 🟡 Milestone 4: Auth plugin (Ueberauth/LDAP) in plugins/managed/
+- 🟡 Milestone 5: OTEL process propagator for cross-node tracing
 
 ## Architecture
 

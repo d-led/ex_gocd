@@ -1,6 +1,6 @@
 # Comprehensive GoCD Feature Parity Plan
 
-*Audited 2026-06-22. Updated 2026-06-28. 848 ExUnit tests (0 skipped), 16/16 quality gate.*
+*Audited 2026-06-22. Updated 2026-06-28. 847 ExUnit tests (1 skipped, contract test), 16/16 quality gate.*
 
 > This is the single source of truth. Supersedes: `parity_roadmap_plan.md`, `vsm_parity_plan.md`, `auth_and_env_plan.md`, `external-ci-pipeline-sync-plan.md`.
 
@@ -95,6 +95,7 @@
 | Admin dropdown | ✅ | CSS-driven with JS edge guard; mobile responsive with vertical list + phx-update="ignore" |
 | Plugins removed | ✅ | No plugin architecture — ex_gocd bakes in features directly. Removed from UI and nav. |
 | Roles CRUD | ✅ | Schema + migration + API at `/api/admin/security/roles`. GoCD parity: `delete_role` validates not-in-use. |
+| Clustering (libcluster + Horde) | ✅ | Multi-node OTP cluster. Gossip/Epmd topology. `Horde.Registry` + `Horde.DynamicSupervisor`. `ClusterInfoServer` polls singleton locations. Admin "Clustering" tab. Plugin architecture documented. `process-compose.cluster.yaml` for 2 nodes. |
 
 ---
 
@@ -115,9 +116,12 @@
 | B9 | Pipeline group administration | M | ✅ `PipelineGroupPolicy` with operate/admin/view, wired into stage approval, 9 tests |
 | B10-B16 | Notifications, roles, elastic profiles, cluster profiles, packages, secrets, plugins | — | ✅ All done |
 | — | Elastic agent scheduler (Phase 9-10) | — | ✅ ~1100 lines: GenServer tick, k8s pod lifecycle, idle cleanup, orphan reaper, cluster profile auto-seed. K8s-only. |
+| — | Clustering (libcluster + Horde) | — | ✅ Milestones 1-2 done: multi-node cluster, admin UI, plugin architecture doc |
 | — | Enhanced compare dialog (Phase 11) | M | Any-two-instance pickers, side-by-side diff |
 | — | Gantt chart view (Phase 12) | M | Timeline + dependency arrows. Candidate: `phoenix_live_gantt` |
-| — | Embedded pipeline/stage stats (Phase 13) | S | ✅ Stage details "Trends" tab with last 10 runs duration + pass/fail chart |
+| — | Convert singletons to Horde distributed | M | Planned (see `clustering_plugin_plan.md`), not started |
+| — | Auth plugin (Ueberauth/LDAP) in plugins/managed/ | L | Plugin architecture ready, not started |
+| — | OTEL process propagator for cross-node traces | S | Not started |
 
 ### 🔵 P3: Analytics — ✅ Done
 
@@ -145,13 +149,13 @@ All B17-B21 complete: agent transitions schema, utilization snapshots (5-min Gen
 |----------|-------|--------|--------|
 | **P0** | — | — | ✅ DONE |
 | **P1** | — | — | ✅ DONE |
-| **P2** | Config repos engine, external auth, compare dialog, gantt | M-XL | Remaining gaps |
+| **P2** | Config repos engine, external auth, compare dialog, gantt, distributed singletons, auth plugin | M-XL | Remaining gaps |
 | **P3** | — | — | ✅ DONE (Analytics) |
 | **P4** | Feeds XML, mailserver, SCMs API, health API, permissions, etc. | S | Quick checkbox wins |
 
 ## Part D: Build & Quality
 
-- **Tests**: 839 ExUnit tests (0 skipped), Go agent tests pass, Cypress E2E suite (108 tests, 15 specs)
+- **Tests**: 847 ExUnit tests (1 skipped — HTTPTestAgent, covered by Cypress), Go agent tests pass, Cypress E2E suite (108 tests, 15 specs)
 - **Quality gate**: `scripts/quality-gate.sh` — 16/16 checks pass: compile `--warnings-as-errors`, Credo, Sobelow, format, link checker
 - **Compile**: clean with `--warnings-as-errors` on all files
 - **Go agent**: `go build`, `go vet`, `go test ./...` — all clean
@@ -216,7 +220,8 @@ The GoCD analytics plugin provides separate dashboard pages (not embedded in sta
 
 ### P4: Quick Wins (S effort each)
 
-B22 Feeds XML · B23 Mailserver config · B24 Site URLs · B25 Job timeout · B26 Notification filters · B27 SCMs API · B28 Permissions API · B29 Artifact stores API · B30 Server health API
+B23 Mailserver config · B24 Site URLs · B27 SCMs API — only 3 remaining genuine gaps.
+B22 (Feeds), B25 (Job timeout), B26 (Notification filters), B28 (Permissions), B29 (Artifact stores), B30 (Server health) all ✅ done.
 
 ### Elastic Agent Scheduler (Phase 9-10) — ✅ Done
 
@@ -228,7 +233,10 @@ Remaining: Docker elastic agent support, end-to-end integration test, K8s agent 
 
 ## Part H: Build & Quality Summary
 
-- **Tests**: 828 ExUnit (0 skipped), Go agent clean, Cypress 108 tests (15 specs)
+- **Tests**: 847 ExUnit (1 skipped — HTTPTestAgent, covered by Cypress), Go agent clean, Cypress 108 tests (15 specs)
 - **Quality gate**: 16/16 — compile `--warnings-as-errors`, Credo, Sobelow, format, link checker
-- **LiveView pages**: 18 modules covering dashboard, agents, jobs, stages, pipelines, VSM, analytics, admin, audit
+- **LiveView pages**: 18 modules covering dashboard, agents, jobs, stages, pipelines, VSM, analytics, admin (including clustering), audit
 - **API controllers**: 19 controllers, 81 actions across REST + GoCD-compatible endpoints
+- **Clustering**: libcluster + Horde infrastructure, ClusterInfoServer, Admin Clustering tab
+- **Plugin architecture**: Documented in `clustering_plugin_plan.md` — 5 extension points, 4 plugin ideas
+- **See also**: `clustering_plugin_plan.md`, `vsm_parity_plan.md`, `auth_and_env_plan.md`, `external-ci-pipeline-sync-plan.md`
