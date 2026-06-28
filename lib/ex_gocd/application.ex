@@ -39,14 +39,28 @@ defmodule ExGoCD.Application do
          process_redistribution: :passive,
          members: :auto
        ]},
-      {Task,
-       fn ->
-         :timer.sleep(500)
-         Horde.DynamicSupervisor.start_child(
-           ExGoCD.HordeSupervisor,
-           {ExGoCD.MaintenanceMode, []}
-         )
-       end},
+      Supervisor.child_spec(
+        {Task,
+         fn ->
+           :timer.sleep(500)
+           Horde.DynamicSupervisor.start_child(
+             ExGoCD.HordeSupervisor,
+             {ExGoCD.MaintenanceMode, []}
+           )
+         end},
+        id: :maintenance_mode_starter
+      ),
+      Supervisor.child_spec(
+        {Task,
+         fn ->
+           :timer.sleep(600)
+           Horde.DynamicSupervisor.start_child(
+             ExGoCD.HordeSupervisor,
+             {ExGoCD.Analytics.SnapshotCollector, []}
+           )
+         end},
+        id: :snapshot_collector_starter
+      ),
       ExGoCD.ClusterInfoServer
     ]
 
@@ -65,8 +79,7 @@ defmodule ExGoCD.Application do
         ExGoCD.Pipelines.ConsoleActivityMonitor,
         ExGoCD.SchedulingChecker.TriggerMonitor,
         ExGoCD.Monitors.DiskSpace,
-        ExGoCD.ElasticAgentScheduler,
-        ExGoCD.Analytics.SnapshotCollector
+        ExGoCD.ElasticAgentScheduler
       ] ++ cluster_children
 
     children =
