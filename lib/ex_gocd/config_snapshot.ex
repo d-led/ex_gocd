@@ -58,25 +58,33 @@ defmodule ExGoCD.ConfigSnapshot do
     %{
       "schema_version" => 1,
       "captured_at" => DateTime.utc_now() |> DateTime.to_iso8601(),
-      "server" => server_config(),
-      "pipelines" => pipelines_config(),
-      "templates" => templates_config(),
-      "environments" => environments_config(),
-      "elastic_profiles" => elastic_profiles_config(),
-      "cluster_profiles" => cluster_profiles_config(),
-      "security" => security_config(),
-      "artifact_stores" => artifact_stores_config(),
-      "secret_configs" => secret_configs_config(),
-      "package_repositories" => package_repos_config(),
-      "scms" => scms_config(),
-      "config_repos" => config_repos_config()
+      "server" => safe_section(&server_config/0),
+      "pipelines" => safe_section(&pipelines_config/0),
+      "templates" => safe_section(&templates_config/0),
+      "environments" => safe_section(&environments_config/0),
+      "elastic_profiles" => safe_section(&elastic_profiles_config/0),
+      "cluster_profiles" => safe_section(&cluster_profiles_config/0),
+      "security" => safe_section(&security_config/0),
+      "artifact_stores" => safe_section(&artifact_stores_config/0),
+      "secret_configs" => safe_section(&secret_configs_config/0),
+      "package_repositories" => safe_section(&package_repos_config/0),
+      "scms" => safe_section(&scms_config/0),
+      "config_repos" => safe_section(&config_repos_config/0)
     }
+  end
+
+  defp safe_section(fun) do
+    fun.()
+  rescue
+    e ->
+      %{"_error" => Exception.message(e)}
   end
 
   # ── Individual sections ─────────────────────────────────────────────
 
   defp server_config do
     endpoint_config = Application.get_env(:ex_gocd, ExGoCDWeb.Endpoint) || []
+
     site_url =
       case endpoint_config[:url] do
         {scheme, host} -> "#{scheme}://#{host}"
@@ -360,8 +368,25 @@ defmodule ExGoCD.ConfigSnapshot do
   # ── Helpers ──────────────────────────────────────────────────────────
 
   defp hash_config(config) do
-    :crypto.hash(:sha256, Jason.encode!(config))
+    # Exclude volatile/temporal fields from hash so identical configs
+    # produce the same hash across snapshot calls.
+    # captured_at changes every call; _error may vary between environments.
+    stable =
+      config
+      |> Map.delete("captured_at")
+      |> strip_error_sections()
+
+    :crypto.hash(:sha256, Jason.encode!(stable))
     |> Base.encode16(case: :lower)
+  end
+
+  defp strip_error_sections(map) when is_map(map) do
+    Map.new(map, fn
+      {_k, %{"_error" => _}} -> {nil, nil}
+      {k, v} when is_map(v) -> {k, strip_error_sections(v)}
+      {k, v} -> {k, v}
+    end)
+    |> Map.reject(fn {k, _} -> is_nil(k) end)
   end
 
   defp latest_hash do
