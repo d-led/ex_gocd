@@ -1,36 +1,23 @@
 defmodule ExGoCD.DistSingleton do
   @moduledoc """
-  Cluster-wide singleton helpers via Horde.Registry.
-
-  Falls back to local name when Horde registry is not running (test).
+  Cluster-wide singleton via Horde.Registry. Mirrors Ball pattern from ssr-robust-live-svg.
   """
 
   def via_horde(module) do
-    if horde_ready?() do
-      {:via, Horde.Registry, {ExGoCD.HordeRegistry, module}}
-    else
-      module
+    {:via, Horde.Registry, {ExGoCD.HordeRegistry, module}}
+  end
+
+  def start_link(module, args) do
+    case GenServer.start_link(module, args, name: via_horde(module)) do
+      {:ok, pid} -> {:ok, pid}
+      {:error, {:already_started, _pid}} -> :ignore
     end
-  end
-
-  def call(module, msg, timeout \\ 5000) do
-    GenServer.call(via_horde(module), msg, timeout)
-  end
-
-  def cast(module, msg) do
-    GenServer.cast(via_horde(module), msg)
   end
 
   def whereis(module) do
-    if horde_ready?() do
-      case Horde.Registry.lookup(ExGoCD.HordeRegistry, module) do
-        [{pid, _}] -> pid
-        [] -> nil
-      end
-    else
-      Process.whereis(module)
+    case Horde.Registry.lookup(ExGoCD.HordeRegistry, module) do
+      [{pid, _}] -> pid
+      [] -> nil
     end
   end
-
-  defp horde_ready?, do: Process.whereis(ExGoCD.HordeRegistry) != nil
 end

@@ -39,6 +39,14 @@ defmodule ExGoCD.Application do
          process_redistribution: :passive,
          members: :auto
        ]},
+      {Task,
+       fn ->
+         :timer.sleep(500)
+         Horde.DynamicSupervisor.start_child(
+           ExGoCD.HordeSupervisor,
+           {ExGoCD.MaintenanceMode, []}
+         )
+       end},
       ExGoCD.ClusterInfoServer
     ]
 
@@ -55,7 +63,6 @@ defmodule ExGoCD.Application do
         ExGoCD.Materials.Poller,
         ExGoCD.Materials.TimerScheduler,
         ExGoCD.Pipelines.ConsoleActivityMonitor,
-        ExGoCD.MaintenanceMode,
         ExGoCD.SchedulingChecker.TriggerMonitor,
         ExGoCD.Monitors.DiskSpace,
         ExGoCD.ElasticAgentScheduler,

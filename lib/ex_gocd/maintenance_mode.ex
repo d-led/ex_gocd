@@ -9,27 +9,27 @@ defmodule ExGoCD.MaintenanceMode do
   # ── Client API ─────────────────────────────────────────────────────
 
   def start_link(opts \\ []) do
-    GenServer.start_link(__MODULE__, opts, name: __MODULE__)
+    ExGoCD.DistSingleton.start_link(__MODULE__, opts)
   end
 
   @doc "Returns true if maintenance mode is enabled."
   def enabled? do
-    GenServer.call(__MODULE__, :enabled?)
+    GenServer.call(ExGoCD.DistSingleton.via_horde(__MODULE__), :enabled?)
   end
 
   @doc "Enables maintenance mode."
   def enable do
-    GenServer.call(__MODULE__, :enable)
+    GenServer.call(ExGoCD.DistSingleton.via_horde(__MODULE__), :enable)
   end
 
   @doc "Disables maintenance mode."
   def disable do
-    GenServer.call(__MODULE__, :disable)
+    GenServer.call(ExGoCD.DistSingleton.via_horde(__MODULE__), :disable)
   end
 
   @doc "Returns info about current maintenance mode state."
   def info do
-    GenServer.call(__MODULE__, :info)
+    GenServer.call(ExGoCD.DistSingleton.via_horde(__MODULE__), :info)
   end
 
   # ── Server Callbacks ───────────────────────────────────────────────
