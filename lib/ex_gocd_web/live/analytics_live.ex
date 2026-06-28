@@ -22,6 +22,8 @@ defmodule ExGoCDWeb.AnalyticsLive do
      |> assign(:selected_pipeline, nil)
      |> assign(:pipeline_detail, nil)
      |> assign(:agent_stats, [])
+     |> assign(:snapshot_trends, [])
+     |> assign(:latest_snapshot, nil)
      |> assign(:vsm_data, [])
      |> load_global()}
   end
@@ -70,7 +72,12 @@ defmodule ExGoCDWeb.AnalyticsLive do
   defp load_pipeline_detail(socket, name),
     do: assign(socket, :pipeline_detail, Analytics.pipeline_analytics(name, 30))
 
-  defp load_agents(socket), do: assign(socket, :agent_stats, Analytics.agent_analytics(7))
+  defp load_agents(socket) do
+    socket
+    |> assign(:agent_stats, Analytics.enriched_agent_analytics(7))
+    |> assign(:snapshot_trends, Analytics.agent_snapshot_trends(24))
+    |> assign(:latest_snapshot, Analytics.latest_agent_snapshot())
+  end
   defp load_vsm(socket, nil), do: assign(socket, :vsm_data, [])
   defp load_vsm(socket, name), do: assign(socket, :vsm_data, Analytics.vsm_trends(name, 30))
 
@@ -387,48 +394,89 @@ defmodule ExGoCDWeb.AnalyticsLive do
 
   def agents_tab(assigns) do
     ~H"""
-    <div class="bg-white rounded-lg border border-gray-200 shadow-sm">
-      <div class="px-4 py-3 border-b border-gray-100">
-        <h2 class="text-lg font-semibold text-gray-800">Agent Utilization (7d)</h2>
-      </div>
-      <div class="overflow-x-auto">
-        <table class="w-full text-sm">
-          <thead class="bg-gray-50 text-gray-600">
-            <tr>
-              <th class="text-left px-4 py-2 font-medium">Agent UUID</th>
-              <th class="text-right px-4 py-2 font-medium">Total Jobs</th>
-              <th class="text-right px-4 py-2 font-medium">Completed</th>
-              <th class="text-right px-4 py-2 font-medium">Failed</th>
-              <th class="text-right px-4 py-2 font-medium">Cancelled</th>
-            </tr>
-          </thead>
-          <tbody>
-            <%= if Enum.empty?(@stats) do %>
-              <tr>
-                <td colspan="5" class="px-4 py-6 text-center text-gray-400">No agent job data yet</td>
-              </tr>
-            <% else %>
-              <%= for a <- Enum.sort_by(@stats, & &1.total_jobs, :desc) do %>
-                <tr class="border-t border-gray-50">
-                  <td
-                    class="px-4 py-2.5 font-mono text-xs text-gray-700 truncate max-w-[180px]"
-                    title={a.agent_uuid}
-                  >
-                    {a.agent_uuid}
-                  </td>
-                  <td class="px-4 py-2.5 text-right tabular-nums font-medium">{a.total_jobs}</td>
-                  <td class="px-4 py-2.5 text-right tabular-nums text-green-600">{a.completed}</td>
-                  <td class="px-4 py-2.5 text-right tabular-nums text-red-600">{a.failed}</td>
-                  <td class="px-4 py-2.5 text-right tabular-nums text-yellow-600">{a.cancelled}</td>
-                </tr>
-              <% end %>
-            <% end %>
-          </tbody>
-        </table>
-      </div>
-    </div>
+    <div class="space-y-6">
+      <%!-- Snapshot summary cards --%>
+      <%= if @latest_snapshot do %>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div class="bg-white rounded-lg border border-gray-200 shadow-sm p-3">
+            <p class="text-xs text-gray-500 uppercase tracking-wide">Total</p>
+            <p class="text-xl font-bold text-gray-900 mt-0.5">{@latest_snapshot.total}</p>
+          </div>
+          <div class="bg-white rounded-lg border border-green-200 shadow-sm p-3">
+            <p class="text-xs text-gray-500 uppercase tracking-wide">Idle</p>
+            <p class="text-xl font-bold text-green-700 mt-0.5">{@latest_snapshot.idle}</p>
+          </div>
+          <div class="bg-white rounded-lg border border-blue-200 shadow-sm p-3">
+            <p class="text-xs text-gray-500 uppercase tracking-wide">Building</p>
+            <p class="text-xl font-bold text-blue-700 mt-0.5">{@latest_snapshot.building}</p>
+          </div>
+          <div class="bg-white rounded-lg border border-purple-200 shadow-sm p-3">
+            <p class="text-xs text-gray-500 uppercase tracking-wide">Elastic</p>
+            <p class="text-xl font-bold text-purple-700 mt-0.5">{@latest_snapshot.elastic}</p>
+          </div>
+        </div>
+      <% end %>
 
-    <.agent_jobs_chart stats={@stats} />
+      <%!-- Agent utilization table --%>
+      <div class="bg-white rounded-lg border border-gray-200 shadow-sm">
+        <div class="px-4 py-3 border-b border-gray-100">
+          <h2 class="text-lg font-semibold text-gray-800">Agent Utilization (7d)</h2>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead class="bg-gray-50 text-gray-600">
+              <tr>
+                <th class="text-left px-4 py-2 font-medium">Agent</th>
+                <th class="text-left px-4 py-2 font-medium">Type</th>
+                <th class="text-right px-4 py-2 font-medium">Jobs</th>
+                <th class="text-right px-4 py-2 font-medium">Passed</th>
+                <th class="text-right px-4 py-2 font-medium">Failed</th>
+              </tr>
+            </thead>
+            <tbody>
+              <%= if Enum.empty?(@stats) do %>
+                <tr>
+                  <td colspan="5" class="px-4 py-6 text-center text-gray-400">No agent job data yet</td>
+                </tr>
+              <% else %>
+                <%= for a <- Enum.sort_by(@stats, & &1.total_jobs, :desc) do %>
+                  <tr class="border-t border-gray-50">
+                    <td class="px-4 py-2.5 font-medium text-gray-800" title={a.agent_uuid}>
+                      {a.hostname}
+                    </td>
+                    <td class="px-4 py-2.5">
+                      <.agent_type_badge type={a.agent_type} />
+                    </td>
+                    <td class="px-4 py-2.5 text-right tabular-nums font-medium">{a.total_jobs}</td>
+                    <td class="px-4 py-2.5 text-right tabular-nums text-green-600">{a.completed}</td>
+                    <td class="px-4 py-2.5 text-right tabular-nums text-red-600">{a.failed}</td>
+                  </tr>
+                <% end %>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <.agent_jobs_chart stats={@stats} />
+    </div>
+    """
+  end
+
+  defp agent_type_badge(assigns) do
+    ~H"""
+    <span class={[
+      "inline-flex px-2 py-0.5 rounded-full text-xs font-medium",
+      case @type do
+        "regular" -> "bg-gray-100 text-gray-700"
+        "docker" -> "bg-blue-100 text-blue-700"
+        "elastic-docker" -> "bg-purple-100 text-purple-700"
+        "elastic-k8s" -> "bg-indigo-100 text-indigo-700"
+        _ -> "bg-gray-50 text-gray-500"
+      end
+    ]}>
+      {@type}
+    </span>
     """
   end
 
@@ -445,9 +493,9 @@ defmodule ExGoCDWeb.AnalyticsLive do
     sorted = stats |> Enum.sort_by(& &1.total_jobs, :desc) |> Enum.take(15)
 
     data =
-      for a <- sorted, do: [String.slice(a.agent_uuid, 0, 12), a.completed, a.failed, a.cancelled]
+      for a <- sorted, do: [String.slice(a.hostname || a.agent_uuid, 0, 16), a.completed, a.failed]
 
-    dataset = Dataset.new(data, ["Agent", "Completed", "Failed", "Cancelled"])
+    dataset = Dataset.new(data, ["Agent", "Completed", "Failed"])
     chart = BarChart.new(dataset, type: :stacked)
     plot = Plot.new(500, 280, chart)
     Plot.to_svg(plot)

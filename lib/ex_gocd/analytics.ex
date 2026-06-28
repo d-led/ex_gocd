@@ -9,6 +9,7 @@ defmodule ExGoCD.Analytics do
   alias ExGoCD.AgentJobRuns.AgentJobRun
   alias ExGoCD.Analytics.AgentTransition
   alias ExGoCD.Analytics.AgentSnapshot
+  alias ExGoCD.Agents
   alias ExGoCD.Pipelines.{Pipeline, PipelineInstance}
 
   def pipeline_analytics(pipeline_name, days \\ 30) do
@@ -119,6 +120,40 @@ defmodule ExGoCD.Analytics do
 
   def top_agents_by_utilization(days \\ 7, limit \\ 10) do
     agent_analytics(days) |> Enum.sort_by(& &1.total_jobs, :desc) |> Enum.take(limit)
+  end
+
+  @doc """
+  Agent analytics enriched with hostname and agent type from the agents table.
+  Falls back to truncated UUID when no matching agent row exists.
+  """
+  def enriched_agent_analytics(days \\ 7) do
+    stats = agent_analytics(days)
+
+    # Batch-load all matching agents
+    uuids = Enum.map(stats, & &1.agent_uuid)
+    agents_map = Agents.get_agents_by_uuids(uuids)
+
+    Enum.map(stats, fn stat ->
+      agent = Map.get(agents_map, stat.agent_uuid)
+
+      {hostname, agent_type} =
+        case agent do
+          nil -> {String.slice(stat.agent_uuid, 0, 12) <> "…", "unknown"}
+          a -> {a.hostname || String.slice(a.uuid, 0, 12), classify_agent(a)}
+        end
+
+      Map.merge(stat, %{hostname: hostname, agent_type: agent_type})
+    end)
+  end
+
+  defp classify_agent(agent) do
+    cond do
+      agent.elastic_plugin_id == "cd.go.contrib.elastic-agent.docker" -> "elastic-docker"
+      agent.elastic_plugin_id == "cd.go.contrib.elastic-agent.kubernetes" -> "elastic-k8s"
+      not is_nil(agent.elastic_agent_id) -> "elastic"
+      (agent.resources || []) != [] and "docker" in (agent.resources || []) -> "docker"
+      true -> "regular"
+    end
   end
 
   def vsm_trends(pipeline_name, days \\ 30) do
@@ -351,5 +386,103 @@ defmodule ExGoCD.Analytics do
         order_by: [desc: s.inserted_at, desc: s.id],
         limit: 1
     )
+  end
+
+  # -- Pipeline Workflow Chains (B19) --
+
+  @doc """
+  Returns the upstream and downstream pipeline workflow chain.
+
+  Upstream = pipelines this one depends on (via dependency materials).
+  Downstream = pipelines that depend on this one.
+
+  ## Examples
+
+      iex> workflow_chain("integration-pipeline")
+      %{
+        pipeline: "integration-pipeline",
+        upstream: ["component-a", "component-b"],
+        downstream: ["deploy-staging"],
+      }
+
+  """
+  def workflow_chain(pipeline_name) do
+    %{
+      pipeline: pipeline_name,
+      upstream: upstream_pipelines(pipeline_name),
+      downstream: downstream_pipelines(pipeline_name)
+    }
+  end
+
+  @doc """
+  All pipelines directly upstream of `pipeline_name` (its dependency materials).
+  These are the pipelines that `pipeline_name` depends on.
+  """
+  def upstream_pipelines(pipeline_name) do
+    pipeline = Repo.get_by(Pipeline, name: pipeline_name)
+
+    if pipeline do
+      pipeline = Repo.preload(pipeline, :materials)
+
+      (pipeline.materials || [])
+      |> Enum.filter(&(&1.type == "dependency"))
+      |> Enum.map(& &1.url)
+      |> Enum.uniq()
+    else
+      []
+    end
+  end
+
+  @doc """
+  All pipelines directly downstream of `pipeline_name`
+  (pipelines that list `pipeline_name` as a dependency material).
+  """
+  def downstream_pipelines(pipeline_name) do
+    Repo.all(
+      from p in Pipeline,
+        join: m in assoc(p, :materials),
+        where: m.type == "dependency" and m.url == ^pipeline_name,
+        select: p.name,
+        distinct: true
+    )
+  end
+
+  @doc """
+  Recursive upstream chain — all ancestors up to source materials.
+  Returns a list of pipeline names in dependency order (closest first).
+  """
+  def upstream_chain(pipeline_name, visited \\ MapSet.new()) do
+    if MapSet.member?(visited, pipeline_name) do
+      []
+    else
+      visited = MapSet.put(visited, pipeline_name)
+      ups = upstream_pipelines(pipeline_name)
+
+      ups ++ Enum.flat_map(ups, &upstream_chain(&1, visited))
+    end
+  end
+
+  @doc """
+  Recursive downstream chain — all descendants.
+  """
+  def downstream_chain(pipeline_name, visited \\ MapSet.new()) do
+    if MapSet.member?(visited, pipeline_name) do
+      []
+    else
+      visited = MapSet.put(visited, pipeline_name)
+      downs = downstream_pipelines(pipeline_name)
+
+      downs ++ Enum.flat_map(downs, &downstream_chain(&1, visited))
+    end
+  end
+
+  @doc """
+  Full workflow graph as adjacency map: pipeline_name => %{upstream: [...], downstream: [...]}
+  for all pipelines in the system.
+  """
+  def workflow_graph do
+    Repo.all(from p in Pipeline, select: p.name)
+    |> Enum.map(fn name -> {name, workflow_chain(name)} end)
+    |> Map.new()
   end
 end

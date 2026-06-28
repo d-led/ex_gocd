@@ -449,6 +449,10 @@ defmodule ExGoCD.ElasticAgentScheduler do
     spec =
       put_in(spec, ["spec", "securityContext", "seccompProfile", "type"], "Unconfined")
 
+    # No CNI (--flannel-backend=none): use host network
+    spec = put_in(spec, ["spec", "hostNetwork"], true)
+    spec = put_in(spec, ["spec", "dnsPolicy"], "ClusterFirstWithHostNet")
+
     {:ok, spec}
   end
 

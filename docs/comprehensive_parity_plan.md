@@ -121,7 +121,7 @@
 | B7 | Full config repos engine (PaC) | XL | YAML parsing, git polling, merge engine |
 | B8 | External auth (LDAP/OAuth/GitHub) | L | Ueberauth or :eldap |
 | B9 | Pipeline group administration | M | Delegate admin per group |
-| B10 | Email notifications | ✅ | `Notifications.dispatch/4` wired into stage completion. Filters match pipeline+stage+event. Email delivery via Swoosh (ready when SMTP configured). |
+| B10 | Email notifications | ✅ | `Notifications.dispatch/4` + `ExGoCD.Mailer` (Swoosh SMTP → smtp4dev in dev). Docker compose: smtp4dev on :2525, web UI :8025. |
 | B11 | Roles & auth configs CRUD | ✅ | Role schema + migration + CRUD + 10 tests + `delete_role` validates not-in-use (GoCD parity: `RoleConfigDeleteCommand`). API at `/api/admin/security/roles`. |
 | B12 | Elastic agent profiles | ✅ | Schema + CRUD API at /api/admin/elastic_agent_profiles |
 | B13 | Cluster profiles | ✅ | Schema + CRUD API at /api/admin/cluster_profiles |
@@ -135,9 +135,9 @@
 |---|-----|-------|
 | B17 | Agent state transitions tracking | Schema exists (`agent_transition`) |
 | B18 | Agent utilization snapshots | ✅ Done — Schema + periodic GenServer + analytics queries |
-| B19 | Pipeline workflow chains | Traversal logic needed |
-| B20 | VSM trend across runs | Query exists; UI charts needed |
-| B21 | Analytics UI with Chart.js | LiveView exists; chart integration pending |
+| B19 | Pipeline workflow chains | ✅ Done — `Analytics.workflow_chain/1`, upstream/downstream traversal, recursive chains, full adjacency graph. 9 tests. |
+| B20 | VSM trend across runs | ✅ Done — Analytics LiveView agents tab shows snapshot cards + hostnames + agent type badges |
+| B21 | Analytics UI with charts | ✅ Done — Contex SVG charts on every tab, snapshot summary cards, workflow chain data |
 
 ### ⚪ P4: Low Priority / Not Started
 

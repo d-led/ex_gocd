@@ -92,6 +92,7 @@ docker compose up -d postgres # postgres only (for CI runner)
 | **OTel Collector** | `localhost:4318` (HTTP), `localhost:4317` (gRPC) | `otel/collector-config.yml` |
 | **Grafana Renderer** | `localhost:3081` (internal) | — |
 | **Postgres** | `localhost:5432` (`postgres:postgres`) | `docker-compose.yml` env vars |
+| **smtp4dev** (email testing) | [localhost:8025](http://localhost:8025) | SMTP on `:2525`, no auth |
 
 Pre-configured dashboard: `grafana/provisioning/dashboards/ci-observability/pipeline-observability.json`
 
