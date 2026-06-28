@@ -1,6 +1,8 @@
 # Comprehensive GoCD Feature Parity Plan
 
-*Audited 2026-06-22. 514 ExUnit tests, 9/9 quality gate, compile clean.*
+*Audited 2026-06-22. Updated 2026-06-28. 800+ ExUnit tests, 16/16 quality gate.*
+
+> This is the single source of truth. Supersedes: `parity_roadmap_plan.md`, `vsm_parity_plan.md`, `auth_and_env_plan.md`, `external-ci-pipeline-sync-plan.md`.
 
 ---
 
@@ -62,6 +64,8 @@
 | Test report generation | ✅ | JUnit XML → HTML via Erlang xmerl |
 | Artifact tree browser | ✅ | Recursive directory listing in JobDetailsLive |
 | Console live streaming | ✅ | PubSub-based console subscription |
+| Config XML export/import | ✅ | Generate + import via :xmerl parser, UI at /admin/config_xml |
+| Config versioning (snapshots) | 🟡 | `ConfigVersion` schema + `ConfigSnapshot` capture (all sections, encrypted secrets). Missing: auto-hook on mutations, history UI, revert. |
 | MD5 checksums | ✅ | Agent sends checksums; server stores |
 | Maintenance mode | 🟡 | Admin UI toggle (local assign); needs server-wide GenServer wiring |
 | Stage cancel | ✅ | `cancel_stage/3` with transaction |
@@ -107,6 +111,7 @@
 | B4 | Config XML import/export | ✅ | Export + import via :xmerl parser, upload UI at /admin/config_xml |
 | B5 | Disk space monitor / artifact auto-cleanup | ✅ | `ExGoCD.Monitors.DiskSpace` GenServer, wired into scheduler checker chain |
 | B6 | Artifact MD5 verification on downstream fetch | ✅ | Done |
+| B7 | **Config versioning** — full config snapshots with encrypted secrets | 🟡 | Schema+migration+snapshot done. Needs: auto-hook on mutations, history UI, revert mechanism. Secrets stored as `AES:iv:ciphertext` (GoCD parity: `encryptedPassword` in cruise-config.xml). |
 
 ### 🟢 P2: Other Features
 
