@@ -12,6 +12,7 @@ defmodule ExGoCD.Agents do
   Set `USE_MOCK_DATA=true` to use mock data instead of the database.
   This is useful for UI development without a database connection.
   """
+  require Logger
 
   import Ecto.Query, warn: false
   alias ExGoCD.Agents.Agent
@@ -104,39 +105,55 @@ defmodule ExGoCD.Agents do
     uuid = attrs["uuid"] || attrs[:uuid]
     hostname = attrs["hostname"] || attrs[:hostname]
 
-    case uuid && get_agent_by_uuid(uuid) do
-      %Agent{} = existing_agent ->
-        existing_agent
-        |> Agent.changeset(ensure_disabled_false(attrs))
-        |> Repo.update()
-        |> broadcast(:agent_updated)
+    # GoCD parity: agents must send a UUID. If they don't, generate one
+    # (convenience for dev/testing — GoCD rejects missing UUIDs).
+    {uuid, attrs} =
+      if is_nil(uuid) || uuid == "" do
+        generated = ExGoCD.TestAgent.UUID.uuid4()
+        Logger.warning("[Agents] Agent missing UUID, generated: #{generated}")
 
-      nil ->
-        register_by_hostname_or_new(attrs, hostname)
-    end
-  end
+        attrs =
+          if is_map_key(attrs, "uuid"),
+            do: Map.put(attrs, "uuid", generated),
+            else: Map.put(attrs, :uuid, generated)
 
-  defp register_by_hostname_or_new(attrs, hostname) do
-    stale = find_stale_agent_by_hostname(hostname)
-    uuid = attrs["uuid"] || attrs[:uuid]
+        {generated, attrs}
+      else
+        {uuid, attrs}
+      end
 
     result =
-      if stale do
-        stale
-        |> Agent.changeset(ensure_disabled_false(attrs))
-        |> Repo.update()
-        |> broadcast(:agent_updated)
-      else
-        %Agent{}
-        |> Agent.registration_changeset(ensure_disabled_false(attrs))
-        |> Repo.insert()
-        |> broadcast(:agent_registered)
+      case get_agent_by_uuid(uuid) do
+        %Agent{} = existing_agent ->
+          existing_agent
+          |> Agent.changeset(ensure_disabled_false(attrs))
+          |> Repo.update()
+          |> broadcast(:agent_updated)
+
+        nil ->
+          register_by_hostname_or_new(attrs, hostname, uuid)
       end
 
     outcome = elem(result, 0)
-    log_registration(uuid || "unknown", hostname || "unknown", outcome)
+    log_registration(uuid, hostname || "unknown", outcome)
     log_registration_audit(uuid, hostname, outcome, attrs)
     result
+  end
+
+  defp register_by_hostname_or_new(attrs, hostname, _uuid) do
+    stale = find_stale_agent_by_hostname(hostname)
+
+    if stale do
+      stale
+      |> Agent.changeset(ensure_disabled_false(attrs))
+      |> Repo.update()
+      |> broadcast(:agent_updated)
+    else
+      %Agent{}
+      |> Agent.registration_changeset(ensure_disabled_false(attrs))
+      |> Repo.insert()
+      |> broadcast(:agent_registered)
+    end
   end
 
   defp find_stale_agent_by_hostname(hostname) do
@@ -356,7 +373,7 @@ defmodule ExGoCD.Agents do
   def effective_status(%Agent{disabled: true}, _opts), do: :disabled
 
   def effective_status(agent, opts) do
-    threshold_sec = Keyword.get(opts, :lost_contact_seconds, 90)
+    threshold_sec = Keyword.get(opts, :lost_contact_seconds, 600)
 
     if not use_mock?() and stale?(agent.updated_at, threshold_sec) do
       :lost_contact
@@ -520,7 +537,12 @@ defmodule ExGoCD.Agents do
         :ok
 
       agent ->
-        _ = update_agent(agent, %{state: "LostContact"})
+        # Only mark LostContact if currently Idle/Building (just disconnected).
+        # Avoids overwriting state on server restart when agent hasn't reconnected yet.
+        if agent.state in ["Idle", "Building"] do
+          _ = update_agent(agent, %{state: "LostContact"})
+        end
+
         :ok
     end
   end

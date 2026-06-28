@@ -63,10 +63,12 @@ defmodule ExGoCD.AgentsTest do
       assert Repo.aggregate(Agent, :count) == 1
     end
 
-    test "requires uuid" do
-      attrs = %{hostname: "agent", ipaddress: "192.168.1.1"}
-      assert {:error, changeset} = Agents.register_agent(attrs)
-      assert "can't be blank" in errors_on(changeset).uuid
+    test "auto-generates UUID when not provided" do
+      attrs = %{hostname: "no-uuid-agent", ipaddress: "192.168.1.1"}
+      assert {:ok, agent} = Agents.register_agent(attrs)
+      assert agent.uuid != nil
+      assert String.length(agent.uuid) > 0
+      assert agent.hostname == "no-uuid-agent"
     end
 
     test "requires hostname" do

@@ -56,13 +56,71 @@ defmodule ExGoCDWeb.AgentJobHistoryLive do
   def render(assigns) do
     ~H"""
     <div class="agent-job-history-page">
+      <%!-- Agent detail card --%>
+      <div class="bg-white rounded-lg border border-gray-200 shadow-sm mb-6">
+        <div class="px-5 py-4">
+          <div class="flex items-center gap-3 mb-3">
+            <h1 class="text-lg font-bold text-gray-900">{@agent.hostname}</h1>
+            <% is_elastic = @agent.elastic_agent_id || @agent.elastic_plugin_id %>
+            <span class={"inline-flex px-2 py-0.5 rounded-full text-xs font-medium #{if is_elastic, do: "bg-purple-100 text-purple-700", else: "bg-gray-100 text-gray-600"}"}>
+              {if @agent.elastic_agent_id, do: "elastic", else: "regular"}
+            </span>
+          </div>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+            <div>
+              <span class="text-gray-400 text-xs uppercase tracking-wide">UUID</span>
+              <p class="font-mono text-xs text-gray-600 mt-0.5" title={@agent.uuid}>
+                {String.slice(@agent.uuid, 0, 12)}…
+              </p>
+            </div>
+            <div>
+              <span class="text-gray-400 text-xs uppercase tracking-wide">IP Address</span>
+              <p class="text-gray-700 mt-0.5">{@agent.ipaddress || "—"}</p>
+            </div>
+            <div>
+              <span class="text-gray-400 text-xs uppercase tracking-wide">OS</span>
+              <p class="text-gray-700 mt-0.5">{@agent.operating_system || "—"}</p>
+            </div>
+            <div>
+              <span class="text-gray-400 text-xs uppercase tracking-wide">Sandbox</span>
+              <p class="text-gray-700 mt-0.5 truncate">{@agent.working_dir || "—"}</p>
+            </div>
+            <div>
+              <span class="text-gray-400 text-xs uppercase tracking-wide">Status</span>
+              <p class="text-gray-700 mt-0.5">{@agent.state || "—"}</p>
+            </div>
+            <div>
+              <span class="text-gray-400 text-xs uppercase tracking-wide">Free Space</span>
+              <p class="text-gray-700 mt-0.5">{format_bytes(@agent.free_space)}</p>
+            </div>
+            <div>
+              <span class="text-gray-400 text-xs uppercase tracking-wide">Resources</span>
+              <p class="text-gray-700 mt-0.5">
+                <%= if @agent.resources not in [nil, []] do %>
+                  {@agent.resources |> Enum.join(", ")}
+                <% else %>
+                  <span class="text-gray-400">none</span>
+                <% end %>
+              </p>
+            </div>
+            <div>
+              <span class="text-gray-400 text-xs uppercase tracking-wide">Environments</span>
+              <p class="text-gray-700 mt-0.5">
+                <%= if @agent.environments not in [nil, []] do %>
+                  {@agent.environments |> Enum.join(", ")}
+                <% else %>
+                  <span class="text-gray-400">none</span>
+                <% end %>
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div class="page-header">
         <h1 class="page-header_title">
-          <span>Agent Job Run History</span>
+          <span>Job Run History</span>
         </h1>
-        <div class="agent-info">
-          <span class="agent-hostname">{@agent.hostname}</span>
-        </div>
       </div>
       
     <!-- Pagination Top -->
@@ -254,4 +312,13 @@ defmodule ExGoCDWeb.AgentJobHistoryLive do
       AgentJobRuns.list_runs_for_agent(uuid)
     end
   end
+
+  defp format_bytes(nil), do: "—"
+  defp format_bytes(bytes) when bytes < 1024, do: "#{bytes} B"
+  defp format_bytes(bytes) when bytes < 1024 * 1024, do: "#{div(bytes, 1024)} KB"
+
+  defp format_bytes(bytes) when bytes < 1024 * 1024 * 1024,
+    do: "#{Float.round(bytes / (1024 * 1024), 1)} MB"
+
+  defp format_bytes(bytes), do: "#{Float.round(bytes / (1024 * 1024 * 1024), 1)} GB"
 end

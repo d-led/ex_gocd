@@ -138,7 +138,7 @@ defmodule ExGoCD.Analytics do
 
       {hostname, agent_type} =
         case agent do
-          nil -> {String.slice(stat.agent_uuid, 0, 12) <> "…", "unknown"}
+          nil -> {String.slice(stat.agent_uuid, 0, 12) <> "…", "regular"}
           a -> {a.hostname || String.slice(a.uuid, 0, 12), classify_agent(a)}
         end
 

@@ -255,15 +255,19 @@ defmodule ExGoCDWeb.AnalyticsLive do
     <div class="space-y-2">
       <%= for a <- @agents_list do %>
         <% pct = if @max_jobs > 0, do: Float.round(a.total_jobs / @max_jobs * 100, 1), else: 0 %>
-        <div class="flex items-center gap-2 text-xs" title={a.agent_uuid}>
-          <span class="w-36 truncate text-gray-700 font-medium">
-            {a.hostname}
-          </span>
+        <div
+          class="flex items-center gap-2.5 text-xs group"
+          title={"#{a.agent_uuid}\nType: #{a.agent_type}\nJobs: #{a.total_jobs} · Passed: #{a.completed} · Failed: #{a.failed}"}
+        >
+          <span class="w-28 shrink-0 truncate text-gray-700 font-medium">{a.hostname}</span>
           <.agent_type_badge type={a.agent_type} />
-          <div class="flex-1 h-5 bg-gray-100 rounded overflow-hidden">
+          <div class="flex-1 h-5 bg-gray-100 rounded overflow-hidden min-w-0">
             <div class="h-full bg-blue-500 rounded transition-all" style={"width:#{pct}%"}></div>
           </div>
-          <span class="w-10 text-right tabular-nums font-medium text-gray-600">{a.total_jobs}</span>
+          <span class="w-12 shrink-0 text-right tabular-nums font-semibold text-gray-700">
+            {a.total_jobs}
+          </span>
+          <span class="w-12 shrink-0 text-right tabular-nums text-[11px] text-gray-400">{pct}%</span>
         </div>
       <% end %>
     </div>
@@ -489,16 +493,18 @@ defmodule ExGoCDWeb.AnalyticsLive do
   defp agent_type_badge(assigns) do
     ~H"""
     <span class={[
-      "inline-flex px-2 py-0.5 rounded-full text-xs font-medium",
+      "inline-flex px-1.5 py-0.5 rounded-full text-[11px] font-medium",
       case @type do
-        "regular" -> "bg-gray-100 text-gray-700"
+        "regular" -> "bg-gray-100 text-gray-600"
         "docker" -> "bg-blue-100 text-blue-700"
         "elastic-docker" -> "bg-purple-100 text-purple-700"
         "elastic-k8s" -> "bg-indigo-100 text-indigo-700"
-        _ -> "bg-gray-50 text-gray-500"
+        "k8s-elastic" -> "bg-indigo-100 text-indigo-700"
+        "k8s-elastic" -> "bg-indigo-100 text-indigo-700"
+        _ -> "bg-gray-100 text-gray-600"
       end
     ]}>
-      {@type}
+      {String.replace(@type, "-", " ")}
     </span>
     """
   end
@@ -518,12 +524,12 @@ defmodule ExGoCDWeb.AnalyticsLive do
           <% pass_pct =
             if a.total_jobs > 0, do: Float.round(a.completed / a.total_jobs * 100, 0), else: 0 %>
           <div
-            class="flex items-center gap-2 text-xs"
-            title={"#{a.agent_uuid}\nPassed: #{a.completed}  Failed: #{a.failed}  Cancelled: #{a.cancelled}"}
+            class="flex items-center gap-2.5 text-xs"
+            title={"#{a.agent_uuid}\nType: #{a.agent_type}\nPassed: #{a.completed}  Failed: #{a.failed}  Cancelled: #{a.cancelled}"}
           >
-            <span class="w-32 truncate text-gray-700 font-medium">{a.hostname}</span>
+            <span class="w-28 shrink-0 truncate text-gray-700 font-medium">{a.hostname}</span>
             <.agent_type_badge type={a.agent_type} />
-            <div class="flex-1 h-5 bg-gray-100 rounded overflow-hidden flex">
+            <div class="flex-1 h-5 bg-gray-100 rounded overflow-hidden flex min-w-0">
               <div
                 class="h-full bg-green-500"
                 style={"width:#{Float.round(a.completed / @chart_max * 100, 1)}%"}
@@ -535,8 +541,12 @@ defmodule ExGoCDWeb.AnalyticsLive do
               >
               </div>
             </div>
-            <span class="w-12 text-right tabular-nums font-medium text-gray-600">{a.total_jobs}</span>
-            <span class="w-8 text-right tabular-nums text-xs text-green-600">{pass_pct}%</span>
+            <span class="w-12 shrink-0 text-right tabular-nums font-semibold text-gray-700">
+              {a.total_jobs}
+            </span>
+            <span class="w-10 shrink-0 text-right tabular-nums text-[11px] text-green-600">
+              {pass_pct}%
+            </span>
           </div>
         <% end %>
       </div>

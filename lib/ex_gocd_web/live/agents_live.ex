@@ -54,11 +54,12 @@ defmodule ExGoCDWeb.AgentsLive do
         socket
         |> assign(tracked_pods: :loading, scheduler_events: [], cluster_statuses: :loading)
         |> start_async(:load_tracked_pods, fn ->
-          profiles = try do
-            ExGoCD.ClusterProfiles.list_profiles()
-          rescue
-            _ -> []
-          end
+          profiles =
+            try do
+              ExGoCD.ClusterProfiles.list_profiles()
+            rescue
+              _ -> []
+            end
 
           statuses =
             try do
@@ -91,8 +92,7 @@ defmodule ExGoCDWeb.AgentsLive do
   end
 
   def handle_async(:load_tracked_pods, {:exit, _}, socket) do
-    {:noreply,
-     assign(socket, tracked_pods: %{}, scheduler_events: [], cluster_statuses: :error)}
+    {:noreply, assign(socket, tracked_pods: %{}, scheduler_events: [], cluster_statuses: :error)}
   end
 
   @impl true
@@ -726,21 +726,34 @@ defmodule ExGoCDWeb.AgentsLive do
       <% end %>
 
       <%= if @registration_log != [] do %>
-        <details class="registration-log" style="margin-top: 16px;" open>
-          <summary style="cursor: pointer; font-size: 14px; color: #6b7280; margin-bottom: 8px;">
+        <details class="registration-log mt-4" open>
+          <summary class="cursor-pointer text-sm text-gray-500 mb-3 font-medium">
             Registration log · last {length(@registration_log)}
           </summary>
-          <div style="display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 13px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;">
+          <div class="space-y-1.5">
             <%= for {uuid, host, result, time} <- Enum.take(@registration_log, 10) do %>
-              <span style="white-space: nowrap;" title={"#{uuid} · #{host}"}>
-                <span style={if result == :ok, do: "color: #16a34a;", else: "color: #dc2626;"}>
-                  {if result == :ok, do: "✓", else: "✗"}
+              <% status_class =
+                if result == :ok, do: "bg-green-100 text-green-700", else: "bg-red-100 text-red-700" %>
+              <% status_icon = if result == :ok, do: "✓", else: "✗" %>
+              <div class="flex items-center gap-3 text-xs py-1 px-2 rounded hover:bg-gray-50">
+                <span class={"flex-shrink-0 w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold #{status_class}"}>
+                  {status_icon}
                 </span>
-                <span style="margin-left: 2px; color: #374151;">{host}</span>
-                <span style="margin-left: 4px; color: #9ca3af;">
+                <span class="font-mono text-gray-400 w-28 truncate" title={uuid}>
+                  {String.slice(uuid, 0, 12)}
+                </span>
+                <span class="text-gray-700 font-medium w-24 truncate" title={host}>{host}</span>
+                <span class="flex-1"></span>
+                <span class="text-gray-400 tabular-nums">
                   {time && Calendar.strftime(time, "%H:%M:%S")}
                 </span>
-              </span>
+                <.link
+                  navigate={"/agents/#{uuid}/job_run_history"}
+                  class="text-blue-500 hover:text-blue-700 text-[11px] font-medium"
+                >
+                  jobs →
+                </.link>
+              </div>
             <% end %>
           </div>
         </details>

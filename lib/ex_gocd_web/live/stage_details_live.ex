@@ -268,12 +268,23 @@ defmodule ExGoCDWeb.StageDetailsLive do
     plugin_id = agent.elastic_plugin_id || ""
 
     cond do
-      elastic_id && (String.contains?(wd, "k8s") or String.contains?(plugin_id, "kubernetes")) -> "k8s-elastic"
-      elastic_id && (String.contains?(wd, "docker") or String.contains?(plugin_id, "docker")) -> "docker-elastic"
-      "k8s" in resources -> "k8s"
-      "docker" in resources -> "docker"
-      elastic_id -> "elastic"
-      true -> "regular"
+      elastic_id && (String.contains?(wd, "k8s") or String.contains?(plugin_id, "kubernetes")) ->
+        "k8s-elastic"
+
+      elastic_id && (String.contains?(wd, "docker") or String.contains?(plugin_id, "docker")) ->
+        "docker-elastic"
+
+      "k8s" in resources ->
+        "k8s"
+
+      "docker" in resources ->
+        "docker"
+
+      elastic_id ->
+        "elastic"
+
+      true ->
+        "regular"
     end
   end
 
