@@ -43,26 +43,36 @@ defmodule ExGoCDWeb.AdminK8sLive do
       )
 
     if connected?(socket) do
-      parent = self()
-
-      for profile <- profiles do
-        Task.start(fn ->
-          result = ClusterProfiles.safe_check_connection(profile)
-          send(parent, {:check_result, profile.id, result})
+      socket =
+        start_async(socket, :check_all_connections, fn ->
+          Map.new(profiles, fn p -> {p.id, ClusterProfiles.check_connection(p)} end)
         end)
-      end
-    end
 
-    {:ok, socket}
+      {:ok, socket}
+    else
+      {:ok, socket}
+    end
   end
 
   @impl true
-  def handle_info({:check_result, profile_id, result}, socket) do
+  def handle_async(:check_all_connections, {:ok, statuses}, socket) do
+    {:noreply, assign(socket, :connection_status, statuses)}
+  end
+
+  def handle_async(:check_all_connections, {:exit, _reason}, socket) do
+    {:noreply, socket}
+  end
+
+  def handle_async({:recheck, id}, {:ok, {id, status}}, socket) do
     {:noreply,
      put_in(
        socket.assigns.connection_status,
-       Map.put(socket.assigns.connection_status, profile_id, result)
+       Map.put(socket.assigns.connection_status, id, status)
      )}
+  end
+
+  def handle_async({:recheck, _id}, {:exit, _reason}, socket) do
+    {:noreply, socket}
   end
 
   # ── Cluster Profile actions ───────────────────────────────────────────────
@@ -193,14 +203,10 @@ defmodule ExGoCDWeb.AdminK8sLive do
         {:noreply, socket}
 
       profile ->
-        parent = self()
-
-        Task.start(fn ->
-          result = ClusterProfiles.safe_check_connection(profile)
-          send(parent, {:check_result, profile.id, result})
-        end)
-
-        {:noreply, socket}
+        {:noreply,
+         start_async(socket, {:recheck, id}, fn ->
+           {id, ClusterProfiles.check_connection(profile)}
+         end)}
     end
   end
 

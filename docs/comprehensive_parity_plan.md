@@ -111,7 +111,7 @@
 | B4 | Config XML import/export | ✅ | Export + import via :xmerl parser, upload UI at /admin/config_xml |
 | B5 | Disk space monitor / artifact auto-cleanup | ✅ | `ExGoCD.Monitors.DiskSpace` GenServer, wired into scheduler checker chain |
 | B6 | Artifact MD5 verification on downstream fetch | ✅ | Done |
-| B7 | **Config versioning** — full config snapshots with encrypted secrets | 🟡 | Schema+migration+snapshot done. Needs: auto-hook on mutations, history UI, revert mechanism. Secrets stored as `AES:iv:ciphertext` (GoCD parity: `encryptedPassword` in cruise-config.xml). |
+| B7 | **Config versioning** — full config snapshots with encrypted secrets | ✅ | Schema+migration+snapshot+auto-hook+history UI+revert done. Secrets stored as `AES:iv:ciphertext` (GoCD parity: `encryptedPassword`). |
 
 ### 🟢 P2: Other Features
 
@@ -121,7 +121,7 @@
 | B8 | External auth (LDAP/OAuth/GitHub) | L | Ueberauth or :eldap |
 | B9 | Pipeline group administration | M | Delegate admin per group |
 | B10 | Email notifications | M | Swoosh + PubSub + filter schema |
-| B11 | Roles & auth configs CRUD | M | Bodyguard extension |
+| B11 | Roles & auth configs CRUD | ✅ | Role schema + migration + CRUD + 10 tests + `delete_role` validates not-in-use (GoCD parity: `RoleConfigDeleteCommand`). API at `/api/admin/security/roles`. |
 | B12 | Elastic agent profiles | ✅ | Schema + CRUD API at /api/admin/elastic_agent_profiles |
 | B13 | Cluster profiles | ✅ | Schema + CRUD API at /api/admin/cluster_profiles |
 | B14 | Package repositories | ✅ | Schema + CRUD API at /api/admin/package_repositories |
