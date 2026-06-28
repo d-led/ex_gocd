@@ -71,6 +71,10 @@ config :ex_gocd, :otel,
   exporter: :none,
   service_name: "ex_gocd"
 
+# Plugin system — default agent selector (always loaded).
+# Override per-env or via config :ex_gocd, :plugins.
+config :ex_gocd, :plugins, agent_selector: ExGoCD.Plugin.Managed.RegionalAffinity
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"

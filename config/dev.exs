@@ -143,33 +143,29 @@ config :logger, ExGoCD.LoggerJSON,
   level: :info
 
 # ── Plugin configuration (dev) ─────────────────────────────────────────
-# Set EX_GOCD_PLUGINS to a comma-separated list to load example plugins:
-#   EX_GOCD_PLUGINS=regional_affinity,corp_policy
-#
-# In cluster mode (process-compose.cluster.yaml), EX_GOCD_CLUSTER=1
-# enables the default plugin set.
+# Base config (config.exs) already loads RegionalAffinity as agent_selector.
+# Cluster mode loads org_chart too. Set EX_GOCD_PLUGINS to add more:
+#   EX_GOCD_PLUGINS=corp_policy,org_chart  iex --sname ex_gocd -S mix phx.server
+
 if System.get_env("EX_GOCD_CLUSTER") == "1" do
   config :ex_gocd, :plugins,
     agent_selector: ExGoCD.Plugin.Managed.RegionalAffinity,
     org_hierarchy: ExGoCD.Plugin.Managed.SimpleOrgChart
-else
-  plugin_list =
-    System.get_env("EX_GOCD_PLUGINS", "")
-    |> String.split(",", trim: true)
-    |> Enum.map(&String.trim/1)
+end
+
+# Ad-hoc plugin loading via env var (overrides defaults)
+if System.get_env("EX_GOCD_PLUGINS") do
+  plugins =
+    Application.get_env(:ex_gocd, :plugins, [])
+    |> Keyword.put_new(:agent_selector, ExGoCD.Plugin.Managed.RegionalAffinity)
 
   plugins =
-    if "regional_affinity" in plugin_list,
-      do: [agent_selector: ExGoCD.Plugin.Managed.RegionalAffinity],
-      else: []
-
-  plugins =
-    if "corp_policy" in plugin_list,
+    if String.contains?(System.get_env("EX_GOCD_PLUGINS", ""), "corp_policy"),
       do: Keyword.put(plugins, :agent_selector, ExGoCD.Plugin.Managed.CorpPolicy),
       else: plugins
 
   plugins =
-    if "org_chart" in plugin_list,
+    if String.contains?(System.get_env("EX_GOCD_PLUGINS", ""), "org_chart"),
       do: Keyword.put(plugins, :org_hierarchy, ExGoCD.Plugin.Managed.SimpleOrgChart),
       else: plugins
 

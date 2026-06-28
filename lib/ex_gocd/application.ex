@@ -72,6 +72,7 @@ defmodule ExGoCD.Application do
         {Phoenix.PubSub, name: ExGoCD.PubSub},
         ExGoCDWeb.AgentPresence,
         ExGoCD.Plugin.Registry,
+        ExGoCD.Plugin.Managed.RegionalAffinity,
         ExGoCD.TestAgentSupervisor,
         ExGoCDWeb.Endpoint
       ] ++ cluster_children

@@ -5,6 +5,7 @@ version: "0.5"
 #
 # Prerequisites: docker compose up -d postgres jaeger otel-collector
 # Usage:         process-compose up
+# Usage (bg):    process-compose up --tui=false &> /tmp/pc.log &
 # Stop:          process-compose down
 #
 # https://f1bonacc1.github.io/process-compose/

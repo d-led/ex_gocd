@@ -64,8 +64,8 @@ defmodule ExGoCDWeb.PipelineWizardLive do
           <i class="fa fa-arrow-left mr-1"></i> Back to Pipelines
         </a>
       </div>
-      
-    <!-- Step Indicator -->
+
+      <!-- Step Indicator -->
       <div class="max-w-4xl mx-auto px-6 mt-6">
         <div class="flex items-center justify-between bg-white border border-[#d6e0e2] rounded p-4 shadow-sm mb-6">
           <.step_item num={1} label="Step 1: Basic Settings" current={@step} />
@@ -76,8 +76,8 @@ defmodule ExGoCDWeb.PipelineWizardLive do
           <div class="flex-grow border-t border-dashed border-slate-200 mx-4"></div>
           <.step_item num={4} label="Step 4: Job and Task" current={@step} />
         </div>
-        
-    <!-- Form Box -->
+
+        <!-- Form Box -->
         <div class="bg-white border border-[#d6e0e2] rounded shadow-sm overflow-hidden">
           <div class="bg-[#e7eef0] px-6 py-3 border-b border-[#d6e0e2]">
             <h2 class="text-xs font-bold uppercase tracking-wider text-slate-700">
@@ -359,8 +359,8 @@ defmodule ExGoCDWeb.PipelineWizardLive do
                     </div>
                   </div>
               <% end %>
-              
-    <!-- Buttons Control -->
+
+              <!-- Buttons Control -->
               <div class="mt-8 pt-4 border-t border-[#e9edef] flex justify-between">
                 <div>
                   <%= if @step > 1 do %>

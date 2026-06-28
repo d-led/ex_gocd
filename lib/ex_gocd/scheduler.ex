@@ -49,7 +49,11 @@ defmodule ExGoCD.Scheduler do
   """
   def schedule_job(spec) when is_map(spec) do
     parent_ctx = VsmTracer.current_ctx()
-    GenServer.call(ExGoCD.DistSingleton.via_horde(__MODULE__), {:schedule_job, normalize_job_spec(spec), parent_ctx})
+
+    GenServer.call(
+      ExGoCD.DistSingleton.via_horde(__MODULE__),
+      {:schedule_job, normalize_job_spec(spec), parent_ctx}
+    )
   end
 
   @doc """
@@ -58,7 +62,11 @@ defmodule ExGoCD.Scheduler do
   """
   def try_assign_work(agent_uuid) when is_binary(agent_uuid) do
     parent_ctx = VsmTracer.current_ctx()
-    GenServer.call(ExGoCD.DistSingleton.via_horde(__MODULE__), {:try_assign_work, agent_uuid, parent_ctx})
+
+    GenServer.call(
+      ExGoCD.DistSingleton.via_horde(__MODULE__),
+      {:try_assign_work, agent_uuid, parent_ctx}
+    )
   end
 
   @doc """
@@ -67,7 +75,11 @@ defmodule ExGoCD.Scheduler do
   """
   def try_assign_work_with_spec(agent_uuid) when is_binary(agent_uuid) do
     parent_ctx = VsmTracer.current_ctx()
-    GenServer.call(ExGoCD.DistSingleton.via_horde(__MODULE__), {:try_assign_work_with_spec, agent_uuid, parent_ctx})
+
+    GenServer.call(
+      ExGoCD.DistSingleton.via_horde(__MODULE__),
+      {:try_assign_work_with_spec, agent_uuid, parent_ctx}
+    )
   end
 
   @doc """

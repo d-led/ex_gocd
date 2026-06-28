@@ -79,18 +79,31 @@ defmodule ExGoCD.Plugin.Registry do
               Map.put(acc, slot, nil)
             end
           else
-            IO.warn("[PluginRegistry] module #{inspect(mod)} for slot #{slot} could not be loaded", [])
+            IO.warn(
+              "[PluginRegistry] module #{inspect(mod)} for slot #{slot} could not be loaded",
+              []
+            )
+
             Map.put(acc, slot, nil)
           end
       end
     end)
   end
 
-  defp valid_behaviour?(:agent_selector, mod), do: behaviour_loaded?(mod, ExGoCD.Plugin.AgentSelector)
-  defp valid_behaviour?(:auth_provider, mod), do: behaviour_loaded?(mod, ExGoCD.Plugin.AuthProvider)
-  defp valid_behaviour?(:pipeline_grouper, mod), do: behaviour_loaded?(mod, ExGoCD.Plugin.PipelineGrouper)
-  defp valid_behaviour?(:org_hierarchy, mod), do: behaviour_loaded?(mod, ExGoCD.Plugin.OrgHierarchy)
-  defp valid_behaviour?(:notification_sink, mod), do: behaviour_loaded?(mod, ExGoCD.Plugin.NotificationSink)
+  defp valid_behaviour?(:agent_selector, mod),
+    do: behaviour_loaded?(mod, ExGoCD.Plugin.AgentSelector)
+
+  defp valid_behaviour?(:auth_provider, mod),
+    do: behaviour_loaded?(mod, ExGoCD.Plugin.AuthProvider)
+
+  defp valid_behaviour?(:pipeline_grouper, mod),
+    do: behaviour_loaded?(mod, ExGoCD.Plugin.PipelineGrouper)
+
+  defp valid_behaviour?(:org_hierarchy, mod),
+    do: behaviour_loaded?(mod, ExGoCD.Plugin.OrgHierarchy)
+
+  defp valid_behaviour?(:notification_sink, mod),
+    do: behaviour_loaded?(mod, ExGoCD.Plugin.NotificationSink)
 
   defp behaviour_loaded?(mod, behaviour) do
     case Code.ensure_loaded(behaviour) do

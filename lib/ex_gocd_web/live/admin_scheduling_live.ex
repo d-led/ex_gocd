@@ -478,8 +478,8 @@ defmodule ExGoCDWeb.AdminSchedulingLive do
               {@queue_state.in_memory_count} in memory &middot; {@queue_state.db_count} in DB
             </p>
           </div>
-          
-    <!-- Agent Summary Card -->
+
+          <!-- Agent Summary Card -->
           <div class="bg-white border border-[#e9edef] rounded p-4">
             <p class="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">Agent Summary</p>
             <div class="flex items-center gap-6">
@@ -510,8 +510,8 @@ defmodule ExGoCDWeb.AdminSchedulingLive do
             </div>
           </div>
         </div>
-        
-    <!-- Pending Jobs Table -->
+
+        <!-- Pending Jobs Table -->
         <div class="bg-white border border-[#e9edef] rounded">
           <div class="px-4 py-3 border-b border-[#e9edef]">
             <h2 class="text-sm font-bold text-slate-700 uppercase tracking-wide">
@@ -769,8 +769,8 @@ defmodule ExGoCDWeb.AdminSchedulingLive do
             </div>
           </div>
         <% end %>
-        
-    <!-- Agents Table -->
+
+        <!-- Agents Table -->
         <div class="bg-white border border-[#e9edef] rounded">
           <div class="px-4 py-3 border-b border-[#e9edef]">
             <h2 class="text-sm font-bold text-slate-700 uppercase tracking-wide">

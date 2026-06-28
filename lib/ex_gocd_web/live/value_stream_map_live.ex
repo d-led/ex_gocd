@@ -240,8 +240,7 @@ defmodule ExGoCDWeb.ValueStreamMapLive do
                       class={"w-6 h-6 block rounded-sm transition-transform hover:scale-110 " <> stage_status_bg(stage["status"])}
                       title={"#{stage["name"]} (#{stage["status"]})"}
                       aria-label={"#{stage["name"]} (#{stage["status"]})"}
-                    >
-                    </.link>
+                    ></.link>
                   </li>
                 <% end %>
               </ul>

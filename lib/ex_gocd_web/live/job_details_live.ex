@@ -478,8 +478,7 @@ defmodule ExGoCDWeb.JobDetailsLive do
         <i class={[
           "fa text-yellow-500 w-4 text-center transition-transform",
           if(@expanded, do: "fa-caret-down", else: "fa-caret-right")
-        ]}>
-        </i>
+        ]}></i>
         <i class="fa-solid fa-folder text-yellow-500"></i>
         <span class="font-bold text-gray-800 font-mono text-xs">{@name}</span>
       </button>

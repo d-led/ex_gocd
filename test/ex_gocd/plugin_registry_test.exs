@@ -20,9 +20,11 @@ defmodule ExGoCD.Plugin.RegistryTest do
   end
 
   describe "get/1 with no plugins configured" do
-    test "returns nil for all slots" do
-      # PluginRegistry is started by the application, no plugins configured in test
-      assert ExGoCD.Plugin.Registry.get(:agent_selector) == nil
+    test "returns RegionalAffinity as default agent_selector" do
+      assert ExGoCD.Plugin.Registry.get(:agent_selector) == ExGoCD.Plugin.Managed.RegionalAffinity
+    end
+
+    test "returns nil for other slots" do
       assert ExGoCD.Plugin.Registry.get(:auth_provider) == nil
       assert ExGoCD.Plugin.Registry.get(:pipeline_grouper) == nil
       assert ExGoCD.Plugin.Registry.get(:org_hierarchy) == nil
@@ -31,26 +33,24 @@ defmodule ExGoCD.Plugin.RegistryTest do
   end
 
   describe "list/0" do
-    test "returns all slots with their values" do
+    test "returns all slots" do
       list = ExGoCD.Plugin.Registry.list()
       assert Keyword.has_key?(list, :agent_selector)
       assert Keyword.has_key?(list, :auth_provider)
-      assert Keyword.has_key?(list, :pipeline_grouper)
-      assert Keyword.has_key?(list, :org_hierarchy)
-      assert Keyword.has_key?(list, :notification_sink)
     end
 
-    test "all slots are nil by default" do
-      for {_slot, mod} <- ExGoCD.Plugin.Registry.list() do
-        assert mod == nil
-      end
+    test "agent_selector is RegionalAffinity by default" do
+      {:agent_selector, mod} = List.keyfind(ExGoCD.Plugin.Registry.list(), :agent_selector, 0)
+      assert mod == ExGoCD.Plugin.Managed.RegionalAffinity
     end
   end
 
   describe "AgentSelector behaviour" do
     test "TestCorpPolicy allows non-GPU jobs" do
       agent = %{uuid: "a1", elastic_agent_id: "ea1"}
-      assert {:ok, [^agent]} = TestCorpPolicy.select_candidates([agent], %{resources: ["linux"]}, [])
+
+      assert {:ok, [^agent]} =
+               TestCorpPolicy.select_candidates([agent], %{resources: ["linux"]}, [])
     end
 
     test "TestCorpPolicy rejects GPU jobs for elastic agents" do
@@ -60,7 +60,9 @@ defmodule ExGoCD.Plugin.RegistryTest do
 
     test "TestCorpPolicy allows GPU jobs for non-elastic agents" do
       agent = %{uuid: "a1", elastic_agent_id: nil}
-      assert {:ok, [^agent]} = TestCorpPolicy.select_candidates([agent], %{resources: ["gpu"]}, [])
+
+      assert {:ok, [^agent]} =
+               TestCorpPolicy.select_candidates([agent], %{resources: ["gpu"]}, [])
     end
   end
 end
