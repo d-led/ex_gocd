@@ -595,6 +595,14 @@ defmodule ExGoCD.Agents do
     deleted_count + lost_count + dup_removed
   end
 
+  @doc "Deletes all k8s elastic agents. Returns {count, nil}."
+  def reap_k8s_agents do
+    from(a in Agent,
+      where: a.elastic_plugin_id == "ex_gocd.elasticagent.kubernetes"
+    )
+    |> Repo.delete_all()
+  end
+
   @doc """
   Updates an agent's runtime state (e.g. from reportCurrentStatus/reportCompleted).
   Use so the UI shows Building/Idle without waiting for the next ping.

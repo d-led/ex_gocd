@@ -48,6 +48,11 @@ defmodule ExGoCD.ElasticAgentScheduler do
     GenServer.call(__MODULE__, :recent_events)
   end
 
+  @doc "Delete all tracked k8s pods and return count."
+  def delete_all_pods do
+    GenServer.call(__MODULE__, :delete_all_pods)
+  end
+
   # ── Server callbacks ───────────────────────────────────────────────────────
 
   @impl true
@@ -66,6 +71,24 @@ defmodule ExGoCD.ElasticAgentScheduler do
 
   def handle_call(:recent_events, _from, state) do
     {:reply, state.events, state}
+  end
+
+  def handle_call(:delete_all_pods, _from, state) do
+    count = map_size(state.pods)
+
+    state =
+      Enum.reduce(state.pods, state, fn {pod_name, info}, acc ->
+        conn = build_k8s_conn_from_pod(info)
+        namespace = info[:namespace] || "default"
+
+        if conn do
+          K8s.delete_pod(conn, pod_name, namespace: namespace)
+        end
+
+        acc
+      end)
+
+    {:reply, count, %{state | pods: %{}}}
   end
 
   @impl true

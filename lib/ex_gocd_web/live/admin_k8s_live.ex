@@ -313,6 +313,22 @@ defmodule ExGoCDWeb.AdminK8sLive do
      |> put_flash(:info, "Reaped #{count} stale/deleted agent(s).")}
   end
 
+  def handle_event("reap_all_k8s_agents", _params, socket) do
+    {agent_count, _} = ExGoCD.Agents.reap_k8s_agents()
+    pod_count = ExGoCD.ElasticAgentScheduler.delete_all_pods()
+
+    {:noreply,
+     socket
+     |> assign(
+       cluster_profiles: ClusterProfiles.list_profiles(),
+       agent_profiles: ElasticAgentProfiles.list_profiles()
+     )
+     |> put_flash(
+       :info,
+       "Reaped #{agent_count} k8s agent(s) + #{pod_count} pod(s). Scheduler will recreate MinAgents."
+     )}
+  end
+
   # ── Render ─────────────────────────────────────────────────────────────────
 
   @impl true
@@ -349,6 +365,13 @@ defmodule ExGoCDWeb.AdminK8sLive do
           class="px-3 py-1.5 bg-red-100 border border-red-300 rounded text-red-700 text-sm hover:bg-red-200"
         >
           🧹 Reap Stale Agents
+        </button>
+        <button
+          phx-click="reap_all_k8s_agents"
+          phx-confirm="Delete ALL k8s elastic agents and pods? Scheduler will recreate MinAgents."
+          class="px-3 py-1.5 bg-red-600 text-white rounded text-sm hover:bg-red-700"
+        >
+          🔥 Reap All K8S Agents
         </button>
       </div>
 

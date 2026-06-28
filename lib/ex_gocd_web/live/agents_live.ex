@@ -636,6 +636,31 @@ defmodule ExGoCDWeb.AgentsLive do
             </span>
           <% end %>
         </div>
+
+        <div class="page-header" style="margin-top: 24px;">
+          <h2 class="page-header_title">Tracked Elastic Agent Pods</h2>
+        </div>
+        <div class="agents-table-container" style="margin-top: 8px;">
+          <table class="agents-table">
+            <thead>
+              <tr>
+                <th>Pod Name</th>
+                <th>Profile</th>
+                <th>Cluster</th>
+                <th>Namespace</th>
+                <th>Job</th>
+                <th>Resources</th>
+                <th>Status</th>
+                <th>Created</th>
+              </tr>
+            </thead>
+            <tbody>
+              <%= if @tracked_pods == :loading do %>
+                <tr>
+                  <td colspan="8" class="text-center text-gray-500 py-4">
+                    Loading tracked pods…
+                  </td>
+                </tr>
               <% else %>
                 <%= if map_size(@tracked_pods) == 0 do %>
                   <tr>
