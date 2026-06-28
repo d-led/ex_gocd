@@ -8,7 +8,6 @@ defmodule ExGoCDWeb.AnalyticsLive do
   use ExGoCDWeb, :live_view
 
   alias ExGoCD.Analytics
-  alias Contex.{Dataset, Plot, BarChart, LinePlot}
 
   @impl true
   def mount(_params, _session, socket) do
@@ -227,7 +226,7 @@ defmodule ExGoCDWeb.AnalyticsLive do
     <div :if={@all_stats != []} class="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
       <div class="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
         <h3 class="text-sm font-semibold text-gray-700 mb-3">Pipeline Run Counts (30d)</h3>
-        {run_count_chart(@all_stats)}
+        <.run_count_bars stats={@all_stats} />
       </div>
       <div class="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
         <h3 class="text-sm font-semibold text-gray-700 mb-3">Agent Jobs (7d)</h3>
@@ -237,12 +236,28 @@ defmodule ExGoCDWeb.AnalyticsLive do
     """
   end
 
-  defp run_count_chart(stats) do
-    data = for s <- stats, do: [s.name, s.run_count]
-    dataset = Dataset.new(data, ["Pipeline", "Runs"])
-    chart = BarChart.new(dataset, type: :stacked)
-    plot = Plot.new(500, 240, chart)
-    Plot.to_svg(plot)
+  defp run_count_bars(assigns) do
+    stats = assigns.stats |> Enum.sort_by(& &1.run_count, :desc) |> Enum.take(10)
+    max_count = if stats != [], do: Enum.max_by(stats, & &1.run_count).run_count, else: 1
+    assigns = assign(assigns, :bar_stats, stats)
+    assigns = assign(assigns, :bar_max, max_count)
+
+    ~H"""
+    <div class="space-y-2">
+      <%= for s <- @bar_stats do %>
+        <% pct = if @bar_max > 0, do: Float.round(s.run_count / @bar_max * 100, 1), else: 0 %>
+        <div class="flex items-center gap-2.5 text-xs" title={"#{s.name}: #{s.run_count} runs"}>
+          <span class="w-40 shrink-0 truncate text-gray-700 font-medium">{s.name}</span>
+          <div class="flex-1 h-5 bg-gray-100 rounded overflow-hidden min-w-0">
+            <div class="h-full bg-blue-500 rounded transition-all" style={"width:#{pct}%"}></div>
+          </div>
+          <span class="w-10 shrink-0 text-right tabular-nums font-semibold text-gray-700">
+            {s.run_count}
+          </span>
+        </div>
+      <% end %>
+    </div>
+    """
   end
 
   defp agent_top_bar(assigns) do
@@ -260,14 +275,14 @@ defmodule ExGoCDWeb.AnalyticsLive do
           title={"#{a.agent_uuid}\nType: #{a.agent_type}\nJobs: #{a.total_jobs} · Passed: #{a.completed} · Failed: #{a.failed}"}
         >
           <span class="w-28 shrink-0 truncate text-gray-700 font-medium">{a.hostname}</span>
-          <.agent_type_badge type={a.agent_type} />
+          <span class="w-20 shrink-0"><.agent_type_badge type={a.agent_type} /></span>
           <div class="flex-1 h-5 bg-gray-100 rounded overflow-hidden min-w-0">
             <div class="h-full bg-blue-500 rounded transition-all" style={"width:#{pct}%"}></div>
           </div>
-          <span class="w-12 shrink-0 text-right tabular-nums font-semibold text-gray-700">
+          <span class="w-10 shrink-0 text-right tabular-nums font-semibold text-gray-700">
             {a.total_jobs}
           </span>
-          <span class="w-12 shrink-0 text-right tabular-nums text-[11px] text-gray-400">{pct}%</span>
+          <span class="w-10 shrink-0 text-right tabular-nums text-[11px] text-gray-400">{pct}%</span>
         </div>
       <% end %>
     </div>
@@ -276,11 +291,24 @@ defmodule ExGoCDWeb.AnalyticsLive do
 
   defp build_duration_chart(runs) do
     sorted = Enum.sort_by(runs, & &1.counter, :asc)
-    data = for r <- sorted, do: [r.counter, r.build_time_sec || 0]
-    dataset = Dataset.new(data, ["Run #", "Duration (sec)"])
-    chart = LinePlot.new(dataset)
-    plot = Plot.new(500, 240, chart)
-    Plot.to_svg(plot)
+    max_sec = if sorted != [], do: Enum.max_by(sorted, &(&1.build_time_sec || 0)).build_time_sec || 1, else: 1
+    assigns = %{runs: sorted, max_sec: max_sec}
+
+    ~H"""
+    <div class="space-y-1.5">
+      <%= for r <- @runs do %>
+        <% sec = r.build_time_sec || 0 %>
+        <% pct = if @max_sec > 0, do: Float.round(sec / @max_sec * 100, 1), else: 0 %>
+        <div class="flex items-center gap-2.5 text-xs" title={"Run ##{r.counter}: #{sec}s"}>
+          <span class="w-16 shrink-0 text-right tabular-nums text-gray-500 font-mono">##{r.counter}</span>
+          <div class="flex-1 h-4 bg-gray-100 rounded overflow-hidden min-w-0">
+            <div class="h-full bg-amber-400 rounded transition-all" style={"width:#{pct}%"}></div>
+          </div>
+          <span class="w-12 shrink-0 text-right tabular-nums font-semibold text-gray-700">{sec}s</span>
+        </div>
+      <% end %>
+    </div>
+    """
   end
 
   def pipelines_tab(assigns) do
@@ -493,13 +521,12 @@ defmodule ExGoCDWeb.AnalyticsLive do
   defp agent_type_badge(assigns) do
     ~H"""
     <span class={[
-      "inline-flex px-1.5 py-0.5 rounded-full text-[11px] font-medium",
+      "inline-flex px-1.5 py-0.5 rounded-full text-[11px] font-medium w-full justify-center truncate",
       case @type do
         "regular" -> "bg-gray-100 text-gray-600"
         "docker" -> "bg-blue-100 text-blue-700"
         "elastic-docker" -> "bg-purple-100 text-purple-700"
         "elastic-k8s" -> "bg-indigo-100 text-indigo-700"
-        "k8s-elastic" -> "bg-indigo-100 text-indigo-700"
         "k8s-elastic" -> "bg-indigo-100 text-indigo-700"
         _ -> "bg-gray-100 text-gray-600"
       end
@@ -528,7 +555,7 @@ defmodule ExGoCDWeb.AnalyticsLive do
             title={"#{a.agent_uuid}\nType: #{a.agent_type}\nPassed: #{a.completed}  Failed: #{a.failed}  Cancelled: #{a.cancelled}"}
           >
             <span class="w-28 shrink-0 truncate text-gray-700 font-medium">{a.hostname}</span>
-            <.agent_type_badge type={a.agent_type} />
+            <span class="w-20 shrink-0"><.agent_type_badge type={a.agent_type} /></span>
             <div class="flex-1 h-5 bg-gray-100 rounded overflow-hidden flex min-w-0">
               <div
                 class="h-full bg-green-500"
@@ -625,11 +652,28 @@ defmodule ExGoCDWeb.AnalyticsLive do
 
   defp vsm_duration_chart(data) do
     sorted = Enum.sort_by(data, & &1.counter, :asc)
-    rows = for r <- sorted, do: [r.counter, r.total_duration_sec || 0]
-    dataset = Dataset.new(rows, ["Run #", "Duration (sec)"])
-    chart = LinePlot.new(dataset)
-    plot = Plot.new(500, 240, chart)
-    Plot.to_svg(plot)
+    max_sec =
+      if sorted != [],
+        do: Enum.max_by(sorted, &(&1.total_duration_sec || 0)).total_duration_sec || 1,
+        else: 1
+
+    assigns = %{runs: sorted, max_sec: max_sec}
+
+    ~H"""
+    <div class="space-y-1.5">
+      <%= for r <- @runs do %>
+        <% sec = r.total_duration_sec || 0 %>
+        <% pct = if @max_sec > 0, do: Float.round(sec / @max_sec * 100, 1), else: 0 %>
+        <div class="flex items-center gap-2.5 text-xs" title={"Run ##{r.counter}: #{fmt_sec(sec)}"}>
+          <span class="w-16 shrink-0 text-right tabular-nums text-gray-500 font-mono">##{r.counter}</span>
+          <div class="flex-1 h-4 bg-gray-100 rounded overflow-hidden min-w-0">
+            <div class="h-full bg-amber-400 rounded transition-all" style={"width:#{pct}%"}></div>
+          </div>
+          <span class="w-14 shrink-0 text-right tabular-nums font-semibold text-gray-700">{fmt_sec(sec)}</span>
+        </div>
+      <% end %>
+    </div>
+    """
   end
 
   # Helpers

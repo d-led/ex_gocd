@@ -34,7 +34,13 @@ defmodule ExGoCD.Agents do
   def registration_log do
     try do
       :ets.tab2list(@reg_log_table)
-      |> Enum.sort_by(fn {_k, _h, _r, t} -> t end, {:desc, DateTime})
+      |> Enum.sort_by(
+        fn
+          {_k, _h, _r, t} -> t
+          {_k, _h, _r, t, _type} -> t
+        end,
+        {:desc, DateTime}
+      )
     rescue
       _ -> []
     catch
@@ -51,11 +57,11 @@ defmodule ExGoCD.Agents do
     end
   end
 
-  defp log_registration(uuid, hostname, result) do
+  defp log_registration(uuid, hostname, result, agent_type) do
     init_reg_log()
     logs = :ets.tab2list(@reg_log_table)
     if length(logs) >= @max_reg_log, do: :ets.delete(@reg_log_table, hd(logs))
-    :ets.insert(@reg_log_table, {uuid, hostname, result, DateTime.utc_now()})
+    :ets.insert(@reg_log_table, {uuid, hostname, result, DateTime.utc_now(), agent_type})
   end
 
   defp init_reg_log do
@@ -135,9 +141,31 @@ defmodule ExGoCD.Agents do
       end
 
     outcome = elem(result, 0)
-    log_registration(uuid, hostname || "unknown", outcome)
+    label = hostname || fallback_label(attrs, uuid)
+    type = classify_from_attrs(attrs)
+    log_registration(uuid, label, outcome, type)
     log_registration_audit(uuid, hostname, outcome, attrs)
     result
+  end
+
+  defp fallback_label(attrs, uuid) do
+    attrs["elastic_agent_id"] || attrs[:elastic_agent_id] ||
+      attrs["elasticAgentId"] || String.slice(uuid, 0, 8)
+  end
+
+  defp classify_from_attrs(attrs) do
+    plugin_id =
+      attrs["elastic_plugin_id"] || attrs[:elastic_plugin_id] || attrs["elasticPluginId"]
+
+    elastic_id = attrs["elastic_agent_id"] || attrs[:elastic_agent_id] || attrs["elasticAgentId"]
+
+    cond do
+      plugin_id == "cd.go.contrib.elastic-agent.docker" -> "elastic-docker"
+      plugin_id == "cd.go.contrib.elastic-agent.kubernetes" -> "elastic-k8s"
+      plugin_id == "ex_gocd.elasticagent.kubernetes" -> "k8s-elastic"
+      not is_nil(elastic_id) -> "elastic"
+      true -> nil
+    end
   end
 
   defp register_by_hostname_or_new(attrs, hostname, _uuid) do
@@ -416,8 +444,20 @@ defmodule ExGoCD.Agents do
         {:error, _} -> :error
       end
 
-    log_registration(uuid, hostname || "unknown", outcome)
-    log_registration_audit(uuid, hostname || "unknown", outcome, runtime_attrs)
+    log_registration(
+      uuid,
+      hostname || fallback_label(runtime_attrs, uuid),
+      outcome,
+      classify_from_attrs(runtime_attrs)
+    )
+
+    log_registration_audit(
+      uuid,
+      hostname || fallback_label(runtime_attrs, uuid) |> String.slice(0, 20),
+      outcome,
+      runtime_attrs
+    )
+
     result
   end
 
@@ -733,6 +773,60 @@ defmodule ExGoCD.Agents do
       |> Repo.update()
       |> broadcast(:agent_deleted)
     end
+  end
+
+  @doc """
+  Soft-deletes all LostContact agents. Returns count deleted.
+  Only affects non-deleted agents in LostContact state.
+  """
+  def clean_lost_agents do
+    agents =
+      from(a in Agent,
+        where: a.state == "LostContact" and a.deleted == false
+      )
+      |> Repo.all()
+
+    count =
+      Enum.reduce(agents, 0, fn agent, acc ->
+        case do_delete_agent(agent) do
+          {:ok, _} -> acc + 1
+          _ -> acc
+        end
+      end)
+
+    if count > 0 do
+      ExGoCD.AuditLog.Events.agents_cleaned_disabled("admin", count)
+    end
+
+    count
+  end
+
+  @doc """
+  Soft-deletes orphaned test agents (http-test-agent-* and otp-test-agent-* hostnames)
+  that linger after test runs. Returns count deleted.
+  """
+  def clean_test_agents do
+    agents =
+      from(a in Agent,
+        where:
+          (like(a.hostname, "http-test-agent-%") or like(a.hostname, "otp-test-agent-%")) and
+            a.deleted == false
+      )
+      |> Repo.all()
+
+    count =
+      Enum.reduce(agents, 0, fn agent, acc ->
+        case do_delete_agent(agent) do
+          {:ok, _} -> acc + 1
+          _ -> acc
+        end
+      end)
+
+    if count > 0 do
+      Logger.info("[Agents] Cleaned #{count} orphaned test agents")
+    end
+
+    count
   end
 
   @doc """

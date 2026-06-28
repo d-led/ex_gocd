@@ -18,6 +18,6 @@ defmodule ExGoCDWeb.API.ConfigRepoController do
       from(cr in ConfigRepo, where: like(cr.url, "%eci-test/%"))
       |> Repo.delete_all()
 
-    json(conn, %{deleted: elem(deleted, 2) || 0})
+    json(conn, %{deleted: elem(deleted, 0) || 0})
   end
 end

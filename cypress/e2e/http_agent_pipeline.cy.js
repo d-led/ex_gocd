@@ -4,6 +4,10 @@ describe("HTTP Test Agent Pipeline E2E Test", () => {
     cy.goToDashboard();
   });
 
+  afterEach(() => {
+    cy.stopAllAgents();
+  });
+
   it("registers http agent, triggers the demo pipeline, and streams logs", () => {
     cy.whenPageHasAll(["demo", "http-test-agent"], () => {
       // Verify the agent registered

@@ -61,6 +61,8 @@ defmodule ExGoCD.Application do
         Process.sleep(2000)
         cleaned = ExGoCD.Agents.cleanup_stale_lost_contact()
         if cleaned > 0, do: Logger.info("Cleaned up #{cleaned} stale LostContact agents")
+        test_cleaned = ExGoCD.Agents.clean_test_agents()
+        if test_cleaned > 0, do: Logger.info("Cleaned up #{test_cleaned} orphaned test agents")
       end)
     end
 

@@ -715,6 +715,14 @@ Cypress.Commands.add("startHttpAgents", (count) => {
   });
 });
 
+Cypress.Commands.add("stopAllAgents", () => {
+  cy.request({
+    method: "DELETE",
+    url: "/api/test/agents",
+    failOnStatusCode: false,
+  });
+});
+
 Cypress.Commands.add("whenPageHasAll", (texts, callback) => {
   cy.get("body").then(($body) => {
     const bodyText = $body.text();

@@ -262,29 +262,27 @@ defmodule ExGoCDWeb.StageDetailsLive do
   defp agent_type(nil), do: "—"
 
   defp agent_type(agent) do
-    wd = agent.working_dir || ""
-    resources = agent.resources || []
-    elastic_id = agent.elastic_agent_id
-    plugin_id = agent.elastic_plugin_id || ""
+    classify_agent(
+      agent.elastic_agent_id,
+      agent.elastic_plugin_id || "",
+      agent.working_dir || "",
+      agent.resources || []
+    )
+  end
 
+  defp classify_agent(nil, _plugin, _wd, resources) do
     cond do
-      elastic_id && (String.contains?(wd, "k8s") or String.contains?(plugin_id, "kubernetes")) ->
-        "k8s-elastic"
+      "k8s" in resources -> "k8s"
+      "docker" in resources -> "docker"
+      true -> "regular"
+    end
+  end
 
-      elastic_id && (String.contains?(wd, "docker") or String.contains?(plugin_id, "docker")) ->
-        "docker-elastic"
-
-      "k8s" in resources ->
-        "k8s"
-
-      "docker" in resources ->
-        "docker"
-
-      elastic_id ->
-        "elastic"
-
-      true ->
-        "regular"
+  defp classify_agent(_elastic_id, plugin, wd, _resources) do
+    cond do
+      String.contains?(wd, "k8s") or String.contains?(plugin, "kubernetes") -> "k8s-elastic"
+      String.contains?(wd, "docker") or String.contains?(plugin, "docker") -> "docker-elastic"
+      true -> "elastic"
     end
   end
 

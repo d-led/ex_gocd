@@ -79,7 +79,10 @@ describe("Pipeline Dashboard", () => {
       // Navigate to a sub-page using a real link (VSM link)
       cy.contains("a", "VSM", { timeout: 5000 }).first().click();
 
-      cy.url({ timeout: 5000 }).should("include", "/pipelines/value_stream_map/");
+      cy.url({ timeout: 5000 }).should(
+        "include",
+        "/pipelines/value_stream_map/",
+      );
 
       // Navigate Back
       cy.go("back");

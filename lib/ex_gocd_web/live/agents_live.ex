@@ -163,6 +163,34 @@ defmodule ExGoCDWeb.AgentsLive do
     end
   end
 
+  def handle_event("clean_lost", _params, socket) do
+    if socket.assigns[:is_user_admin] do
+      count = Agents.clean_lost_agents()
+
+      {:noreply,
+       socket
+       |> put_flash(:info, "Deleted #{count} lost agent(s).")
+       |> assign(selected_agents: MapSet.new())
+       |> update_agents_list()}
+    else
+      return_forbidden(socket)
+    end
+  end
+
+  def handle_event("clean_test", _params, socket) do
+    if socket.assigns[:is_user_admin] do
+      count = Agents.clean_test_agents()
+
+      {:noreply,
+       socket
+       |> put_flash(:info, "Deleted #{count} orphaned test agent(s).")
+       |> assign(selected_agents: MapSet.new())
+       |> update_agents_list()}
+    else
+      return_forbidden(socket)
+    end
+  end
+
   def handle_event("switch_tab", %{"type" => type}, socket) do
     {:noreply, push_patch(socket, to: ~p"/agents?type=#{type}")}
   end
@@ -377,6 +405,22 @@ defmodule ExGoCDWeb.AgentsLive do
               data-confirm="Delete ALL disabled agents?"
             >
               CLEAN DISABLED
+            </button>
+            <button
+              type="button"
+              class="btn-small btn-warning"
+              phx-click="clean_lost"
+              data-confirm="Delete ALL LostContact agents?"
+            >
+              CLEAN LOST
+            </button>
+            <button
+              type="button"
+              class="btn-small btn-warning"
+              phx-click="clean_test"
+              data-confirm="Delete ALL orphaned test agents (http-test-agent-*, otp-test-agent-*)?"
+            >
+              CLEAN TEST
             </button>
             <button
               type="button"
@@ -648,7 +692,7 @@ defmodule ExGoCDWeb.AgentsLive do
                 <th>Profile</th>
                 <th>Cluster</th>
                 <th>Namespace</th>
-                <th>Job</th>
+                <th>Build Job</th>
                 <th>Resources</th>
                 <th>Status</th>
                 <th>Created</th>
@@ -686,7 +730,7 @@ defmodule ExGoCDWeb.AgentsLive do
                           <%= if pod.agent_uuid do %>
                             <span class="text-green-700">Registered</span>
                           <% else %>
-                            <span class="text-amber-700">Pending</span>
+                            <span class="text-amber-700">Agent pending</span>
                           <% end %>
                         <% end %>
                       </td>
@@ -737,7 +781,8 @@ defmodule ExGoCDWeb.AgentsLive do
             Registration log · last {length(@registration_log)}
           </summary>
           <div class="space-y-1.5">
-            <%= for {uuid, host, result, time} <- Enum.take(@registration_log, 10) do %>
+            <%= for entry <- Enum.take(@registration_log, 10) do %>
+              <% {uuid, host, result, time, agent_type} = normalize_entry(entry) %>
               <% status_class =
                 if result == :ok, do: "bg-green-100 text-green-700", else: "bg-red-100 text-red-700" %>
               <% status_icon = if result == :ok, do: "✓", else: "✗" %>
@@ -748,7 +793,15 @@ defmodule ExGoCDWeb.AgentsLive do
                 <span class="font-mono text-gray-400 w-28 truncate" title={uuid}>
                   {String.slice(uuid, 0, 12)}
                 </span>
-                <span class="text-gray-700 font-medium w-24 truncate" title={host}>{host}</span>
+                <%= if agent_type do %>
+                  <span class="text-gray-700 font-medium w-24 truncate" title={host}>
+                    <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-100 text-indigo-700">
+                      {agent_type |> String.replace("-", " ") |> String.upcase()}
+                    </span>
+                  </span>
+                <% else %>
+                  <span class="text-gray-700 font-medium w-24 truncate" title={host}>{host}</span>
+                <% end %>
                 <span class="flex-1"></span>
                 <span class="text-gray-400 tabular-nums">
                   {time && Calendar.strftime(time, "%H:%M:%S")}
@@ -772,6 +825,10 @@ defmodule ExGoCDWeb.AgentsLive do
     Agents.list_agents()
     |> Enum.reject(& &1.deleted)
   end
+
+  # Normalize registration log entries: handles both 4-tuple (legacy) and 5-tuple (with agent_type).
+  defp normalize_entry({uuid, host, result, time}), do: {uuid, host, result, time, nil}
+  defp normalize_entry({uuid, host, result, time, type}), do: {uuid, host, result, time, type}
 
   defp filtered_agents(agents, :static) do
     Enum.reject(agents, &(&1.elastic_agent_id || &1.elastic_plugin_id))
