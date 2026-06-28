@@ -159,17 +159,11 @@ Each plugin is a full OTP application that joins the cluster via libcluster.
 ## Plugin Ideas
 
 1. **Auth Plugin** — replace stub auth with real LDAP/OAuth via Ueberauth
-2. **Agent Candidate Selector** — post-scheduler selection filter (e.g., corporate policy)
-3. **Pipeline Grouping** — custom grouping by team/department
-4. **Org Hierarchy** — isolate pipeline groups per org chart node
+2. **Agent Candidate Selector** — post-scheduler selection hook, reduces the number of candidates per contract (after core scheduler selection)
+3. **Pipeline Grouping** — `pipelines -> grouping(pipelines)`, custom grouping by team/department
+4. **Org Hierarchy** — isolate pipeline groups and environments depending on user belonging to a node in the organizational graph (corporate hierarchy)
+5. **Notification Sink** — custom delivery (Slack, Teams, webhook) via `ExGoCD.Plugin.NotificationSink`
 
 ## Milestone 1: 2-node cluster (DONE ✅)
-
-- libcluster + Horde infrastructure committed
-- process-compose.cluster.yaml with :4000 and :5000
-- ClusterInfoServer polling singleton locations
-
-## Milestone 2: Clustering Admin UI (TODO)
-
-- Admin "Clustering" tab showing node list + singleton locations
-- Ball icon on singleton owner node (like ssr-robust-live-svg)
+## Milestone 2: Clustering Admin UI (DONE ✅)
+## Milestone 3: Distributed singletons via Horde (DONE ✅)

@@ -15,15 +15,15 @@ defmodule ExGoCD.Materials.Poller do
 
   # API
   def start_link(opts) do
-    GenServer.start_link(__MODULE__, opts, name: __MODULE__)
+    ExGoCD.DistSingleton.start_link(__MODULE__, opts)
   end
 
   def poll_now do
-    GenServer.call(__MODULE__, :poll_now)
+    ExGoCD.DistSingleton.call(__MODULE__, :poll_now)
   end
 
   def poll_materials_by_url(url) when is_binary(url) do
-    GenServer.call(__MODULE__, {:poll_materials_by_url, url})
+    ExGoCD.DistSingleton.call(__MODULE__, {:poll_materials_by_url, url})
   end
 
   # Callbacks
