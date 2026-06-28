@@ -301,6 +301,18 @@ defmodule ExGoCDWeb.AdminK8sLive do
      |> put_flash(:info, "Agent profile deleted.")}
   end
 
+  def handle_event("reap_stale_agents", _params, socket) do
+    count = ExGoCD.Agents.reap_stale_agents()
+
+    {:noreply,
+     socket
+     |> assign(
+       cluster_profiles: ClusterProfiles.list_profiles(),
+       agent_profiles: ElasticAgentProfiles.list_profiles()
+     )
+     |> put_flash(:info, "Reaped #{count} stale/deleted agent(s).")}
+  end
+
   # ── Render ─────────────────────────────────────────────────────────────────
 
   @impl true
@@ -329,6 +341,15 @@ defmodule ExGoCDWeb.AdminK8sLive do
         class="mb-4 p-3 bg-amber-50 border border-amber-200 rounded text-amber-800 text-sm"
       >
         ℹ️ No local k3s detected. Add a cluster profile manually or start k3s via <code class="bg-amber-100 px-1 rounded">docker compose up k3s</code>.
+      </div>
+
+      <div class="mb-4 flex gap-2">
+        <button
+          phx-click="reap_stale_agents"
+          class="px-3 py-1.5 bg-red-100 border border-red-300 rounded text-red-700 text-sm hover:bg-red-200"
+        >
+          🧹 Reap Stale Agents
+        </button>
       </div>
 
       <%!-- Cluster Profiles Section --%>

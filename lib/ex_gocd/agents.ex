@@ -548,6 +548,54 @@ defmodule ExGoCD.Agents do
   end
 
   @doc """
+  Deletes stale/duplicate agents: deleted=true, LostContact with no elastic_id,
+  and duplicate hostnames (keeping only the most recent).
+  Returns count of removed agents.
+  """
+  @spec reap_stale_agents() :: integer()
+  def reap_stale_agents do
+    # Delete agents already marked as deleted
+    {deleted_count, _} =
+      from(a in Agent, where: a.deleted == true)
+      |> Repo.delete_all()
+
+    # Delete LostContact agents without elastic_id (probably stale)
+    {lost_count, _} =
+      from(a in Agent,
+        where: a.state == "LostContact" and is_nil(a.elastic_agent_id)
+      )
+      |> Repo.delete_all()
+
+    # Deduplicate: keep only the most recent agent per hostname
+    dup_counts =
+      from(a in Agent,
+        group_by: a.hostname,
+        having: count(a.id) > 1,
+        select: {a.hostname, count(a.id)}
+      )
+      |> Repo.all()
+
+    dup_removed =
+      Enum.reduce(dup_counts, 0, fn {hostname, _count}, acc ->
+        agents =
+          from(a in Agent, where: a.hostname == ^hostname, order_by: [desc: a.updated_at])
+          |> Repo.all()
+
+        case agents do
+          [_keep | to_delete] ->
+            ids = Enum.map(to_delete, & &1.id)
+            {removed, _} = from(a in Agent, where: a.id in ^ids) |> Repo.delete_all()
+            acc + removed
+
+          _ ->
+            acc
+        end
+      end)
+
+    deleted_count + lost_count + dup_removed
+  end
+
+  @doc """
   Updates an agent's runtime state (e.g. from reportCurrentStatus/reportCompleted).
   Use so the UI shows Building/Idle without waiting for the next ping.
   """
