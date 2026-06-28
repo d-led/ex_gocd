@@ -110,11 +110,10 @@ Built-in observability with **zero external tools required**:
 - [Development Status](docs/status.md)
 - [Agent Implementation](agent/README.md)
 
-## Architecture
+## Technical Architecture
 
-- **Web**: Phoenix LiveView (no React/Mithril - pure server-side)
-- **Styling**: Direct CSS conversion from original GoCD SCSS
-- **Database**: PostgreSQL via Ecto
+- **Server & Web UI**: [Phoenix LiveView](https://www.phoenixframework.org/) (not a Single-Page App, nor a pure server-side rendering. Live views with simplicity of the Actor Model)
+- **Database**: [Ecto](https://github.com/elixir-ecto/ecto) with PostgreSQL for persistence
 - **Agent**: Go (statically linked, no cgo)
 - **Testing**: ExUnit + LiveView testing
 
