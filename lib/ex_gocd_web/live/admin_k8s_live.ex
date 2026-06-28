@@ -58,7 +58,7 @@ defmodule ExGoCDWeb.AdminK8sLive do
   end
 
   @impl true
-  def handle_async({:check_conn, id}, {:ok, {id, status}}, socket) do
+  def handle_async({:check_conn, id}, {id, status}, socket) do
     {:noreply,
      put_in(
        socket.assigns.connection_status,
