@@ -145,7 +145,7 @@ All B17-B21 complete: agent transitions schema, utilization snapshots (5-min Gen
 |----------|-------|--------|--------|
 | **P0** | — | — | ✅ DONE |
 | **P1** | — | — | ✅ DONE |
-| **P2** | Config repos engine, external auth, pipeline groups, compare dialog, gantt, embedded stats | M-XL | Remaining gaps |
+| **P2** | Config repos engine, external auth, pipeline groups, compare dialog, gantt | M-XL | Remaining gaps |
 | **P3** | — | — | ✅ DONE (Analytics) |
 | **P4** | Feeds XML, mailserver, SCMs API, health API, permissions, etc. | S | Quick checkbox wins |
 

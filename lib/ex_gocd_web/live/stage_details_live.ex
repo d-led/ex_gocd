@@ -46,29 +46,37 @@ defmodule ExGoCDWeb.StageDetailsLive do
   def handle_event("approve_stage", _params, socket) do
     user = socket.assigns[:current_user]
 
-    case ExGoCD.Policies.permit?(ExGoCD.Policies.EnvironmentPolicy, :trigger_pipeline, user) do
-      true ->
-        pipeline_name = socket.assigns.pipeline_name
-        counter = socket.assigns.pipeline_counter
-        stage_name = socket.assigns.stage_name
+    pipeline_name = socket.assigns.pipeline_name
+    pipeline = ExGoCD.Pipelines.get_pipeline_by_name(pipeline_name)
 
-        case ExGoCD.Pipelines.approve_stage(pipeline_name, counter, stage_name) do
-          {:ok, _stage_instance} ->
-            stage =
-              get_stage_details(pipeline_name, counter, stage_name, socket.assigns.stage_counter)
+    env_ok =
+      ExGoCD.Policies.permit?(ExGoCD.Policies.EnvironmentPolicy, :trigger_pipeline, user)
 
-            {:noreply,
-             socket
-             |> put_flash(:info, "Stage approved successfully.")
-             |> assign(:stage, stage)}
+    group_ok =
+      ExGoCD.Policies.permit?(ExGoCD.Policies.PipelineGroupPolicy, :operate_pipeline, user,
+        pipeline_group: (pipeline && pipeline.group) || "default"
+      )
 
-          {:error, reason} ->
-            {:noreply, put_flash(socket, :error, "Failed to approve stage: #{inspect(reason)}")}
-        end
+    if env_ok and group_ok do
+      counter = socket.assigns.pipeline_counter
+      stage_name = socket.assigns.stage_name
 
-      false ->
-        {:noreply,
-         put_flash(socket, :error, "You do not have operate permissions for this pipeline.")}
+      case ExGoCD.Pipelines.approve_stage(pipeline_name, counter, stage_name) do
+        {:ok, _stage_instance} ->
+          stage =
+            get_stage_details(pipeline_name, counter, stage_name, socket.assigns.stage_counter)
+
+          {:noreply,
+           socket
+           |> put_flash(:info, "Stage approved successfully.")
+           |> assign(:stage, stage)}
+
+        {:error, reason} ->
+          {:noreply, put_flash(socket, :error, "Failed to approve stage: #{inspect(reason)}")}
+      end
+    else
+      {:noreply,
+       put_flash(socket, :error, "You do not have operate permissions for this pipeline.")}
     end
   end
 
