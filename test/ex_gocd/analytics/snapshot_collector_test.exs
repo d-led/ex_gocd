@@ -37,6 +37,11 @@ defmodule ExGoCD.Analytics.SnapshotCollectorTest do
   end
 
   describe "analytics queries" do
+    setup do
+      Repo.delete_all(AgentSnapshot)
+      :ok
+    end
+
     test "agent_snapshot_trends/1 returns recent rows" do
       AgentSnapshot.changeset(%AgentSnapshot{}, %{
         total: 3,

@@ -19,7 +19,7 @@ defmodule ExGoCD.AgentRegistry do
   # Client API
 
   def start_link(opts \\ []) do
-    GenServer.start_link(__MODULE__, opts, name: __MODULE__)
+    ExGoCD.DistSingleton.start_link(__MODULE__, opts)
   end
 
   @doc """
@@ -28,7 +28,7 @@ defmodule ExGoCD.AgentRegistry do
   not in Presence; {:error, :invalid_uuid} for bad input.
   """
   def request_test_job(agent_uuid) when is_binary(agent_uuid) do
-    GenServer.call(__MODULE__, {:request_test_job, agent_uuid})
+    GenServer.call(ExGoCD.DistSingleton.via_horde(__MODULE__), {:request_test_job, agent_uuid})
   end
 
   def request_test_job(_), do: {:error, :invalid_uuid}

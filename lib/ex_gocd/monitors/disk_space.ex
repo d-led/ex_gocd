@@ -25,14 +25,14 @@ defmodule ExGoCD.Monitors.DiskSpace do
   # ── Client API ──────────────────────────────────────────────────────────
 
   def start_link(opts \\ []) do
-    GenServer.start_link(__MODULE__, opts, name: __MODULE__)
+    ExGoCD.DistSingleton.start_link(__MODULE__, opts)
   end
 
   @doc """
   Returns the current disk status: :ok, :warning, or :critical.
   """
   def status do
-    GenServer.call(__MODULE__, :status)
+    GenServer.call(ExGoCD.DistSingleton.via_horde(__MODULE__), :status)
   end
 
   @doc """

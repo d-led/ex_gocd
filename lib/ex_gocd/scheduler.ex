@@ -33,7 +33,7 @@ defmodule ExGoCD.Scheduler do
   end
 
   def start_link(opts \\ []) do
-    GenServer.start_link(__MODULE__, opts, name: __MODULE__)
+    ExGoCD.DistSingleton.start_link(__MODULE__, opts)
   end
 
   @doc """
@@ -49,7 +49,7 @@ defmodule ExGoCD.Scheduler do
   """
   def schedule_job(spec) when is_map(spec) do
     parent_ctx = VsmTracer.current_ctx()
-    GenServer.call(__MODULE__, {:schedule_job, normalize_job_spec(spec), parent_ctx})
+    GenServer.call(ExGoCD.DistSingleton.via_horde(__MODULE__), {:schedule_job, normalize_job_spec(spec), parent_ctx})
   end
 
   @doc """
@@ -58,7 +58,7 @@ defmodule ExGoCD.Scheduler do
   """
   def try_assign_work(agent_uuid) when is_binary(agent_uuid) do
     parent_ctx = VsmTracer.current_ctx()
-    GenServer.call(__MODULE__, {:try_assign_work, agent_uuid, parent_ctx})
+    GenServer.call(ExGoCD.DistSingleton.via_horde(__MODULE__), {:try_assign_work, agent_uuid, parent_ctx})
   end
 
   @doc """
@@ -67,14 +67,14 @@ defmodule ExGoCD.Scheduler do
   """
   def try_assign_work_with_spec(agent_uuid) when is_binary(agent_uuid) do
     parent_ctx = VsmTracer.current_ctx()
-    GenServer.call(__MODULE__, {:try_assign_work_with_spec, agent_uuid, parent_ctx})
+    GenServer.call(ExGoCD.DistSingleton.via_horde(__MODULE__), {:try_assign_work_with_spec, agent_uuid, parent_ctx})
   end
 
   @doc """
   Returns count of pending jobs in the queue (for UI).
   """
   def pending_count do
-    GenServer.call(__MODULE__, :pending_count)
+    GenServer.call(ExGoCD.DistSingleton.via_horde(__MODULE__), :pending_count)
   end
 
   @doc """
@@ -82,7 +82,7 @@ defmodule ExGoCD.Scheduler do
   tests see only the job they enqueue).
   """
   def clear_queue do
-    GenServer.call(__MODULE__, :clear_queue)
+    GenServer.call(ExGoCD.DistSingleton.via_horde(__MODULE__), :clear_queue)
   end
 
   @doc """
@@ -91,7 +91,7 @@ defmodule ExGoCD.Scheduler do
   with their resource/environment requirements.
   """
   def get_queue_state do
-    GenServer.call(__MODULE__, :get_queue_state)
+    GenServer.call(ExGoCD.DistSingleton.via_horde(__MODULE__), :get_queue_state)
   end
 
   # Server

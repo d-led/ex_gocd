@@ -30,12 +30,12 @@ defmodule ExGoCD.Materials.TimerScheduler do
   # ── Client API ──────────────────────────────────────────────────────────────
 
   def start_link(opts \\ []) do
-    GenServer.start_link(__MODULE__, opts, name: __MODULE__)
+    ExGoCD.DistSingleton.start_link(__MODULE__, opts)
   end
 
   @doc "Return the names of all currently scheduled pipelines (for testing)."
   def scheduled_pipelines do
-    GenServer.call(__MODULE__, :scheduled_pipelines)
+    GenServer.call(ExGoCD.DistSingleton.via_horde(__MODULE__), :scheduled_pipelines)
   end
 
   # ── Server callbacks ─────────────────────────────────────────────────────────

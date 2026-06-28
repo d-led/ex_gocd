@@ -42,24 +42,25 @@ defmodule ExGoCD.Application do
       Supervisor.child_spec(
         {Task,
          fn ->
-           :timer.sleep(500)
-           Horde.DynamicSupervisor.start_child(
-             ExGoCD.HordeSupervisor,
-             {ExGoCD.MaintenanceMode, []}
-           )
+           for mod <- [
+                 ExGoCD.MaintenanceMode,
+                 ExGoCD.Analytics.SnapshotCollector,
+                 ExGoCD.Scheduler,
+                 ExGoCD.AgentRegistry,
+                 ExGoCD.Materials.Poller,
+                 ExGoCD.Materials.TimerScheduler,
+                 ExGoCD.Pipelines.ConsoleActivityMonitor,
+                 ExGoCD.SchedulingChecker.TriggerMonitor,
+                 ExGoCD.Monitors.DiskSpace,
+                 ExGoCD.ElasticAgentScheduler,
+                 ExGoCD.Backup
+               ] do
+             Horde.DynamicSupervisor.start_child(ExGoCD.HordeSupervisor, {mod, []})
+           end
+
+           :ok
          end},
-        id: :maintenance_mode_starter
-      ),
-      Supervisor.child_spec(
-        {Task,
-         fn ->
-           :timer.sleep(600)
-           Horde.DynamicSupervisor.start_child(
-             ExGoCD.HordeSupervisor,
-             {ExGoCD.Analytics.SnapshotCollector, []}
-           )
-         end},
-        id: :snapshot_collector_starter
+        id: :horde_singletons_starter
       ),
       ExGoCD.ClusterInfoServer
     ]
@@ -70,16 +71,8 @@ defmodule ExGoCD.Application do
         {DNSCluster, query: Application.get_env(:ex_gocd, :dns_cluster_query) || :ignore},
         {Phoenix.PubSub, name: ExGoCD.PubSub},
         ExGoCDWeb.AgentPresence,
-        ExGoCD.Scheduler,
-        ExGoCD.AgentRegistry,
         ExGoCD.TestAgentSupervisor,
-        ExGoCDWeb.Endpoint,
-        ExGoCD.Materials.Poller,
-        ExGoCD.Materials.TimerScheduler,
-        ExGoCD.Pipelines.ConsoleActivityMonitor,
-        ExGoCD.SchedulingChecker.TriggerMonitor,
-        ExGoCD.Monitors.DiskSpace,
-        ExGoCD.ElasticAgentScheduler
+        ExGoCDWeb.Endpoint
       ] ++ cluster_children
 
     children =

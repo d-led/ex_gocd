@@ -35,22 +35,22 @@ defmodule ExGoCD.ElasticAgentScheduler do
   # ── Client API ────────────────────────────────────────────────────────────
 
   def start_link(opts \\ []) do
-    GenServer.start_link(__MODULE__, opts, name: __MODULE__)
+    ExGoCD.DistSingleton.start_link(__MODULE__, opts)
   end
 
   @doc "Return tracked pods (for admin UI)."
   def tracked_pods do
-    GenServer.call(__MODULE__, :tracked_pods)
+    GenServer.call(ExGoCD.DistSingleton.via_horde(__MODULE__), :tracked_pods)
   end
 
   @doc "Return recent scheduler events (for admin UI)."
   def recent_events do
-    GenServer.call(__MODULE__, :recent_events)
+    GenServer.call(ExGoCD.DistSingleton.via_horde(__MODULE__), :recent_events)
   end
 
   @doc "Delete all tracked k8s pods and return count."
   def delete_all_pods do
-    GenServer.call(__MODULE__, :delete_all_pods)
+    GenServer.call(ExGoCD.DistSingleton.via_horde(__MODULE__), :delete_all_pods)
   end
 
   # ── Server callbacks ───────────────────────────────────────────────────────
