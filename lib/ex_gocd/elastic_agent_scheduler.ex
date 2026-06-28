@@ -445,6 +445,10 @@ defmodule ExGoCD.ElasticAgentScheduler do
         spec
       end
 
+    # Docker Desktop macOS: seccomp not supported in nested containers
+    spec =
+      put_in(spec, ["spec", "securityContext", "seccompProfile", "type"], "Unconfined")
+
     {:ok, spec}
   end
 

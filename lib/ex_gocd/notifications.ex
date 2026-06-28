@@ -11,8 +11,6 @@ defmodule ExGoCD.Notifications do
   alias ExGoCD.Repo
   alias ExGoCD.Notifications.NotificationFilter
 
-  require Logger
-
   @doc "Lists notification filters for a user."
   def list_filters(user_id),
     do: Repo.all(from f in NotificationFilter, where: f.user_id == ^user_id)
@@ -48,16 +46,15 @@ defmodule ExGoCD.Notifications do
   end
 
   defp deliver(filter, pipeline_name, stage_name, event, result) do
-    # Email delivery via Swoosh — when SMTP is configured.
-    # For now, log the notification. The email template and SMTP config
-    # are ready to be added when the operator configures mail server settings.
-    Logger.info(
-      "[Notifications] Would email user_id=#{filter.user_id}: " <>
-        "#{pipeline_name}/#{stage_name} #{event} (#{result})"
-    )
+    # Look up user email from notification filter's user association
+    user = ExGoCD.Accounts.get_user!(filter.user_id)
 
-    # TODO: uncomment when Swoosh mailer is configured
-    # ExGoCD.Mailer.stage_notification(filter.user_id, pipeline_name, stage_name, event, result)
-    # |> ExGoCD.Mailer.deliver()
+    ExGoCD.Mailer.stage_notification(
+      user.email,
+      pipeline_name,
+      stage_name,
+      event,
+      result
+    )
   end
 end

@@ -127,6 +127,25 @@ services:
       - fluentbit
 
   # ---------------------------------------------------------------------------
+  # Email: smtp4dev — local SMTP server + Web UI for dev email testing
+  # SMTP: localhost:2525  Web UI: http://localhost:8025
+  # ---------------------------------------------------------------------------
+  smtp4dev:
+    image: rnwood/smtp4dev:latest
+    platform: linux/amd64
+    container_name: smtp4dev
+    ports:
+      - "2525:25"    # SMTP
+      - "8025:80"    # Web UI
+      - "1433:143"   # IMAP (optional)
+    environment:
+      - ServerOptions__HostName=smtp4dev
+      - ServerOptions__TlsMode=None
+    volumes:
+      - smtp4dev-data:/smtp4dev
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
   # Kubernetes (k3s) — for elastic agent development/testing
   # API: https://localhost:6443  Token: see /var/lib/rancher/k3s/server/node-token
   # ---------------------------------------------------------------------------
@@ -136,7 +155,7 @@ services:
     platform: linux/amd64
     container_name: k3s
     privileged: true
-    command: server --disable traefik --disable servicelb
+    command: server --disable traefik --disable servicelb --secrets-encryption=false --kubelet-arg=--seccomp-default=false
     ports:
       - "6443:6443"
     volumes:
@@ -149,4 +168,5 @@ services:
 
 volumes:
   data-postgres:
+  smtp4dev-data:
   k3s-server:
