@@ -93,6 +93,7 @@
 | Scheduling admin | ✅ | `AdminSchedulingLive` with pending + active jobs, cross-links |
 | Admin dropdown | ✅ | CSS-driven with JS edge guard; mobile responsive with vertical list + phx-update="ignore" |
 | Plugins removed | ✅ | No plugin architecture — ex_gocd bakes in features directly. Removed from UI and nav. |
+| Roles CRUD | ✅ | Schema + migration + API at `/api/admin/security/roles`. GoCD parity: `delete_role` validates not-in-use. |
 
 ---
 
