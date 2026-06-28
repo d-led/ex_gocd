@@ -133,24 +133,28 @@ defmodule ExGoCD.ElasticAgentScheduler do
 
   defp create_min_pods(state, profile, cluster, conn, count) do
     Enum.reduce(1..count, state, fn i, acc ->
-      {:ok, pod_spec} =
-        build_pod_spec(
-          profile,
-          cluster,
-          %{job: "min-agent-#{i}", resources: [], environments: []},
-          []
-        )
-
-      case K8s.create_pod(conn, pod_spec, namespace: ClusterProfile.namespace(cluster)) do
-        {:ok, pod_name} ->
-          acc
-          |> track_pod(pod_name, profile, cluster, %{job: "min-agent-#{i}", resources: []})
-          |> then(fn s -> log_event(s, :info, "Created min-agent pod #{pod_name}") end)
-
-        {:error, reason} ->
-          log_event(acc, :error, "Failed to create min-agent pod: #{inspect(reason)}")
-      end
+      create_single_min_pod(acc, profile, cluster, conn, i)
     end)
+  end
+
+  defp create_single_min_pod(state, profile, cluster, conn, i) do
+    {:ok, pod_spec} =
+      build_pod_spec(
+        profile,
+        cluster,
+        %{job: "min-agent-#{i}", resources: [], environments: []},
+        []
+      )
+
+    case K8s.create_pod(conn, pod_spec, namespace: ClusterProfile.namespace(cluster)) do
+      {:ok, pod_name} ->
+        state
+        |> track_pod(pod_name, profile, cluster, %{job: "min-agent-#{i}", resources: []})
+        |> then(fn s -> log_event(s, :info, "Created min-agent pod #{pod_name}") end)
+
+      {:error, reason} ->
+        log_event(state, :error, "Failed to create min-agent pod: #{inspect(reason)}")
+    end
   end
 
   # ── Pod lifecycle ──────────────────────────────────────────────────────────
