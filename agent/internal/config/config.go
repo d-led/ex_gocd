@@ -110,10 +110,15 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("failed to create config directory: %w", err)
 	}
 
-	// Detect hostname and IP
-	cfg.Hostname, err = os.Hostname()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get hostname: %w", err)
+	// Hostname: AGENT_HOSTNAME env overrides os.Hostname().
+	// This allows multiple agents on the same machine (e.g. process-compose)
+	// to register under distinct hostnames.
+	cfg.Hostname = viper.GetString("hostname")
+	if cfg.Hostname == "" {
+		cfg.Hostname, err = os.Hostname()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get hostname: %w", err)
+		}
 	}
 
 	cfg.IPAddress, err = detectIPAddress()

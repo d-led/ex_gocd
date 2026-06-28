@@ -41,6 +41,15 @@ defmodule ExGoCD.Agents do
     end
   end
 
+  # Ensure disabled=false without creating mixed atom/string key maps.
+  defp ensure_disabled_false(attrs) do
+    cond do
+      is_map_key(attrs, "disabled") or is_map_key(attrs, :disabled) -> attrs
+      is_map_key(attrs, "uuid") -> Map.put(attrs, "disabled", false)
+      true -> Map.put(attrs, :disabled, false)
+    end
+  end
+
   defp log_registration(uuid, hostname, result) do
     init_reg_log()
     logs = :ets.tab2list(@reg_log_table)
@@ -73,8 +82,14 @@ defmodule ExGoCD.Agents do
   @doc """
   Registers a new agent or updates existing one.
 
-  This implements GoCD's agent registration protocol where agents can re-register
-  to update their configuration.
+  Mirrors GoCD's AgentInstances.register():
+  1. Find by UUID → update if found
+  2. UUID not found → find by hostname, but only reuse if that agent
+     has no different active UUID (prevents hostname collisions when
+     multiple agents run on the same OS hostname).
+  3. Neither found → create new agent.
+
+  After re-registration, the agent is auto-enabled (disabled=false).
   """
   @spec register_agent(map()) :: {:ok, Agent.t()} | {:error, Ecto.Changeset.t()}
   def register_agent(attrs) do
@@ -86,31 +101,43 @@ defmodule ExGoCD.Agents do
 
       result =
         case uuid && get_agent_by_uuid(uuid) do
-          nil ->
-            existing =
-              if hostname do
-                Repo.get_by(Agent, hostname: hostname, disabled: false, deleted: false)
-              end
-
-            case existing do
-              nil ->
-                %Agent{}
-                |> Agent.registration_changeset(attrs)
-                |> Repo.insert()
-                |> broadcast(:agent_registered)
-
-              agent ->
-                agent
-                |> Agent.changeset(Map.put(attrs, "uuid", uuid))
-                |> Repo.update()
-                |> broadcast(:agent_updated)
-            end
-
-          existing_agent ->
+          %Agent{} = existing_agent ->
+            # UUID found → update existing agent (GoCD parity: findAgentAndRefreshStatus)
             existing_agent
-            |> Agent.changeset(attrs)
+            |> Agent.changeset(ensure_disabled_false(attrs))
             |> Repo.update()
             |> broadcast(:agent_updated)
+
+          nil ->
+            # UUID not found → try hostname lookup, but only for orphaned agents
+            stale_by_hostname =
+              if hostname do
+                Repo.one(
+                  from a in Agent,
+                    where: a.hostname == ^hostname,
+                    where: a.disabled == true or a.deleted == true,
+                    order_by: [desc: a.updated_at],
+                    limit: 1
+                )
+              end
+
+            case stale_by_hostname do
+              %Agent{} = agent ->
+                # Reassign stale agent to new UUID (hostname re-registration)
+                agent
+                |> Agent.changeset(ensure_disabled_false(attrs))
+                |> Repo.update()
+                |> broadcast(:agent_updated)
+
+              nil ->
+                # Brand new agent: create (GoCD parity: createFromLiveAgent)
+                attrs_with_disabled = ensure_disabled_false(attrs)
+
+                %Agent{}
+                |> Agent.registration_changeset(attrs_with_disabled)
+                |> Repo.insert()
+                |> broadcast(:agent_registered)
+            end
         end
 
       outcome = elem(result, 0)

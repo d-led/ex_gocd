@@ -135,6 +135,139 @@ defmodule ExGoCD.AgentsTest do
     end
   end
 
+  # -- GoCD-parity registration tests ------------------------------------------
+  # Mirrors: AgentRegistrationControllerTest, AgentInstancesTest
+
+  describe "register_agent/1 — GoCD parity" do
+    test "re-registration with same UUID updates hostname and auto-enables" do
+      # Disable an existing agent
+      {:ok, agent} =
+        Agents.register_agent(%{
+          uuid: @valid_uuid,
+          hostname: "agent-1",
+          ipaddress: "10.0.0.1"
+        })
+
+      Agents.disable_agent(agent)
+
+      # Re-register with same UUID — should re-enable and update hostname
+      {:ok, updated} =
+        Agents.register_agent(%{
+          uuid: @valid_uuid,
+          hostname: "agent-1-new-name",
+          ipaddress: "10.0.0.2"
+        })
+
+      assert updated.hostname == "agent-1-new-name"
+      assert updated.disabled == false
+      assert Repo.aggregate(Agent, :count) == 1
+    end
+
+    test "re-registration with new UUID reuses stale disabled agent by hostname" do
+      # Register first agent
+      {:ok, old} =
+        Agents.register_agent(%{
+          uuid: @valid_uuid,
+          hostname: "host-abc",
+          ipaddress: "10.0.0.1"
+        })
+
+      Agents.disable_agent(old)
+      Agents.delete_agent(old)
+
+      # Now register with new UUID but same hostname on a stale agent
+      new_uuid = "750e8400-e29b-41d4-a716-446655440002"
+
+      {:ok, refreshed} =
+        Agents.register_agent(%{
+          uuid: new_uuid,
+          hostname: "host-abc",
+          ipaddress: "10.0.0.1"
+        })
+
+      assert refreshed.uuid == new_uuid
+      assert refreshed.hostname == "host-abc"
+      assert refreshed.disabled == false
+    end
+
+    test "new UUID with colliding active hostname creates a brand new agent" do
+      # Register agent A with hostname "shared-host"
+      {:ok, _agent_a} =
+        Agents.register_agent(%{
+          uuid: @valid_uuid,
+          hostname: "shared-host",
+          ipaddress: "10.0.0.1"
+        })
+
+      # Register agent B with different UUID, same hostname, but agent A is still active
+      new_uuid = "750e8400-e29b-41d4-a716-446655440002"
+
+      {:ok, agent_b} =
+        Agents.register_agent(%{
+          uuid: new_uuid,
+          hostname: "shared-host",
+          ipaddress: "10.0.0.2"
+        })
+
+      # Agent B should be a NEW row — did NOT overwrite agent A
+      assert agent_b.uuid == new_uuid
+      assert agent_b.hostname == "shared-host"
+
+      agent_a = Agents.get_agent_by_uuid(@valid_uuid)
+      assert agent_a.uuid == @valid_uuid
+      assert agent_a.hostname == "shared-host"
+
+      assert Repo.aggregate(Agent, :count) == 2
+    end
+
+    test "three agents on same OS hostname don't collide" do
+      # Simulates 3 process-compose agents all on dam2.fritz.box
+      shared_hostname = "dam2.fritz.box"
+
+      uuids = [
+        "00000000-1000-4000-a000-000000000001",
+        "00000000-2000-4000-a000-000000000001",
+        "00000000-3000-4000-a000-000000000001"
+      ]
+
+      for {uuid, i} <- Enum.with_index(uuids, 1) do
+        {:ok, agent} =
+          Agents.register_agent(%{
+            uuid: uuid,
+            hostname: shared_hostname,
+            ipaddress: "10.0.0.#{i}"
+          })
+
+        assert agent.uuid == uuid
+      end
+
+      # All 3 should be distinct rows
+      assert Repo.aggregate(Agent, :count) == 3
+
+      for uuid <- uuids do
+        assert %Agent{uuid: ^uuid} = Agents.get_agent_by_uuid(uuid)
+      end
+    end
+
+    test "elastic agent registers without resources (GoCD parity)" do
+      elastic_uuid = "850e8400-e29b-41d4-a716-446655440005"
+
+      {:ok, agent} =
+        Agents.register_agent(%{
+          uuid: elastic_uuid,
+          hostname: "elastic-host",
+          ipaddress: "10.0.0.1",
+          elastic_agent_id: "elastic-1",
+          elastic_plugin_id: "cd.go.contrib.elastic-agent.docker"
+        })
+
+      assert agent.elastic_agent_id == "elastic-1"
+      assert agent.elastic_plugin_id == "cd.go.contrib.elastic-agent.docker"
+      assert agent.resources == []
+      assert agent.disabled == false
+    end
+  end
+
   describe "list_agents/0" do
     test "returns all agents including disabled and deleted" do
       {:ok, _agent1} =
