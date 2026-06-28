@@ -23,7 +23,10 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 FROM alpine:latest
 
 # Install runtime dependencies needed for SCM checkout and execution
-RUN apk add --no-cache ca-certificates git bash openssh-client curl
+RUN apk add --no-cache \
+    ca-certificates git bash openssh-client \
+    curl wget tar zip unzip \
+    iputils openssl libcrypto3 libtasn1
 
 # Optional extra packages for custom agent variants (space-separated apk package list)
 # e.g.: build-essential openssl-dev python3 nodejs npm openjdk21-jdk subversion
