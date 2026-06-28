@@ -1845,7 +1845,7 @@ defmodule ExGoCD.Pipelines do
 
         # Dispatch notifications for stage completion (GoCD parity)
         pi = stage_loaded.pipeline_instance
-        triggered_by = pi.triggered_by || "unknown"
+        triggered_by = (pi.build_cause || %{})["trigger_message"] || "triggered"
 
         dispatch_stage_notification(pipeline.name, stage.name, stage_result, pi.counter, stage_loaded.counter, triggered_by)
 

@@ -446,8 +446,7 @@ defmodule ExGoCD.ElasticAgentScheduler do
       end
 
     # Docker Desktop macOS: seccomp not supported in nested containers
-    spec =
-      put_in(spec, ["spec", "securityContext", "seccompProfile", "type"], "Unconfined")
+    spec = put_in(spec, ["spec", "securityContext"], %{"seccompProfile" => %{"type" => "Unconfined"}})
 
     # No CNI (--flannel-backend=none): use host network
     spec = put_in(spec, ["spec", "hostNetwork"], true)
@@ -459,6 +458,20 @@ defmodule ExGoCD.ElasticAgentScheduler do
   # ── K8s connection helpers ─────────────────────────────────────────────────
 
   defp build_k8s_conn(cluster_profile) do
+    # Try raw kubeconfig first (kind, GKE, etc.)
+    kubeconfig = ClusterProfile.kubeconfig_yaml(cluster_profile)
+
+    if kubeconfig && kubeconfig != "" do
+      case K8s.from_kubeconfig(kubeconfig) do
+        {:ok, conn} -> conn
+        {:error, _} -> build_from_fields(cluster_profile)
+      end
+    else
+      build_from_fields(cluster_profile)
+    end
+  end
+
+  defp build_from_fields(cluster_profile) do
     config = %{
       "server" => ClusterProfile.server_url(cluster_profile) || "",
       "token" => ClusterProfile.bearer_token(cluster_profile) || "",

@@ -48,4 +48,8 @@ defmodule ExGoCD.ClusterProfiles.ClusterProfile do
   @doc "Returns the client key from properties."
   def client_key(%__MODULE__{properties: props}), do: Map.get(props, "client_key")
   def client_key(_), do: nil
+
+  @doc "Raw kubeconfig YAML (for kind, GKE, etc. where field extraction is lossy)."
+  def kubeconfig_yaml(%__MODULE__{properties: props}), do: Map.get(props, "kubeconfig_yaml")
+  def kubeconfig_yaml(_), do: nil
 end
