@@ -10,7 +10,7 @@
       Download the current pipeline configuration as cruise-config.xml.
     </p>
     <a
-      href="/admin/config_xml"
+      href="/admin/config_xml/download"
       class="inline-flex items-center gap-2 px-4 py-2 rounded bg-[#943a9e] hover:bg-purple-700 text-xs font-semibold text-white border border-purple-700 shadow-sm transition-all"
     >
       <i class="fa fa-download"></i> Download Config XML
@@ -18,7 +18,7 @@
   </div>
   
 <!-- Import -->
-  <div class="p-4 bg-amber-50 rounded border border-amber-200">
+  <div class="mb-8 p-4 bg-amber-50 rounded border border-amber-200">
     <h2 class="text-sm font-bold text-amber-800 mb-2">Import Configuration</h2>
     <p class="text-xs text-amber-600 mb-3">
       Upload a cruise-config.xml file to import pipeline configurations.
@@ -42,5 +42,46 @@
         </button>
       </div>
     </form>
+  </div>
+  
+<!-- Config Version History -->
+  <div class="p-4 bg-blue-50 rounded border border-blue-200">
+    <h2 class="text-sm font-bold text-blue-800 mb-2">Config Version History</h2>
+    <p class="text-xs text-blue-600 mb-3">
+      Every config mutation (pipeline create/update/delete, template changes) is snapshotted.
+      Secrets are stored encrypted (AES-128-CBC).
+    </p>
+    <%= if ExGoCD.ConfigVersion.count() > 0 do %>
+      <div class="overflow-x-auto">
+        <table class="w-full text-xs">
+          <thead>
+            <tr class="text-left text-blue-700 border-b border-blue-200">
+              <th class="py-1.5 pr-4 font-semibold">When</th>
+              <th class="py-1.5 pr-4 font-semibold">Hash</th>
+              <th class="py-1.5 pr-4 font-semibold">By</th>
+              <th class="py-1.5 font-semibold">Reason</th>
+            </tr>
+          </thead>
+          <tbody>
+            <%= for v <- ExGoCD.ConfigVersion.recent(10) do %>
+              <tr class="border-b border-blue-100 hover:bg-blue-100/50">
+                <td class="py-1.5 pr-4 text-slate-500 font-mono text-[11px]">
+                  {Calendar.strftime(v.inserted_at, "%Y-%m-%d %H:%M:%S")}
+                </td>
+                <td class="py-1.5 pr-4 font-mono text-[11px] text-slate-600">
+                  {String.slice(v.config_hash, 0, 12)}
+                </td>
+                <td class="py-1.5 pr-4 text-slate-600">{v.changed_by}</td>
+                <td class="py-1.5 text-slate-600">{v.change_reason}</td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    <% else %>
+      <p class="text-xs text-blue-400 italic">
+        No config versions yet. Versions are created automatically when pipeline or template configs change.
+      </p>
+    <% end %>
   </div>
 </section>
