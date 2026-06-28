@@ -231,7 +231,7 @@ defmodule ExGoCDWeb.AnalyticsLive do
       </div>
       <div class="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
         <h3 class="text-sm font-semibold text-gray-700 mb-3">Agent Jobs (7d)</h3>
-        {agent_top_bar(@top_agents)}
+        <.agent_top_bar agents={@top_agents} />
       </div>
     </div>
     """
@@ -245,12 +245,29 @@ defmodule ExGoCDWeb.AnalyticsLive do
     Plot.to_svg(plot)
   end
 
-  defp agent_top_bar(agents) do
-    data = for a <- agents, do: [String.slice(a.hostname || a.agent_uuid, 0, 20), a.total_jobs]
-    dataset = Dataset.new(data, ["Agent", "Jobs"])
-    chart = BarChart.new(dataset)
-    plot = Plot.new(500, 240, chart)
-    Plot.to_svg(plot)
+  defp agent_top_bar(assigns) do
+    agents = assigns.agents |> Enum.sort_by(& &1.total_jobs, :desc) |> Enum.take(8)
+    max_jobs = if agents != [], do: Enum.max_by(agents, & &1.total_jobs).total_jobs, else: 1
+    assigns = assign(assigns, :agents_list, agents)
+    assigns = assign(assigns, :max_jobs, max_jobs)
+
+    ~H"""
+    <div class="space-y-2">
+      <%= for a <- @agents_list do %>
+        <% pct = if @max_jobs > 0, do: Float.round(a.total_jobs / @max_jobs * 100, 1), else: 0 %>
+        <div class="flex items-center gap-2 text-xs" title={a.agent_uuid}>
+          <span class="w-36 truncate text-gray-700 font-medium">
+            {a.hostname}
+          </span>
+          <.agent_type_badge type={a.agent_type} />
+          <div class="flex-1 h-5 bg-gray-100 rounded overflow-hidden">
+            <div class="h-full bg-blue-500 rounded transition-all" style={"width:#{pct}%"}></div>
+          </div>
+          <span class="w-10 text-right tabular-nums font-medium text-gray-600">{a.total_jobs}</span>
+        </div>
+      <% end %>
+    </div>
+    """
   end
 
   defp build_duration_chart(runs) do
@@ -487,25 +504,44 @@ defmodule ExGoCDWeb.AnalyticsLive do
   end
 
   defp agent_jobs_chart(assigns) do
+    stats = assigns.stats
+    agents = stats |> Enum.sort_by(& &1.total_jobs, :desc) |> Enum.take(15)
+    max_jobs = if agents != [], do: Enum.max_by(agents, & &1.total_jobs).total_jobs, else: 1
+    assigns = assign(assigns, :chart_agents, agents)
+    assigns = assign(assigns, :chart_max, max_jobs)
+
     ~H"""
     <div :if={@stats != []} class="mt-6 bg-white rounded-lg border border-gray-200 shadow-sm p-4">
       <h3 class="text-sm font-semibold text-gray-700 mb-3">Job Outcomes by Agent</h3>
-      {agent_jobs_svg(@stats)}
+      <div class="space-y-1.5">
+        <%= for a <- @chart_agents do %>
+          <% pass_pct =
+            if a.total_jobs > 0, do: Float.round(a.completed / a.total_jobs * 100, 0), else: 0 %>
+          <div
+            class="flex items-center gap-2 text-xs"
+            title={"#{a.agent_uuid}\nPassed: #{a.completed}  Failed: #{a.failed}  Cancelled: #{a.cancelled}"}
+          >
+            <span class="w-32 truncate text-gray-700 font-medium">{a.hostname}</span>
+            <.agent_type_badge type={a.agent_type} />
+            <div class="flex-1 h-5 bg-gray-100 rounded overflow-hidden flex">
+              <div
+                class="h-full bg-green-500"
+                style={"width:#{Float.round(a.completed / @chart_max * 100, 1)}%"}
+              >
+              </div>
+              <div
+                class="h-full bg-red-400"
+                style={"width:#{Float.round(a.failed / @chart_max * 100, 1)}%"}
+              >
+              </div>
+            </div>
+            <span class="w-12 text-right tabular-nums font-medium text-gray-600">{a.total_jobs}</span>
+            <span class="w-8 text-right tabular-nums text-xs text-green-600">{pass_pct}%</span>
+          </div>
+        <% end %>
+      </div>
     </div>
     """
-  end
-
-  defp agent_jobs_svg(stats) do
-    sorted = stats |> Enum.sort_by(& &1.total_jobs, :desc) |> Enum.take(15)
-
-    data =
-      for a <- sorted,
-          do: [String.slice(a.hostname || a.agent_uuid, 0, 16), a.completed, a.failed]
-
-    dataset = Dataset.new(data, ["Agent", "Completed", "Failed"])
-    chart = BarChart.new(dataset, type: :stacked)
-    plot = Plot.new(500, 280, chart)
-    Plot.to_svg(plot)
   end
 
   def vsm_tab(assigns) do

@@ -1,9 +1,18 @@
 defmodule ExGoCD.ConfigSnapshotTest do
-  use ExGoCD.DataCase, async: true
+  use ExGoCD.DataCase, async: false
 
   alias ExGoCD.ConfigSnapshot
   alias ExGoCD.ConfigVersion
   alias ExGoCD.Repo
+
+  setup do
+    # Clean up any pre-existing config versions from other test runs.
+    # With shared sandbox (async: false), previous tests may have left
+    # ConfigVersion rows that would cause snapshot deduplication to
+    # return :unchanged prematurely.
+    Repo.delete_all(ConfigVersion)
+    :ok
+  end
 
   describe "snapshot/2" do
     test "creates a config version when config changes" do

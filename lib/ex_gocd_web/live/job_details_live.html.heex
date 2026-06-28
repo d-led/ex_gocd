@@ -62,7 +62,10 @@
         <span class="text-gray-400 font-bold uppercase tracking-wider text-[10px] ml-2">
           Agent
         </span>
-        <.link navigate={~p"/agents"} class="font-bold text-[#2d6ca2] hover:underline">
+        <.link
+          navigate={~p"/agents/#{@agent.uuid}/job_run_history"}
+          class="font-bold text-[#2d6ca2] hover:underline"
+        >
           {@agent.hostname}
           <span class="text-gray-400 font-normal">
             ({String.slice(@agent.uuid, 0, 8)}...)

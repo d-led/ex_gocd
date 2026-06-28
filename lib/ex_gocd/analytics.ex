@@ -150,6 +150,7 @@ defmodule ExGoCD.Analytics do
     cond do
       agent.elastic_plugin_id == "cd.go.contrib.elastic-agent.docker" -> "elastic-docker"
       agent.elastic_plugin_id == "cd.go.contrib.elastic-agent.kubernetes" -> "elastic-k8s"
+      agent.elastic_plugin_id == "ex_gocd.elasticagent.kubernetes" -> "k8s-elastic"
       not is_nil(agent.elastic_agent_id) -> "elastic"
       agent.resources != [] and "docker" in agent.resources -> "docker"
       true -> "regular"
