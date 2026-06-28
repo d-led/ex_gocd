@@ -71,6 +71,7 @@ defmodule ExGoCD.Application do
         {DNSCluster, query: Application.get_env(:ex_gocd, :dns_cluster_query) || :ignore},
         {Phoenix.PubSub, name: ExGoCD.PubSub},
         ExGoCDWeb.AgentPresence,
+        ExGoCD.Plugin.Registry,
         ExGoCD.TestAgentSupervisor,
         ExGoCDWeb.Endpoint
       ] ++ cluster_children

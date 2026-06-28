@@ -406,10 +406,13 @@ defmodule ExGoCD.Scheduler do
     Map.get(spec, key_str) || Map.get(spec, key_atom) || default
   end
 
-  # Matches resources (subset) and environments
+  # Matches resources (subset) and environments. Consults AgentSelector plugin
+  # if registered — the plugin can veto individual matches (e.g. corporate policy).
   defp find_matching_job(agent, queue) do
     agent_resources = MapSet.new(agent.resources |> Enum.map(&String.downcase/1))
     agent_envs = MapSet.new(agent.environments |> Enum.map(&String.downcase/1))
+
+    selector = ExGoCD.Plugin.Registry.get(:agent_selector)
 
     idx =
       Enum.find_index(queue, fn spec ->
@@ -419,6 +422,9 @@ defmodule ExGoCD.Scheduler do
           resources_match?(spec.resources || [], agent_resources) and
             envs_match?(spec.environments || [], agent_envs)
         end
+        |> then(fn matched? ->
+          matched? and plugin_approves?(selector, agent, spec)
+        end)
       end)
 
     if is_nil(idx) do
@@ -427,6 +433,16 @@ defmodule ExGoCD.Scheduler do
       job = Enum.at(queue, idx)
       rest = List.delete_at(queue, idx)
       {job, rest}
+    end
+  end
+
+  defp plugin_approves?(nil, _agent, _spec), do: true
+
+  defp plugin_approves?(mod, agent, spec) do
+    case mod.select_candidates([agent], spec, []) do
+      {:ok, [_]} -> true
+      {:reject, _} -> false
+      _ -> true
     end
   end
 
