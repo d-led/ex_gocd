@@ -121,7 +121,7 @@
 | B7 | Full config repos engine (PaC) | XL | YAML parsing, git polling, merge engine |
 | B8 | External auth (LDAP/OAuth/GitHub) | L | Ueberauth or :eldap |
 | B9 | Pipeline group administration | M | Delegate admin per group |
-| B10 | Email notifications | M | Swoosh + PubSub + filter schema |
+| B10 | Email notifications | ✅ | `Notifications.dispatch/4` wired into stage completion. Filters match pipeline+stage+event. Email delivery via Swoosh (ready when SMTP configured). |
 | B11 | Roles & auth configs CRUD | ✅ | Role schema + migration + CRUD + 10 tests + `delete_role` validates not-in-use (GoCD parity: `RoleConfigDeleteCommand`). API at `/api/admin/security/roles`. |
 | B12 | Elastic agent profiles | ✅ | Schema + CRUD API at /api/admin/elastic_agent_profiles |
 | B13 | Cluster profiles | ✅ | Schema + CRUD API at /api/admin/cluster_profiles |

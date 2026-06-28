@@ -1805,6 +1805,20 @@ defmodule ExGoCD.Pipelines do
     end
   end
 
+  # GoCD parity: dispatch notifications when a stage completes.
+  # Maps stage result to notification event type.
+  defp dispatch_stage_notification(pipeline_name, stage_name, result) do
+    event =
+      case result do
+        "Passed" -> "Passes"
+        "Failed" -> "Fails"
+        "Cancelled" -> "Cancelled"
+        _ -> "All"
+      end
+
+    ExGoCD.Notifications.dispatch(pipeline_name, stage_name, event, result)
+  end
+
   defp do_complete_stage(jobs, stage, now) do
     stage_result =
       if Enum.any?(jobs, &(&1.result == "Failed" or &1.result == "Cancelled")),
@@ -1824,6 +1838,9 @@ defmodule ExGoCD.Pipelines do
 
         stage_loaded = Repo.preload(updated_stage, pipeline_instance: :pipeline)
         pipeline = stage_loaded.pipeline_instance.pipeline
+
+        # Dispatch notifications for stage completion (GoCD parity)
+        dispatch_stage_notification(pipeline.name, stage.name, stage_result)
 
         if stage_result == "Failed" and pipeline.lock_behavior == "lockOnFailure" do
           pipeline
