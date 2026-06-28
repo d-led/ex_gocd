@@ -679,6 +679,18 @@ window.addEventListener("phx:page-loading-stop", (_info) => topbar.hide());
 // connect if there are any LiveViews on the page
 liveSocket.connect();
 
+// Handle browser back-forward cache (bfcache):
+// When the user presses Back, the browser may serve a cached snapshot.
+// LiveView hooks and event bindings are not re-attached to cached pages,
+// so we force a full reconnect. This fixes stage icon clicks, dropdown
+// hovers, and any other JS-driven interactions after Back navigation.
+window.addEventListener("pageshow", (event) => {
+  if (event.persisted) {
+    liveSocket.disconnect();
+    liveSocket.connect();
+  }
+});
+
 // expose liveSocket on window for web console debug logs and latency simulation:
 // >> liveSocket.enableDebug()
 // >> liveSocket.enableLatencySim(1000)  // enabled for duration of browser session
