@@ -4,13 +4,18 @@ defmodule ExGoCD.Otel do
 
   Set EX_GOCD_NO_OTEL=1 to disable all tracing. The OpenTelemetry SDK
   starts via OTP with its own app env config (see config.exs). This module
-  attaches Phoenix and Ecto telemetry handlers to create spans.
+  attaches Phoenix, Ecto, and Process telemetry handlers to create spans.
 
   Spans flow: ex_gocd → OTLP HTTP (localhost:4318) → Collector → Jaeger.
+
+  Cross-node tracing: `opentelemetry_process_propagator` propagates trace
+  context across GenServer.call/cast and Task boundaries between cluster nodes,
+  so a pipeline trigger on node A that schedules work via Scheduler on node B
+  still shows a complete trace.
   """
 
   @doc """
-  Attaches Phoenix and Ecto instrumentation handlers.
+  Attaches instrumentation handlers: Phoenix, Ecto, Bandit, Process propagator.
   Called at app start. Fails gracefully if OTEL SDK is unavailable.
   """
   def setup do
@@ -33,6 +38,16 @@ defmodule ExGoCD.Otel do
     IO.puts("[OTel] Instrumentation attached → http://localhost:4318")
 
     :ok
+  end
+
+  @doc """
+  Fetches the parent trace context from the calling process.
+  Uses `opentelemetry_process_propagator` for contexts where OTP's built-in
+  propagation is insufficient (Task.async, Ecto preloads, cross-node calls
+  with older OTP versions).
+  """
+  def fetch_parent_ctx(pid \\ self()) do
+    OpentelemetryProcessPropagator.fetch_parent_ctx(pid, :"$callers")
   end
 
   # Pipeline VSM tracing helpers (called from pipelines context)

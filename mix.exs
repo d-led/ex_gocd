@@ -86,6 +86,7 @@ defmodule ExGoCD.MixProject do
       {:opentelemetry_exporter, "~> 1.8"},
       {:opentelemetry_phoenix, "~> 1.1"},
       {:opentelemetry_ecto, "~> 1.2"},
+      {:opentelemetry_process_propagator, "~> 0.3"},
       {:excoveralls, "~> 0.18", only: [:test]},
       {:junit_formatter, "~> 3.4", only: [:test]},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
