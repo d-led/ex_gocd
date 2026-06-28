@@ -21,6 +21,7 @@ processes:
     environment:
       - "PORT=4000"
       - "EX_GOCD_DEMO_COOKIE=ex-gocd-demo-cookie"
+      - "EX_GOCD_CLUSTER=1"
       - "LOG_LEVEL=warning"
       - "MIX_ENV=dev"
     readiness_probe:

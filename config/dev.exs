@@ -141,3 +141,37 @@ config :opentelemetry_exporter,
 config :logger, ExGoCD.LoggerJSON,
   path: "/tmp/ex_gocd_server.log",
   level: :info
+
+# ── Plugin configuration (dev) ─────────────────────────────────────────
+# Set EX_GOCD_PLUGINS to a comma-separated list to load example plugins:
+#   EX_GOCD_PLUGINS=regional_affinity,corp_policy
+#
+# In cluster mode (process-compose.cluster.yaml), EX_GOCD_CLUSTER=1
+# enables the default plugin set.
+if System.get_env("EX_GOCD_CLUSTER") == "1" do
+  config :ex_gocd, :plugins,
+    agent_selector: ExGoCD.Plugin.Managed.RegionalAffinity,
+    org_hierarchy: ExGoCD.Plugin.Managed.SimpleOrgChart
+else
+  plugin_list =
+    System.get_env("EX_GOCD_PLUGINS", "")
+    |> String.split(",", trim: true)
+    |> Enum.map(&String.trim/1)
+
+  plugins =
+    if "regional_affinity" in plugin_list,
+      do: [agent_selector: ExGoCD.Plugin.Managed.RegionalAffinity],
+      else: []
+
+  plugins =
+    if "corp_policy" in plugin_list,
+      do: Keyword.put(plugins, :agent_selector, ExGoCD.Plugin.Managed.CorpPolicy),
+      else: plugins
+
+  plugins =
+    if "org_chart" in plugin_list,
+      do: Keyword.put(plugins, :org_hierarchy, ExGoCD.Plugin.Managed.SimpleOrgChart),
+      else: plugins
+
+  config :ex_gocd, :plugins, plugins
+end

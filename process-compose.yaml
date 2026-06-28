@@ -14,9 +14,9 @@ log_level: info
 is_strict: true
 
 processes:
-  # ── Phoenix Server ──────────────────────────────────────────────────
+  # ── Phoenix Server (short-name → joinable by other nodes) ──────────
   server:
-    command: "mix phx.server"
+    command: "elixir --sname ex_gocd --cookie ex-gocd-demo-cookie -S mix phx.server"
     working_dir: "."
     environment:
       - "EX_GOCD_DEMO_COOKIE=ex-gocd-demo-cookie"
