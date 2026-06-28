@@ -142,7 +142,7 @@ defmodule ExGoCD.K8sTest do
       assert config["namespace"] == "default"
     end
 
-    test "falls back to demo token when not in kubeconfig" do
+    test "returns client cert/key when present, no fallback token" do
       yaml = """
       apiVersion: v1
       kind: Config
@@ -156,7 +156,9 @@ defmodule ExGoCD.K8sTest do
       """
 
       assert {:ok, config} = ExGoCD.K8s.extract_k3s_config(yaml)
-      assert config["token"] == "exgocd-demo-token"
+      assert config["token"] == nil
+      assert config["client_cert"] == "ZmFrZQ=="
+      assert config["client_key"] == "ZmFrZQ=="
     end
 
     test "returns error for invalid YAML" do

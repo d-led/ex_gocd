@@ -23,18 +23,30 @@ defmodule ExGoCD.K8s do
 
   @doc "Creates a connection from explicit cluster profile fields."
   @spec from_config(map()) :: {:ok, conn()} | {:error, term()}
-  def from_config(%{"server" => server, "token" => token} = config) do
+  def from_config(%{"server" => server} = config) do
     ca_line =
       if config["ca_cert"],
         do: "    certificate-authority-data: #{config["ca_cert"]}",
         else: "    insecure-skip-tls-verify: true"
+
+    user_block =
+      cond do
+        config["client_cert"] && config["client_key"] ->
+          "    client-certificate-data: #{config["client_cert"]}\n    client-key-data: #{config["client_key"]}"
+
+        config["token"] ->
+          "    token: #{config["token"]}"
+
+        true ->
+          "    token: unused"
+      end
 
     ns = config["namespace"] || "default"
 
     yaml =
       "apiVersion: v1\nkind: Config\ncurrent-context: default\n" <>
         "clusters:\n- name: default\n  cluster:\n    server: #{server}\n#{ca_line}\n" <>
-        "users:\n- name: default\n  user:\n    token: #{token}\n" <>
+        "users:\n- name: default\n  user:\n#{user_block}\n" <>
         "contexts:\n- name: default\n  context:\n    cluster: default\n    user: default\n    namespace: #{ns}\n"
 
     @k8s_conn.from_string(yaml)
@@ -206,10 +218,14 @@ defmodule ExGoCD.K8s do
          server <- cluster["server"] do
       ca_cert = cluster["certificate-authority-data"]
 
-      token =
+      {token, client_cert, client_key} =
         case parsed do
-          %{"users" => [%{"user" => %{"token" => t}} | _]} -> t
-          _ -> "exgocd-demo-token"
+          %{"users" => [%{"user" => user} | _]} ->
+            {Map.get(user, "token"), Map.get(user, "client-certificate-data"),
+             Map.get(user, "client-key-data")}
+
+          _ ->
+            {"exgocd-demo-token", nil, nil}
         end
 
       namespace =
@@ -229,7 +245,9 @@ defmodule ExGoCD.K8s do
          "server" => local_server,
          "token" => token,
          "ca_cert" => ca_cert,
-         "namespace" => namespace
+         "namespace" => namespace,
+         "client_cert" => client_cert,
+         "client_key" => client_key
        }}
     else
       _ -> {:error, :invalid_kubeconfig}

@@ -40,4 +40,12 @@ defmodule ExGoCD.ClusterProfiles.ClusterProfile do
   @doc "Returns the namespace from properties."
   def namespace(%__MODULE__{properties: props}), do: Map.get(props, "namespace", "default")
   def namespace(_), do: "default"
+
+  @doc "Returns the client certificate from properties."
+  def client_cert(%__MODULE__{properties: props}), do: Map.get(props, "client_cert")
+  def client_cert(_), do: nil
+
+  @doc "Returns the client key from properties."
+  def client_key(%__MODULE__{properties: props}), do: Map.get(props, "client_key")
+  def client_key(_), do: nil
 end

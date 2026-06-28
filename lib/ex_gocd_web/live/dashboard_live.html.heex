@@ -270,10 +270,10 @@
                   <td class="col-duration font-mono text-gray-500">
                     {format_duration(job.duration)}
                   </td>
-                  <td class="col-agent font-mono text-xs text-[#2d6ca2] hover:underline">
+                  <td class="col-agent font-mono text-xs text-[#2d6ca2]">
                     <%= if job.agent_uuid do %>
-                      <.link navigate={~p"/agents"}>
-                        {String.slice(job.agent_uuid, 0, 8)}
+                      <.link navigate={~p"/agents"} title={"Agent UUID: #{job.agent_uuid}"}>
+                        {String.slice(job.agent_uuid, 0, 8)}…
                       </.link>
                     <% else %>
                       —

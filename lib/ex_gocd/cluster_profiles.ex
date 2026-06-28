@@ -68,7 +68,9 @@ defmodule ExGoCD.ClusterProfiles do
               "kubernetes_cluster_url" => config["server"],
               "bearer_token" => config["token"],
               "kubernetes_cluster_ca_cert" => config["ca_cert"],
-              "namespace" => config["namespace"]
+              "namespace" => config["namespace"],
+              "client_cert" => config["client_cert"],
+              "client_key" => config["client_key"]
             }
           })
           |> Repo.insert()
@@ -94,15 +96,22 @@ defmodule ExGoCD.ClusterProfiles do
   def check_connection(%ClusterProfile{} = profile) do
     server = ClusterProfile.server_url(profile)
     token = ClusterProfile.bearer_token(profile)
+    client_cert = ClusterProfile.client_cert(profile)
+    client_key = ClusterProfile.client_key(profile)
 
-    if is_nil(server) or server == "" or is_nil(token) or token == "" do
+    has_token = token && token != ""
+    has_cert = client_cert && client_key && client_cert != "" && client_key != ""
+
+    if is_nil(server) or server == "" or not (has_token or has_cert) do
       {:error, :incomplete}
     else
       config = %{
         "server" => server,
         "token" => token,
         "ca_cert" => ClusterProfile.ca_cert(profile),
-        "namespace" => ClusterProfile.namespace(profile)
+        "namespace" => ClusterProfile.namespace(profile),
+        "client_cert" => client_cert,
+        "client_key" => client_key
       }
 
       case K8s.from_config(config) do

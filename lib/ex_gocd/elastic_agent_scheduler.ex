@@ -322,7 +322,9 @@ defmodule ExGoCD.ElasticAgentScheduler do
       "server" => ClusterProfile.server_url(cluster_profile) || "",
       "token" => ClusterProfile.bearer_token(cluster_profile) || "",
       "ca_cert" => ClusterProfile.ca_cert(cluster_profile),
-      "namespace" => ClusterProfile.namespace(cluster_profile)
+      "namespace" => ClusterProfile.namespace(cluster_profile),
+      "client_cert" => ClusterProfile.client_cert(cluster_profile),
+      "client_key" => ClusterProfile.client_key(cluster_profile)
     }
 
     case K8s.from_config(config) do
