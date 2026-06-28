@@ -99,8 +99,8 @@ defmodule ExGoCD.ClusterProfiles do
     client_cert = ClusterProfile.client_cert(profile)
     client_key = ClusterProfile.client_key(profile)
 
-    has_token = token && token != ""
-    has_cert = client_cert && client_key && client_cert != "" && client_key != ""
+    has_token = token != nil and token != ""
+    has_cert = client_cert != nil and client_key != nil and client_cert != "" and client_key != ""
 
     if is_nil(server) or server == "" or not (has_token or has_cert) do
       {:error, :incomplete}

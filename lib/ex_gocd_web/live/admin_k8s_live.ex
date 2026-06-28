@@ -67,7 +67,12 @@ defmodule ExGoCDWeb.AdminK8sLive do
   end
 
   def handle_async({:check_conn, id}, {:exit, reason}, socket) do
-    msg = "Check crashed: #{Exception.message(reason)}"
+    msg =
+      case reason do
+        %{__struct__: _} -> Exception.message(reason)
+        other -> inspect(other)
+      end
+
     status_map = Map.get(socket.assigns, :connection_status, %{})
     {:noreply, assign(socket, :connection_status, Map.put(status_map, id, {:error, msg}))}
   end
