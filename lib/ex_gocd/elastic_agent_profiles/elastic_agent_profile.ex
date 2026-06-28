@@ -75,4 +75,14 @@ defmodule ExGoCD.ElasticAgentProfiles.ElasticAgentProfile do
   @doc "Pod annotations."
   def pod_annotations(%__MODULE__{properties: props}), do: Map.get(props, "PodAnnotations", %{})
   def pod_annotations(_), do: %{}
+
+  @doc "Minimum number of agents to keep running (default 0 = scale-to-zero)."
+  def min_agents(%__MODULE__{properties: props}) do
+    case Map.get(props, "MinAgents") do
+      n when is_integer(n) and n > 0 -> n
+      _ -> 0
+    end
+  end
+
+  def min_agents(_), do: 0
 end

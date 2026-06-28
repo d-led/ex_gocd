@@ -52,11 +52,15 @@ defmodule ExGoCDWeb.AgentsLive do
     socket =
       if agent_type == :k8s_pods do
         socket
-        |> assign(tracked_pods: :loading, scheduler_events: [])
+        |> assign(tracked_pods: :loading, scheduler_events: [], cluster_statuses: %{})
         |> start_async(:load_tracked_pods, fn ->
+          profiles = ExGoCD.ClusterProfiles.list_profiles()
+          statuses = Map.new(profiles, fn p -> {p.id, ExGoCD.ClusterProfiles.check_connection(p)} end)
+
           %{
             pods: ExGoCD.ElasticAgentScheduler.tracked_pods(),
-            events: ExGoCD.ElasticAgentScheduler.recent_events()
+            events: ExGoCD.ElasticAgentScheduler.recent_events(),
+            cluster_statuses: statuses
           }
         end)
       else
@@ -67,12 +71,12 @@ defmodule ExGoCDWeb.AgentsLive do
   end
 
   @impl true
-  def handle_async(:load_tracked_pods, {:ok, %{pods: pods, events: events}}, socket) do
-    {:noreply, assign(socket, tracked_pods: pods, scheduler_events: events)}
+  def handle_async(:load_tracked_pods, {:ok, %{pods: pods, events: events} = data}, socket) do
+    {:noreply, assign(socket, tracked_pods: pods, scheduler_events: events, cluster_statuses: Map.get(data, :cluster_statuses, %{}))}
   end
 
-  def handle_async(:load_tracked_pods, {:exit, _reason}, socket) do
-    {:noreply, assign(socket, tracked_pods: %{}, scheduler_events: [])}
+  def handle_async(:load_tracked_pods, {:exit, _}, socket) do
+    {:noreply, assign(socket, tracked_pods: %{}, scheduler_events: [], cluster_statuses: %{})}
   end
 
   @impl true

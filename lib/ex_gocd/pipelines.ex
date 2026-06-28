@@ -2146,28 +2146,42 @@ defmodule ExGoCD.Pipelines do
   Creates a pipeline config in the DB.
   """
   def create_pipeline(attrs) do
-    Repo.transaction(fn ->
-      with {:ok, pipeline} <- %Pipeline{} |> Pipeline.changeset(attrs) |> Repo.insert(),
-           :ok <- CycleDetector.check_dependency_cycles() do
-        pipeline
-      else
-        {:error, reason} -> Repo.rollback(reason)
-      end
-    end)
+    result =
+      Repo.transaction(fn ->
+        with {:ok, pipeline} <- %Pipeline{} |> Pipeline.changeset(attrs) |> Repo.insert(),
+             :ok <- CycleDetector.check_dependency_cycles() do
+          pipeline
+        else
+          {:error, reason} -> Repo.rollback(reason)
+        end
+      end)
+
+    with {:ok, pipeline} <- result do
+      ExGoCD.ConfigSnapshot.after_mutation("admin", "pipeline created: #{pipeline.name}")
+    end
+
+    result
   end
 
   @doc """
   Updates a pipeline config.
   """
   def update_pipeline(%Pipeline{} = pipeline, attrs) do
-    Repo.transaction(fn ->
-      with {:ok, updated} <- pipeline |> Pipeline.changeset(attrs) |> Repo.update(),
-           :ok <- CycleDetector.check_dependency_cycles() do
-        updated
-      else
-        {:error, reason} -> Repo.rollback(reason)
-      end
-    end)
+    result =
+      Repo.transaction(fn ->
+        with {:ok, updated} <- pipeline |> Pipeline.changeset(attrs) |> Repo.update(),
+             :ok <- CycleDetector.check_dependency_cycles() do
+          updated
+        else
+          {:error, reason} -> Repo.rollback(reason)
+        end
+      end)
+
+    with {:ok, updated} <- result do
+      ExGoCD.ConfigSnapshot.after_mutation("admin", "pipeline updated: #{updated.name}")
+    end
+
+    result
   end
 
   @doc """
@@ -2198,7 +2212,13 @@ defmodule ExGoCD.Pipelines do
   Deletes a pipeline config.
   """
   def delete_pipeline(%Pipeline{} = pipeline) do
-    Repo.delete(pipeline)
+    result = Repo.delete(pipeline)
+
+    with {:ok, deleted} <- result do
+      ExGoCD.ConfigSnapshot.after_mutation("admin", "pipeline deleted: #{deleted.name}")
+    end
+
+    result
   end
 
   @doc """
@@ -2450,19 +2470,39 @@ defmodule ExGoCD.Pipelines do
   end
 
   def create_template(attrs) do
-    %Template{}
-    |> Template.changeset(attrs)
-    |> Repo.insert()
+    result =
+      %Template{}
+      |> Template.changeset(attrs)
+      |> Repo.insert()
+
+    with {:ok, template} <- result do
+      ExGoCD.ConfigSnapshot.after_mutation("admin", "template created: #{template.name}")
+    end
+
+    result
   end
 
   def update_template(%Template{} = template, attrs) do
-    template
-    |> Template.changeset(attrs)
-    |> Repo.update()
+    result =
+      template
+      |> Template.changeset(attrs)
+      |> Repo.update()
+
+    with {:ok, updated} <- result do
+      ExGoCD.ConfigSnapshot.after_mutation("admin", "template updated: #{updated.name}")
+    end
+
+    result
   end
 
   def delete_template(%Template{} = template) do
-    Repo.delete(template)
+    result = Repo.delete(template)
+
+    with {:ok, deleted} <- result do
+      ExGoCD.ConfigSnapshot.after_mutation("admin", "template deleted: #{deleted.name}")
+    end
+
+    result
   end
 
   @doc """

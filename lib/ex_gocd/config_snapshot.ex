@@ -52,6 +52,16 @@ defmodule ExGoCD.ConfigSnapshot do
     end
   end
 
+  @doc """
+  Fire-and-forget snapshot after a config mutation succeeds.
+  Runs in a Task so snapshot failures never affect the caller.
+  """
+  @spec after_mutation(String.t(), String.t()) :: :ok
+  def after_mutation(changed_by, change_reason) do
+    Task.start(fn -> snapshot(changed_by, change_reason) end)
+    :ok
+  end
+
   # ── Config capture ──────────────────────────────────────────────────
 
   defp capture do

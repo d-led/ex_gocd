@@ -72,6 +72,7 @@ defmodule ExGoCD.ElasticAgentScheduler do
   def handle_info(:tick, state) do
     state = cleanup_idle_pods(state)
     state = check_and_scale(state)
+    state = maintain_min_agents(state)
     schedule_tick()
     {:noreply, state}
   end
@@ -96,6 +97,54 @@ defmodule ExGoCD.ElasticAgentScheduler do
         acc
       end
     end)
+  end
+
+  # ── Minimum agents ──────────────────────────────────────────────────────────
+
+  defp maintain_min_agents(state) do
+    Enum.reduce(ElasticAgentProfiles.list_profiles(), state, fn profile, acc ->
+      min = ElasticAgentProfile.min_agents(profile)
+      if min <= 0, do: acc, else: ensure_min_pods(acc, profile, min)
+    end)
+  end
+
+  defp ensure_min_pods(state, profile, min) do
+    profile_pods =
+      Enum.count(state.pods, fn {_name, info} -> info[:profile_name] == profile.name end)
+
+    if profile_pods >= min do
+      state
+    else
+      cluster = ClusterProfiles.get_profile(profile.cluster_profile_id)
+
+      if cluster do
+        conn = build_k8s_conn(cluster)
+
+        if conn do
+          Enum.reduce(1..(min - profile_pods), state, fn i, acc ->
+            {:ok, pod_spec} =
+              build_pod_spec(profile, cluster, %{job: "min-agent-#{i}", resources: [], environments: []},
+                [])
+
+            namespace = ClusterProfile.namespace(cluster)
+
+            case K8s.create_pod(conn, pod_spec, namespace: namespace) do
+              {:ok, pod_name} ->
+                track_pod(acc, pod_name, profile, cluster, %{job: "min-agent-#{i}", resources: []})
+                |> then(fn s -> log_event(s, :info, "Created min-agent pod #{pod_name} for profile #{profile.name}") end)
+
+              {:error, reason} ->
+                log_event(acc, :error, "Failed to create min-agent pod: #{inspect(reason)}")
+            end
+          end)
+        else
+          log_event(state, :error,
+            "Cannot build K8s connection for min-agents of profile #{profile.name}")
+        end
+      else
+        log_event(state, :error, "No cluster profile for elastic profile #{profile.name}")
+      end
+    end
   end
 
   # ── Pod lifecycle ──────────────────────────────────────────────────────────
