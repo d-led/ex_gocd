@@ -612,7 +612,8 @@ defmodule ExGoCDWeb.AgentsLive do
           <h2 class="page-header_title">Cluster Connection Status</h2>
         </div>
         <div style="display:flex;gap:12px;flex-wrap:wrap;margin:8px 0 16px;">
-          <%= for {id, status} <- @cluster_statuses do %>
+          <%= if is_map(@cluster_statuses) do %>
+            <%= for {id, status} <- @cluster_statuses do %>
             <div style="border:1px solid #e5e7eb;border-radius:8px;padding:8px 14px;font-size:13px;display:flex;align-items:center;gap:8px;">
               <span style={"width:8px;height:8px;border-radius:50%;background:#{cluster_dot_color(status)}"}>
               </span>
@@ -622,23 +623,16 @@ defmodule ExGoCDWeb.AgentsLive do
               </span>
             </div>
           <% end %>
-          <%= if map_size(@cluster_statuses) == 0 do %>
-            <span style="font-size:13px;color:#9ca3af;font-style:italic;">
-              No clusters configured — visit
-              <a href="/admin/elastic_agents" style="color:#3b82f6;">Elastic Agents</a>
-              to add one.
-            </span>
-          <% end %>
-        </div>
-
-        <div class="page-header" style="margin-top: 24px;">
-          <h2 class="page-header_title">Tracked Elastic Agent Pods</h2>
-        </div>
-        <div class="agents-table-container" style="margin-top: 8px;">
-          <table class="agents-table">
-            <thead>
-              <tr>
-                <th>Pod Name</th>
+            <%= if map_size(@cluster_statuses) == 0 do %>
+              <span style="font-size:13px;color:#9ca3af;font-style:italic;">
+                No clusters configured — visit
+                <a href="/admin/elastic_agents" style="color:#3b82f6;">Elastic Agents</a>
+                to add one.
+              </span>
+            <% end %>
+          <% else %>
+            <span style="font-size:13px;color:#9ca3af;">
+              Checking cluster connectivity…
                 <th>Profile</th>
                 <th>Cluster</th>
                 <th>Namespace</th>
