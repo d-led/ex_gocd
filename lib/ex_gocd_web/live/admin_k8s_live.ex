@@ -66,8 +66,10 @@ defmodule ExGoCDWeb.AdminK8sLive do
      )}
   end
 
-  def handle_async({:check_conn, _id}, {:exit, reason}, socket) do
-    {:noreply, put_flash(socket, :error, "Connection check failed: #{inspect(reason)}")}
+  def handle_async({:check_conn, id}, {:exit, reason}, socket) do
+    msg = "Check crashed: #{Exception.message(reason)}"
+    status_map = Map.get(socket.assigns, :connection_status, %{})
+    {:noreply, assign(socket, :connection_status, Map.put(status_map, id, {:error, msg}))}
   end
 
   # ── Cluster Profile actions ───────────────────────────────────────────────
