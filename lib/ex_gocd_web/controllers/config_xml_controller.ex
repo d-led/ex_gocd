@@ -67,7 +67,7 @@ defmodule ExGoCDWeb.ConfigXmlController do
     end
   end
 
-  defp config_json_to_xml(config_json) do
+  defp config_json_to_xml(_config_json) do
     ExGoCD.ConfigXml.generate()
   end
 end

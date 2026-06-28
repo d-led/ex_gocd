@@ -80,9 +80,17 @@ defmodule ExGoCD.ElasticAgentProfiles.ElasticAgentProfile do
   def min_agents(%__MODULE__{properties: props}) do
     case Map.get(props, "MinAgents") do
       n when is_integer(n) and n > 0 -> n
+      n when is_binary(n) -> parse_int(n)
       _ -> 0
     end
   end
 
   def min_agents(_), do: 0
+
+  defp parse_int(str) do
+    case Integer.parse(str) do
+      {n, _} -> n
+      :error -> 0
+    end
+  end
 end

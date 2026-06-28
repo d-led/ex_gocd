@@ -314,6 +314,78 @@ defmodule ExGoCD.Accounts do
   defp role_sufficient?("viewer", "viewer"), do: true
   defp role_sufficient?(_, _), do: false
 
+  # ── Role CRUD (GoCD parity: RoleConfig) ────────────────────────────
+
+  alias ExGoCD.Accounts.Role
+
+  @doc "Lists all roles."
+  def list_roles do
+    Repo.all(Role) |> Enum.sort_by(& &1.name)
+  end
+
+  @doc "Gets a role by name."
+  def get_role_by_name(name) when is_binary(name) do
+    Repo.get_by(Role, name: name)
+  end
+
+  @doc "Gets a role by ID."
+  def get_role!(id) do
+    Repo.get!(Role, id)
+  end
+
+  @doc "Creates a role."
+  def create_role(attrs) do
+    %Role{}
+    |> Role.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  @doc "Updates a role."
+  def update_role(%Role{} = role, attrs) do
+    role
+    |> Role.changeset(attrs)
+    |> Repo.update()
+  end
+
+  @doc """
+  Deletes a role. Returns `{:error, :in_use}` if the role is referenced
+  by any pipeline group permission (GoCD parity: validate not in use).
+  """
+  def delete_role(%Role{} = role) do
+    import Ecto.Query
+
+    in_use =
+      Repo.exists?(
+        from(pp in PipelineGroupPermission,
+          where: pp.role == ^role.name
+        )
+      )
+
+    if in_use do
+      {:error, :in_use}
+    else
+      Repo.delete(role)
+    end
+  end
+
+  @doc """
+  Checks if a user belongs to a named role.
+  Mirrors GoCD's `RoleConfig.isMemberOf`.
+  """
+  def user_in_role?(%User{username: username}, role_name) when is_binary(role_name) do
+    case get_role_by_name(role_name) do
+      %Role{type: "gocd", users: users} -> username in users
+      _ -> false
+    end
+  end
+
+  @doc "Returns role names for a user."
+  def roles_for_user(%User{username: username}) do
+    Repo.all(from r in Role, where: r.type == "gocd")
+    |> Enum.filter(&(username in &1.users))
+    |> Enum.map(& &1.name)
+  end
+
   # ── Mock helpers ────────────────────────────────────────────────────────
 
   defp mock? do

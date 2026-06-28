@@ -123,4 +123,11 @@ defmodule ExGoCD.ClusterProfiles do
       end
     end
   end
+
+  @doc "Same as check_connection/1 but never raises — catches all errors."
+  def safe_check_connection(%ClusterProfile{} = profile) do
+    check_connection(profile)
+  rescue
+    e -> {:error, "Internal: #{Exception.message(e)}"}
+  end
 end

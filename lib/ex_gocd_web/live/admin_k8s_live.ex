@@ -42,51 +42,26 @@ defmodule ExGoCDWeb.AdminK8sLive do
         connection_status: %{}
       )
 
-    # Start async connectivity checks for each cluster profile
-    socket =
-      Enum.reduce(profiles, socket, fn profile, acc ->
-        try do
-          start_async(acc, {:check_conn, profile.id}, fn ->
-            {profile.id, ClusterProfiles.check_connection(profile)}
-          end)
-        rescue
-          _ -> acc
-        end
-      end)
+    if connected?(socket) do
+      parent = self()
+
+      for profile <- profiles do
+        Task.start(fn ->
+          result = ClusterProfiles.safe_check_connection(profile)
+          send(parent, {:check_result, profile.id, result})
+        end)
+      end
+    end
 
     {:ok, socket}
   end
 
   @impl true
-  def handle_async({:check_conn, id}, {:ok, {id, status}}, socket) do
+  def handle_info({:check_result, profile_id, result}, socket) do
     {:noreply,
      put_in(
        socket.assigns.connection_status,
-       Map.put(socket.assigns.connection_status, id, status)
-     )}
-  end
-
-  @impl true
-  def handle_async({:check_conn, id}, {:exit, reason}, socket) do
-    msg =
-      case reason do
-        %{__struct__: _} -> Exception.message(reason)
-        other -> inspect(other)
-      end
-
-    status_map = Map.get(socket.assigns, :connection_status, %{})
-    {:noreply, assign(socket, :connection_status, Map.put(status_map, id, {:error, msg}))}
-  end
-
-  # Catch-all — never crash on unexpected async results
-  def handle_async({:check_conn, id}, unexpected, socket) do
-    status_map = Map.get(socket.assigns, :connection_status, %{})
-
-    {:noreply,
-     assign(
-       socket,
-       :connection_status,
-       Map.put(status_map, id, {:error, "Unexpected: #{inspect(unexpected)}"})
+       Map.put(socket.assigns.connection_status, profile_id, result)
      )}
   end
 
@@ -218,10 +193,14 @@ defmodule ExGoCDWeb.AdminK8sLive do
         {:noreply, socket}
 
       profile ->
-        start_async(socket, {:check_conn, id}, fn ->
-          {id, ClusterProfiles.check_connection(profile)}
+        parent = self()
+
+        Task.start(fn ->
+          result = ClusterProfiles.safe_check_connection(profile)
+          send(parent, {:check_result, profile.id, result})
         end)
-        |> then(&{:noreply, &1})
+
+        {:noreply, socket}
     end
   end
 

@@ -161,6 +161,13 @@ defmodule ExGoCDWeb.Router do
       get "/go/admin/config_xml", ConfigXmlController, :index
       post "/admin/config_xml/import", ConfigXmlController, :import_xml
       post "/admin/config_xml/revert/:version_id", ConfigXmlController, :revert
+
+      # Role configuration API (GoCD parity: RoleConfig)
+      get "/api/admin/security/roles", API.Admin.RoleController, :index
+      get "/api/admin/security/roles/:role_name", API.Admin.RoleController, :show
+      post "/api/admin/security/roles", API.Admin.RoleController, :create
+      put "/api/admin/security/roles/:role_name", API.Admin.RoleController, :update
+      delete "/api/admin/security/roles/:role_name", API.Admin.RoleController, :delete
     end
   end
 
