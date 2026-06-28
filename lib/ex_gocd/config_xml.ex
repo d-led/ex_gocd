@@ -15,13 +15,24 @@ defmodule ExGoCD.ConfigXml do
     pipelines = Pipelines.list_pipelines() |> Repo.preload([:materials, stages: [jobs: :tasks]])
     pipeline_xml = pipelines |> Enum.map(&render_pipeline/1) |> Enum.join("\n")
 
+    templates_xml = render_templates()
+    environments_xml = render_environments()
+    security_xml = render_security()
+    elastic_xml = render_elastic_profiles()
+    cluster_xml = render_cluster_profiles()
+
     """
     <?xml version="1.0" encoding="utf-8"?>
     <cruise xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="cruise-config.xsd" schemaVersion="120">
       <server serverId="ex-gocd" artifactsdir="artifacts" />
+    #{security_xml}
+    #{environments_xml}
       <pipelines group="default">
     #{pipeline_xml}
       </pipelines>
+    #{templates_xml}
+    #{elastic_xml}
+    #{cluster_xml}
     </cruise>
     """
   end
@@ -563,4 +574,100 @@ defmodule ExGoCD.ConfigXml do
   defp maybe_put_attr(map, _key, ""), do: map
   defp maybe_put_attr(map, _key, false), do: map
   defp maybe_put_attr(map, key, value), do: Map.put(map, key, value)
+
+  # ── Extended config sections (GoCD parity: full cruise-config) ─────
+
+  defp render_templates do
+    alias ExGoCD.Pipelines.Template
+
+    templates = Repo.all(Template) |> Repo.preload(:pipelines)
+
+    if Enum.empty?(templates) do
+      ""
+    else
+      tag3(
+        "templates",
+        %{},
+        Enum.map_join(templates, "\n", fn t ->
+          stages_xml = render_template_stages(t.stages || [])
+          tag3("pipeline", %{name: t.name, template: true}, stages_xml)
+        end)
+      )
+    end
+  end
+
+  defp render_template_stages(stages) do
+    Enum.map_join(stages, "", fn s ->
+      name = s["name"] || s[:name] || ""
+      jobs = s["jobs"] || s[:jobs] || []
+
+      jobs_xml =
+        Enum.map_join(jobs, "", fn j -> tag2("job", %{name: j["name"] || j[:name] || ""}) end)
+
+      tag3("stage", %{name: name}, tag3("jobs", %{}, jobs_xml))
+    end)
+  end
+
+  defp render_environments do
+    alias ExGoCD.Pipelines.Environment
+
+    envs = Repo.all(Environment)
+
+    if Enum.empty?(envs) do
+      ""
+    else
+      tag3(
+        "environments",
+        %{},
+        Enum.map_join(envs, "\n", fn e ->
+          pipelines_xml =
+            (e.pipelines || [])
+            |> Enum.map_join("", fn p ->
+              tag2("pipeline", %{name: p["name"] || p[:name] || ""})
+            end)
+
+          tag3("environment", %{name: e.name}, pipelines_xml)
+        end)
+      )
+    end
+  end
+
+  defp render_security do
+    alias ExGoCD.Repo
+    alias ExGoCD.Accounts.Role
+
+    roles = Repo.all(Role)
+
+    if Enum.empty?(roles) do
+      ""
+    else
+      tag3(
+        "security",
+        %{},
+        tag3(
+          "roles",
+          %{},
+          Enum.map_join(roles, "\n", fn r ->
+            users_xml =
+              (r.users || [])
+              |> Enum.map_join("", fn u -> tag2("user", %{name: u}) end)
+
+            tag3("role", %{name: r.name}, users_xml)
+          end)
+        )
+      )
+    end
+  rescue
+    _ -> ""
+  end
+
+  defp render_elastic_profiles do
+    # Stub — elastic profiles handled by k8s agent; add when schema stabilizes
+    ""
+  end
+
+  defp render_cluster_profiles do
+    # Stub — cluster profiles handled by k8s agent; add when schema stabilizes
+    ""
+  end
 end
