@@ -43,6 +43,7 @@ defmodule ExGoCD.Analytics.SnapshotCollector do
   @impl true
   def handle_info(:tick, state) do
     do_snapshot()
+    ExGoCD.Agents.clean_test_agents()
     {:noreply, state}
   end
 

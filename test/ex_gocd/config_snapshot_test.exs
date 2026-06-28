@@ -3,6 +3,7 @@ defmodule ExGoCD.ConfigSnapshotTest do
 
   alias ExGoCD.ConfigSnapshot
   alias ExGoCD.ConfigVersion
+  alias ExGoCD.ClusterProfiles
   alias ExGoCD.Repo
 
   setup do
@@ -73,11 +74,28 @@ defmodule ExGoCD.ConfigSnapshotTest do
       refute secret_val == "my-secret-value"
     end
 
-    # Cluster profile encryption tested implicitly via ClusterProfile.bearer_token/1
-    # in the snapshot capture function. Direct insert not possible because
-    # bearer_token is a virtual field backed by properties map.
-    @tag :skip
     test "cluster profiles encrypt bearer tokens" do
+      {:ok, _profile} =
+        ClusterProfiles.create_profile(%{
+          name: "encryption-test-cluster",
+          plugin_id: "ex_gocd.elasticagent.kubernetes",
+          properties: %{
+            "kubernetes_cluster_url" => "https://k8s.test:6443",
+            "bearer_token" => "super-secret-bearer-token-12345"
+          }
+        })
+
+      {:ok, v} = ConfigSnapshot.snapshot("test", "bearer token encryption check")
+
+      clusters = v.config_json["cluster_profiles"]
+      test_cluster = Enum.find(clusters, &(&1["name"] == "encryption-test-cluster"))
+
+      assert test_cluster != nil
+      encrypted = test_cluster["encrypted_bearer_token"]
+
+      assert encrypted != nil
+      assert String.starts_with?(encrypted, "AES:")
+      refute encrypted == "super-secret-bearer-token-12345"
     end
   end
 

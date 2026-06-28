@@ -243,6 +243,7 @@ defmodule ExGoCD.ConfigSnapshot do
 
   defp cluster_profiles_config do
     alias ExGoCD.ClusterProfiles
+    alias ExGoCD.ClusterProfiles.ClusterProfile
 
     ClusterProfiles.list_profiles()
     |> Enum.map(fn c ->
@@ -250,11 +251,11 @@ defmodule ExGoCD.ConfigSnapshot do
         "id" => c.id,
         "name" => c.name,
         "plugin_id" => c.plugin_id,
-        "server_url" => c.server_url,
-        "encrypted_bearer_token" => encrypt_if_present(c.bearer_token),
-        "encrypted_client_key" => encrypt_if_present(c.client_key_data),
-        "namespace" => c.namespace,
-        "ca_cert" => c.ca_cert_data,
+        "server_url" => ClusterProfile.server_url(c),
+        "encrypted_bearer_token" => encrypt_if_present(ClusterProfile.bearer_token(c)),
+        "encrypted_client_key" => encrypt_if_present(ClusterProfile.client_key(c)),
+        "namespace" => ClusterProfile.namespace(c),
+        "ca_cert" => ClusterProfile.ca_cert(c),
         "properties" => c.properties
       }
     end)

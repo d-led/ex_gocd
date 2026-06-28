@@ -291,7 +291,12 @@ defmodule ExGoCDWeb.AnalyticsLive do
 
   defp build_duration_chart(runs) do
     sorted = Enum.sort_by(runs, & &1.counter, :asc)
-    max_sec = if sorted != [], do: Enum.max_by(sorted, &(&1.build_time_sec || 0)).build_time_sec || 1, else: 1
+
+    max_sec =
+      if sorted != [],
+        do: Enum.max_by(sorted, &(&1.build_time_sec || 0)).build_time_sec || 1,
+        else: 1
+
     assigns = %{runs: sorted, max_sec: max_sec}
 
     ~H"""
@@ -300,11 +305,15 @@ defmodule ExGoCDWeb.AnalyticsLive do
         <% sec = r.build_time_sec || 0 %>
         <% pct = if @max_sec > 0, do: Float.round(sec / @max_sec * 100, 1), else: 0 %>
         <div class="flex items-center gap-2.5 text-xs" title={"Run ##{r.counter}: #{sec}s"}>
-          <span class="w-16 shrink-0 text-right tabular-nums text-gray-500 font-mono">##{r.counter}</span>
+          <span class="w-16 shrink-0 text-right tabular-nums text-gray-500 font-mono">
+            ##{r.counter}
+          </span>
           <div class="flex-1 h-4 bg-gray-100 rounded overflow-hidden min-w-0">
             <div class="h-full bg-amber-400 rounded transition-all" style={"width:#{pct}%"}></div>
           </div>
-          <span class="w-12 shrink-0 text-right tabular-nums font-semibold text-gray-700">{sec}s</span>
+          <span class="w-12 shrink-0 text-right tabular-nums font-semibold text-gray-700">
+            {sec}s
+          </span>
         </div>
       <% end %>
     </div>
@@ -652,6 +661,7 @@ defmodule ExGoCDWeb.AnalyticsLive do
 
   defp vsm_duration_chart(data) do
     sorted = Enum.sort_by(data, & &1.counter, :asc)
+
     max_sec =
       if sorted != [],
         do: Enum.max_by(sorted, &(&1.total_duration_sec || 0)).total_duration_sec || 1,
@@ -665,11 +675,15 @@ defmodule ExGoCDWeb.AnalyticsLive do
         <% sec = r.total_duration_sec || 0 %>
         <% pct = if @max_sec > 0, do: Float.round(sec / @max_sec * 100, 1), else: 0 %>
         <div class="flex items-center gap-2.5 text-xs" title={"Run ##{r.counter}: #{fmt_sec(sec)}"}>
-          <span class="w-16 shrink-0 text-right tabular-nums text-gray-500 font-mono">##{r.counter}</span>
+          <span class="w-16 shrink-0 text-right tabular-nums text-gray-500 font-mono">
+            ##{r.counter}
+          </span>
           <div class="flex-1 h-4 bg-gray-100 rounded overflow-hidden min-w-0">
             <div class="h-full bg-amber-400 rounded transition-all" style={"width:#{pct}%"}></div>
           </div>
-          <span class="w-14 shrink-0 text-right tabular-nums font-semibold text-gray-700">{fmt_sec(sec)}</span>
+          <span class="w-14 shrink-0 text-right tabular-nums font-semibold text-gray-700">
+            {fmt_sec(sec)}
+          </span>
         </div>
       <% end %>
     </div>

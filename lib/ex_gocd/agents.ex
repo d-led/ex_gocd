@@ -430,11 +430,16 @@ defmodule ExGoCD.Agents do
   def touch_agent_on_heartbeat(uuid, runtime_attrs) when is_binary(uuid) do
     hostname = runtime_attrs["hostName"] || runtime_attrs["hostname"]
 
+    # Load agent early so we can borrow its hostname for display when heartbeat omits it.
+    agent = get_agent_by_uuid(uuid)
+
     result =
-      uuid
-      |> find_or_reregister_agent(hostname)
+      case agent do
+        nil -> find_or_reregister_agent(uuid, hostname)
+        %Agent{} -> {:ok, agent}
+      end
       |> case do
-        {:ok, agent} -> update_agent_on_heartbeat(agent, runtime_attrs)
+        {:ok, found} -> update_agent_on_heartbeat(found, runtime_attrs)
         {:error, _} = error -> error
       end
 
@@ -444,9 +449,13 @@ defmodule ExGoCD.Agents do
         {:error, _} -> :error
       end
 
+    # Display label: heartbeat hostname > stored hostname > elastic ID > UUID prefix
+    display_hostname =
+      hostname || (agent && agent.hostname) || fallback_label(runtime_attrs, uuid)
+
     log_registration(
       uuid,
-      hostname || fallback_label(runtime_attrs, uuid),
+      display_hostname,
       outcome,
       classify_from_attrs(runtime_attrs)
     )
