@@ -614,15 +614,15 @@ defmodule ExGoCDWeb.AgentsLive do
         <div style="display:flex;gap:12px;flex-wrap:wrap;margin:8px 0 16px;">
           <%= if is_map(@cluster_statuses) do %>
             <%= for {id, status} <- @cluster_statuses do %>
-            <div style="border:1px solid #e5e7eb;border-radius:8px;padding:8px 14px;font-size:13px;display:flex;align-items:center;gap:8px;">
-              <span style={"width:8px;height:8px;border-radius:50%;background:#{cluster_dot_color(status)}"}>
-              </span>
-              <span style="font-weight:600;">{cluster_name(id)}</span>
-              <span style={"color:#{cluster_text_color(status)}"}>
-                {cluster_label(status)}
-              </span>
-            </div>
-          <% end %>
+              <div style="border:1px solid #e5e7eb;border-radius:8px;padding:8px 14px;font-size:13px;display:flex;align-items:center;gap:8px;">
+                <span style={"width:8px;height:8px;border-radius:50%;background:#{cluster_dot_color(status)}"}>
+                </span>
+                <span style="font-weight:600;">{cluster_name(id)}</span>
+                <span style={"color:#{cluster_text_color(status)}"}>
+                  {cluster_label(status)}
+                </span>
+              </div>
+            <% end %>
             <%= if map_size(@cluster_statuses) == 0 do %>
               <span style="font-size:13px;color:#9ca3af;font-style:italic;">
                 No clusters configured — visit
@@ -633,22 +633,9 @@ defmodule ExGoCDWeb.AgentsLive do
           <% else %>
             <span style="font-size:13px;color:#9ca3af;">
               Checking cluster connectivity…
-                <th>Profile</th>
-                <th>Cluster</th>
-                <th>Namespace</th>
-                <th>Job</th>
-                <th>Resources</th>
-                <th>Status</th>
-                <th>Created</th>
-              </tr>
-            </thead>
-            <tbody>
-              <%= if @tracked_pods == :loading do %>
-                <tr>
-                  <td colspan="8" class="text-center text-gray-500 py-4">
-                    Loading tracked pods…
-                  </td>
-                </tr>
+            </span>
+          <% end %>
+        </div>
               <% else %>
                 <%= if map_size(@tracked_pods) == 0 do %>
                   <tr>
