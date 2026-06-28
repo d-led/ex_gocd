@@ -1,6 +1,6 @@
 # Comprehensive GoCD Feature Parity Plan
 
-*Audited 2026-06-22. Updated 2026-06-28. 828 ExUnit tests (0 skipped), 16/16 quality gate.*
+*Audited 2026-06-22. Updated 2026-06-28. 832 ExUnit tests (0 skipped), 16/16 quality gate.*
 
 > This is the single source of truth. Supersedes: `parity_roadmap_plan.md`, `vsm_parity_plan.md`, `auth_and_env_plan.md`, `external-ci-pipeline-sync-plan.md`.
 
@@ -125,17 +125,17 @@ All B17-B21 complete: agent transitions schema, utilization snapshots (5-min Gen
 
 ### ⚪ P4: Low Priority / Not Started
 
-| # | Gap | Effort |
-|---|-----|--------|
-| B22 | Feeds XML (pipeline/stage/job RSS — CcTray parity) | S |
-| B23 | Mailserver config | S |
-| B24 | Site URLs config | S |
-| B25 | Job timeout config | S |
-| B26 | Notification filters (per-user, per-event) | S |
-| B27 | SCMs API | S |
-| B28 | Permissions API | S |
-| B29 | Artifact stores API | S |
-| B30 | Server health API | S |
+| # | Gap | Effort | Status |
+|---|-----|--------|--------|
+| B22 | Feeds XML (pipeline/stage/job RSS — CcTray parity) | S | ✅ CCTray XML + Atom feeds at `/api/feeds/pipelines.xml` |
+| B23 | Mailserver config | S | 🟡 |
+| B24 | Site URLs config | S | 🟡 |
+| B25 | Job timeout config | S | ✅ Per-job `timeout` field, console inactivity monitor, "never" support |
+| B26 | Notification filters (per-user, per-event) | S | ✅ Schema + CRUD API + dispatch wired to Mailer, 7 tests |
+| B27 | SCMs API | S | 🟡 No CRUD controller |
+| B28 | Permissions API | S | ✅ Dynamic: roles + pipeline group permissions from DB |
+| B29 | Artifact stores API | S | ✅ Full CRUD |
+| B30 | Server health API | S | ✅ `/server_health_messages` with real health checks |
 
 ---
 
@@ -151,7 +151,7 @@ All B17-B21 complete: agent transitions schema, utilization snapshots (5-min Gen
 
 ## Part D: Build & Quality
 
-- **Tests**: 828 ExUnit tests (0 skipped), Go agent tests pass, Cypress E2E suite (108 tests, 15 specs)
+- **Tests**: 839 ExUnit tests (0 skipped), Go agent tests pass, Cypress E2E suite (108 tests, 15 specs)
 - **Quality gate**: `scripts/quality-gate.sh` — 16/16 checks pass: compile `--warnings-as-errors`, Credo, Sobelow, format, link checker
 - **Compile**: clean with `--warnings-as-errors` on all files
 - **Go agent**: `go build`, `go vet`, `go test ./...` — all clean
@@ -170,12 +170,12 @@ GoCD links to VSM from these locations (`gocd-link-support.js` + `spark_routes.t
 |-----------------|----------------|
 | Pipeline activity → VSM per run | ✅ "VSM" button on each counter row in `PipelineActivityLive` |
 | Pipeline activity → VSM (`getVSMLink` in run info widget) | ✅ Same as above |
-| Dashboard → VSM (pipeline card) | ❌ No VSM link from dashboard pipeline cards |
+| Dashboard → VSM (pipeline card) | ✅ "VSM" link on each pipeline instance card |
 | Stage details → VSM (breadcrumb counter link) | ✅ Breadcrumbs link to VSM for pipeline counter |
 | Material modifications → VSM (`materialsVsmLink`) | ❌ Material details don't link to material VSM |
 | Stage overview → VSM (stage_overview_shim) | ❌ Not applicable (GoCD-specific D3 shim) |
 
-**Gap**: Dashboard cards should link to VSM for the latest pipeline run.
+**Gap**: Material modification entries could link to material VSM (low priority).
 
 ---
 

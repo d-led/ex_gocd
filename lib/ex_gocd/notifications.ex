@@ -35,7 +35,7 @@ defmodule ExGoCD.Notifications do
         from f in NotificationFilter,
           where:
             f.pipeline_name == ^pipeline_name and f.stage_name == ^stage_name and
-              (f.event == ^event or f.event == "All")
+              (f.event == ^event or f.event == "all")
       )
 
     Enum.each(matched, fn filter ->
@@ -48,7 +48,8 @@ defmodule ExGoCD.Notifications do
   defp deliver(filter, pipeline_name, stage_name, event, result, opts) do
     user = ExGoCD.Accounts.get_user!(filter.user_id)
 
-    ExGoCD.Mailer.stage_notification(user.email,
+    # Use username as the email identifier (ex_gocd users identify by username).
+    ExGoCD.Mailer.stage_notification(user.username,
       pipeline_name: pipeline_name,
       stage_name: stage_name,
       event: event,
