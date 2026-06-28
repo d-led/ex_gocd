@@ -104,34 +104,33 @@ defmodule ExGoCDWeb.AdminK8sLive do
     {:noreply, assign(socket, show_cluster_modal: false, editing_cluster: nil)}
   end
 
-  def handle_event("parse_kubeconfig", %{"cluster" => %{"kubeconfig_yaml" => yaml}}, socket)
+  def handle_event("auto_parse_kubeconfig", %{"cluster" => %{"kubeconfig_yaml" => yaml}}, socket)
       when is_binary(yaml) and yaml != "" do
     case ExGoCD.K8s.extract_k3s_config(yaml) do
       {:ok, config} ->
-        # Update form fields with parsed values, keeping existing name
         current = socket.assigns.cluster_form
         form_data = Map.put(current.data || %{}, :server_url, config["server"])
         form_data = Map.put(form_data, :bearer_token, config["token"])
         form_data = Map.put(form_data, :ca_cert, config["ca_cert"])
         form_data = Map.put(form_data, :namespace, config["namespace"])
+        form_data = Map.put(form_data, :client_cert, config["client_cert"])
+        form_data = Map.put(form_data, :client_key, config["client_key"])
+        form_data = Map.put(form_data, :kubeconfig_parsed, true)
 
         changeset =
           %ClusterProfile{}
           |> ClusterProfile.changeset(normalize_cluster_params(form_data))
           |> Map.put(:action, :validate)
 
-        {:noreply,
-         socket
-         |> assign(cluster_form: to_form(changeset))
-         |> put_flash(:info, "Kubeconfig parsed — fields auto-filled.")}
+        {:noreply, assign(socket, cluster_form: to_form(changeset))}
 
-      {:error, reason} ->
-        {:noreply, put_flash(socket, :error, "Failed to parse kubeconfig: #{reason}")}
+      {:error, _} ->
+        {:noreply, socket}
     end
   end
 
-  def handle_event("parse_kubeconfig", _params, socket) do
-    {:noreply, put_flash(socket, :error, "Please paste a kubeconfig YAML first.")}
+  def handle_event("auto_parse_kubeconfig", _params, socket) do
+    {:noreply, socket}
   end
 
   def handle_event("validate_cluster", %{"cluster" => params}, socket) do
@@ -343,9 +342,12 @@ defmodule ExGoCDWeb.AdminK8sLive do
                   <span class="font-medium">Namespace:</span> {ClusterProfile.namespace(profile)}
                 </div>
                 <div>
-                  <span class="font-medium">Token:</span> {if ClusterProfile.bearer_token(profile),
-                    do: "✓ Configured",
-                    else: "✗ Missing"}
+                  <span class="font-medium">Token:</span>
+                  <%= if ClusterProfile.client_cert(profile) && ClusterProfile.client_key(profile) do %>
+                    ✓ Client certificate
+                  <% else %>
+                    <%= if ClusterProfile.bearer_token(profile), do: "✓ Configured", else: "✗ Missing" %>
+                  <% end %>
                 </div>
                 <div class="mt-2">
                   {connection_status_badge(get_conn_status(assigns, profile.id))}
@@ -483,29 +485,6 @@ defmodule ExGoCDWeb.AdminK8sLive do
               <div :if={@cluster_form[:name].errors} class="text-red-600 text-sm mt-1">
                 {for err <- @cluster_form[:name].errors, do: err}
               </div>
-            </div>
-
-            <div>
-              <label class="block text-sm font-medium mb-1">
-                Paste kubeconfig
-                <span class="text-gray-400 font-normal">(auto-fills fields below)</span>
-              </label>
-              <textarea
-                name="cluster[kubeconfig_yaml]"
-                rows="4"
-                class="w-full border rounded px-3 py-2 font-mono text-xs"
-                placeholder="apiVersion: v1&#10;kind: Config&#10;clusters:&#10;- cluster:&#10;    server: https://..."
-              ><%= @cluster_form[:kubeconfig_yaml].value %></textarea>
-              <button
-                type="button"
-                phx-click="parse_kubeconfig"
-                class="mt-1 text-xs text-blue-600 hover:underline"
-              >
-                Parse kubeconfig →
-              </button>
-              <p class="text-xs text-gray-500 mt-1">
-                Paste a kubeconfig YAML to auto-fill server URL, token, CA cert, and namespace.
-              </p>
             </div>
 
             <div>

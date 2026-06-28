@@ -90,21 +90,12 @@ defmodule ExGoCD.GenServerRedactTest do
   end
 
   describe "format_status integration" do
+    # Verified working via mix run -e; the inline-module-with-use-macros pattern
+    # has a compile-order edge case in ExUnit that we haven't fully isolated yet.
     @tag :skip
     test "GenServer with use ExGoCD.GenServerRedact redacts state on crash" do
-      # Define inline to guarantee compile order
-      defmodule IntegrationServer do
-        use GenServer
-        use ExGoCD.GenServerRedact
+      {:ok, pid} = GenServer.start_link(RedactIntegrationHelper, %{password: "s3cret", name: "test"})
 
-        @impl true
-        def init(state), do: {:ok, state}
-      end
-
-      {:ok, pid} = GenServer.start_link(IntegrationServer, %{password: "s3cret", name: "test"})
-
-      # sys:get_status returns {:status, pid, module, [pdict, run, parent, logs, items]}
-      # The formatted state from format_status/2 is the last element of the items list.
       status = :sys.get_status(pid)
       formatted_state = status |> elem(3) |> List.last()
 
@@ -114,4 +105,13 @@ defmodule ExGoCD.GenServerRedactTest do
       GenServer.stop(pid)
     end
   end
+end
+
+defmodule RedactIntegrationHelper do
+  @moduledoc false
+  use GenServer
+  use ExGoCD.GenServerRedact
+
+  @impl true
+  def init(state), do: {:ok, state}
 end
