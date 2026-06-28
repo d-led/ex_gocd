@@ -60,7 +60,7 @@ defmodule ExGoCD.MixProject do
       {:postgrex, ">= 0.0.0"},
       {:phoenix_html, "~> 4.1"},
       {:phoenix_live_reload, "~> 1.2", only: :dev},
-      {:phoenix_live_view, "~> 1.1.0"},
+      {:phoenix_live_view, "~> 1.2"},
       {:lazy_html, ">= 0.1.0", only: :test},
       {:sobelow, "~> 0.14", only: [:dev, :test], runtime: false},
       {:phoenix_live_dashboard, "~> 0.8.3"},
