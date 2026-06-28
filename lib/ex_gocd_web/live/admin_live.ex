@@ -22,6 +22,10 @@ defmodule ExGoCDWeb.AdminLive do
        |> put_flash(:error, "You do not have administration permissions.")
        |> redirect(to: "/")}
     else
+      if connected?(socket) do
+        Phoenix.PubSub.subscribe(ExGoCD.PubSub, "cluster:info")
+      end
+
       empty_groups = []
       pipeline_groups = fetch_pipeline_groups(empty_groups)
       environments = fetch_environments_ui()
@@ -33,19 +37,11 @@ defmodule ExGoCDWeb.AdminLive do
           ConfigRepos.list_config_repos()
         end
 
-      # Load existing database users
       users = Accounts.list_users()
-
-      # Audit log entries (mock or empty — AuditLogLive handles full UI)
-      _audit_log_entries =
-        if use_mock?() do
-          ExGoCD.MockData.audit_log_entries()
-        else
-          []
-        end
 
       {:ok,
        socket
+       |> assign(:cluster_info, %{self: nil, nodes: [], singletons: %{}})
        |> assign(:empty_groups, empty_groups)
        |> assign(:pipeline_groups, pipeline_groups)
        |> assign(:filtered_groups, pipeline_groups)
@@ -283,6 +279,9 @@ defmodule ExGoCDWeb.AdminLive do
         <.sub_tab_link active={@tab == "elastic_agents"} href="/admin/elastic_agents">
           ⚡ Elastic Agents
         </.sub_tab_link>
+        <.sub_tab_link active={@tab == "clustering"} href="/admin/clustering">
+          🔗 Clustering
+        </.sub_tab_link>
       </div>
       
     <!-- Main Layout Body (Centered Content) -->
@@ -333,6 +332,8 @@ defmodule ExGoCDWeb.AdminLive do
               filters={@audit_log_filters}
               loading={@audit_log_loading}
             />
+          <% "clustering" -> %>
+            <.clustering_tab cluster_info={@cluster_info} />
           <% _ -> %>
             <div class="text-center py-12 bg-white border border-[#d6e0e2] rounded shadow-sm">
               <h3 class="text-lg font-bold">Section Not Found</h3>
@@ -1640,6 +1641,11 @@ defmodule ExGoCDWeb.AdminLive do
      |> assign(:flash_info, "Database config backup completed successfully.")}
   end
 
+  @impl true
+  def handle_info({:cluster_info, info}, socket) do
+    {:noreply, assign(socket, :cluster_info, info)}
+  end
+
   defp maybe_delete_group_pipelines(nil), do: :noop
 
   defp maybe_delete_group_pipelines(group) do
@@ -2154,6 +2160,97 @@ defmodule ExGoCDWeb.AdminLive do
         <div class="bg-[#f8fafb] border-t border-[#e9edef] px-5 py-2.5 text-[10px] text-slate-400 flex justify-between items-center">
           <span>Showing {length(@entries)} of up to 200 recent entries</span>
           <span>All times UTC</span>
+        </div>
+      </div>
+    </div>
+    """
+  end
+
+  defp clustering_tab(assigns) do
+    ~H"""
+    <div class="bg-white rounded border border-[#d6e0e2] shadow-sm p-6">
+      <h3 class="text-lg font-bold text-[#333] mb-4">Cluster Status</h3>
+
+      <div :if={@cluster_info.self == nil} class="text-slate-400 text-sm">
+        Cluster information not yet available. The ClusterInfoServer polls every 3 seconds.
+      </div>
+
+      <div :if={@cluster_info.self != nil} class="space-y-6">
+        <!-- Nodes -->
+        <div>
+          <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Nodes</h4>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <%= for node <- @cluster_info.nodes do %>
+              <% is_self = node == @cluster_info.self %>
+              <div class={[
+                "flex items-center gap-3 px-4 py-3 rounded border text-sm font-mono",
+                if(is_self, do: "border-[#943a9e] bg-purple-50", else: "border-[#d6e0e2] bg-white")
+              ]}>
+                <span class={[
+                  "w-2.5 h-2.5 rounded-full",
+                  if(is_self, do: "bg-[#943a9e]", else: "bg-green-400")
+                ]}>
+                </span>
+                <span class="font-semibold text-slate-700">{node}</span>
+                <span
+                  :if={is_self}
+                  class="text-[10px] bg-[#943a9e] text-white px-1.5 py-0.5 rounded font-bold"
+                >
+                  SELF
+                </span>
+              </div>
+            <% end %>
+          </div>
+        </div>
+        
+    <!-- Singleton Locations -->
+        <div>
+          <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
+            Singleton Process Locations
+          </h4>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs text-slate-600">
+              <thead class="bg-[#e7eef0] text-[10px] font-bold text-slate-500 uppercase">
+                <tr>
+                  <th class="px-4 py-2">Process</th>
+                  <th class="px-4 py-2">Node</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-[#d6e0e2]">
+                <%= for {mod, node} <- @cluster_info.singletons |> Enum.sort() do %>
+                  <tr class="hover:bg-slate-50">
+                    <td class="px-4 py-2.5 font-mono text-slate-700">
+                      {mod |> to_string() |> String.replace("Elixir.", "")}
+                    </td>
+                    <td class="px-4 py-2.5 font-mono">
+                      <%= if node == :not_found do %>
+                        <span class="text-red-500">not running</span>
+                      <% else %>
+                        <span class="flex items-center gap-1.5">
+                          <svg
+                            :if={node == @cluster_info.self}
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                          >
+                            <circle
+                              cx="12"
+                              cy="12"
+                              r="10"
+                              fill="white"
+                              stroke="#943a9e"
+                              stroke-width="3"
+                            />
+                          </svg>
+                          <span class="text-slate-700">{node}</span>
+                        </span>
+                      <% end %>
+                    </td>
+                  </tr>
+                <% end %>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
