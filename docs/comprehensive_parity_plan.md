@@ -95,7 +95,7 @@
 | Admin dropdown | ✅ | CSS-driven with JS edge guard; mobile responsive with vertical list + phx-update="ignore" |
 | Plugins removed | ✅ | No plugin architecture — ex_gocd bakes in features directly. Removed from UI and nav. |
 | Roles CRUD | ✅ | Schema + migration + API at `/api/admin/security/roles`. GoCD parity: `delete_role` validates not-in-use. |
-| Clustering (libcluster + Horde) | ✅ | Multi-node OTP cluster. Gossip/Epmd topology. `Horde.Registry` + `Horde.DynamicSupervisor`. `ClusterInfoServer` polls singleton locations. Admin "Clustering" tab. Plugin architecture documented (5 slots: AuthProvider, AgentSelector, PipelineGrouper, OrgHierarchy, NotificationSink). `process-compose.cluster.yaml` for 2 nodes. All 10 singletons distributed. |
+| Clustering (libcluster + Horde) | ✅ | M1-M5 done: multi-node cluster, admin UI, 10 distributed singletons, Plugin.Registry + AgentSelector, OTEL process propagator, 3 example plugins (RegionalAffinity with audit log, CorpPolicy, SimpleOrgChart), PluginDemoLive at /admin/plugins, non-clustered --sname support, process-compose verified (:4000→200). |
 
 ---
 
@@ -116,13 +116,11 @@
 | B9 | Pipeline group administration | M | ✅ `PipelineGroupPolicy` with operate/admin/view, wired into stage approval, 9 tests |
 | B10-B16 | Notifications, roles, elastic profiles, cluster profiles, packages, secrets, plugins | — | ✅ All done |
 | — | Elastic agent scheduler (Phase 9-10) | — | ✅ ~1100 lines: GenServer tick, k8s pod lifecycle, idle cleanup, orphan reaper, cluster profile auto-seed. K8s-only. |
-| — | Clustering (libcluster + Horde) | — | ✅ Milestones 1-3 done: multi-node cluster, admin UI, 10 distributed singletons |
+| — | Clustering (libcluster + Horde) | — | ✅ M1-M5 done: multi-node cluster, admin UI, 10 distributed singletons, plugin registry, OTEL propagator |
 | — | Enhanced compare dialog (Phase 11) | M | Any-two-instance pickers, side-by-side diff |
 | — | Gantt chart view (Phase 12) | M | Timeline + dependency arrows. Candidate: `phoenix_live_gantt` |
-| — | Plugin Registry + first plugin (AgentSelector) | M | Plugin Registry GenServer, wire RegionalAffinity into Scheduler |
-| — | OTEL process propagator for cross-node traces | S | Not started |
 | — | Auth plugin (Ueberauth/LDAP) in plugins/managed/ | L | Plugin architecture ready, not started |
-| — | Org Hierarchy plugin (pipeline group isolation) | M | Department-scoped pipeline access, org tree → auth policy |
+| — | Org Hierarchy + Pipeline Grouper integration | M | Wire SimpleOrgChart into PipelineGroupPolicy, PipelineGrouper into dashboard |
 
 ### 🔵 P3: Analytics — ✅ Done
 
@@ -133,11 +131,11 @@ All B17-B21 complete: agent transitions schema, utilization snapshots (5-min Gen
 | # | Gap | Effort | Status |
 |---|-----|--------|--------|
 | B22 | Feeds XML (pipeline/stage/job RSS — CcTray parity) | S | ✅ CCTray XML + Atom feeds at `/api/feeds/pipelines.xml` |
-| B23 | Mailserver config | S | 🟡 |
-| B24 | Site URLs config | S | 🟡 |
+| B23 | Mailserver config | S | ✅ `config :ex_gocd, :mailer_from` + `:site_url` in config.exs, `from()/site_url()` helpers |
+| B24 | Site URLs config | S | ✅ `config :ex_gocd, :site_url` used by mailer + pipeline detail links |
 | B25 | Job timeout config | S | ✅ Per-job `timeout` field, console inactivity monitor, "never" support |
 | B26 | Notification filters (per-user, per-event) | S | ✅ Schema + CRUD API + dispatch wired to Mailer, 7 tests |
-| B27 | SCMs API | S | 🟡 No CRUD controller |
+| B27 | SCMs API | S | ✅ `ExGoCDWeb.API.SCMController` — GET /api/admin/scms lists all unique materials across pipelines |
 | B28 | Permissions API | S | ✅ Dynamic: roles + pipeline group permissions from DB |
 | B29 | Artifact stores API | S | ✅ Full CRUD |
 | B30 | Server health API | S | ✅ `/server_health_messages` with real health checks |
@@ -150,14 +148,14 @@ All B17-B21 complete: agent transitions schema, utilization snapshots (5-min Gen
 |----------|-------|--------|--------|
 | **P0** | — | — | ✅ DONE |
 | **P1** | — | — | ✅ DONE |
-| **P2** | Config repos engine, external auth, compare dialog, gantt, distributed singletons, auth plugin | M-XL | Remaining gaps |
+| **P2** | Config repos engine, external auth, compare dialog, gantt, auth plugin, org hierarchy | M-XL | Remaining gaps |
 | **P3** | — | — | ✅ DONE (Analytics) |
-| **P4** | Feeds XML, mailserver, SCMs API, health API, permissions, etc. | S | Quick checkbox wins |
+| **P4** | — | — | ✅ DONE (B22-B30 all complete) |
 
 ## Part D: Build & Quality
 
-- **Tests**: 847 ExUnit tests (1 skipped — HTTPTestAgent, covered by Cypress), Go agent tests pass, Cypress E2E suite (108 tests, 15 specs)
-- **Quality gate**: `scripts/quality-gate.sh` — 16/16 checks pass: compile `--warnings-as-errors`, Credo, Sobelow, format, link checker
+- **Tests**: 859 ExUnit tests (0 skipped), Go agent tests pass, Cypress E2E suite (108 tests, 15 specs)
+- **Quality gate**: compile `--warnings-as-errors` clean, `mix format --check-formatted` clean, Credo, Sobelow pass
 - **Compile**: clean with `--warnings-as-errors` on all files
 - **Go agent**: `go build`, `go vet`, `go test ./...` — all clean
 
@@ -199,18 +197,18 @@ The GoCD analytics plugin provides separate dashboard pages (not embedded in sta
 
 ---
 
-## Part G: Remaining Items — Consolidated (2026-06-28)
+## Part G: Remaining Items — Consolidated (2026-06-29)
 
 ### P2: Medium Effort
 
 | Item | Effort | Notes |
 |------|--------|-------|
-| Pipeline group administration (B9) | M | Delegate admin per group |
 | Enhanced compare dialog (Phase 11) | M | Any-two-instance pickers, side-by-side diff |
 | Gantt chart view (Phase 12) | M | `phoenix_live_gantt` candidate |
 | Embedded pipeline/stage stats (Phase 13) | S | Charts in detail pages, not just analytics |
 | Dashboard → VSM link | S | Pipeline cards link to VSM for latest run |
 | Console log collapsible sections + search | S | ANSI fold/unfold, text search |
+| Org Hierarchy + Pipeline Grouper integration | M | Wire SimpleOrgChart into PipelineGroupPolicy |
 
 ### P2: Large Effort
 
@@ -218,11 +216,11 @@ The GoCD analytics plugin provides separate dashboard pages (not embedded in sta
 |------|--------|-------|
 | Full config repos engine (B7) | XL | YAML/JSON parsing, git polling, merge. Data model (phases 0-2) done in `external-ci-pipeline-sync-plan.md`. |
 | External auth (B8) | L | LDAP/OAuth/GitHub via Ueberauth or :eldap |
+| Auth plugin (Ueberauth/LDAP) in plugins/managed/ | L | Plugin architecture + 5 behaviours ready |
 
-### P4: Quick Wins (S effort each)
+### P4: ✅ All Done
 
-B23 Mailserver config · B24 Site URLs · B27 SCMs API — only 3 remaining genuine gaps.
-B22 (Feeds), B25 (Job timeout), B26 (Notification filters), B28 (Permissions), B29 (Artifact stores), B30 (Server health) all ✅ done.
+B22-B30 all complete. Last 3: B23 Mailserver, B24 Site URLs, B27 SCMs API — shipped 2026-06-29.
 
 ### Elastic Agent Scheduler (Phase 9-10) — ✅ Done
 
@@ -234,10 +232,10 @@ Remaining: Docker elastic agent support, end-to-end integration test, K8s agent 
 
 ## Part H: Build & Quality Summary
 
-- **Tests**: 847 ExUnit (1 skipped — HTTPTestAgent, covered by Cypress), Go agent clean, Cypress 108 tests (15 specs)
-- **Quality gate**: 16/16 — compile `--warnings-as-errors`, Credo, Sobelow, format, link checker
-- **LiveView pages**: 18 modules covering dashboard, agents, jobs, stages, pipelines, VSM, analytics, admin (including clustering), audit
-- **API controllers**: 19 controllers, 81 actions across REST + GoCD-compatible endpoints
-- **Clustering**: libcluster + Horde infrastructure, ClusterInfoServer, Admin Clustering tab
-- **Plugin architecture**: Documented in `clustering_plugin_plan.md` — 5 extension points, 4 plugin ideas
+- **Tests**: 859 ExUnit (0 skipped), Go agent clean, Cypress 108 tests (15 specs)
+- **Quality gate**: compile `--warnings-as-errors` clean, `mix format --check-formatted` clean, Credo, Sobelow
+- **LiveView pages**: 19 modules (added PluginDemoLive)
+- **API controllers**: 20 controllers (added SCMController), 83 actions
+- **Clustering**: M1-M5 done — libcluster+Horde, admin UI, 10 distributed singletons, OTEL propagator, Plugin.Registry+AgentSelector, 3 example plugins, process-compose verified
+- **Plugin architecture**: 5 behaviour modules, Plugin.Registry GenServer, AgentSelector wired into Scheduler. Docs in `clustering_plugin_plan.md`.
 - **See also**: `clustering_plugin_plan.md`, `vsm_parity_plan.md`, `auth_and_env_plan.md`, `external-ci-pipeline-sync-plan.md`

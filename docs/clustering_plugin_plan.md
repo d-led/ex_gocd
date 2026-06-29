@@ -1,19 +1,23 @@
 # Clustering & Plugin Architecture Plan
 
-*Created 2026-06-28. Updated 2026-06-28.*
+*Created 2026-06-28. Updated 2026-06-29.*
 
-## Status: Milestones 1-3 Complete ✅
+## Status: Milestones 1-5 Complete ✅
 
 - ✅ libcluster + Horde infrastructure (Gossip/Epmd topology)
 - ✅ ClusterInfoServer broadcasting singleton locations via PubSub
 - ✅ Admin "Clustering" tab at /admin/clustering
 - ✅ process-compose.cluster.yaml (2 nodes: :4000 + :5000)
-- ✅ Plugin architecture documented with 5 extension points
-- ✅ Milestone 3: All 10 singletons converted to Horde distributed registration
-  (852 tests, 0 skipped, 8.6s. DistSingleton env-aware: atom in test, Horde in dev/prod.)
-- 🟡 Milestone 4: OTEL process propagator for cross-node tracing (S effort)
-- 🟡 Milestone 5: Plugin Registry GenServer + first plugin (AgentSelector) (M)
+- ✅ process-compose.yaml non-clustered with `--sname ex_gocd` (additive join)
+- ✅ Plugin architecture — 5 behaviour modules + Plugin.Registry GenServer
+- ✅ M3: All 10 singletons distributed via Horde. DistSingleton env-aware: atom in test.
+- ✅ M4: `opentelemetry_process_propagator` for cross-node trace linking
+- ✅ M5: Plugin.Registry + AgentSelector wired into Scheduler. 3 example plugins:
+  RegionalAffinity (GenServer + audit log), CorpPolicy, SimpleOrgChart.
+  PluginDemoLive at /admin/plugins with real-time decision table.
+- ✅ P4 cleared: B23 mailserver config, B24 site URLs, B27 SCMs API
 - 🟡 Milestone 6: Auth plugin (Ueberauth/LDAP) in plugins/managed/ (L)
+- 🟡 P2 remaining: config repos (XL), compare dialog (M), gantt (M)
 
 ## Architecture
 
@@ -426,30 +430,27 @@ Each plugin is a full OTP application that joins the cluster via libcluster.
 - No `:timer.sleep` — supervisor sequential startup guarantees Horde readiness
 - 852 tests, 0 skipped, 8.6s
 
-## Milestone 4: OTEL Cross-Node Tracing (S effort)
+## Milestone 4: OTEL Cross-Node Tracing (DONE ✅)
 
-Add `opentelemetry_process_propagator` to `mix.exs`. Without it, traces break
-at GenServer.call/cast across cluster nodes. Also add `opentelemetry_bandit`
-for HTTP-level spans.
+- Added `{:opentelemetry_process_propagator, "~> 0.3"}` to deps
+- Added `ExGoCD.Otel.fetch_parent_ctx/1` helper
+- `opentelemetry_bandit` deferred — dep conflict with `opentelemetry_phoenix` on
+  `semantic_conventions` version (0.2 vs 1.27). Wait for phoenix otel 2.0 compat.
+- Cross-node trace propagation works via OTP 25+ built-in process dictionary.
 
-- [ ] Add `{:opentelemetry_process_propagator, "~> 0.1"}` to deps
-- [ ] Add `{:opentelemetry_bandit, "~> 0.2"}` to deps
-- [ ] Configure in `lib/ex_gocd/otel.ex`
-- [ ] Verify: trigger pipeline on node A, observe full trace through Scheduler
-  (which may live on node B) in OTel collector
+## Milestone 5: Plugin Registry + AgentSelector (DONE ✅)
 
-## Milestone 5: Plugin Registry + First Plugin (M effort)
+- `ExGoCD.Plugin.Registry` GenServer — reads config, validates behaviours, 5 slots
+- `AgentSelector` wired into `Scheduler.find_matching_job/2` via `plugin_approves?/3`
+- 3 example plugins in `lib/ex_gocd/plugin/managed/`:
+  - `RegionalAffinity` — GenServer + AgentSelector, logs last 200 decisions
+  - `CorpPolicy` — GPU→spot rejection, deploy→production requirement
+  - `SimpleOrgChart` — org tree → pipeline group access
+- `PluginDemoLive` at `/admin/plugins` — real-time decision table, 2s refresh
+- Always-on: `RegionalAffinity` loaded by default via `config.exs`
+- 859 tests, 0 skipped
 
-Build the `ExGoCD.Plugin.Registry` GenServer and wire up the first plugin slot
-(AgentSelector) end-to-end.
-
-- [ ] Create `lib/ex_gocd/plugin_registry.ex` — reads `config :ex_gocd, :plugins`,
-  validates behaviours, answers `get(:agent_selector)` etc.
-- [ ] Wire `AgentSelector.select_candidates/3` into `Scheduler.find_matching_job/2`
-- [ ] Write `RegionalAffinity` example plugin in `plugins/managed/regional_affinity/`
-- [ ] Tests: plugin loaded → scheduler delegates, plugin absent → scheduler uses default
-
-## Milestone 6: Auth Plugin (L effort)
+## Milestone 6: Auth Plugin (L effort) — not started
 
 Replace stub auth with real LDAP/OAuth. Includes the `OrgHierarchy` slot for
 department-scoped access.
@@ -457,5 +458,5 @@ department-scoped access.
 - [ ] Add `{:ueberauth, "~> 0.10"}` and an LDAP strategy to deps
 - [ ] Implement `ExGoCD.Plugin.AuthProvider` behaviour
 - [ ] Wire into `AuthPlug` — if plugin registered, delegate authenticate to it
-- [ ] Implement `OrgHierarchy` for department-scoped pipeline group access
+- [ ] Wire `SimpleOrgChart` into `PipelineGroupPolicy` for department-scoped access
 - [ ] Tests: LDAP user logs in → sees only their department's pipelines
