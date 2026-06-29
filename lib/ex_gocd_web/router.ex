@@ -95,6 +95,8 @@ defmodule ExGoCDWeb.Router do
       live "/go/pipeline/activity/:pipeline_name", PipelineActivityLive, :index
       live "/compare/:pipeline_name/:from_counter/with/:to_counter", CompareLive, :show
       live "/go/compare/:pipeline_name/:from_counter/with/:to_counter", CompareLive, :show
+      live "/compare/:pipeline_name", CompareLive, :show
+      live "/go/compare/:pipeline_name", CompareLive, :show
       live "/pipelines/:pipeline_name/:counter/config_diff", ConfigDiffLive, :show
       live "/go/pipelines/:pipeline_name/:counter/config_diff", ConfigDiffLive, :show
 
