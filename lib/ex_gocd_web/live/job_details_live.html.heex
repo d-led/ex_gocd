@@ -148,7 +148,7 @@
                 id="toggle-wrap"
                 class="w-3 h-3"
                 checked={@wrap_lines}
-                onchange="this.closest('.console-log').classList.toggle('no-wrap',!this.checked)"
+                onchange="var cl=document.getElementById('console-container'); cl.classList.toggle('no-wrap',!this.checked)"
               /> Line Wrap
             </label>
             <input
@@ -157,7 +157,7 @@
               placeholder="Filter..."
               autocomplete="off"
               class="w-32 px-2 py-0.5 text-[10px] bg-gray-800 border border-gray-700 rounded text-gray-300 placeholder-gray-600 focus:outline-none focus:border-gray-500"
-              oninput="var inp=this; clearTimeout(inp._debounce); inp._debounce=setTimeout(function(){var rows=inp.closest('.console-log').querySelectorAll('.log-row'); var parts=inp.value.toLowerCase().split(/\s+/).filter(function(p){return p.length>0}); rows.forEach(function(row){var msg=row.querySelector('.log-message'); if(!msg)return; var m=msg.textContent.toLowerCase(); row.classList.toggle('filter-hidden', parts.length>0 && !parts.every(function(p){return m.indexOf(p)!==-1}))})},150)"
+              oninput="var inp=this; clearTimeout(inp._debounce); inp._debounce=setTimeout(function(){var rows=document.getElementById('console-container').querySelectorAll('.log-row'); var parts=inp.value.toLowerCase().split(/\s+/).filter(function(p){return p.length>0}); rows.forEach(function(row){var msg=row.querySelector('.log-message'); if(!msg)return; var m=msg.textContent.toLowerCase(); row.classList.toggle('filter-hidden', parts.length>0 && !parts.every(function(p){return m.indexOf(p)!==-1}))})},150)"
             />
             <button
               class="text-[10px] text-gray-400 hover:text-gray-200 font-bold uppercase tracking-wider"
@@ -171,7 +171,7 @@
                 id="toggle-timestamps"
                 class="w-3 h-3"
                 checked={@show_timestamps}
-                onchange="this.closest('.console-log').classList.toggle('show-timestamps')"
+                onchange="document.getElementById('console-container').classList.toggle('show-timestamps')"
               /> Timestamps
             </label>
             <label class="flex items-center gap-1 text-[10px] text-gray-400 cursor-pointer select-none">
@@ -180,7 +180,7 @@
                 id="toggle-follow"
                 class="w-3 h-3"
                 checked={@follow}
-                onchange="this.closest('.console-log').dataset.follow = this.checked"
+                onchange="document.getElementById('console-container').dataset.follow = this.checked"
               /> Follow
             </label>
           </div>
@@ -232,12 +232,7 @@
                 >
                   <span class="fold-chevron text-gray-500 mr-3 shrink-0 inline-block w-3">
                     <i class="fa fa-chevron-down text-[9px]"></i>
-                  </span>
-                  <span class={[
-                    "log-message text-gray-300 flex-1 font-bold whitespace-pre-wrap break-all"
-                  ]}>
-                    {line.fold_name}
-                  </span>
+                  </span><span class="log-message text-gray-300 flex-1 font-bold whitespace-pre-wrap break-all"><%= line.fold_name %></span>
                 </div>
               <% else %>
                 <div
@@ -254,11 +249,7 @@
                       {line.timestamp}
                     </span>
                   <% end %>
-                  <span class={[
-                    "log-message text-gray-300 flex-1",
-                    @wrap_lines && "whitespace-pre-wrap break-all",
-                    !@wrap_lines && "whitespace-pre"
-                  ]}>
+                  <span class="log-message text-gray-300 flex-1 whitespace-pre-wrap break-all">
                     {line.formatted_message}
                   </span>
                 </div>
