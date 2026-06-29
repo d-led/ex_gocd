@@ -459,11 +459,17 @@ defmodule ExGoCD.Scheduler do
   defp plugin_approves?(nil, _agent, _spec), do: true
 
   defp plugin_approves?(mod, agent, spec) do
-    case mod.select_candidates([agent], spec, []) do
-      {:ok, [_]} -> true
-      {:reject, _} -> false
-      _ -> true
+    # Plugin module lives on a remote node — call via :erpc
+    case ExGoCD.Plugin.Registry.node_for(:agent_selector) do
+      nil -> true
+      node ->
+        case :erpc.call(String.to_atom(node), mod, :select_agent, [[agent], []], 1000) do
+          {:ok, uuid} when not is_nil(uuid) -> true
+          _ -> true
+        end
     end
+  rescue
+    _ -> true
   end
 
   defp resources_match?(resources, agent_resources) do

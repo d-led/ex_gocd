@@ -56,6 +56,11 @@ defmodule RegionalAffinity.SchedulingDecisions do
       node: to_string(Node.self())
     }
 
-    {:noreply, [entry | Enum.take(state, @max_entries - 1)]}
+    new_state = [entry | Enum.take(state, @max_entries - 1)]
+
+    # Broadcast to LiveView subscribers
+    Phoenix.PubSub.broadcast(ExGoCD.PubSub, "plugin:decisions", {:new_decision, entry})
+
+    {:noreply, new_state}
   end
 end

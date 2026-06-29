@@ -5,73 +5,127 @@ defmodule RegionalAffinityWeb.PluginDashboardLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    if connected?(socket), do: :timer.send_interval(3000, :refresh)
+    if connected?(socket) do
+      Phoenix.PubSub.subscribe(ExGoCD.PubSub, "plugin:decisions")
+    end
 
     {:ok,
-     assign(socket, decisions: SchedulingDecisions.decisions(), node: to_string(Node.self()))}
+     assign(socket,
+       decisions: SchedulingDecisions.decisions(),
+       node: to_string(Node.self()),
+       count: length(SchedulingDecisions.decisions())
+     )}
   end
 
   @impl true
-  def handle_info(:refresh, socket) do
-    {:noreply, assign(socket, decisions: SchedulingDecisions.decisions())}
+  def handle_info({:new_decision, entry}, socket) do
+    decisions = [entry | socket.assigns.decisions] |> Enum.take(200)
+    {:noreply, assign(socket, decisions: decisions, count: length(decisions))}
   end
 
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="max-w-5xl mx-auto px-4 py-8">
-      <h1 class="text-2xl font-bold text-slate-800 mb-2">Scheduling Decisions</h1>
-      <p class="text-sm text-slate-500 mb-6">
-        Real-time agent selection audit. Node: <span class="font-mono text-slate-700">{@node}</span>
-      </p>
+    <div class="min-h-screen bg-base-200">
+      <div class="max-w-5xl mx-auto px-4 py-8">
+        <%!-- Header --%>
+        <div class="flex items-center justify-between mb-8">
+          <div>
+            <h1 class="text-3xl font-bold text-base-content">Scheduling Decisions</h1>
+            <p class="text-sm text-base-content/60 mt-1">
+              Real-time agent selection audit
+            </p>
+          </div>
+          <div class="flex items-center gap-4">
+            <div class="badge badge-primary badge-lg gap-1">
+              <span class="font-mono text-xs">{@node}</span>
+            </div>
+            <div class="stats shadow">
+              <div class="stat py-2 px-4">
+                <div class="stat-title text-xs">Decisions</div>
+                <div class="stat-value text-lg">{@count}</div>
+              </div>
+            </div>
+          </div>
+        </div>
 
-      <%= if Enum.empty?(@decisions) do %>
-        <div class="p-12 text-center text-slate-400 bg-white border rounded-lg">
-          <p class="text-sm">No scheduling decisions yet.</p>
-          <p class="text-xs mt-1">
-            Trigger a pipeline build on ex_gocd to see agent selection in action.
-          </p>
-        </div>
-      <% else %>
-        <div class="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
-          <table class="w-full text-sm">
-            <thead>
-              <tr class="border-b border-slate-100 bg-slate-50 text-left">
-                <th class="px-4 py-2 text-xs font-medium text-slate-500 uppercase w-28">Time</th>
-                <th class="px-4 py-2 text-xs font-medium text-slate-500 uppercase">Candidates</th>
-                <th class="px-4 py-2 text-xs font-medium text-slate-500 uppercase">Chosen Agent</th>
-              </tr>
-            </thead>
-            <tbody>
-              <%= for entry <- @decisions do %>
-                <tr class="border-b border-slate-50 hover:bg-slate-50/50">
-                  <td class="px-4 py-2.5 font-mono text-xs text-slate-500 whitespace-nowrap">
-                    {Calendar.strftime(entry.timestamp, "%H:%M:%S")}
-                  </td>
-                  <td class="px-4 py-2.5">
-                    <div class="flex flex-wrap gap-1">
-                      <%= for uuid <- entry.candidates do %>
-                        <span class="px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded text-[10px] font-mono">
-                          {String.slice(uuid, 0..7)}
-                        </span>
-                      <% end %>
-                    </div>
-                  </td>
-                  <td class="px-4 py-2.5">
-                    <%= if entry.chosen do %>
-                      <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
-                        ✓ {String.slice(entry.chosen, 0..11)}
-                      </span>
-                    <% else %>
-                      <span class="text-xs text-slate-400">none</span>
-                    <% end %>
-                  </td>
-                </tr>
-              <% end %>
-            </tbody>
-          </table>
-        </div>
-      <% end %>
+        <%!-- Content --%>
+        <%= if Enum.empty?(@decisions) do %>
+          <div class="card bg-base-100 shadow-xl">
+            <div class="card-body items-center text-center py-16">
+              <svg
+                class="w-16 h-16 text-base-content/20 mb-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="1"
+                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                />
+              </svg>
+              <h2 class="card-title text-base-content/60">No scheduling decisions yet</h2>
+              <p class="text-sm text-base-content/40">
+                Trigger a pipeline on ex_gocd to see agent selection in action
+              </p>
+            </div>
+          </div>
+        <% else %>
+          <div class="card bg-base-100 shadow-xl overflow-hidden">
+            <div class="overflow-x-auto">
+              <table class="table table-zebra table-sm">
+                <thead>
+                  <tr>
+                    <th class="w-24">Time</th>
+                    <th>Candidates</th>
+                    <th>Chosen</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <%= for entry <- @decisions do %>
+                    <tr class="hover">
+                      <td class="font-mono text-xs text-base-content/60 whitespace-nowrap">
+                        {Calendar.strftime(entry.timestamp, "%H:%M:%S")}
+                      </td>
+                      <td>
+                        <div class="flex flex-wrap gap-1">
+                          <%= for uuid <- entry.candidates do %>
+                            <span class="badge badge-ghost badge-xs font-mono">
+                              {String.slice(uuid, 0..7)}
+                            </span>
+                          <% end %>
+                          <%= if Enum.empty?(entry.candidates) do %>
+                            <span class="text-base-content/30 text-xs">—</span>
+                          <% end %>
+                        </div>
+                      </td>
+                      <td>
+                        <%= if entry.chosen do %>
+                          <span class="badge badge-success badge-sm gap-1">
+                            <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2.5"
+                                d="M5 13l4 4L19 7"
+                              />
+                            </svg>
+                            {String.slice(entry.chosen, 0..11)}
+                          </span>
+                        <% else %>
+                          <span class="badge badge-ghost badge-sm">none</span>
+                        <% end %>
+                      </td>
+                    </tr>
+                  <% end %>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        <% end %>
+      </div>
     </div>
     """
   end
