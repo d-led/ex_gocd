@@ -42,7 +42,7 @@ defmodule ExGoCDWeb.PluginDemoLive do
             <span class="text-green-600 font-medium">{@plugin_status}</span>
           </span>
           <span class="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded">
-            port 6001
+            /admin/plugins
           </span>
         </div>
       </div>

@@ -27,13 +27,8 @@ if System.get_env("PHX_SERVER") do
 end
 
 if config_env() == :dev do
-  plugin_port = System.get_env("PLUGIN_DEMO_PORT", "6001")
-
   config :ex_gocd, ExGoCDWeb.Endpoint,
-    http: [
-      [port: String.to_integer(System.get_env("PORT", "4000"))],
-      [port: String.to_integer(plugin_port)]
-    ]
+    http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 end
 
 if config_env() == :prod do
