@@ -130,6 +130,10 @@ defmodule ExGoCDWeb.Router do
       live "/analytics", AnalyticsLive, :index
       live "/analytics/:tab", AnalyticsLive, :index
 
+      # Gantt chart
+      live "/gantt", GanttLive, :index
+      live "/go/gantt", GanttLive, :index
+
       # Multi-segment admin paths for GoCD compatibility
       live "/admin/package_repositories/new", AdminLive, :index
       live "/admin/config/server", AdminLive, :index
