@@ -1,9 +1,10 @@
 defmodule ExGoCD.SchedulingChecker.StageActiveTest do
   @moduledoc """
   Tests for the stage-active checker.
-  Behaviour-driven: given a pipeline with a Building or Awaiting stage,
-  trigger is blocked with :stage_active. When no stages are active,
-  trigger is allowed.
+
+  GoCD's StageActiveChecker only inspects the FIRST stage. If the first
+  stage is Building or Awaiting, the pipeline cannot be triggered again —
+  this is how GoCD enforces "only one instance at a time".
   """
   use ExGoCD.DataCase, async: true
 
@@ -32,30 +33,41 @@ defmodule ExGoCD.SchedulingChecker.StageActiveTest do
       assert StageActive.check(pipeline.name) == :ok
     end
 
-    test "returns :ok when pipeline has only completed stages", %{pipeline: pipeline} do
+    test "returns :ok when first stage is completed", %{pipeline: pipeline} do
       pi = insert_instance(pipeline, 1)
       insert_stage(pi, "build", "Completed", "Passed")
       assert StageActive.check(pipeline.name) == :ok
     end
 
-    test "returns {:error, :stage_active} when a stage is Building", %{pipeline: pipeline} do
+    test "returns {:error, :stage_active} when first stage is Building", %{pipeline: pipeline} do
       pi = insert_instance(pipeline, 1)
       insert_stage(pi, "build", "Building", "Unknown")
       assert StageActive.check(pipeline.name) == {:error, :stage_active}
     end
 
-    test "returns {:error, :stage_active} when a stage is Awaiting", %{pipeline: pipeline} do
+    test "returns {:error, :stage_active} when first stage is Awaiting", %{pipeline: pipeline} do
       pi = insert_instance(pipeline, 1)
       insert_stage(pi, "build", "Awaiting", "Unknown")
       assert StageActive.check(pipeline.name) == {:error, :stage_active}
     end
 
-    test "returns :ok when pipeline has one completed and one Building stage (still active)", %{
+    test "returns :ok when first stage is completed even if a later stage is Building", %{
       pipeline: pipeline
     } do
       pi = insert_instance(pipeline, 1)
       insert_stage(pi, "build", "Completed", "Passed")
       insert_stage(pi, "deploy", "Building", "Unknown")
+      # GoCD: only the first stage matters. Later stages don't block triggering.
+      assert StageActive.check(pipeline.name) == :ok
+    end
+
+    test "returns {:error, :stage_active} when first stage is Building even if later stage is completed",
+         %{
+           pipeline: pipeline
+         } do
+      pi = insert_instance(pipeline, 1)
+      insert_stage(pi, "build", "Building", "Unknown")
+      insert_stage(pi, "deploy", "Completed", "Passed")
       assert StageActive.check(pipeline.name) == {:error, :stage_active}
     end
 

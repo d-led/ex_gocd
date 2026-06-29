@@ -1,10 +1,10 @@
 defmodule ExGoCD.SchedulingChecker.StageActive do
   @moduledoc """
-  Blocks pipeline trigger if any stage of this pipeline is currently
+  Blocks pipeline trigger if the FIRST stage of this pipeline is currently
   Building or Awaiting (i.e., an active run is in progress).
 
-  Mirrors GoCD's `StageActiveChecker`. This is stricter than the
-  lock check — it applies to ALL pipelines regardless of lock_behavior.
+  Mirrors GoCD's `StageActiveChecker`. Only checks the first stage,
+  which is how GoCD enforces "only one instance at a time" for all pipelines.
 
   GoCD reference: `StageActiveChecker.java` in SchedulingCheckerService.
   """
@@ -22,16 +22,25 @@ defmodule ExGoCD.SchedulingChecker.StageActive do
     if is_nil(pipeline) do
       {:error, :pipeline_not_found}
     else
-      active_count =
-        from(pi in PipelineInstance,
-          join: si in assoc(pi, :stage_instances),
-          where: pi.pipeline_id == ^pipeline.id and si.state in ["Building", "Awaiting"],
-          select: count(si.id)
-        )
-        |> Repo.one()
+      pipeline = Repo.preload(pipeline, :stages)
+      first_stage = Enum.at(pipeline.stages || [], 0)
 
-      if active_count > 0 do
-        {:error, :stage_active}
+      if first_stage do
+        active_count =
+          from(pi in PipelineInstance,
+            join: si in assoc(pi, :stage_instances),
+            where:
+              pi.pipeline_id == ^pipeline.id and si.name == ^first_stage.name and
+                si.state in ["Building", "Awaiting"],
+            select: count(si.id)
+          )
+          |> Repo.one()
+
+        if active_count > 0 do
+          {:error, :stage_active}
+        else
+          :ok
+        end
       else
         :ok
       end

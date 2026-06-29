@@ -484,16 +484,12 @@ func (a *Agent) executeCommandTree(ctx context.Context, build *protocol.Build, c
 	return a.runOneCommandWithFold(ctx, build, cmd, env)
 }
 
-// foldLabel builds a human-readable label for a build command (e.g. "mix deps.get")
+// foldLabel builds a short label for a build command (e.g. "git", "mix")
 func (a *Agent) foldLabel(cmd *protocol.BuildCommand) string {
 	if cmd.Command == "" {
 		return cmd.Name
 	}
-	label := cmd.Command
-	for _, arg := range cmd.Args {
-		label += " " + arg
-	}
-	return label
+	return cmd.Command
 }
 
 // runOneCommandWithFold emits ##[fold] / ##[endfold] markers around a command's output.

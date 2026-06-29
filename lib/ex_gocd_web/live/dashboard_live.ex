@@ -359,13 +359,22 @@ defmodule ExGoCDWeb.DashboardLive do
   defp trigger_flash_message(name, {:error, :already_triggered}),
     do: {:error, "Pipeline '#{name}' was just triggered — wait a moment."}
 
-  defp trigger_flash_message(name, {:error, :paused}),
+  defp trigger_flash_message(name, {:error, :about_to_be_triggered}),
+    do: {:error, "Pipeline '#{name}' was just triggered — wait a moment."}
+
+  defp trigger_flash_message(name, {:error, :pipeline_paused}),
     do: {:error, "Pipeline '#{name}' is paused. Unpause first."}
 
-  defp trigger_flash_message(name, {:error, :locked}),
+  defp trigger_flash_message(name, {:error, :pipeline_locked}),
     do: {:error, "Pipeline '#{name}' is locked. Unlock first."}
 
-  defp trigger_flash_message(_name, {:error, :maintenance}),
+  defp trigger_flash_message(name, {:error, :stage_active}),
+    do: {:error, "Pipeline '#{name}' has an active run in progress."}
+
+  defp trigger_flash_message(_name, {:error, :disk_space}),
+    do: {:error, "Cannot trigger — insufficient disk space on the server."}
+
+  defp trigger_flash_message(_name, {:error, :maintenance_mode}),
     do: {:error, "Server is in maintenance mode. Cannot trigger pipelines."}
 
   defp trigger_flash_message(_name, {:error, :fan_in_mismatch}),

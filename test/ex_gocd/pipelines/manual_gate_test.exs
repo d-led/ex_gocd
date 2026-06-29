@@ -19,7 +19,8 @@ defmodule ExGoCD.Pipelines.ManualGateTest do
   describe "manual stage gates" do
     test "completing stage 1 automatically gates stage 2 when stage 2 is manual, allows manual approval, and locks the pipeline while awaiting" do
       # Set up pipeline: stage 1 (auto) -> stage 2 (manual)
-      {pipeline, stage1, stage2} = insert_pipeline_with_two_stages("manual-gate-pipe")
+      {pipeline, stage1, stage2} =
+        insert_pipeline_with_two_stages("manual-gate-pipe-#{System.unique_integer([:positive])}")
 
       # Trigger the pipeline (runs stage 1)
       {:ok, pi} = Pipelines.trigger_pipeline(pipeline.name)
@@ -57,8 +58,12 @@ defmodule ExGoCD.Pipelines.ManualGateTest do
 
       assert Enum.empty?(job_instances_stage2)
 
-      # Pipeline has an active (Awaiting) stage, so triggering again fails with :stage_active
-      assert {:error, :stage_active} == Pipelines.trigger_pipeline(pipeline.name)
+      # GoCD: StageActive only checks first stage. Since stage1 is Completed,
+      # triggering again is allowed — it creates a new pipeline instance.
+      assert {:ok, pi2} = Pipelines.trigger_pipeline(pipeline.name)
+      assert pi2.counter == 2
+
+      # Stage 2 is still Awaiting on the first instance
 
       # Now manually approve stage 2
       {:ok, si2_approved} = Pipelines.approve_stage(pipeline.name, pi.counter, stage2.name)

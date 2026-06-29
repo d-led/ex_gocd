@@ -234,7 +234,9 @@ defmodule ExGoCD.Pipelines do
       when is_binary(pipeline_name) and is_map(options) do
     checkers = [
       ExGoCD.SchedulingChecker.AboutToBeTriggered,
+      ExGoCD.SchedulingChecker.PipelinePause,
       ExGoCD.SchedulingChecker.StageActive,
+      ExGoCD.SchedulingChecker.PipelineLock,
       ExGoCD.SchedulingChecker.DiskSpace
     ]
 
@@ -259,8 +261,6 @@ defmodule ExGoCD.Pipelines do
       VsmTracer.trace("pipeline.trigger", %{"pipeline.name" => pipeline_name}, fn ->
         with :ok <- check_can_trigger(pipeline_name, options),
              %Pipeline{} = pipeline <- get_pipeline_by_name(pipeline_name),
-             {:paused, false} <- {:paused, pipeline.paused},
-             {:locked, false} <- {:locked, pipeline_locked?(pipeline)},
              {:maintenance, false} <- {:maintenance, ExGoCD.MaintenanceMode.enabled?()},
              pipeline = Repo.preload(pipeline, [:materials, :template, stages: [jobs: :tasks]]),
              pipeline = resolve_template_stages(pipeline),
@@ -283,8 +283,6 @@ defmodule ExGoCD.Pipelines do
           trigger_result
         else
           nil -> {:error, :pipeline_not_found}
-          {:paused, true} -> {:error, :pipeline_paused}
-          {:locked, true} -> {:error, :pipeline_locked}
           {:maintenance, true} -> {:error, :maintenance_mode}
           {:error, reason} -> {:error, reason}
         end

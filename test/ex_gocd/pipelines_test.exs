@@ -239,7 +239,7 @@ defmodule ExGoCD.PipelinesTest do
     end
 
     test "trigger_pipeline clears debounce even on error" do
-      # Paused pipeline: check_can_trigger passes, but pause check fails
+      # Paused pipeline: check_can_trigger fails via PipelinePause checker
       {pipeline, _stage, _job} = insert_pipeline_with_jobs("debounce-error", 1)
       {:ok, _} = Pipelines.pause_pipeline(pipeline.name, "admin", "testing")
 
