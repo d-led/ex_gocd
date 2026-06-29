@@ -41,7 +41,7 @@ processes:
       restart: always
 
   # ── Plugin: RegionalAffinity (AgentSelector) ────────────────────────
-  plugin-regional-affinity:
+  plugin-regional-affinity-4100:
     command: "elixir --name regional_affinity@127.0.0.1 --cookie ex-gocd-demo-cookie -S mix phx.server"
     working_dir: "plugins/managed/regional_affinity"
     environment:
@@ -52,33 +52,27 @@ processes:
       restart: always
 
   # ── Plugin: SimpleOrgChart (OrgHierarchy) ───────────────────────────
-  plugin-org-chart:
+  plugin-org-chart-4101:
     command: "elixir --name simple_org_chart@127.0.0.1 --cookie ex-gocd-demo-cookie -S mix run --no-halt"
     working_dir: "plugins/managed/simple_org_chart"
     environment:
+      - "PORT=4101"
       - "MIX_ENV=dev"
       - "PLUGIN_SECRET=ex-gocd-demo-secret"
     availability:
       restart: always
 
   # ── Plugin: CorpPolicy (AgentSelector) ──────────────────────────────
-  plugin-corp-policy:
+  plugin-corp-policy-4102:
     command: "elixir --name corp_policy@127.0.0.1 --cookie ex-gocd-demo-cookie -S mix run --no-halt"
     working_dir: "plugins/managed/corp_policy"
     environment:
+      - "PORT=4102"
       - "MIX_ENV=dev"
       - "PLUGIN_SECRET=ex-gocd-demo-secret"
     availability:
       restart: always
 
-  # ── Plugin: DbAuthProvider (AuthProvider) ───────────────────────────
-  plugin-db-auth:
-    command: "elixir --name db_auth_provider@127.0.0.1 --cookie ex-gocd-demo-cookie -S mix run --no-halt"
-    working_dir: "plugins/managed/db_auth_provider"
-    environment:
-      - "MIX_ENV=dev"
-      - "PLUGIN_SECRET=ex-gocd-demo-secret"
-    availability:
       restart: always
 
   # ── CI Agent ────────────────────────────────────────────────────────

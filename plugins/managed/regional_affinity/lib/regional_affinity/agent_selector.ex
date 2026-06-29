@@ -26,6 +26,6 @@ defmodule RegionalAffinity.AgentSelector do
   def description, do: "Regional Affinity — prefers agents in the same region"
 
   def ui_links do
-    [{"Scheduling Decisions", "/plugins"}]
+    [{"Scheduling Decisions", "http://localhost:4100"}]
   end
 end

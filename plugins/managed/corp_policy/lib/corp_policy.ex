@@ -12,5 +12,5 @@ defmodule CorpPolicy do
   end
 
   def description, do: "Corp Policy — least-utilized idle agents"
-  def ui_links, do: [{"Corp Policy", "/admin/plugins"}]
+  def ui_links, do: []
 end

@@ -34,7 +34,7 @@ defmodule SimpleOrgChart do
     find_node(@tree, user_department(user))
   end
 
-  def ui_links, do: [{"Org Hierarchy", "/admin/security"}]
+  def ui_links, do: []
 
   defp user_department(user) do
     Map.get(user, :department) || Map.get(user, "department", "")

@@ -36,7 +36,8 @@ defmodule RegionalAffinity.Application do
 
   defp register_with_ex_gocd do
     secret = System.get_env("PLUGIN_SECRET") || ""
-    links = [{"Scheduling Decisions", "/admin/plugins"}]
+    port = System.get_env("PORT", "4100")
+    links = [{"Scheduling Decisions", "http://localhost:#{port}"}]
     module = RegionalAffinity.AgentSelector
     slot = :agent_selector
 
@@ -52,7 +53,7 @@ defmodule RegionalAffinity.Application do
       case :erpc.call(target, ExGoCD.Plugin.Registry, :register, [slot, module, secret]) do
         :ok ->
           IO.puts("[regional_affinity] Registered #{inspect(module)} as #{slot} on #{target}")
-          # Also send UI links via the public API
+              # Register UI links pointing to THIS plugin's own web server
           :erpc.call(target, ExGoCD.Plugin.Registry, :accept_ui_links, [slot, secret, links])
 
         other ->
