@@ -465,8 +465,15 @@ defmodule ExGoCD.Scheduler do
         true
 
       node ->
-        case :erpc.call(String.to_atom(node), mod, :select_agent, [[agent], []], 1000) do
-          {:ok, uuid} when not is_nil(uuid) -> true
+        node_atom =
+          cond do
+            is_atom(node) -> node
+            is_binary(node) -> String.to_atom(node)
+          end
+
+        case :erpc.call(node_atom, mod, :select_agent, [[agent], []], 2000) do
+          {uuid, _reason} when is_binary(uuid) and byte_size(uuid) > 0 -> true
+          uuid when is_binary(uuid) and byte_size(uuid) > 0 -> true
           _ -> true
         end
     end
