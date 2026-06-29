@@ -125,17 +125,6 @@ defmodule ExGoCDWeb.PluginLive do
           </div>
         <% end %>
       </div>
-                        <% end %>
-                        {entry.decision}
-                      </span>
-                    </td>
-                  </tr>
-                <% end %>
-              </tbody>
-            </table>
-          </div>
-        <% end %>
-      </div>
     </div>
     """
   end
