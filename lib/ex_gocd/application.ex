@@ -73,6 +73,7 @@ defmodule ExGoCD.Application do
         ExGoCDWeb.AgentPresence,
         ExGoCD.Plugin.Registry,
         ExGoCD.Plugin.Managed.RegionalAffinity,
+        ExGoCD.ConfigRepos.Poller,
         ExGoCD.TestAgentSupervisor,
         ExGoCDWeb.Endpoint
       ] ++ cluster_children
