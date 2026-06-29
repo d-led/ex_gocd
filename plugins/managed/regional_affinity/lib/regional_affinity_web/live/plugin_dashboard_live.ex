@@ -91,41 +91,50 @@ defmodule RegionalAffinityWeb.PluginDashboardLive do
                       Candidates ({length(entry.candidates)})
                     </p>
                     <div class="flex flex-wrap gap-2">
-                      <%= for uuid <- entry.candidates do %>
-                        <% is_pref = uuid == entry.preferred %>
+                      <%= for detail <- entry.candidates_detail do %>
+                        <% is_pref = detail.uuid == entry.preferred %>
+                        <% host = detail.hostname not in [nil, ""] %>
                         <div class={[
-                          "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs border",
+                          "flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs border",
                           if(is_pref,
                             do: "bg-success/10 border-success/30 text-success",
                             else: "bg-base-200 border-base-300 text-base-content/60"
                           )
                         ]}>
                           <%= if is_pref do %>
-                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
                             </svg>
                           <% end %>
-                          <span class="font-mono">
-                            <%= if is_pref, do: uuid, else: String.slice(uuid, 0..11) <> "…" %>
+                          <span class="font-semibold">
+                            {if host, do: detail.hostname, else: String.slice(detail.uuid, 0..11) <> "…"}
                           </span>
+                          <%= if host do %>
+                            <span class="text-[10px] opacity-50 font-mono">
+                              {String.slice(detail.uuid, 0, 8)}
+                            </span>
+                          <% end %>
                         </div>
                       <% end %>
                     </div>
                   </div>
 
-                  <%!-- Chosen agent detail --%>
+                  <%!-- Preferred agent detail --%>
                   <%= if entry.preferred_detail do %>
                     <div class="mt-3 pt-3 border-t border-base-300/50">
                       <p class="text-xs font-medium text-base-content/40 uppercase tracking-wide mb-2">
-                        Selected Agent
+                        Preferred
                       </p>
                       <div class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-base-content/70">
-                        <span class="font-mono font-semibold text-success">
+                        <span class="font-semibold text-success">
                           <%= if entry.preferred_detail.hostname not in [nil, ""] do %>
                             {entry.preferred_detail.hostname}
                           <% else %>
                             {String.slice(entry.preferred_detail.uuid, 0..11)}…
                           <% end %>
+                        </span>
+                        <span class="font-mono text-[10px] opacity-50">
+                          {String.slice(entry.preferred_detail.uuid, 0, 8)}
                         </span>
                         <span class="badge badge-xs badge-outline">{entry.preferred_detail.state}</span>
                         <%= for r <- entry.preferred_detail.resources do %>

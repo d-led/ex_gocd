@@ -91,7 +91,7 @@ defmodule ExGoCDWeb.PluginLive do
                   <th class="px-4 py-2 text-xs font-medium text-slate-500 uppercase w-24">Time</th>
                   <th class="px-4 py-2 text-xs font-medium text-slate-500 uppercase">Node</th>
                   <th class="px-4 py-2 text-xs font-medium text-slate-500 uppercase">Candidates</th>
-                  <th class="px-4 py-2 text-xs font-medium text-slate-500 uppercase">Chosen</th>
+                  <th class="px-4 py-2 text-xs font-medium text-slate-500 uppercase">Preferred</th>
                   <th class="px-4 py-2 text-xs font-medium text-slate-500 uppercase">Why</th>
                 </tr>
               </thead>
@@ -106,25 +106,34 @@ defmodule ExGoCDWeb.PluginLive do
                     </td>
                     <td class="px-4 py-2.5">
                       <div class="flex flex-wrap gap-1">
-                        <%= for uuid <- entry.candidates do %>
-                          <span class="inline-flex px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded text-[10px] font-mono">
-                            {String.slice(uuid, 0..7)}
+                        <%= for detail <- entry.candidates_detail do %>
+                          <% host = detail.hostname not in [nil, ""] %>
+                          <span class={[
+                            "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px]",
+                            if(detail.uuid == entry.preferred,
+                              do: "bg-green-100 text-green-700 font-semibold",
+                              else: "bg-slate-100 text-slate-600"
+                            )
+                          ]}>
+                            {if host, do: detail.hostname, else: String.slice(detail.uuid, 0, 7)}
+                            <%= if host do %>
+                              <span class="opacity-40 font-mono">{String.slice(detail.uuid, 0, 7)}</span>
+                            <% end %>
                           </span>
                         <% end %>
                       </div>
                     </td>
                     <td class="px-4 py-2.5">
-                      <%= if entry.preferred do %>
-                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                      <%= if entry.preferred_detail do %>
+                        <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
                           <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path
-                              stroke-linecap="round"
-                              stroke-linejoin="round"
-                              stroke-width="2"
-                              d="M5 13l4 4L19 7"
-                            />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
                           </svg>
-                          {String.slice(entry.preferred, 0..11)}
+                          <% host = entry.preferred_detail.hostname not in [nil, ""] %>
+                          {if host, do: entry.preferred_detail.hostname, else: String.slice(entry.preferred_detail.uuid, 0, 11)}
+                          <%= if host do %>
+                            <span class="opacity-40 font-mono text-[10px]">{String.slice(entry.preferred_detail.uuid, 0, 8)}</span>
+                          <% end %>
                         </span>
                       <% else %>
                         <span class="text-xs text-slate-400">none</span>
