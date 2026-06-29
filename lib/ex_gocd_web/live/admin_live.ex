@@ -178,6 +178,9 @@ defmodule ExGoCDWeb.AdminLive do
       t when t in ["audit_log", "audit"] ->
         "audit_log"
 
+      t when t in ["clustering", "plugins"] ->
+        t
+
       _ ->
         "overview"
     end
@@ -334,6 +337,8 @@ defmodule ExGoCDWeb.AdminLive do
             />
           <% "clustering" -> %>
             <.clustering_tab cluster_info={@cluster_info} />
+          <% "plugins" -> %>
+            <.plugins_tab />
           <% _ -> %>
             <div class="text-center py-12 bg-white border border-[#d6e0e2] rounded shadow-sm">
               <h3 class="text-lg font-bold">Section Not Found</h3>
@@ -2261,5 +2266,19 @@ defmodule ExGoCDWeb.AdminLive do
 
   defp format_audit_timestamp(dt) do
     Calendar.strftime(dt, "%Y-%m-%d %H:%M:%S UTC")
+  end
+
+  defp plugins_tab(assigns) do
+    ~H"""
+    <div class="space-y-4">
+      <h3 class="text-lg font-bold text-[#333] mb-4">Plugin Dashboard</h3>
+      <.link navigate="/admin/plugins" class="inline-flex items-center gap-2 px-4 py-2 bg-[#2d6ca2] text-white rounded hover:bg-[#23527c] transition-colors text-sm font-medium">
+        <span>🔌</span> Open Plugin Dashboard
+      </.link>
+      <p class="text-xs text-slate-500 mt-2">
+        View real-time scheduling decisions, plugin activity, and cluster-wide plugin state.
+      </p>
+    </div>
+    """
   end
 end

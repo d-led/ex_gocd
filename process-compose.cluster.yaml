@@ -60,6 +60,21 @@ processes:
       restart: always
       max_restarts: 0
 
+  # ── Plugin Observer Node ───────────────────────────────────────────
+  plugin-observer:
+    command: "elixir --name plugin_observer@127.0.0.1 --cookie ex-gocd-demo-cookie -S mix run -e 'ExGoCD.PluginNode.start()'"
+    working_dir: "."
+    environment:
+      - "ERLANG_SEED_NODES=ex_gocd@127.0.0.1"
+      - "LOG_LEVEL=info"
+      - "MIX_ENV=dev"
+    depends_on:
+      server-4000:
+        condition: process_healthy
+    availability:
+      restart: always
+      max_restarts: 3
+
   # ── CI Agent ────────────────────────────────────────────────────────
   ci-agent:
     command: "go run ."

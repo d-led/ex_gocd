@@ -290,14 +290,17 @@ defmodule ExGoCD.Accounts do
   """
   @spec can_access_pipeline_group?(User.t(), String.t(), String.t()) :: boolean()
   def can_access_pipeline_group?(%User{} = user, pipeline_group, required_role \\ "viewer") do
-    if mock?(),
-      do: User.has_role?(user, :admin),
-      else: check_group_permission(user, pipeline_group, required_role)
+    if mock?() do
+      User.has_role?(user, :admin)
+    else
+      check_group_permission(user, pipeline_group, required_role) or
+        org_hierarchy_access?(user, pipeline_group)
+    end
   end
 
   defp check_group_permission(user, pipeline_group, required_role) do
     User.has_role?(user, :admin) or
-      (user.id && group_role_sufficient?(user.id, pipeline_group, required_role))
+      (user.id != nil and group_role_sufficient?(user.id, pipeline_group, required_role))
   end
 
   defp group_role_sufficient?(user_id, pipeline_group, required_role) do
@@ -313,6 +316,17 @@ defmodule ExGoCD.Accounts do
   defp role_sufficient?("operator", _), do: true
   defp role_sufficient?("viewer", "viewer"), do: true
   defp role_sufficient?(_, _), do: false
+
+  # ── Org Hierarchy plugin integration ──────────────────────────────
+
+  defp org_hierarchy_access?(_user = %{id: nil}, _pipeline_group), do: false
+
+  defp org_hierarchy_access?(user, pipeline_group) do
+    case ExGoCD.Plugin.Registry.get(:org_hierarchy) do
+      nil -> false
+      mod -> pipeline_group in mod.pipeline_groups_for_user(user, [])
+    end
+  end
 
   # ── Role CRUD (GoCD parity: RoleConfig) ────────────────────────────
 
