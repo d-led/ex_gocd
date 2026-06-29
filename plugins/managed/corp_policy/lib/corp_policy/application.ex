@@ -34,7 +34,6 @@ defmodule CorpPolicy.Application do
         secret
       ])
 
-      :erpc.call(ex_gocd, ExGoCD.Plugin.Registry, :accept_ui_links, [
         :agent_selector,
         secret,
         [{"Corp Policy", "/admin/plugins"}]

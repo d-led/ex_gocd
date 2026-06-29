@@ -49,12 +49,10 @@ defmodule RegionalAffinity.Application do
     else
       target = hd(ex_gocd_nodes)
 
-      # Use :erpc.call for reliable cross-node invocation
-      case :erpc.call(target, ExGoCD.Plugin.Registry, :register, [slot, module, secret]) do
+      # One atomic call: register module + UI links together
+      case :erpc.call(target, ExGoCD.Plugin.Registry, :register, [slot, module, secret, links]) do
         :ok ->
-          IO.puts("[regional_affinity] Registered #{inspect(module)} as #{slot} on #{target}")
-              # Register UI links pointing to THIS plugin's own web server
-          :erpc.call(target, ExGoCD.Plugin.Registry, :accept_ui_links, [slot, secret, links])
+          IO.puts("[regional_affinity] Registered #{inspect(module)} + UI on #{target}")
 
         other ->
           IO.warn("[regional_affinity] Registration failed: #{inspect(other)}")

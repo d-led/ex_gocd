@@ -73,8 +73,6 @@ processes:
     availability:
       restart: always
 
-      restart: always
-
   # ── CI Agent ────────────────────────────────────────────────────────
   ci-agent:
     command: "go run ."

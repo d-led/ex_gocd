@@ -34,7 +34,6 @@ defmodule SimpleOrgChart.Application do
         secret
       ])
 
-      :erpc.call(ex_gocd, ExGoCD.Plugin.Registry, :accept_ui_links, [
         :org_hierarchy,
         secret,
         [{"Org Hierarchy", "/admin/security"}]
