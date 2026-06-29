@@ -24,87 +24,67 @@ defmodule RegionalAffinityWeb.PluginDashboardLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div style="min-height:100vh;background:#f3f4f6;font-family:system-ui,sans-serif">
-      <div style="max-width:64rem;margin:0 auto;padding:2rem 1rem">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2rem">
+    <div class="min-h-screen bg-base-200">
+      <div class="max-w-3xl mx-auto px-4 py-8">
+        <div class="flex items-center justify-between mb-6">
           <div>
-            <h1 style="font-size:1.875rem;font-weight:700;color:#1f2937;margin:0">
-              Scheduling Decisions
-            </h1><p style="font-size:.875rem;color:#6b7280;margin-top:.25rem">
-              Real-time agent selection audit
+            <h1 class="text-2xl font-bold">Scheduling Decisions</h1>
+            <p class="text-sm text-base-content/50">
+              Real-time agent selection · <span class="font-mono">{@node}</span>
             </p>
           </div>
-          <div style="display:flex;align-items:center;gap:1rem">
-            <span style="padding:.25rem .75rem;background:#7c3aed;color:#fff;border-radius:9999px;font-size:.75rem;font-family:monospace">{@node}</span>
-            <div style="background:#fff;border-radius:.5rem;box-shadow:0 1px 3px rgba(0,0,0,.1);padding:.5rem 1rem;text-align:center">
-              <div style="font-size:.625rem;color:#9ca3af;text-transform:uppercase">Decisions</div><div style="font-size:1.25rem;font-weight:700;color:#1f2937">
-                {@count}
-              </div>
-            </div>
-          </div>
+          <div class="badge badge-primary badge-lg">{@count} decisions</div>
         </div>
 
         <%= if @decisions == [] do %>
-          <div style="background:#fff;border-radius:.5rem;box-shadow:0 1px 3px rgba(0,0,0,.1);padding:4rem 2rem;text-align:center">
-            <svg
-              style="width:3rem;height:3rem;color:#d1d5db;margin-bottom:1rem"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            ><path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-              d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-            /></svg>
-            <h2 style="font-size:1.125rem;color:#9ca3af;margin:0">No scheduling decisions yet</h2>
-            <p style="font-size:.875rem;color:#d1d5db;margin-top:.5rem">
-              Trigger a pipeline on ex_gocd to see agent selection
-            </p>
+          <div class="card bg-base-100 shadow">
+            <div class="card-body items-center py-12">
+              <p class="text-base-content/40">No decisions yet. Trigger a pipeline build.</p>
+            </div>
           </div>
         <% else %>
-          <div style="background:#fff;border-radius:.5rem;box-shadow:0 1px 3px rgba(0,0,0,.1);overflow:hidden">
-            <table style="width:100%;font-size:.875rem;border-collapse:collapse">
-              <thead>
-                <tr style="background:#f9fafb">
-                  <th style="padding:.5rem 1rem;font-size:.625rem;font-weight:600;color:#6b7280;text-transform:uppercase;text-align:left;width:6rem">
-                    Time
-                  </th><th style="padding:.5rem 1rem;font-size:.625rem;font-weight:600;color:#6b7280;text-transform:uppercase;text-align:left">
-                    Agent
-                  </th><th style="padding:.5rem 1rem;font-size:.625rem;font-weight:600;color:#6b7280;text-transform:uppercase;text-align:left;width:5rem">
-                    Decision
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                <%= for entry <- @decisions do %>
-                  <tr style="background:#f9fafb;border-top:2px solid #e5e7eb">
-                    <td style="padding:.5rem 1rem;font-family:monospace;font-size:.75rem;color:#6b7280;white-space:nowrap">
-                      {Calendar.strftime(entry.timestamp, "%H:%M:%S")}
-                    </td>
-                    <td colspan="2" style="padding:.25rem 1rem;font-size:.625rem;color:#9ca3af">
-                      Node: {entry.node}
-                    </td>
-                  </tr>
-                  <%= for uuid <- entry.candidates do %>
-                    <% is_pref = uuid == entry[:preferred] %>
-                    <tr style="border-top:1px solid #f3f4f6">
-                      <td></td>
-                      <td style="padding:.5rem 1rem;font-family:monospace;font-size:.75rem;color:#374151">
-                        {uuid}
-                      </td>
-                      <td style="padding:.5rem 1rem">
+          <div class="space-y-3">
+            <%= for entry <- @decisions do %>
+              <div class="card bg-base-100 shadow-sm">
+                <div class="card-body py-3 px-4">
+                  <div class="flex items-center gap-2 text-xs text-base-content/40 mb-2">
+                    <span class="font-mono">{Calendar.strftime(entry.timestamp, "%H:%M:%S")}</span>
+                    <span>·</span>
+                    <span>{entry.node}</span>
+                  </div>
+                  <div class="flex flex-wrap items-center gap-2">
+                    <%= for uuid <- entry.candidates do %>
+                      <% is_pref = uuid == entry[:preferred] %>
+                      <span class={[
+                        "badge gap-1",
+                        if(is_pref, do: "badge-success", else: "badge-ghost")
+                      ]}>
                         <%= if is_pref do %>
-                          <span style="display:inline-flex;align-items:center;gap:.25rem;padding:.125rem .5rem;background:#ecfdf5;color:#065f46;border-radius:9999px;font-size:.75rem;font-weight:500">✓ preferred</span>
-                        <% else %>
-                          <span style="font-size:.75rem;color:#9ca3af">—</span>
+                          <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2.5"
+                            d="M5 13l4 4L19 7"
+                          /></svg>
                         <% end %>
-                      </td>
-                    </tr>
-                  <% end %>
-                <% end %>
-              </tbody>
-            </table>
+                        <span class="font-mono text-xs">{String.slice(uuid, 0..11)}</span>
+                      </span>
+                    <% end %>
+                    <%= if entry[:preferred] not in entry.candidates do %>
+                      <span class="badge badge-warning badge-sm gap-1"><svg
+                        class="w-3 h-3"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      ><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>{String.slice(
+                        entry[:preferred],
+                        0..11
+                      )}</span>
+                    <% end %>
+                  </div>
+                </div>
+              </div>
+            <% end %>
           </div>
         <% end %>
       </div>
