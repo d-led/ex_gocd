@@ -31,12 +31,8 @@ defmodule SimpleOrgChart.Application do
       :erpc.call(ex_gocd, ExGoCD.Plugin.Registry, :register, [
         :org_hierarchy,
         SimpleOrgChart,
-        secret
-      ])
-
-        :org_hierarchy,
         secret,
-        [{"Org Hierarchy", "/admin/security"}]
+        []
       ])
 
       IO.puts("[simple_org_chart] Registered as org_hierarchy on #{ex_gocd}")

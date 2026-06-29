@@ -31,15 +31,11 @@ defmodule CorpPolicy.Application do
       :erpc.call(ex_gocd, ExGoCD.Plugin.Registry, :register, [
         :agent_selector,
         CorpPolicy,
-        secret
-      ])
-
-        :agent_selector,
         secret,
-        [{"Corp Policy", "/admin/plugins"}]
+        []
       ])
 
-      IO.puts("[corp_policy] Registered as org_hierarchy on #{ex_gocd}")
+      IO.puts("[corp_policy] Registered as agent_selector on #{ex_gocd}")
     end
   end
 end
