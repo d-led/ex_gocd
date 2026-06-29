@@ -19,6 +19,10 @@ defmodule RegionalAffinity.AgentSelector do
   defp do_select([]), do: nil
   defp do_select([agent | _]), do: agent.uuid
 
+  # Delegate to the SchedulingDecisions GenServer for remote queries
+  def decisions, do: SchedulingDecisions.decisions()
+  def decisions_for(uuid), do: SchedulingDecisions.decisions_for(uuid)
+
   def description, do: "Regional Affinity — prefers agents in the same region"
 
   def ui_links do
