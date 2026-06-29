@@ -163,7 +163,7 @@ defmodule ExGoCD.Plugin.Registry do
   end
 
   def handle_call({:node_for, slot}, _from, state) do
-    {:reply, Map.get(state.nodes, slot), state}
+    {:reply, get_in(state, [:nodes, slot]), state}
   end
 
   # -- Private --
