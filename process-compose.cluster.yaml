@@ -60,6 +60,36 @@ processes:
     availability:
       restart: always
 
+  # ── Plugin: SimpleOrgChart (OrgHierarchy) ───────────────────────────
+  plugin-org-chart:
+    command: "elixir --name simple_org_chart@127.0.0.1 --cookie ex-gocd-demo-cookie -S mix run --no-halt"
+    working_dir: "plugins/managed/simple_org_chart"
+    environment:
+      - "MIX_ENV=dev"
+      - "PLUGIN_SECRET=ex-gocd-demo-secret"
+    availability:
+      restart: always
+
+  # ── Plugin: CorpPolicy (AgentSelector) ──────────────────────────────
+  plugin-corp-policy:
+    command: "elixir --name corp_policy@127.0.0.1 --cookie ex-gocd-demo-cookie -S mix run --no-halt"
+    working_dir: "plugins/managed/corp_policy"
+    environment:
+      - "MIX_ENV=dev"
+      - "PLUGIN_SECRET=ex-gocd-demo-secret"
+    availability:
+      restart: always
+
+  # ── Plugin: DbAuthProvider (AuthProvider) ───────────────────────────
+  plugin-db-auth:
+    command: "elixir --name db_auth_provider@127.0.0.1 --cookie ex-gocd-demo-cookie -S mix run --no-halt"
+    working_dir: "plugins/managed/db_auth_provider"
+    environment:
+      - "MIX_ENV=dev"
+      - "PLUGIN_SECRET=ex-gocd-demo-secret"
+    availability:
+      restart: always
+
   # ── CI Agent ────────────────────────────────────────────────────────
   ci-agent:
     command: "go run ."
