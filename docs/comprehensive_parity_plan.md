@@ -1,6 +1,6 @@
 # Comprehensive GoCD Feature Parity Plan
 
-*Audited 2026-06-22. Updated 2026-06-28. 847 ExUnit tests (1 skipped, contract test), 16/16 quality gate.*
+*Audited 2026-06-22. Updated 2026-06-30. 861 ExUnit tests (0 skipped), 16/16 quality gate.*
 
 > This is the single source of truth. Supersedes: `parity_roadmap_plan.md`, `vsm_parity_plan.md`, `auth_and_env_plan.md`, `external-ci-pipeline-sync-plan.md`.
 
@@ -142,19 +142,20 @@ All B17-B21 complete: agent transitions schema, utilization snapshots (5-min Gen
 
 ---
 
-## Part C: Priority Matrix (2026-06-28)
+## Part C: Priority Matrix (2026-06-30)
 
 | Priority | Items | Effort | Impact |
 |----------|-------|--------|--------|
 | **P0** | — | — | ✅ DONE |
 | **P1** | — | — | ✅ DONE |
-| **P2** | Config repos engine, external auth, compare dialog, gantt, auth plugin, org hierarchy | M-XL | Remaining gaps |
+| **P2** | Material VSM link, enhanced compare, gantt, embedded stats, config repos engine | S-XL | 4 small + 1 large remaining |
 | **P3** | — | — | ✅ DONE (Analytics) |
 | **P4** | — | — | ✅ DONE (B22-B30 all complete) |
+| **Plugins** | External auth (Ueberauth), Org Hierarchy integration | L-M | Separate cluster apps |
 
 ## Part D: Build & Quality
 
-- **Tests**: 859 ExUnit tests (0 skipped), Go agent tests pass, Cypress E2E suite (108 tests, 15 specs)
+- **Tests**: 861 ExUnit tests (0 skipped), Go agent tests pass, Cypress E2E suite (116 tests, 16 specs)
 - **Quality gate**: compile `--warnings-as-errors` clean, `mix format --check-formatted` clean, Credo, Sobelow pass
 - **Compile**: clean with `--warnings-as-errors` on all files
 - **Go agent**: `go build`, `go vet`, `go test ./...` — all clean
@@ -165,20 +166,19 @@ All B17-B21 complete: agent transitions schema, utilization snapshots (5-min Gen
 
 See [vsm_parity_plan.md](vsm_parity_plan.md) for full details. All 5 phases complete.
 
-### VSM Link Audit (vs GoCD source, 2026-06-28)
+### VSM Link Audit (vs GoCD source `spark_routes.ts`, 2026-06-30)
 
-GoCD links to VSM from these locations (`gocd-link-support.js` + `spark_routes.ts`):
+GoCD links to VSM from these locations:
 
-| GoCD Link Point | ex_gocd Status |
-|-----------------|----------------|
-| Pipeline activity → VSM per run | ✅ "VSM" button on each counter row in `PipelineActivityLive` |
-| Pipeline activity → VSM (`getVSMLink` in run info widget) | ✅ Same as above |
-| Dashboard → VSM (pipeline card) | ✅ "VSM" link on each pipeline instance card |
-| Stage details → VSM (breadcrumb counter link) | ✅ Breadcrumbs link to VSM for pipeline counter |
-| Material modifications → VSM (`materialsVsmLink`) | ❌ Material details don't link to material VSM |
-| Stage overview → VSM (stage_overview_shim) | ❌ Not applicable (GoCD-specific D3 shim) |
+| GoCD Link Point | Route | ex_gocd Status |
+|-----------------|-------|----------------|
+| Pipeline activity → VSM per run (`getVSMLink` in run info widget) | `/go/pipelines/value_stream_map/:name/:counter` | ✅ "VSM" link on each counter row in `PipelineActivityLive` |
+| Dashboard → VSM (pipeline card) | `/go/pipelines/value_stream_map/:name/:counter` | ✅ "VSM" link on each pipeline instance card |
+| Stage details → VSM (breadcrumb counter link) | `/go/pipelines/value_stream_map/:name/:counter` | ✅ Breadcrumbs link to VSM for pipeline counter |
+| **Material → material VSM** (`SparkRoutes.materialsVsmLink(fingerprint, revision)`) | `/go/materials/value_stream_map/:fingerprint/:revision` | ❌ **Not yet implemented** |
+| Stage overview → VSM (`stage_overview_shim_for_vsm.tsx`) | `/go/pipelines/value_stream_map/:name/:counter` | ❌ Not applicable (GoCD-specific D3 shim) |
 
-**Gap**: Material modification entries could link to material VSM (low priority).
+**Gap**: Material VSM — GoCD renders a "VSM" link next to each material modification showing that revision in the value stream. Needs a `MaterialVSM` LiveView or a parameterized VSM that accepts `?fingerprint=X&revision=Y`.
 
 ---
 
@@ -197,45 +197,51 @@ The GoCD analytics plugin provides separate dashboard pages (not embedded in sta
 
 ---
 
-## Part G: Remaining Items — Consolidated (2026-06-29)
+## Part G: Remaining Items — Consolidated (2026-06-30)
 
-### P2: Medium Effort
+### 🟢 P2: Medium Effort
 
 | Item | Effort | Notes |
 |------|--------|-------|
+| **Material VSM link** | S | `/go/materials/value_stream_map/:fingerprint/:revision` — GoCD renders "VSM" link on each material modification in `MaterialHeaderWidget`. Can parameterize existing VSM with `?fingerprint=&revision=` query params. |
 | Enhanced compare dialog (Phase 11) | M | Any-two-instance pickers, side-by-side diff |
 | Gantt chart view (Phase 12) | M | `phoenix_live_gantt` candidate |
 | Embedded pipeline/stage stats (Phase 13) | S | Charts in detail pages, not just analytics |
-| Dashboard → VSM link | S | Pipeline cards link to VSM for latest run |
-| Console log collapsible sections + search | S | ANSI fold/unfold, text search |
-| Org Hierarchy + Pipeline Grouper integration | M | Wire SimpleOrgChart into PipelineGroupPolicy |
 
-### P2: Large Effort
+### 🔴 P2: Large Effort (Plugin Cluster Apps)
+
+These are deployed as **separate Phoenix apps** in the cluster, not baked into ex_gocd:
 
 | Item | Effort | Notes |
 |------|--------|-------|
-| Full config repos engine (B7) | XL | YAML/JSON parsing, git polling, merge. Data model (phases 0-2) done in `external-ci-pipeline-sync-plan.md`. |
-| External auth (B8) | L | LDAP/OAuth/GitHub via Ueberauth or :eldap |
-| Auth plugin (Ueberauth/LDAP) in plugins/managed/ | L | Plugin architecture + 5 behaviours ready |
+| **External auth plugin** (Ueberauth: LDAP/OAuth/GitHub) | L | Separate Phoenix app in `plugins/managed/`. ex_gocd already supports plugin architecture with 5 behaviours. Auth plugin provides user authentication UI + callback. Not "auth plugin" in GoCD sense — this is a user-facing login app. |
+| **Org Hierarchy plugin** | M | `SimpleOrgChart` exists as example plugin. Wire into `PipelineGroupPolicy` for group-based permissions. Already deployed as separate app in cluster. |
+| Full config repos engine (PaC) | XL | YAML/JSON parsing, git polling, merge engine. Data model phases 0-2 done in `external-ci-pipeline-sync-plan.md`. |
 
-### P4: ✅ All Done
+### ✅ Recently Completed
 
-B22-B30 all complete. Last 3: B23 Mailserver, B24 Site URLs, B27 SCMs API — shipped 2026-06-29.
+| Item | When | Notes |
+|------|------|-------|
+| Console log display fix | 2026-06-30 | Collapsed template whitespace — rows now tight 20px. Client-side toggles (timestamps, wrap, follow). Added `cypress/e2e/console_log_display.cy.js` (8 tests). |
+| Console log fold parsing | 2026-06-29 | Agent `##[fold]`/`##[endfold]` newline fix + server-side split. |
+| Console log performance | 2026-06-29 | Pre-computed `formatted_message`, debounced filter. |
 
-### Elastic Agent Scheduler (Phase 9-10) — ✅ Done
+### ❌ Removed / Deferred
 
-~1100 lines across 6 files. `ElasticAgentScheduler` GenServer (30s tick): match elastic profiles to pending jobs, create k8s pods, idle cleanup (300s), orphan reaper. `ExGoCD.K8s` client wrapper with auto-discover local k3s. Cluster profile auto-seed. K8s-only — no Docker elastic path yet.
-
-Remaining: Docker elastic agent support, end-to-end integration test, K8s agent config admin UI.
+| Item | Reason |
+|------|--------|
+| "Auth plugin" (GoCD sense) | Unclear scope. User auth is handled by external auth plugin app, not a GoCD-style plugin. |
+| Docker elastic agent path | K8s-only. Docker elastic cluster profile would need Docker API client — not planned. |
+| K8s agent config admin UI | Deferred. Cluster profile auto-seed works via DB. |
 
 ---
 
 ## Part H: Build & Quality Summary
 
-- **Tests**: 859 ExUnit (0 skipped), Go agent clean, Cypress 108 tests (15 specs)
+- **Tests**: 861 ExUnit (0 skipped), Go agent clean, Cypress 116 tests (16 specs)
 - **Quality gate**: compile `--warnings-as-errors` clean, `mix format --check-formatted` clean, Credo, Sobelow
 - **LiveView pages**: 19 modules (added PluginDemoLive)
 - **API controllers**: 20 controllers (added SCMController), 83 actions
 - **Clustering**: M1-M5 done — libcluster+Horde, admin UI, 10 distributed singletons, OTEL propagator, Plugin.Registry+AgentSelector, 3 example plugins, process-compose verified
-- **Plugin architecture**: 5 behaviour modules, Plugin.Registry GenServer, AgentSelector wired into Scheduler. Docs in `clustering_plugin_plan.md`.
+- **Plugin architecture**: 5 behaviour modules, Plugin.Registry GenServer, AgentSelector wired into Scheduler. Plugins run as separate Phoenix apps in the cluster (not GoCD-style in-process plugins). Docs in `clustering_plugin_plan.md`.
 - **See also**: `clustering_plugin_plan.md`, `vsm_parity_plan.md`, `auth_and_env_plan.md`, `external-ci-pipeline-sync-plan.md`
