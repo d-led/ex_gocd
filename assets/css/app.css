@@ -320,6 +320,12 @@ body {
   display: none !important;
 }
 
+/* Line-wrap toggle: when no-wrap, prevent wrapping */
+.console-log.no-wrap .log-message {
+  white-space: pre !important;
+  word-break: normal !important;
+}
+
 #console-container {
   scrollbar-width: thin;
   scrollbar-color: #374151 #111827;

@@ -147,8 +147,8 @@
                 type="checkbox"
                 id="toggle-wrap"
                 class="w-3 h-3"
-                phx-click="toggle_wrap"
                 checked={@wrap_lines}
+                onchange="this.closest('.console-log').classList.toggle('no-wrap',!this.checked)"
               /> Line Wrap
             </label>
             <input
@@ -170,8 +170,8 @@
                 type="checkbox"
                 id="toggle-timestamps"
                 class="w-3 h-3"
-                phx-click="toggle_timestamps"
                 checked={@show_timestamps}
+                onchange="this.closest('.console-log').classList.toggle('show-timestamps')"
               /> Timestamps
             </label>
             <label class="flex items-center gap-1 text-[10px] text-gray-400 cursor-pointer select-none">
@@ -179,8 +179,8 @@
                 type="checkbox"
                 id="toggle-follow"
                 class="w-3 h-3"
-                phx-click="toggle_follow"
                 checked={@follow}
+                onchange="this.closest('.console-log').dataset.follow = this.checked"
               /> Follow
             </label>
           </div>
@@ -189,7 +189,8 @@
         <div
           class={[
             "console-log bg-gray-950 rounded-lg p-6 font-mono text-gray-300 text-xs overflow-y-auto max-h-[600px] leading-relaxed shadow-inner border border-gray-900",
-            @show_timestamps && "show-timestamps"
+            @show_timestamps && "show-timestamps",
+            !@wrap_lines && "no-wrap"
           ]}
           id="console-container"
           phx-hook="ConsoleScroller"
@@ -214,11 +215,11 @@
           <% end %>
           <div
             id="log-lines-stream"
-            phx-update="stream"
             class={[
               "select-text selection:bg-purple-900 selection:text-white",
               !@wrap_lines && "overflow-x-auto"
             ]}
+            phx-update="stream"
           >
             <%= for {dom_id, line} <- @streams.log_lines do %>
               <%= if line.type == :fold_start do %>
@@ -233,9 +234,7 @@
                     <i class="fa fa-chevron-down text-[9px]"></i>
                   </span>
                   <span class={[
-                    "log-message text-gray-300 flex-1 font-bold",
-                    @wrap_lines && "whitespace-pre-wrap break-all",
-                    !@wrap_lines && "whitespace-pre"
+                    "log-message text-gray-300 flex-1 font-bold whitespace-pre-wrap break-all"
                   ]}>
                     {line.fold_name}
                   </span>

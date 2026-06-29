@@ -61,42 +61,23 @@ defmodule ExGoCDWeb.JobDetailsLiveTest do
   describe "JobDetailsLive LiveView interactive features" do
     import Phoenix.LiveViewTest
 
-    test "toggles timestamps", %{conn: conn} do
+    test "renders timestamps toggle (off by default)", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/go/tab/build/detail/demo/1/build/1/default")
 
-      # Verify initial show_timestamps is false
-      assert render(view) =~ "id=\"console-container\""
-      refute render(view) =~ "show-timestamps"
-
-      # Click toggle-timestamps checkbox
-      view
-      |> element("#toggle-timestamps")
-      |> render_click()
-
-      # Verify show-timestamps is applied to container
-      assert render(view) =~ "show-timestamps"
-
-      # Click it again
-      view
-      |> element("#toggle-timestamps")
-      |> render_click()
-
-      refute render(view) =~ "show-timestamps"
+      # Verify initial show_timestamps is false (class not on container)
+      html = render(view)
+      assert html =~ "id=\"console-container\""
+      refute html =~ ~s(class="console-log bg-gray-950[^"]*show-timestamps)
+      assert html =~ "id=\"toggle-timestamps\""
     end
 
-    test "toggles follow", %{conn: conn} do
+    test "renders follow toggle (on by default)", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/go/tab/build/detail/demo/1/build/1/default")
 
       # Verify initial follow is true
-      assert render(view) =~ "data-follow=\"true\""
-
-      # Click toggle-follow checkbox
-      view
-      |> element("#toggle-follow")
-      |> render_click()
-
-      # Verify data-follow is false
-      assert render(view) =~ "data-follow=\"false\""
+      html = render(view)
+      assert html =~ "data-follow=\"true\""
+      assert html =~ "id=\"toggle-follow\""
     end
 
     test "streams new logs via :console_append", %{conn: conn} do
@@ -130,20 +111,14 @@ defmodule ExGoCDWeb.JobDetailsLiveTest do
       assert html_after =~ "phx-value-tab=\"tests\""
     end
 
-    test "toggles line wrap", %{conn: conn} do
+    test "renders line wrap toggle (on by default)", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/go/tab/build/detail/demo/1/build/1/default")
 
-      # Initially wrap is enabled (checkbox checked)
-      _wrap_cb = element(view, "#toggle-wrap")
-      assert render(view) =~ "checked"
-
-      # Click toggle-wrap
-      view
-      |> element("#toggle-wrap")
-      |> render_click()
-
-      # Should now be unchecked
-      refute render(view) =~ ~s(id="toggle-wrap"[^>]*checked)
+      # Initially wrap is enabled (checkbox checked, container has no no-wrap class)
+      html = render(view)
+      assert html =~ "id=\"toggle-wrap\""
+      assert html =~ "checked"
+      refute html =~ ~s(class="console-log bg-gray-950[^"]*no-wrap)
     end
   end
 

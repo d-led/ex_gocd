@@ -129,21 +129,6 @@ defmodule ExGoCDWeb.JobDetailsLive do
     {:noreply, assign(socket, artifacts: artifacts)}
   end
 
-  @impl true
-  def handle_event("toggle_timestamps", _params, socket) do
-    {:noreply, assign(socket, :show_timestamps, !socket.assigns.show_timestamps)}
-  end
-
-  @impl true
-  def handle_event("toggle_follow", _params, socket) do
-    {:noreply, assign(socket, :follow, !socket.assigns.follow)}
-  end
-
-  @impl true
-  def handle_event("toggle_wrap", _params, socket) do
-    {:noreply, assign(socket, :wrap_lines, !socket.assigns.wrap_lines)}
-  end
-
   defp toggle_dir(items, target_path) do
     Enum.map(items, fn
       %{type: :directory, rel_path: ^target_path} = dir ->
@@ -312,7 +297,7 @@ defmodule ExGoCDWeb.JobDetailsLive do
                   id: to_string(idx),
                   timestamp: parsed.timestamp,
                   message: parsed.message,
-                  formatted_message: format_line_message(parsed.message),
+                  formatted_message: nil,
                   type: :fold_end,
                   fold_id: current_fold,
                   parent_fold_id: List.first(rest),
