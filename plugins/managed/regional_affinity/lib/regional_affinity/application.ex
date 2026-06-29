@@ -50,8 +50,10 @@ defmodule RegionalAffinity.Application do
     else
       target = hd(ex_gocd_nodes)
 
-      # One atomic call: register module + UI links together
-      case :erpc.call(target, ExGoCD.Plugin.Registry, :register, [slot, module, secret, links]) do
+      # Call from THIS node so Plugin.Registry can track our real node
+      registry = {ExGoCD.Plugin.Registry, target}
+
+      case GenServer.call(registry, {:register, slot, module, secret, links}) do
         :ok ->
           IO.puts("[regional_affinity] Registered #{inspect(module)} + UI on #{target}")
 

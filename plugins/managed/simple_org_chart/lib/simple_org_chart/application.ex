@@ -28,12 +28,10 @@ defmodule SimpleOrgChart.Application do
     ex_gocd = Node.list() |> Enum.find(&(to_string(&1) =~ ~r/ex_gocd/))
 
     if ex_gocd do
-      :erpc.call(ex_gocd, ExGoCD.Plugin.Registry, :register, [
-        :org_hierarchy,
-        SimpleOrgChart,
-        secret,
-        []
-      ])
+      GenServer.call(
+        {ExGoCD.Plugin.Registry, ex_gocd},
+        {:register, :org_hierarchy, SimpleOrgChart, secret, []}
+      )
 
       IO.puts("[simple_org_chart] Registered as org_hierarchy on #{ex_gocd}")
     end
