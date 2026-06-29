@@ -43,6 +43,7 @@ processes:
     environment:
       - "PORT=5000"
       - "EX_GOCD_DEMO_COOKIE=ex-gocd-demo-cookie"
+      - "EX_GOCD_CLUSTER=1"
       - "LOG_LEVEL=warning"
       - "MIX_ENV=dev"
     depends_on:
@@ -53,6 +54,7 @@ processes:
         host: localhost
         port: 5000
         path: /pipelines
+        expected_status: [200, 302, 403]
       initial_delay_seconds: 2
       period_seconds: 5
       timeout_seconds: 30
