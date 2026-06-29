@@ -40,6 +40,11 @@ defmodule ExGoCD.Plugin.Managed.RegionalAffinity do
     |> Enum.filter(&(&1.pipeline == pipeline_name))
   end
 
+  @doc "Plugin UI link surfaced in the clustering/plugins admin view."
+  def ui_links do
+    [{"Scheduling Decisions", "/admin/plugins"}]
+  end
+
   # -- GenServer (audit log) --
 
   def start_link(opts \\ []) do

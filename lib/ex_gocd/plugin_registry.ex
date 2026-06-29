@@ -40,6 +40,15 @@ defmodule ExGoCD.Plugin.Registry do
     GenServer.call(__MODULE__, :list)
   end
 
+  @doc """
+  Aggregates UI links from all registered plugins. Each plugin may export
+  an optional `ui_links/0` returning `[{name, url}]`.
+  """
+  @spec ui_links() :: [{String.t(), String.t()}]
+  def ui_links do
+    GenServer.call(__MODULE__, :ui_links)
+  end
+
   # -- Callbacks --
 
   @impl true
@@ -56,6 +65,18 @@ defmodule ExGoCD.Plugin.Registry do
 
   def handle_call(:list, _from, state) do
     {:reply, Map.to_list(state), state}
+  end
+
+  def handle_call(:ui_links, _from, state) do
+    links =
+      state
+      |> Map.values()
+      |> Enum.reject(&is_nil/1)
+      |> Enum.flat_map(fn mod ->
+        if function_exported?(mod, :ui_links, 0), do: mod.ui_links(), else: []
+      end)
+
+    {:reply, links, state}
   end
 
   # -- Private --

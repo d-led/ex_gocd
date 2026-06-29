@@ -2262,6 +2262,24 @@ defmodule ExGoCDWeb.AdminLive do
             </table>
           </div>
         </div>
+
+        <!-- Plugin UIs -->
+        <div>
+          <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Plugin UIs</h4>
+          <div class="flex flex-wrap gap-2">
+            <%= for {name, url} <- ExGoCD.Plugin.Registry.ui_links() do %>
+              <.link
+                navigate={url}
+                class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#e7eef0] border border-[#d6e0e2] rounded text-xs font-medium text-[#2d6ca2] hover:bg-[#d6e0e2] transition-colors"
+              >
+                <span>🔌</span> {name}
+              </.link>
+            <% end %>
+            <%= if ExGoCD.Plugin.Registry.ui_links() == [] do %>
+              <span class="text-xs text-slate-400 italic">No plugin UIs registered.</span>
+            <% end %>
+          </div>
+        </div>
       </div>
     </div>
     """

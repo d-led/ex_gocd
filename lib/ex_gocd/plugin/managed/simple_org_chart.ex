@@ -64,4 +64,8 @@ defmodule ExGoCD.Plugin.Managed.SimpleOrgChart do
   defp find_node(node, id) do
     Enum.find_value(node.children, &find_node(&1, id))
   end
+
+  def ui_links do
+    [{"Org Chart", "/admin/clustering"}]
+  end
 end
