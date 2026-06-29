@@ -134,32 +134,29 @@ defmodule ExGoCD.Plugin.Registry do
     {:reply, links, state}
   end
 
-  def handle_call({:register, slot, module, secret, ui_links}, _from, state) do
+  def handle_call({:register, slot, module, secret, ui_links}, from, state) do
     configured = Map.get(state, :secret, "")
 
     if valid_secret?(configured, secret) do
-      node = Map.get(state.nodes, slot) || node()
+      # Use caller's node (from), not local node()
+      caller_node = node(elem(from, 0)) || node()
 
       state =
         state
         |> put_in([:slots, slot], module)
-        |> put_in([:nodes, slot], node)
+        |> put_in([:nodes, slot], caller_node)
         |> put_in([:ui_links, slot], ui_links)
 
-      IO.puts("[PluginRegistry] Registered #{inspect(module)} as #{slot} with #{length(ui_links)} UI links")
-      ExGoCD.ClusterEventLog.record(:plugin_registered, %{slot: slot, module: module, links: ui_links})
+      IO.puts("[PluginRegistry] Registered #{inspect(module)} as #{slot} from #{caller_node}")
+      ExGoCD.ClusterEventLog.record(:plugin_registered, %{slot: slot, module: module, links: ui_links, node: caller_node})
       {:reply, :ok, state}
     else
-      # Unauthorized plugin — banish from cluster
-      caller = self()
-      caller_node = node(caller)
-
-      if caller_node != node() do
-        IO.warn("[PluginRegistry] Banishing #{caller_node} — invalid secret for #{inspect(module)}")
-        ExGoCD.ClusterEventLog.record(:plugin_banished, %{node: caller_node, module: module, reason: :invalid_secret})
+      # Unauthorized — banish
+      caller_node = node(elem(from, 0))
+      if caller_node && caller_node != node() do
+        IO.warn("[PluginRegistry] Banishing #{caller_node} — invalid secret")
         Task.start(fn -> Node.disconnect(caller_node) end)
       end
-
       {:reply, {:error, :invalid_secret}, state}
     end
   end
