@@ -17,7 +17,7 @@ defmodule RegionalAffinityWeb.Router do
   scope "/", RegionalAffinityWeb do
     pipe_through :browser
 
-    get "/", PageController, :home
+    live "/", PluginDashboardLive, :index
   end
 
   # Other scopes may use custom stacks.
