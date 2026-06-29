@@ -87,7 +87,7 @@ defmodule RegionalAffinityWeb.PluginDashboardLive do
                     </td>
                   </tr>
                   <%= for uuid <- entry.candidates do %>
-                    <% is_pref = uuid == entry.preferred %>
+                    <% is_pref = uuid == entry[:preferred] %>
                     <tr style="border-top:1px solid #f3f4f6">
                       <td></td>
                       <td style="padding:.5rem 1rem;font-family:monospace;font-size:.75rem;color:#374151">

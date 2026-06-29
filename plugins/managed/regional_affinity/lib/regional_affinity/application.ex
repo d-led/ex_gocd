@@ -20,19 +20,20 @@ defmodule RegionalAffinity.Application do
       RegionalAffinityWeb.Endpoint
     ]
 
-    # Self-register with ex_gocd on startup (and periodically)
+    # Self-register with ex_gocd on startup, retry every 15s
     Task.start(fn ->
       Process.sleep(3_000)
-      register_with_ex_gocd()
-
-      # Rebroadcast periodically in case ex_gocd restarted
-      Stream.interval(15_000)
-      |> Stream.each(fn _ -> register_with_ex_gocd() end)
-      |> Stream.run()
+      register_loop()
     end)
 
     opts = [strategy: :one_for_one, name: RegionalAffinity.Supervisor]
     Supervisor.start_link(children, opts)
+  end
+
+  defp register_loop do
+    register_with_ex_gocd()
+    Process.sleep(15_000)
+    register_loop()
   end
 
   defp register_with_ex_gocd do

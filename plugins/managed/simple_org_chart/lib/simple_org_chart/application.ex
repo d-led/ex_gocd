@@ -14,9 +14,10 @@ defmodule SimpleOrgChart.Application do
       Process.sleep(3_000)
       register_with_ex_gocd()
 
-      Stream.interval(15_000)
-      |> Stream.each(fn _ -> register_with_ex_gocd() end)
-      |> Stream.run()
+      Process.sleep(15_000)
+      register_with_ex_gocd()
+      Process.sleep(15_000)
+      register_with_ex_gocd()
     end)
 
     opts = [strategy: :one_for_one, name: SimpleOrgChart.Supervisor]
