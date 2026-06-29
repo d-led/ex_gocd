@@ -15,7 +15,7 @@ defmodule RegionalAffinity.Application do
       {Cluster.Supervisor, [topologies, [name: RegionalAffinity.ClusterSupervisor]]},
       RegionalAffinityWeb.Telemetry,
       {Phoenix.PubSub, name: RegionalAffinity.PubSub},
-      {Phoenix.PubSub, name: ExGoCD.PubSub},
+      Supervisor.child_spec({Phoenix.PubSub, name: ExGoCD.PubSub}, id: :cross_node_pubsub),
       RegionalAffinity.SchedulingDecisions,
       RegionalAffinityWeb.Endpoint
     ]
