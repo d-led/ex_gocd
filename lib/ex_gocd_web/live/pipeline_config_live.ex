@@ -125,8 +125,8 @@ defmodule ExGoCDWeb.PipelineConfigLive do
           </a>
         </div>
       </div>
-
-      <!-- Main Layout: Sidebar + Forms -->
+      
+    <!-- Main Layout: Sidebar + Forms -->
       <div class="max-w-[1400px] mx-auto px-6 py-6 flex flex-col md:flex-row gap-6">
         <!-- Sidebar Navigation -->
         <div class="w-full md:w-64 shrink-0 bg-white border border-[#d6e0e2] rounded shadow-sm overflow-hidden h-fit">
@@ -155,8 +155,8 @@ defmodule ExGoCDWeb.PipelineConfigLive do
               <i class="fa fa-cubes mr-2"></i> Stages Config ({@pipeline.stages |> length()})
             </.nav_sidebar_link>
           </nav>
-
-          <!-- Nested Stages Tree View -->
+          
+    <!-- Nested Stages Tree View -->
           <%= if @view_mode in [:stages, :stage_settings, :stage_jobs, :job_settings, :job_tasks] do %>
             <div class="bg-slate-50/50 p-4 border-t border-[#d6e0e2] text-xs space-y-3">
               <span class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
@@ -220,8 +220,8 @@ defmodule ExGoCDWeb.PipelineConfigLive do
             </div>
           <% end %>
         </div>
-
-        <!-- Form Panels -->
+        
+    <!-- Form Panels -->
         <div class="flex-grow bg-white border border-[#d6e0e2] rounded shadow-sm p-6">
           <%= if @flash_info do %>
             <div
@@ -258,8 +258,8 @@ defmodule ExGoCDWeb.PipelineConfigLive do
           <% end %>
         </div>
       </div>
-
-      <!-- Popups / Modals -->
+      
+    <!-- Popups / Modals -->
       <%= if @show_add_modal do %>
         <.modal_layer
           type={@modal_type}
@@ -720,8 +720,8 @@ defmodule ExGoCDWeb.PipelineConfigLive do
                   >
                     Delete
                   </button>
-
-                  <!-- Order sorting -->
+                  
+    <!-- Order sorting -->
                   <%= if index > 0 do %>
                     <button
                       phx-click="move_task"

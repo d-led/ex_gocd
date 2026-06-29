@@ -670,7 +670,8 @@ defmodule ExGoCDWeb.DashboardLive do
                 class={play_class}
                 phx-click={if not trigger_disabled, do: "trigger_pipeline", else: nil}
                 phx-value-name={@pipeline.name}
-              ></button>
+              >
+              </button>
             </li>
             <li>
               <button
@@ -678,7 +679,8 @@ defmodule ExGoCDWeb.DashboardLive do
                 aria-label={play_options_title}
                 title={play_options_title}
                 class={play_options_class}
-              ></button>
+              >
+              </button>
             </li>
             <li>
               <button
@@ -694,7 +696,8 @@ defmodule ExGoCDWeb.DashboardLive do
                   end
                 }
                 phx-value-name={@pipeline.name}
-              ></button>
+              >
+              </button>
             </li>
             <li class="pipeline_actions">
               <a
@@ -702,7 +705,8 @@ defmodule ExGoCDWeb.DashboardLive do
                 title="Edit Pipeline Configuration"
                 href={"/admin/pipelines/#{@pipeline.name}/edit"}
                 class="edit_config"
-              ></a>
+              >
+              </a>
             </li>
           </ul>
           <%= if @pipeline.paused do %>
@@ -774,7 +778,8 @@ defmodule ExGoCDWeb.DashboardLive do
               phx-value-pipeline={@pipeline.name}
               phx-value-stage={stage.name}
               phx-value-counter={@pipeline.counter}
-            ></a>
+            >
+            </a>
           </li>
         <% end %>
       </ul>

@@ -356,7 +356,7 @@ defmodule ExGoCDWeb.AdminK8sLive do
         :if={assigns[:k3s_status] == :no_k3s}
         class="mb-4 p-3 bg-amber-50 border border-amber-200 rounded text-amber-800 text-sm"
       >
-        ℹ️ No local k3s detected. Add a cluster profile manually or start k3s via <code class="bg-amber-100 px-1 rounded">ocker compose up k3s<</code>.
+        ℹ️ No local k3s detected. Add a cluster profile manually or start k3s via <code class="bg-amber-100 px-1 rounded">docker compose up k3s</code>.
       </div>
 
       <div class="mb-4 flex gap-2">

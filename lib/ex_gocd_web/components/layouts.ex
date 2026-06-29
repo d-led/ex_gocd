@@ -29,7 +29,8 @@ defmodule ExGoCDWeb.Layouts do
         href="/pipelines"
         class="gocd_logo"
         tabindex="0"
-      ></a>
+      >
+      </a>
       <button
         class="navbtn"
         aria-label="Open navigation menu"

@@ -124,19 +124,23 @@ defmodule ExGoCDWeb.PluginDemoLive do
                     <td class="px-4 py-2.5">
                       <span class={"inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium " <> decision_class(entry.decision)}>
                         <%= if String.starts_with?(entry.decision, "accepted") do %>
-                          <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            stroke-width="2"
-                            d="M5 13l4 4L19 7"
-                          /></svg>
+                          <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              d="M5 13l4 4L19 7"
+                            />
+                          </svg>
                         <% else %>
-                          <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            stroke-width="2"
-                            d="M6 18L18 6M6 6l12 12"
-                          /></svg>
+                          <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              d="M6 18L18 6M6 6l12 12"
+                            />
+                          </svg>
                         <% end %>
                         {entry.decision}
                       </span>

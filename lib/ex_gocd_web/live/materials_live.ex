@@ -441,7 +441,8 @@ defmodule ExGoCDWeb.MaterialsLive do
                     <span class="detail-key">Auto Update</span>
                     <span class="detail-colon">:</span>
                     <span class="detail-value">
-                      <span class={"material-status_indicator " <> if not mat.auto_update, do: "auto-update-disabled", else: ""}></span>
+                      <span class={"material-status_indicator " <> if not mat.auto_update, do: "auto-update-disabled", else: ""}>
+                      </span>
                       <%= if mat.auto_update do %>
                         Active (polling)
                       <% else %>
@@ -460,8 +461,8 @@ defmodule ExGoCDWeb.MaterialsLive do
           <p>Try refining your search term or configure materials in your pipelines.</p>
         </div>
       <% end %>
-
-      <!-- Usages Modal -->
+      
+    <!-- Usages Modal -->
       <%= if @show_usages_modal and @active_material do %>
         <div class="modal-backdrop" phx-click="close_modal" id="usages-modal-backdrop">
           <div class="gocd-modal" onclick="event.stopPropagation();" id="usages-modal">
@@ -501,8 +502,8 @@ defmodule ExGoCDWeb.MaterialsLive do
           </div>
         </div>
       <% end %>
-
-      <!-- Modifications Modal -->
+      
+    <!-- Modifications Modal -->
       <%= if @show_modifications_modal and @active_material do %>
         <% all_mods = get_all_modifications(@active_material)
         query = String.downcase(@mod_search_text)

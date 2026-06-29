@@ -27,7 +27,8 @@
           phx-click="toggle_dropdown"
           role="presentation"
           aria-hidden="true"
-        ></i>
+        >
+        </i>
         <div class="c-dropdown-body" role="listbox" aria-labelledby="grouping-label">
           <a
             href="#"
@@ -135,8 +136,8 @@
             </button>
           </div>
         </div>
-
-        <!-- Trigger Info -->
+        
+<!-- Trigger Info -->
         <div class="stage-summary-meta">
           <div class="meta-left text-xs text-gray-500 font-sans">
             Triggered by
@@ -162,8 +163,8 @@
             </.link>
           </div>
         </div>
-
-        <!-- Action Bar -->
+        
+<!-- Action Bar -->
         <div class="stage-summary-actions">
           <div class="action-buttons flex gap-2">
             <%= if @active_stage_summary.state == "Awaiting" do %>
@@ -210,8 +211,8 @@
             </span>
           </div>
         </div>
-
-        <!-- Jobs Table -->
+        
+<!-- Jobs Table -->
         <div class="stage-summary-table-container">
           <table class="stage-summary-table">
             <thead>
@@ -241,7 +242,8 @@
                         class={status_dot_class(job)}
                         aria-label={status_dot_label(job)}
                         role="img"
-                      ></span>
+                      >
+                      </span>
                       <.link
                         navigate={
                           ~p"/go/tab/build/detail/#{@active_stage_summary.pipeline_name}/#{@active_stage_summary.pipeline_counter}/#{@active_stage_summary.stage_name}/#{@active_stage_summary.stage_counter}/#{job.name}"

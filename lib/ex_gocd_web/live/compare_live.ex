@@ -136,8 +136,8 @@ defmodule ExGoCDWeb.CompareLive do
           </h1>
         </div>
       </div>
-
-      <!-- Comparison Content -->
+      
+    <!-- Comparison Content -->
       <div class="flex flex-col gap-6">
         <%= if Enum.empty?(@comparison.materials) do %>
           <div class="bg-white border border-gray-200 rounded shadow-sm p-8 text-center text-gray-500 italic">
