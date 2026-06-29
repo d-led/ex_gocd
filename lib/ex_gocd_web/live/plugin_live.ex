@@ -22,12 +22,17 @@ defmodule ExGoCDWeb.PluginLive do
   end
 
   defp fetch_decisions do
-    with mod when not is_nil(mod) <- ExGoCD.Plugin.Registry.get(:agent_selector),
-         node when not is_nil(node) <- ExGoCD.Plugin.Registry.node_for(:agent_selector) do
-      {:ok, decisions} = :erpc.call(String.to_atom(node), mod, :decisions, [], 2000)
-      decisions
+    # Find plugin nodes and query SchedulingDecisions GenServer directly
+    plugin_nodes = Node.list() |> Enum.filter(&(to_string(&1) =~ ~r/regional_affinity/))
+
+    if plugin_nodes == [] do
+      []
     else
-      _ -> []
+      node = hd(plugin_nodes)
+      case :erpc.call(node, RegionalAffinity.SchedulingDecisions, :decisions, [], 2000) do
+        {:ok, decisions} -> decisions
+        _ -> []
+      end
     end
   rescue
     _ -> []
