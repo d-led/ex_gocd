@@ -75,6 +75,13 @@ config :ex_gocd, :otel,
 # Override per-env or via config :ex_gocd, :plugins.
 config :ex_gocd, :plugins, agent_selector: ExGoCD.Plugin.Managed.RegionalAffinity
 
+# Mailer / site URL (B23 + B24). Override per-env.
+config :ex_gocd, :mailer_from, {"ex_gocd", "noreply@exgocd.local"}
+config :ex_gocd, :site_url, "http://localhost:4000"
+
+# Swoosh mailer adapter — test mode by default, SMTP in prod.
+config :ex_gocd, ExGoCD.Mailer, adapter: Swoosh.Adapters.Test
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"

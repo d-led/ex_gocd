@@ -13,8 +13,14 @@ defmodule ExGoCD.Mailer do
 
   alias Swoosh.Email
 
-  @from {"ex_gocd", "noreply@exgocd.local"}
-  @site_url "http://localhost:4000"
+  # Read from config. Defaults in config/config.exs.
+  defp from do
+    Application.get_env(:ex_gocd, :mailer_from, {"ex_gocd", "noreply@exgocd.local"})
+  end
+
+  defp site_url do
+    Application.get_env(:ex_gocd, :site_url, "http://localhost:4000")
+  end
 
   @doc """
   Sends a stage event notification email with GoCD-parity format.
@@ -37,7 +43,7 @@ defmodule ExGoCD.Mailer do
     subject = subject_line(pipeline_name, stage_name, event, stage_counter)
 
     %Email{}
-    |> Email.from(@from)
+    |> Email.from(from())
     |> Email.to(user_email)
     |> Email.subject(subject)
     |> Email.html_body(
@@ -157,7 +163,7 @@ defmodule ExGoCD.Mailer do
             <tr>
               <td style="background:#f9fafb;padding:16px 32px;border-top:1px solid #e5e7eb">
                 <p style="margin:0;font-size:12px;color:#9ca3af">
-                  Sent by ex_gocd &middot; <a href="#{@site_url}" style="color:#3b82f6;text-decoration:none">#{@site_url}</a>
+                  Sent by ex_gocd &middot; <a href="#{site_url()}" style="color:#3b82f6;text-decoration:none">#{site_url()}</a>
                 </p>
               </td>
             </tr>
@@ -262,7 +268,7 @@ defmodule ExGoCD.Mailer do
   defp stage_detail_url(_pipeline, _p_ctr, _stage, nil), do: nil
 
   defp stage_detail_url(pipeline, p_ctr, stage, s_ctr) do
-    "#{@site_url}/pipelines/#{pipeline}/#{p_ctr}/#{stage}/#{s_ctr}"
+    "#{site_url()}/pipelines/#{pipeline}/#{p_ctr}/#{stage}/#{s_ctr}"
   end
 
   defp event_color("Passes", _), do: "22c55e"
