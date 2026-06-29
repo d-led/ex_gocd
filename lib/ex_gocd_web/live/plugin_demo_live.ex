@@ -1,18 +1,16 @@
 defmodule ExGoCDWeb.PluginDemoLive do
   use ExGoCDWeb, :live_view
 
-  alias ExGoCD.Plugin.Managed.RegionalAffinity
-
   @impl true
   def mount(_params, _session, socket) do
     if connected?(socket) do
-      :timer.send_interval(2000, :refresh)
+      :timer.send_interval(5000, :refresh)
     end
 
     socket =
       socket
-      |> assign(:decisions, RegionalAffinity.decisions())
-      |> assign(:plugin_name, "RegionalAffinity (AgentSelector)")
+      |> assign(:decisions, fetch_decisions())
+      |> assign(:plugin_name, get_plugin_name())
       |> assign(:plugin_status, "active")
 
     {:ok, socket}
@@ -20,7 +18,37 @@ defmodule ExGoCDWeb.PluginDemoLive do
 
   @impl true
   def handle_info(:refresh, socket) do
-    {:noreply, assign(socket, :decisions, RegionalAffinity.decisions())}
+    {:noreply, assign(socket, :decisions, fetch_decisions())}
+  end
+
+  defp fetch_decisions do
+    case ExGoCD.Plugin.Registry.get(:agent_selector) do
+      nil ->
+        []
+
+      mod ->
+        # Call decisions/0 on the plugin node via RPC
+        nodes = Node.list()
+
+        case nodes do
+          [] ->
+            []
+
+          _ ->
+            try do
+              :rpc.call(hd(nodes), mod, :decisions, [])
+            rescue
+              _ -> []
+            end
+        end
+    end
+  end
+
+  defp get_plugin_name do
+    case ExGoCD.Plugin.Registry.get(:agent_selector) do
+      nil -> "No plugin registered"
+      mod -> "#{inspect(mod)} (AgentSelector)"
+    end
   end
 
   @impl true

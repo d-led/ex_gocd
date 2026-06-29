@@ -49,66 +49,122 @@ defmodule ExGoCD.Plugin.Registry do
     GenServer.call(__MODULE__, :ui_links)
   end
 
+  @doc """
+  Self-registration endpoint for external plugin nodes. Plugins authenticate
+  with a shared secret (set via PLUGIN_SECRET env or config) and register
+  for a slot. This is how standalone plugin OTP apps join the cluster.
+
+  Returns `:ok` on success, `{:error, :invalid_secret}` or `{:error, :invalid_slot}`.
+  """
+  @spec register(atom(), module(), String.t()) :: :ok | {:error, atom()}
+  def register(slot, module, secret) when slot in @slots do
+    GenServer.call(__MODULE__, {:register, slot, module, secret})
+  end
+
   # -- Callbacks --
 
   @impl true
   def init(_opts) do
     plugins = Application.get_env(:ex_gocd, :plugins, [])
-    state = validate_and_load(plugins)
+
+    secret =
+      Application.get_env(:ex_gocd, :plugin_secret) || System.get_env("PLUGIN_SECRET") || ""
+
+    # Subscribe to plugin self-registration broadcasts
+    Phoenix.PubSub.subscribe(ExGoCD.PubSub, "plugin:register")
+
+    state = %{slots: validate_and_load(plugins), secret: secret, ui_links: %{}}
     {:ok, state}
   end
 
   @impl true
+  def handle_info({:plugin_register, slot, module, secret}, state) do
+    configured_secret = Map.get(state, :secret, "")
+
+    if slot in @slots and valid_secret?(configured_secret, secret) do
+      IO.puts("[PluginRegistry] Registered #{inspect(module)} as #{slot}")
+      ExGoCD.ClusterEventLog.record(:plugin_registered, %{slot: slot, module: module})
+      {:noreply, put_in(state, [:slots, slot], module)}
+    else
+      IO.warn("[PluginRegistry] Rejected #{inspect(module)} for #{slot}: invalid secret")
+      {:noreply, state}
+    end
+  end
+
+  def handle_info({:plugin_ui_links, slot, secret, links}, state) do
+    configured_secret = Map.get(state, :secret, "")
+
+    if slot in @slots and valid_secret?(configured_secret, secret) do
+      {:noreply, put_in(state, [:ui_links, slot], links)}
+    else
+      {:noreply, state}
+    end
+  end
+
+  def handle_info(_msg, state), do: {:noreply, state}
+
+  @impl true
   def handle_call({:get, slot}, _from, state) do
-    {:reply, Map.get(state, slot), state}
+    slots = Map.get(state, :slots, state)
+    {:reply, Map.get(slots, slot), state}
   end
 
   def handle_call(:list, _from, state) do
-    {:reply, Map.to_list(state), state}
+    slots = Map.get(state, :slots, state)
+    {:reply, Map.to_list(slots), state}
   end
 
   def handle_call(:ui_links, _from, state) do
     links =
-      state
+      Map.get(state, :ui_links, %{})
       |> Map.values()
-      |> Enum.reject(&is_nil/1)
-      |> Enum.flat_map(fn mod ->
-        if function_exported?(mod, :ui_links, 0), do: mod.ui_links(), else: []
-      end)
+      |> List.flatten()
 
     {:reply, links, state}
   end
 
+  def handle_call({:register, slot, module, secret}, _from, state) do
+    if valid_secret?(state.secret, secret) do
+      {:reply, :ok, put_in(state.slots[slot], module)}
+    else
+      {:reply, {:error, :invalid_secret}, state}
+    end
+  end
+
   # -- Private --
+
+  defp valid_secret?("", _), do: true
+  defp valid_secret?(configured, supplied), do: Plug.Crypto.secure_compare(configured, supplied)
 
   defp validate_and_load(plugins) do
     Enum.reduce(@slots, %{}, fn slot, acc ->
-      case Keyword.get(plugins, slot) do
-        nil ->
-          Map.put(acc, slot, nil)
-
-        mod when is_atom(mod) ->
-          if Code.ensure_loaded?(mod) do
-            if valid_behaviour?(slot, mod) do
-              Map.put(acc, slot, mod)
-            else
-              IO.warn(
-                "[PluginRegistry] #{inspect(mod)} for slot #{slot} does not implement required behaviour",
-                []
-              )
-
-              Map.put(acc, slot, nil)
-            end
-          else
-            IO.warn(
-              "[PluginRegistry] module #{inspect(mod)} for slot #{slot} could not be loaded",
-              []
-            )
-
-            Map.put(acc, slot, nil)
-          end
-      end
+      Map.put(acc, slot, load_slot(slot, Keyword.get(plugins, slot)))
     end)
+  end
+
+  defp load_slot(_slot, nil), do: nil
+
+  defp load_slot(slot, mod) when is_atom(mod) do
+    cond do
+      not Code.ensure_loaded?(mod) ->
+        IO.warn(
+          "[PluginRegistry] module #{inspect(mod)} for slot #{slot} could not be loaded",
+          []
+        )
+
+        nil
+
+      not valid_behaviour?(slot, mod) ->
+        IO.warn(
+          "[PluginRegistry] #{inspect(mod)} for slot #{slot} does not implement required behaviour",
+          []
+        )
+
+        nil
+
+      true ->
+        mod
+    end
   end
 
   defp valid_behaviour?(:agent_selector, mod),

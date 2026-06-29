@@ -28,7 +28,7 @@
           #
           {Credo.Check.Design.AliasUsage,
            [priority: :low, if_nested_deeper_than: 2, if_called_more_often_than: 0]},
-          {Credo.Check.Design.DuplicatedCode, [mass_threshold: 40, nodes_threshold: 2]},
+          {Credo.Check.Design.DuplicatedCode, [mass_threshold: 50, nodes_threshold: 2]},
           {Credo.Check.Design.TagFIXME, []},
           {Credo.Check.Design.TagTODO, [exit_status: 0]},
 

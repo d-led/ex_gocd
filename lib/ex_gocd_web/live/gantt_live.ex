@@ -38,7 +38,9 @@ defmodule ExGoCDWeb.GanttLive do
     <div class="px-8 py-8 bg-[#f4f8f9] min-h-screen font-sans">
       <div class="page-header border-b border-gray-200 pb-4 mb-6">
         <h1 class="text-2xl font-extrabold text-gray-950 font-mono">Pipeline Gantt</h1>
-        <p class="text-sm text-gray-500 mt-1">Timeline of recent pipeline runs. Auto-refreshes every 30s.</p>
+        <p class="text-sm text-gray-500 mt-1">
+          Timeline of recent pipeline runs. Auto-refreshes every 30s.
+        </p>
       </div>
 
       <%= if @instances == [] do %>
@@ -49,15 +51,23 @@ defmodule ExGoCDWeb.GanttLive do
       <% else %>
         <div class="bg-white border border-gray-200 rounded shadow-sm overflow-x-auto">
           <div style="min-width: 800px">
-            <%= {:safe, @gantt} %>
+            {{:safe, @gantt}}
           </div>
         </div>
 
         <div class="flex gap-6 mt-4 text-xs text-gray-500">
-          <div class="flex items-center gap-1.5"><span class="h-3 w-3 rounded-sm bg-green-500"></span> Passed</div>
-          <div class="flex items-center gap-1.5"><span class="h-3 w-3 rounded-sm bg-red-500"></span> Failed</div>
-          <div class="flex items-center gap-1.5"><span class="h-3 w-3 rounded-sm bg-blue-500"></span> Building</div>
-          <div class="flex items-center gap-1.5"><span class="h-3 w-3 rounded-sm bg-gray-300"></span> Pending</div>
+          <div class="flex items-center gap-1.5">
+            <span class="h-3 w-3 rounded-sm bg-green-500"></span> Passed
+          </div>
+          <div class="flex items-center gap-1.5">
+            <span class="h-3 w-3 rounded-sm bg-red-500"></span> Failed
+          </div>
+          <div class="flex items-center gap-1.5">
+            <span class="h-3 w-3 rounded-sm bg-blue-500"></span> Building
+          </div>
+          <div class="flex items-center gap-1.5">
+            <span class="h-3 w-3 rounded-sm bg-gray-300"></span> Pending
+          </div>
         </div>
       <% end %>
     </div>
@@ -87,8 +97,8 @@ defmodule ExGoCDWeb.GanttLive do
 
     svg_h = length(instances) * @row_height + 40
 
+    # Time ticks
     parts =
-      # Time ticks
       for i <- 0..10 do
         x = @label_width + round(i * @chart_w / 10)
         tick_time = DateTime.add(min_t, round(i * total_ms / 10), :millisecond)
@@ -117,8 +127,14 @@ defmodule ExGoCDWeb.GanttLive do
         y = 30 + row * @row_height
         inst_start = inst.inserted_at
         inst_end = inst.updated_at || inst_start
-        x1 = @label_width + round(DateTime.diff(inst_start, min_t, :millisecond) / total_ms * @chart_w)
-        x2 = @label_width + round(DateTime.diff(inst_end, min_t, :millisecond) / total_ms * @chart_w)
+
+        x1 =
+          @label_width +
+            round(DateTime.diff(inst_start, min_t, :millisecond) / total_ms * @chart_w)
+
+        x2 =
+          @label_width + round(DateTime.diff(inst_end, min_t, :millisecond) / total_ms * @chart_w)
+
         bar_w = max(x2 - x1, 4)
 
         label =
@@ -131,15 +147,31 @@ defmodule ExGoCDWeb.GanttLive do
             inst.stages
             |> Enum.map(fn stage ->
               stage_start = stage.started_at || stage.inserted_at
-              stage_end = stage.completed_at || stage.updated_at || DateTime.add(stage_start, 1, :second)
-              sx1 = x1 + round(DateTime.diff(stage_start, inst_start, :millisecond) / total_stage_ms * bar_w)
-              sx2 = x1 + round(DateTime.diff(stage_end, inst_start, :millisecond) / total_stage_ms * bar_w)
+
+              stage_end =
+                stage.completed_at || stage.updated_at || DateTime.add(stage_start, 1, :second)
+
+              sx1 =
+                x1 +
+                  round(
+                    DateTime.diff(stage_start, inst_start, :millisecond) / total_stage_ms * bar_w
+                  )
+
+              sx2 =
+                x1 +
+                  round(
+                    DateTime.diff(stage_end, inst_start, :millisecond) / total_stage_ms * bar_w
+                  )
+
               sw = max(sx2 - sx1, 2)
               color = stage_color(stage.result)
+
               ~s'<rect x="#{sx1}" y="#{y + 4}" width="#{sw}" height="#{@bar_height - 8}" rx="3" fill="#{color}" opacity="0.85"><title>#{stage.name}: #{stage.result || "running"}</title></rect>'
             end)
           else
-            [~s'<rect x="#{x1}" y="#{y + 4}" width="#{bar_w}" height="#{@bar_height - 8}" rx="3" fill="#d1d5db" opacity="0.7"><title>No stages</title></rect>']
+            [
+              ~s'<rect x="#{x1}" y="#{y + 4}" width="#{bar_w}" height="#{@bar_height - 8}" rx="3" fill="#d1d5db" opacity="0.7"><title>No stages</title></rect>'
+            ]
           end
 
         [label | stage_rects]
@@ -170,7 +202,10 @@ defmodule ExGoCDWeb.GanttLive do
         left_join: si in assoc(pi, :stage_instances),
         order_by: [desc: pi.inserted_at, asc: si.inserted_at],
         limit: 30,
-        preload: [pipeline: [], stage_instances: ^from(si in StageInstance, order_by: [asc: si.inserted_at])],
+        preload: [
+          pipeline: [],
+          stage_instances: ^from(si in StageInstance, order_by: [asc: si.inserted_at])
+        ],
         select: pi
     )
     |> Enum.uniq_by(& &1.id)
@@ -182,16 +217,17 @@ defmodule ExGoCDWeb.GanttLive do
         pipeline_name: pi.pipeline.name,
         inserted_at: pi.inserted_at,
         updated_at: pi.updated_at,
-        stages: Enum.map(pi.stage_instances || [], fn s ->
-          %{
-            name: s.name,
-            result: s.result,
-            inserted_at: s.inserted_at,
-            started_at: s.started_at,
-            completed_at: s.completed_at,
-            updated_at: s.updated_at
-          }
-        end)
+        stages:
+          Enum.map(pi.stage_instances || [], fn s ->
+            %{
+              name: s.name,
+              result: s.result,
+              inserted_at: s.inserted_at,
+              started_at: s.started_at,
+              completed_at: s.completed_at,
+              updated_at: s.updated_at
+            }
+          end)
       }
     end)
   end

@@ -150,15 +150,26 @@ defmodule ExGoCDWeb.AgentRemotingController do
   defp verify_agent_identity(conn, uuid_from_body) do
     header_uuid = get_req_header(conn, "x-agent-guid") |> List.first()
 
-    if is_nil(header_uuid) or header_uuid == uuid_from_body do
-      :ok
-    else
+    if not is_nil(header_uuid) and header_uuid != uuid_from_body do
       conn
       |> put_status(:forbidden)
       |> json(%{
         error: "Agent UUID mismatch: header '#{header_uuid}' vs body '#{uuid_from_body}'"
       })
       |> halt()
+    else
+      # Also verify agent is not disabled — disabled agents must not
+      # access infrastructure via HTTP remoting either.
+      agent = Agents.get_agent_by_uuid(uuid_from_body)
+
+      if agent && agent.disabled do
+        conn
+        |> put_status(:forbidden)
+        |> json(%{error: "Agent is disabled"})
+        |> halt()
+      else
+        :ok
+      end
     end
   end
 

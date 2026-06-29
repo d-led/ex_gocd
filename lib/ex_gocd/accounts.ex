@@ -319,7 +319,7 @@ defmodule ExGoCD.Accounts do
 
   # ── Org Hierarchy plugin integration ──────────────────────────────
 
-  defp org_hierarchy_access?(_user = %{id: nil}, _pipeline_group), do: false
+  defp org_hierarchy_access?(%{id: nil} = _user, _pipeline_group), do: false
 
   defp org_hierarchy_access?(user, pipeline_group) do
     case ExGoCD.Plugin.Registry.get(:org_hierarchy) do

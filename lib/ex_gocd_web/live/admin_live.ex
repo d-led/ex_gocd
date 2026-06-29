@@ -23,8 +23,10 @@ defmodule ExGoCDWeb.AdminLive do
        |> redirect(to: "/")}
     else
       if connected?(socket) do
-        Phoenix.PubSub.subscribe(ExGoCD.PubSub, "cluster:presence")
+        Phoenix.PubSub.subscribe(ExGoCD.PubSub, "cluster:info")
       end
+
+      cluster_info = ExGoCD.ClusterInfoServer.get_cluster_info()
 
       empty_groups = []
       pipeline_groups = fetch_pipeline_groups(empty_groups)
@@ -41,7 +43,7 @@ defmodule ExGoCDWeb.AdminLive do
 
       {:ok,
        socket
-       |> assign(:cluster_info, default_cluster_state())
+       |> assign(:cluster_info, cluster_info)
        |> assign(:empty_groups, empty_groups)
        |> assign(:pipeline_groups, pipeline_groups)
        |> assign(:filtered_groups, pipeline_groups)
@@ -1647,13 +1649,11 @@ defmodule ExGoCDWeb.AdminLive do
   end
 
   @impl true
-  def handle_info({"cluster:presence", payload}, socket) do
-    current = socket.assigns.cluster_info || default_cluster_state()
-    updated = apply_presence_diff(current, payload)
-    {:noreply, assign(socket, :cluster_info, updated)}
+  def handle_info({:cluster_info, info}, socket) do
+    # local_broadcast should keep us node-local, but pin self defensively:
+    # we always know who WE are regardless of where the message originated.
+    {:noreply, assign(socket, :cluster_info, %{info | self: to_string(Node.self())})}
   end
-
-  def handle_info({:cluster_info, _info}, socket), do: {:noreply, socket}
 
   def handle_info(_msg, socket), do: {:noreply, socket}
 
@@ -2179,91 +2179,97 @@ defmodule ExGoCDWeb.AdminLive do
 
   defp clustering_tab(assigns) do
     info = assigns.cluster_info
-    node_count = map_size(info.nodes)
-    stale_count = map_size(info.stale_nodes)
-    singleton_list = info.singletons |> Map.to_list() |> Enum.sort_by(fn {mod, _} -> to_string(mod) end)
+    node_count = if info.self, do: length(info.nodes), else: 0
 
-    assigns = assign(assigns,
-      info: info, node_count: node_count, stale_count: stale_count, singleton_list: singleton_list
-    )
+    singleton_list =
+      info.singletons |> Map.to_list() |> Enum.sort_by(fn {mod, _} -> to_string(mod) end)
+
+    events = ExGoCD.ClusterEventLog.events(10)
+
+    assigns =
+      assign(assigns,
+        info: info,
+        node_count: node_count,
+        singleton_list: singleton_list,
+        events: events
+      )
 
     ~H"""
     <div class="bg-white rounded border border-[#d6e0e2] shadow-sm p-6">
       <h3 class="text-lg font-bold text-[#333] mb-4">Cluster Status</h3>
 
       <div class="space-y-6">
-        <!-- Nodes -->
         <div>
           <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
-            Nodes ({@node_count}) <span :if={@stale_count > 0} class="text-amber-500">({@stale_count} stale)</span>
+            Nodes ({@node_count})
           </h4>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
             <%= if @node_count > 0 do %>
-              <%= for {node_str, data} <- Enum.sort(@info.nodes) do %>
+              <%= for node_str <- @info.nodes do %>
                 <% is_self = node_str == @info.self %>
-                <% age = System.system_time(:second) - Map.get(data, :tracked_at, 0) %>
-                <% stale = age > 30 %>
+                <% is_server = String.starts_with?(node_str, "ex_gocd") %>
                 <div class={[
                   "flex items-center gap-3 px-4 py-3 rounded border text-sm font-mono",
-                  if(is_self, do: "border-[#943a9e] bg-purple-50", else: "border-[#d6e0e2] bg-white"),
-                  if(stale, do: "opacity-50")
+                  if(is_self, do: "border-[#943a9e] bg-purple-50", else: "border-[#d6e0e2] bg-white")
                 ]}>
-                  <span class={["w-2.5 h-2.5 rounded-full", if(is_self, do: "bg-[#943a9e]", else: "bg-green-400")]}></span>
+                  <span class="text-base">{if is_server, do: "🖥️", else: "🔌"}</span>
+                  <span class={[
+                    "w-2.5 h-2.5 rounded-full",
+                    if(is_self, do: "bg-[#943a9e]", else: "bg-green-400")
+                  ]}>
+                  </span>
                   <span class="font-semibold text-slate-700">{node_str}</span>
-                  <span :if={is_self} class="text-[10px] bg-[#943a9e] text-white px-1.5 py-0.5 rounded font-bold">SELF</span>
-                  <span :if={stale} class="text-[10px] text-amber-500">stale</span>
+                  <span
+                    :if={is_self}
+                    class="text-[10px] bg-[#943a9e] text-white px-1.5 py-0.5 rounded font-bold"
+                  >
+                    SELF
+                  </span>
+                  <span
+                    :if={!is_server}
+                    class="text-[10px] bg-slate-200 text-slate-500 px-1.5 py-0.5 rounded font-bold"
+                  >
+                    PLUGIN
+                  </span>
                 </div>
               <% end %>
             <% else %>
               <div class="col-span-2 text-slate-400 text-sm">⏳ Waiting for cluster peers...</div>
             <% end %>
           </div>
-          <!-- Stale nodes -->
-          <%= if @stale_count > 0 do %>
-            <div class="mt-3 text-xs text-slate-400">
-              Stale (no update &gt;30s):
-              <span class="font-mono"><%= Enum.map_join(@info.stale_nodes, ", ", fn {k, _} -> k end) %></span>
-            </div>
-          <% end %>
         </div>
-
-        <!-- Singleton Locations -->
+        
+    <!-- Cluster Events -->
         <div>
           <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
-            Singleton Process Locations
+            Cluster Events
           </h4>
-          <div class="overflow-x-auto">
-            <table class="w-full text-left text-xs text-slate-600">
-              <thead class="bg-[#e7eef0] text-[10px] font-bold text-slate-500 uppercase">
-                <tr><th class="px-4 py-2">Process</th><th class="px-4 py-2">Node</th></tr>
-              </thead>
-              <tbody class="divide-y divide-[#d6e0e2]">
-                <%= for {mod, data} <- @singleton_list do %>
-                  <tr class={["hover:bg-slate-50", if(data.stale, do: "opacity-50")]}>
-                    <td class="px-4 py-2.5 font-mono text-slate-700">
-                      {mod |> to_string() |> String.replace("Elixir.", "")}
-                    </td>
-                    <td class="px-4 py-2.5 font-mono">
-                      <%= if data.location == :not_found do %>
-                        <span class="text-red-500">not running</span>
-                      <% else %>
-                        <span class="flex items-center gap-1.5">
-                          <svg :if={data.node == @info.self} width="16" height="16" viewBox="0 0 24 24">
-                            <circle cx="12" cy="12" r="10" fill="white" stroke="#943a9e" stroke-width="3"/>
-                          </svg>
-                          <span class={if(data.stale, do: "text-amber-500", else: "text-slate-700")}>{data.location}</span>
-                          <span :if={data.stale} class="text-[10px] text-amber-500">stale</span>
-                        </span>
-                      <% end %>
-                    </td>
-                  </tr>
-                <% end %>
-              </tbody>
-            </table>
+          <div class="text-xs text-slate-500 space-y-1 max-h-40 overflow-y-auto">
+            <%= if @events == [] do %>
+              <span class="italic">No events yet</span>
+            <% else %>
+              <%= for evt <- @events do %>
+                <% icon =
+                  case evt.type do
+                    :node_joined -> "🟢"
+                    :node_left -> "🔴"
+                    :plugin_registered -> "🔌"
+                    _ -> "📡"
+                  end %>
+                <div class="flex items-center gap-2 font-mono">
+                  <span>{icon}</span>
+                  <span class="text-slate-400">{Calendar.strftime(evt.timestamp, "%H:%M:%S")}</span>
+                  <span>{evt.type}</span>
+                  <span class="text-slate-600">
+                    {Map.get(evt.details, :node) || Map.get(evt.details, :module) || ""}
+                  </span>
+                </div>
+              <% end %>
+            <% end %>
           </div>
         </div>
-
-        <!-- Plugin UIs -->
+        
+    <!-- Plugin UIs -->
         <div>
           <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Plugin UIs</h4>
           <div class="flex flex-wrap gap-2">
@@ -2280,6 +2286,51 @@ defmodule ExGoCDWeb.AdminLive do
             <% end %>
           </div>
         </div>
+        
+    <!-- Singleton Locations -->
+        <div>
+          <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
+            Singleton Process Locations
+          </h4>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs text-slate-600">
+              <thead class="bg-[#e7eef0] text-[10px] font-bold text-slate-500 uppercase">
+                <tr>
+                  <th class="px-4 py-2">Process</th>
+                  <th class="px-4 py-2">Node</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-[#d6e0e2]">
+                <%= for {mod, node} <- @singleton_list do %>
+                  <tr class="hover:bg-slate-50">
+                    <td class="px-4 py-2.5 font-mono text-slate-700">
+                      {mod |> to_string() |> String.replace("Elixir.", "")}
+                    </td>
+                    <td class="px-4 py-2.5 font-mono">
+                      <%= if node == :not_found do %>
+                        <span class="text-red-500">not running</span>
+                      <% else %>
+                        <span class="flex items-center gap-1.5">
+                          <svg :if={node == @info.self} width="16" height="16" viewBox="0 0 24 24">
+                            <circle
+                              cx="12"
+                              cy="12"
+                              r="10"
+                              fill="white"
+                              stroke="#943a9e"
+                              stroke-width="3"
+                            />
+                          </svg>
+                          <span class="text-slate-700">{node}</span>
+                        </span>
+                      <% end %>
+                    </td>
+                  </tr>
+                <% end %>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </div>
     """
@@ -2293,56 +2344,14 @@ defmodule ExGoCDWeb.AdminLive do
 
   # ── Cluster Presence helpers ────────────────────────────────────────
 
-  defp default_cluster_state do
-    %{nodes: %{}, stale_nodes: %{}, singletons: %{}, self: to_string(Node.self())}
-  end
-
-  defp apply_presence_diff(current, diff) do
-    now = System.system_time(:second)
-    stale_threshold = 30
-
-    nodes =
-      Enum.reduce(diff.joins || %{}, current.nodes, fn {node_str, %{metas: metas}}, acc ->
-        singleton_data = List.first(metas) || %{}
-        tracked_at = Map.get(singleton_data, :tracked_at, now)
-        singletons = Map.get(singleton_data, :singletons, %{})
-        Map.put(acc, node_str, %{tracked_at: tracked_at, singletons: singletons})
-      end)
-
-    nodes = Map.drop(nodes, Map.keys(diff.leaves || %{}))
-
-    {active_nodes, stale_nodes} =
-      nodes
-      |> Enum.split_with(fn {_, data} -> now - Map.get(data, :tracked_at, 0) < stale_threshold end)
-      |> then(fn {active, stale} -> {Map.new(active), Map.new(stale)} end)
-
-    singletons =
-      active_nodes
-      |> Enum.flat_map(fn {node, %{singletons: sings}} ->
-        Enum.map(sings, fn {mod, loc} -> {mod, %{node: node, location: loc, stale: false}} end)
-      end)
-      |> Enum.into(%{})
-
-    singletons =
-      Enum.reduce(stale_nodes, singletons, fn {node, %{singletons: sings}}, acc ->
-        Enum.reduce(sings, acc, fn {mod, loc}, inner_acc ->
-          Map.put_new(inner_acc, mod, %{node: node, location: loc, stale: true})
-        end)
-      end)
-
-    %{
-      nodes: active_nodes,
-      stale_nodes: stale_nodes,
-      singletons: singletons,
-      self: to_string(Node.self())
-    }
-  end
-
   defp plugins_tab(assigns) do
     ~H"""
     <div class="space-y-4">
       <h3 class="text-lg font-bold text-[#333] mb-4">Plugin Dashboard</h3>
-      <.link navigate="/admin/plugins" class="inline-flex items-center gap-2 px-4 py-2 bg-[#2d6ca2] text-white rounded hover:bg-[#23527c] transition-colors text-sm font-medium">
+      <.link
+        navigate="/admin/plugins"
+        class="inline-flex items-center gap-2 px-4 py-2 bg-[#2d6ca2] text-white rounded hover:bg-[#23527c] transition-colors text-sm font-medium"
+      >
         <span>🔌</span> Open Plugin Dashboard
       </.link>
       <p class="text-xs text-slate-500 mt-2">

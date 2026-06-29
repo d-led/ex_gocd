@@ -43,6 +43,27 @@ defmodule ExGoCDWeb.AgentChannel do
     normalized = normalize_join_payload(payload)
     hostname = get_in(normalized, ["hostName"]) || "unknown"
 
+    # Block disabled agents at the infrastructure level — they must not
+    # access the cluster. This mirrors GoCD's behaviour where disabled
+    # agents cannot connect.
+    agent = Agents.get_agent_by_uuid(uuid)
+
+    if agent && agent.disabled do
+      VsmTracer.trace(
+        "agent.connect",
+        %{"agent.uuid" => uuid, "agent.hostname" => hostname},
+        fn ->
+          VsmTracer.set_attr("agent.auth_result", "disabled")
+          VsmTracer.set_status({:error, "agent is disabled"})
+          {:error, %{reason: "agent is disabled"}}
+        end
+      )
+    else
+      do_join(uuid, normalized, hostname, socket)
+    end
+  end
+
+  defp do_join(uuid, normalized, hostname, socket) do
     VsmTracer.trace(
       "agent.connect",
       %{

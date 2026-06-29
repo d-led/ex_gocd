@@ -331,6 +331,14 @@ defmodule ExGoCD.Scheduler do
   # Helpers & Matching Logic
 
   defp connected?(agent_uuid) do
+    # Disabled agents must never receive work.
+    case Agents.get_agent_by_uuid(agent_uuid) do
+      %{disabled: true} -> false
+      _ -> connected_and_ready?(agent_uuid)
+    end
+  end
+
+  defp connected_and_ready?(agent_uuid) do
     # Check Phoenix Presence (WebSocket/LiveView agents) first
     if Map.has_key?(AgentPresence.list(@presence_topic), agent_uuid) do
       true

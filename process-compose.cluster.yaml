@@ -24,17 +24,19 @@ processes:
       - "PORT=4000"
       - "EX_GOCD_CLUSTER=1"
       - "MIX_ENV=dev"
+      - "PLUGIN_SECRET=ex-gocd-demo-secret"
     availability:
       restart: always
 
-  # ── Phoenix Server :5000 ────────────────────────────────────────────
-  server-5000:
+  # ── Phoenix Server :4050 ────────────────────────────────────────────
+  server-4050:
     command: "elixir --name ex_gocd2@127.0.0.1 --cookie ex-gocd-demo-cookie -S mix phx.server"
     working_dir: "."
     environment:
-      - "PORT=5000"
+      - "PORT=4050"
       - "EX_GOCD_CLUSTER=1"
       - "MIX_ENV=dev"
+      - "PLUGIN_SECRET=ex-gocd-demo-secret"
     availability:
       restart: always
 
@@ -44,6 +46,17 @@ processes:
     working_dir: "."
     environment:
       - "MIX_ENV=dev"
+    availability:
+      restart: always
+
+  # ── Plugin: RegionalAffinity (AgentSelector) ────────────────────────
+  plugin-regional-affinity:
+    command: "elixir --name regional_affinity@127.0.0.1 --cookie ex-gocd-demo-cookie -S mix phx.server"
+    working_dir: "plugins/managed/regional_affinity"
+    environment:
+      - "PORT=4100"
+      - "MIX_ENV=dev"
+      - "PLUGIN_SECRET=ex-gocd-demo-secret"
     availability:
       restart: always
 

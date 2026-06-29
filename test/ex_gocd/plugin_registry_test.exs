@@ -20,8 +20,8 @@ defmodule ExGoCD.Plugin.RegistryTest do
   end
 
   describe "get/1 with no plugins configured" do
-    test "returns RegionalAffinity as default agent_selector" do
-      assert ExGoCD.Plugin.Registry.get(:agent_selector) == ExGoCD.Plugin.Managed.RegionalAffinity
+    test "returns nil for agent_selector (plugins self-register)" do
+      assert ExGoCD.Plugin.Registry.get(:agent_selector) == nil
     end
 
     test "returns nil for other slots" do
@@ -39,9 +39,9 @@ defmodule ExGoCD.Plugin.RegistryTest do
       assert Keyword.has_key?(list, :auth_provider)
     end
 
-    test "agent_selector is RegionalAffinity by default" do
+    test "agent_selector is nil by default (plugins self-register)" do
       {:agent_selector, mod} = List.keyfind(ExGoCD.Plugin.Registry.list(), :agent_selector, 0)
-      assert mod == ExGoCD.Plugin.Managed.RegionalAffinity
+      assert mod == nil
     end
   end
 

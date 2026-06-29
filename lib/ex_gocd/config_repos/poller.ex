@@ -92,14 +92,20 @@ defmodule ExGoCD.ConfigRepos.Poller do
 
   defp git_pull(dir) do
     # Fetch + reset to avoid merge conflicts (like GoCD's approach)
-    with {_, 0} <- System.cmd("git", ["-C", dir, "fetch", "origin"],
-             stderr_to_stdout: true, timeout: 30_000),
-         {before, 0} <- System.cmd("git", ["-C", dir, "rev-parse", "HEAD"],
-             stderr_to_stdout: true),
-         {_, 0} <- System.cmd("git", ["-C", dir, "reset", "--hard", "origin/HEAD"],
-             stderr_to_stdout: true, timeout: 30_000),
-         {after_rev, 0} <- System.cmd("git", ["-C", dir, "rev-parse", "HEAD"],
-             stderr_to_stdout: true) do
+    with {_, 0} <-
+           System.cmd("git", ["-C", dir, "fetch", "origin"],
+             stderr_to_stdout: true,
+             timeout: 30_000
+           ),
+         {before, 0} <-
+           System.cmd("git", ["-C", dir, "rev-parse", "HEAD"], stderr_to_stdout: true),
+         {_, 0} <-
+           System.cmd("git", ["-C", dir, "reset", "--hard", "origin/HEAD"],
+             stderr_to_stdout: true,
+             timeout: 30_000
+           ),
+         {after_rev, 0} <-
+           System.cmd("git", ["-C", dir, "rev-parse", "HEAD"], stderr_to_stdout: true) do
       if String.trim(before) != String.trim(after_rev), do: {:changed, ""}, else: :unchanged
     else
       {output, _} -> {:error, output}
@@ -108,7 +114,12 @@ defmodule ExGoCD.ConfigRepos.Poller do
 
   defp parse_repo(repo, dir) do
     # Collect all .gocd.yaml, .gocd.json, pipeline*.yaml files
-    patterns = Application.get_env(:ex_gocd, :config_repo_patterns, ["*.gocd.yaml", "*.gocd.json", "pipelines/*.yaml"])
+    patterns =
+      Application.get_env(:ex_gocd, :config_repo_patterns, [
+        "*.gocd.yaml",
+        "*.gocd.json",
+        "pipelines/*.yaml"
+      ])
 
     files =
       Enum.flat_map(patterns, fn pattern ->

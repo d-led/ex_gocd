@@ -75,7 +75,7 @@ defmodule ExGoCD.Application do
         ExGoCD.ClusterPresence,
         ExGoCDWeb.AgentPresence,
         ExGoCD.Plugin.Registry,
-        ExGoCD.Plugin.Managed.RegionalAffinity,
+        ExGoCD.ClusterEventLog,
         ExGoCD.ConfigRepos.Poller,
         ExGoCD.TestAgentSupervisor,
         ExGoCDWeb.Endpoint

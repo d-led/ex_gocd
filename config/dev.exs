@@ -145,29 +145,5 @@ config :logger, ExGoCD.LoggerJSON,
 # ── Plugin configuration (dev) ─────────────────────────────────────────
 # Base config (config.exs) already loads RegionalAffinity as agent_selector.
 # Cluster mode loads org_chart too. Set EX_GOCD_PLUGINS to add more:
-#   EX_GOCD_PLUGINS=corp_policy,org_chart  iex --sname ex_gocd -S mix phx.server
-
-if System.get_env("EX_GOCD_CLUSTER") == "1" do
-  config :ex_gocd, :plugins,
-    agent_selector: ExGoCD.Plugin.Managed.RegionalAffinity,
-    org_hierarchy: ExGoCD.Plugin.Managed.SimpleOrgChart
-end
-
-# Ad-hoc plugin loading via env var (overrides defaults)
-if System.get_env("EX_GOCD_PLUGINS") do
-  plugins =
-    Application.get_env(:ex_gocd, :plugins, [])
-    |> Keyword.put_new(:agent_selector, ExGoCD.Plugin.Managed.RegionalAffinity)
-
-  plugins =
-    if String.contains?(System.get_env("EX_GOCD_PLUGINS", ""), "corp_policy"),
-      do: Keyword.put(plugins, :agent_selector, ExGoCD.Plugin.Managed.CorpPolicy),
-      else: plugins
-
-  plugins =
-    if String.contains?(System.get_env("EX_GOCD_PLUGINS", ""), "org_chart"),
-      do: Keyword.put(plugins, :org_hierarchy, ExGoCD.Plugin.Managed.SimpleOrgChart),
-      else: plugins
-
-  config :ex_gocd, :plugins, plugins
-end
+# Plugins are now standalone OTP apps that self-register via Plugin.Registry.register/3
+# with a shared PLUGIN_SECRET. They join the cluster via libcluster and register at runtime.

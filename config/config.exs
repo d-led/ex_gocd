@@ -73,7 +73,7 @@ config :ex_gocd, :otel,
 
 # Plugin system — default agent selector (always loaded).
 # Override per-env or via config :ex_gocd, :plugins.
-config :ex_gocd, :plugins, agent_selector: ExGoCD.Plugin.Managed.RegionalAffinity
+config :ex_gocd, :plugins, []
 
 # Mailer / site URL (B23 + B24). Override per-env.
 config :ex_gocd, :mailer_from, {"ex_gocd", "noreply@exgocd.local"}
