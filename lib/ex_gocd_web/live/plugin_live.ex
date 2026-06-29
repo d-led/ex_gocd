@@ -1,4 +1,4 @@
-defmodule ExGoCDWeb.PluginDemoLive do
+defmodule ExGoCDWeb.PluginLive do
   use ExGoCDWeb, :live_view
 
   @impl true
@@ -22,31 +22,20 @@ defmodule ExGoCDWeb.PluginDemoLive do
   end
 
   defp fetch_decisions do
-    case ExGoCD.Plugin.Registry.get(:agent_selector) do
-      nil ->
-        []
-
-      mod ->
-        # Call decisions/0 on the plugin node via RPC
-        nodes = Node.list()
-
-        case nodes do
-          [] ->
-            []
-
-          _ ->
-            try do
-              :rpc.call(hd(nodes), mod, :decisions, [])
-            rescue
-              _ -> []
-            end
-        end
+    with mod when not is_nil(mod) <- ExGoCD.Plugin.Registry.get(:agent_selector),
+         node when not is_nil(node) <- ExGoCD.Plugin.Registry.node_for(:agent_selector) do
+      {:ok, decisions} = :erpc.call(String.to_atom(node), mod, :decisions, [], 2000)
+      decisions
+    else
+      _ -> []
     end
+  rescue
+    _ -> []
   end
 
   defp get_plugin_name do
     case ExGoCD.Plugin.Registry.get(:agent_selector) do
-      nil -> "No plugin registered"
+      nil -> "No agent_selector plugin registered"
       mod -> "#{inspect(mod)} (AgentSelector)"
     end
   end

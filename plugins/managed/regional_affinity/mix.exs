@@ -57,6 +57,10 @@ defmodule RegionalAffinity.MixProject do
       # Cluster membership — connect to ex_gocd nodes
       {:libcluster, "~> 3.4"},
       {:horde, "~> 0.10"},
+      # Quality tools (same as ex_gocd)
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
+      {:sobelow, "~> 0.13", only: [:dev, :test], runtime: false}
     ]
   end
 

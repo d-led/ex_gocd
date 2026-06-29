@@ -2,7 +2,9 @@ defmodule RegionalAffinityWeb.ErrorJSONTest do
   use RegionalAffinityWeb.ConnCase, async: true
 
   test "renders 404" do
-    assert RegionalAffinityWeb.ErrorJSON.render("404.json", %{}) == %{errors: %{detail: "Not Found"}}
+    assert RegionalAffinityWeb.ErrorJSON.render("404.json", %{}) == %{
+             errors: %{detail: "Not Found"}
+           }
   end
 
   test "renders 500" do

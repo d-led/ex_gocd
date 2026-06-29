@@ -41,7 +41,9 @@ defmodule RegionalAffinity.SchedulingDecisions do
   end
 
   def handle_call({:decisions_for, uuid}, _from, state) do
-    filtered = Enum.filter(state, fn d -> d[:chosen] == uuid or uuid in (d[:candidates] || []) end)
+    filtered =
+      Enum.filter(state, fn d -> d[:chosen] == uuid or uuid in (d[:candidates] || []) end)
+
     {:reply, filtered, state}
   end
 

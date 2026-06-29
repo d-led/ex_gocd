@@ -161,8 +161,8 @@ defmodule ExGoCDWeb.Router do
       live "/admin/audit_log", AuditLogLive, :index
 
       # Plugin demo dashboard
-      live "/admin/plugins", PluginDemoLive, :index
-      live "/go/admin/plugins", PluginDemoLive, :index
+      live "/admin/plugins", PluginLive, :index
+      live "/go/admin/plugins", PluginLive, :index
       live "/go/admin/audit_log", AuditLogLive, :index
 
       # Config XML export/import

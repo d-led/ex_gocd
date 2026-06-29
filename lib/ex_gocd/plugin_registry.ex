@@ -50,11 +50,15 @@ defmodule ExGoCD.Plugin.Registry do
   end
 
   @doc """
-  Self-registration endpoint for external plugin nodes. Plugins authenticate
-  with a shared secret (set via PLUGIN_SECRET env or config) and register
-  for a slot. This is how standalone plugin OTP apps join the cluster.
+  Returns the node where the plugin for the given slot is registered.
+  """
+  @spec node_for(atom()) :: String.t() | nil
+  def node_for(slot) when slot in @slots do
+    GenServer.call(__MODULE__, {:node_for, slot})
+  end
 
-  Returns `:ok` on success, `{:error, :invalid_secret}` or `{:error, :invalid_slot}`.
+  @doc """
+  Self-registration endpoint for external plugin nodes.
   """
   @spec register(atom(), module(), String.t()) :: :ok | {:error, atom()}
   def register(slot, module, secret) when slot in @slots do
@@ -80,7 +84,7 @@ defmodule ExGoCD.Plugin.Registry do
     # Subscribe to plugin self-registration broadcasts
     Phoenix.PubSub.subscribe(ExGoCD.PubSub, "plugin:register")
 
-    state = %{slots: validate_and_load(plugins), secret: secret, ui_links: %{}}
+    state = %{slots: validate_and_load(plugins), secret: secret, ui_links: %{}, nodes: %{}}
     {:ok, state}
   end
 
@@ -89,9 +93,16 @@ defmodule ExGoCD.Plugin.Registry do
     configured_secret = Map.get(state, :secret, "")
 
     if slot in @slots and valid_secret?(configured_secret, secret) do
-      IO.puts("[PluginRegistry] Registered #{inspect(module)} as #{slot}")
-      ExGoCD.ClusterEventLog.record(:plugin_registered, %{slot: slot, module: module})
-      {:noreply, put_in(state, [:slots, slot], module)}
+      node = to_string(Node.self())
+      IO.puts("[PluginRegistry] Registered #{inspect(module)} as #{slot} from #{node}")
+      ExGoCD.ClusterEventLog.record(:plugin_registered, %{slot: slot, module: module, node: node})
+
+      state =
+        state
+        |> put_in([:slots, slot], module)
+        |> put_in([:nodes, slot], node)
+
+      {:noreply, state}
     else
       IO.warn("[PluginRegistry] Rejected #{inspect(module)} for #{slot}: invalid secret")
       {:noreply, state}
@@ -132,8 +143,10 @@ defmodule ExGoCD.Plugin.Registry do
 
   def handle_call({:register, slot, module, secret}, _from, state) do
     configured = Map.get(state, :secret, "")
+
     if valid_secret?(configured, secret) do
-      {:reply, :ok, put_in(state, [:slots, slot], module)}
+      node = Map.get(state.nodes, slot) || node()
+      {:reply, :ok, state |> put_in([:slots, slot], module) |> put_in([:nodes, slot], node)}
     else
       {:reply, {:error, :invalid_secret}, state}
     end
@@ -141,11 +154,16 @@ defmodule ExGoCD.Plugin.Registry do
 
   def handle_call({:accept_ui_links, slot, secret, links}, _from, state) do
     configured = Map.get(state, :secret, "")
+
     if valid_secret?(configured, secret) do
       {:reply, :ok, put_in(state, [:ui_links, slot], links)}
     else
       {:reply, {:error, :invalid_secret}, state}
     end
+  end
+
+  def handle_call({:node_for, slot}, _from, state) do
+    {:reply, Map.get(state.nodes, slot), state}
   end
 
   # -- Private --
