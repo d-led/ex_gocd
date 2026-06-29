@@ -70,42 +70,38 @@ defmodule RegionalAffinityWeb.PluginDashboardLive do
                   <th style="padding:.5rem 1rem;font-size:.625rem;font-weight:600;color:#6b7280;text-transform:uppercase;text-align:left;width:6rem">
                     Time
                   </th><th style="padding:.5rem 1rem;font-size:.625rem;font-weight:600;color:#6b7280;text-transform:uppercase;text-align:left">
-                    Candidates
-                  </th><th style="padding:.5rem 1rem;font-size:.625rem;font-weight:600;color:#6b7280;text-transform:uppercase;text-align:left">
-                    Chosen
+                    Agent
+                  </th><th style="padding:.5rem 1rem;font-size:.625rem;font-weight:600;color:#6b7280;text-transform:uppercase;text-align:left;width:5rem">
+                    Decision
                   </th>
                 </tr>
               </thead>
               <tbody>
                 <%= for entry <- @decisions do %>
-                  <tr style="border-top:1px solid #f3f4f6">
-                    <td style="padding:.625rem 1rem;font-family:monospace;font-size:.75rem;color:#6b7280;white-space:nowrap">
+                  <tr style="background:#f9fafb;border-top:2px solid #e5e7eb">
+                    <td style="padding:.5rem 1rem;font-family:monospace;font-size:.75rem;color:#6b7280;white-space:nowrap">
                       {Calendar.strftime(entry.timestamp, "%H:%M:%S")}
                     </td>
-                    <td style="padding:.625rem 1rem">
-                      <div style="display:flex;flex-wrap:wrap;gap:.25rem">
-                        <%= for uuid <- entry.candidates do %>
-                          <span style="padding:.125rem .375rem;background:#f3f4f6;color:#374151;border-radius:.25rem;font-size:.625rem;font-family:monospace">{String.slice(
-                            uuid,
-                            0..7
-                          )}</span>
-                        <% end %>
-                        <%= if entry.candidates == [] do %>
-                          <span style="font-size:.75rem;color:#d1d5db">—</span>
-                        <% end %>
-                      </div>
-                    </td>
-                    <td style="padding:.625rem 1rem">
-                      <%= if entry.preferred do %>
-                        <span style="display:inline-flex;align-items:center;gap:.25rem;padding:.125rem .5rem;background:#ecfdf5;color:#065f46;border-radius:9999px;font-size:.75rem;font-weight:500">✓ {String.slice(
-                          entry.preferred,
-                          0..11
-                        )}</span>
-                      <% else %>
-                        <span style="font-size:.75rem;color:#9ca3af">none</span>
-                      <% end %>
+                    <td colspan="2" style="padding:.25rem 1rem;font-size:.625rem;color:#9ca3af">
+                      Node: {entry.node}
                     </td>
                   </tr>
+                  <%= for uuid <- entry.candidates do %>
+                    <% is_pref = uuid == entry.preferred %>
+                    <tr style="border-top:1px solid #f3f4f6">
+                      <td></td>
+                      <td style="padding:.5rem 1rem;font-family:monospace;font-size:.75rem;color:#374151">
+                        {uuid}
+                      </td>
+                      <td style="padding:.5rem 1rem">
+                        <%= if is_pref do %>
+                          <span style="display:inline-flex;align-items:center;gap:.25rem;padding:.125rem .5rem;background:#ecfdf5;color:#065f46;border-radius:9999px;font-size:.75rem;font-weight:500">✓ preferred</span>
+                        <% else %>
+                          <span style="font-size:.75rem;color:#9ca3af">—</span>
+                        <% end %>
+                      </td>
+                    </tr>
+                  <% end %>
                 <% end %>
               </tbody>
             </table>
