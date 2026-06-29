@@ -76,10 +76,7 @@ defmodule ExGoCD.ConfigRepos.Poller do
     else
       File.mkdir_p!(dir)
 
-      case System.cmd("git", ["clone", repo.url, dir],
-             stderr_to_stdout: true,
-             timeout: 60_000
-           ) do
+      case System.cmd("git", ["clone", repo.url, dir], stderr_to_stdout: true) do
         {output, 0} ->
           Logger.info("[ConfigRepoPoller] Cloned #{repo.id}: #{String.slice(output, 0, 200)}")
           {:ok, dir}
