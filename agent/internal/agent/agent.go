@@ -504,11 +504,11 @@ func (a *Agent) runOneCommandWithFold(ctx context.Context, build *protocol.Build
 	}
 	if build.ConsoleUrl != "" {
 		label := a.foldLabel(cmd)
-		_ = a.postConsole(build.ConsoleUrl, time.Now().Format("15:04:05.000")+" ##[fold]"+label)
+		_ = a.postConsole(build.ConsoleUrl, time.Now().Format("15:04:05.000")+" ##[fold]"+label+"\n")
 	}
 	err := a.runOneCommand(ctx, build, cmd, env)
 	if build.ConsoleUrl != "" {
-		_ = a.postConsole(build.ConsoleUrl, time.Now().Format("15:04:05.000")+" ##[endfold]")
+		_ = a.postConsole(build.ConsoleUrl, time.Now().Format("15:04:05.000")+" ##[endfold]\n")
 	}
 	return err
 }
