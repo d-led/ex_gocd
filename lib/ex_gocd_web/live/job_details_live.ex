@@ -262,8 +262,33 @@ defmodule ExGoCDWeb.JobDetailsLive do
       |> String.replace("\r\n", "\n")
       |> String.trim_trailing("\n")
       |> String.split("\n")
+      |> Enum.flat_map(&split_line_at_fold_markers/1)
 
     parse_and_accumulate_lines(raw_lines, 0, stack, counter)
+  end
+
+  # Splits a line at fold markers (##[fold] and ##[endfold]) that appear mid-line
+  # because the agent may not emit newlines after fold markers.
+  # e.g. "20:54:39.879 ##[fold]git init20:54:40.312 ..." becomes
+  #   ["20:54:39.879 ##[fold]git init", "20:54:40.312 ..."]
+  defp split_line_at_fold_markers(line) do
+    # Split on boundaries where content follows a fold/endfold marker and a new timestamp starts
+    parts =
+      Regex.split(
+        ~r/(?<=\S)(?=\d{2}:\d{2}:\d{2}\.\d{3}\s*##\[(?:end)?fold\])/,
+        line,
+        trim: true
+      )
+
+    parts
+    |> Enum.flat_map(fn part ->
+      # Split mid-line: content after fold marker before next timestamp
+      Regex.split(
+        ~r/(?<=##\[(?:end)?fold\][^\n]*?)(?=\d{2}:\d{2}:\d{2}\.\d{3})/,
+        part,
+        trim: true
+      )
+    end)
   end
 
   defp parse_and_accumulate_lines(raw_lines, start_idx, fold_stack, fold_counter) do
