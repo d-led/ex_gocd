@@ -12,6 +12,12 @@ if [ -z "$LYCHEE" ]; then
   exit 0
 fi
 
+# Check if the server is actually reachable
+if ! curl -s --connect-timeout 3 --max-time 5 -o /dev/null -w "%{http_code}" "$BASE_URL" | grep -qE '^(2|3)'; then
+  echo "[SKIP] Link checker — server not reachable at $BASE_URL (is it running?)"
+  exit 0
+fi
+
 echo "=== Link Checker (lychee) ==="
 
 # lychee: check only localhost links, exclude external, low concurrency

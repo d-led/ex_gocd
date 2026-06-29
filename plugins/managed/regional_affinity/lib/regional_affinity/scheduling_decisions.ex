@@ -23,9 +23,9 @@ defmodule RegionalAffinity.SchedulingDecisions do
     GenServer.call(__MODULE__, {:decisions_for, agent_uuid})
   end
 
-  @doc "Records a scheduling decision."
-  def record(candidates, result) do
-    GenServer.cast(__MODULE__, {:record, candidates, result})
+  @doc "Records a scheduling decision with an optional reason."
+  def record(candidates, result, reason \\ "") do
+    GenServer.cast(__MODULE__, {:record, candidates, result, reason})
   end
 
   # -- Callbacks --
@@ -48,11 +48,22 @@ defmodule RegionalAffinity.SchedulingDecisions do
   end
 
   @impl true
-  def handle_cast({:record, candidates, result}, state) do
+  def handle_cast({:record, candidates, result, reason}, state) do
     entry = %{
       timestamp: DateTime.utc_now(),
       candidates: Enum.map(candidates, & &1.uuid),
+      candidates_detail: Enum.map(candidates, fn a ->
+        %{
+          uuid: a.uuid,
+          hostname: Map.get(a, :hostname, ""),
+          resources: Map.get(a, :resources, []),
+          environments: Map.get(a, :environments, []),
+          state: Map.get(a, :state, "")
+        }
+      end),
       preferred: result,
+      preferred_detail: candidate_detail(candidates, result),
+      reason: reason,
       node: to_string(Node.self())
     }
 
@@ -62,5 +73,19 @@ defmodule RegionalAffinity.SchedulingDecisions do
     Phoenix.PubSub.broadcast(RegionalAffinity.PubSub, "plugin:decisions", {:new_decision, entry})
 
     {:noreply, new_state}
+  end
+
+  defp candidate_detail(candidates, uuid) do
+    case Enum.find(candidates, &(&1.uuid == uuid)) do
+      nil -> nil
+      agent ->
+        %{
+          uuid: agent.uuid,
+          hostname: Map.get(agent, :hostname, ""),
+          resources: Map.get(agent, :resources, []),
+          environments: Map.get(agent, :environments, []),
+          state: Map.get(agent, :state, "")
+        }
+    end
   end
 end

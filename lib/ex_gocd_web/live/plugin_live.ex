@@ -88,10 +88,11 @@ defmodule ExGoCDWeb.PluginLive do
             <table class="w-full text-sm">
               <thead>
                 <tr class="border-b border-slate-100 bg-slate-50 text-left">
-                  <th class="px-4 py-2 text-xs font-medium text-slate-500 uppercase w-28">Time</th>
-                  <th class="px-4 py-2 text-xs font-medium text-slate-500 uppercase">Plugin Node</th>
+                  <th class="px-4 py-2 text-xs font-medium text-slate-500 uppercase w-24">Time</th>
+                  <th class="px-4 py-2 text-xs font-medium text-slate-500 uppercase">Node</th>
                   <th class="px-4 py-2 text-xs font-medium text-slate-500 uppercase">Candidates</th>
-                  <th class="px-4 py-2 text-xs font-medium text-slate-500 uppercase">Chosen Agent</th>
+                  <th class="px-4 py-2 text-xs font-medium text-slate-500 uppercase">Chosen</th>
+                  <th class="px-4 py-2 text-xs font-medium text-slate-500 uppercase">Why</th>
                 </tr>
               </thead>
               <tbody>
@@ -127,6 +128,16 @@ defmodule ExGoCDWeb.PluginLive do
                         </span>
                       <% else %>
                         <span class="text-xs text-slate-400">none</span>
+                      <% end %>
+                    </td>
+                    <td
+                      class="px-4 py-2.5 text-xs text-slate-500 max-w-xs truncate"
+                      title={entry[:reason]}
+                    >
+                      <%= if entry[:reason] not in [nil, ""] do %>
+                        {entry.reason}
+                      <% else %>
+                        <span class="text-slate-300 italic">—</span>
                       <% end %>
                     </td>
                   </tr>
