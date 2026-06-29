@@ -1647,9 +1647,9 @@ defmodule ExGoCDWeb.AdminLive do
   end
 
   @impl true
-  def handle_info(%Phoenix.Socket.Broadcast{event: "presence_diff", payload: diff}, socket) do
+  def handle_info({"cluster:presence", payload}, socket) do
     current = socket.assigns.cluster_info || default_cluster_state()
-    updated = apply_presence_diff(current, diff)
+    updated = apply_presence_diff(current, payload)
     {:noreply, assign(socket, :cluster_info, updated)}
   end
 
@@ -2183,7 +2183,9 @@ defmodule ExGoCDWeb.AdminLive do
     stale_count = map_size(info.stale_nodes)
     singleton_list = info.singletons |> Map.to_list() |> Enum.sort_by(fn {mod, _} -> to_string(mod) end)
 
-    assigns = assign(assigns, node_count: node_count, stale_count: stale_count, singleton_list: singleton_list)
+    assigns = assign(assigns,
+      info: info, node_count: node_count, stale_count: stale_count, singleton_list: singleton_list
+    )
 
     ~H"""
     <div class="bg-white rounded border border-[#d6e0e2] shadow-sm p-6">
