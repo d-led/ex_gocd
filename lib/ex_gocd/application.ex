@@ -37,7 +37,9 @@ defmodule ExGoCD.Application do
          restart: :transient,
          distribution_strategy: Horde.UniformDistribution,
          process_redistribution: :passive,
-         members: :auto
+         members: :auto,
+         max_restarts: 90,
+         max_seconds: 30
        ]},
       Supervisor.child_spec(
         {Task,
