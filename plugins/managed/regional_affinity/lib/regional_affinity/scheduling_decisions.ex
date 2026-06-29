@@ -42,7 +42,7 @@ defmodule RegionalAffinity.SchedulingDecisions do
 
   def handle_call({:decisions_for, uuid}, _from, state) do
     filtered =
-      Enum.filter(state, fn d -> d[:chosen] == uuid or uuid in (d[:candidates] || []) end)
+      Enum.filter(state, fn d -> d[:preferred] == uuid or uuid in (d[:candidates] || []) end)
 
     {:reply, filtered, state}
   end
@@ -52,7 +52,7 @@ defmodule RegionalAffinity.SchedulingDecisions do
     entry = %{
       timestamp: DateTime.utc_now(),
       candidates: Enum.map(candidates, & &1.uuid),
-      chosen: result,
+      preferred: result,
       node: to_string(Node.self())
     }
 

@@ -251,8 +251,13 @@ defmodule ExGoCD.Accounts do
   """
   def verify_password(username, password) when is_binary(username) and is_binary(password) do
     case get_user_by_username(username) do
-      nil -> {:error, :not_found}
-      user -> if Argon2.verify_pass(password, user.password_hash), do: {:ok, user}, else: {:error, :invalid_password}
+      nil ->
+        {:error, :not_found}
+
+      user ->
+        if Argon2.verify_pass(password, user.password_hash),
+          do: {:ok, user},
+          else: {:error, :invalid_password}
     end
   end
 

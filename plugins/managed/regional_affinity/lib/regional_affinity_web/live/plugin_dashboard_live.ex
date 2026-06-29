@@ -96,9 +96,9 @@ defmodule RegionalAffinityWeb.PluginDashboardLive do
                       </div>
                     </td>
                     <td style="padding:.625rem 1rem">
-                      <%= if entry.chosen do %>
+                      <%= if entry.preferred do %>
                         <span style="display:inline-flex;align-items:center;gap:.25rem;padding:.125rem .5rem;background:#ecfdf5;color:#065f46;border-radius:9999px;font-size:.75rem;font-weight:500">✓ {String.slice(
-                          entry.chosen,
+                          entry.preferred,
                           0..11
                         )}</span>
                       <% else %>

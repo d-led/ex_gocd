@@ -60,7 +60,8 @@ defmodule ExGoCD.Plugin.Registry do
   @doc """
   Self-registration endpoint for external plugin nodes.
   """
-  @spec register(atom(), module(), String.t(), [{String.t(), String.t()}]) :: :ok | {:error, atom()}
+  @spec register(atom(), module(), String.t(), [{String.t(), String.t()}]) ::
+          :ok | {:error, atom()}
   def register(slot, module, secret, ui_links \\ []) when slot in @slots do
     GenServer.call(__MODULE__, {:register, slot, module, secret, ui_links})
   end
@@ -148,15 +149,24 @@ defmodule ExGoCD.Plugin.Registry do
         |> put_in([:ui_links, slot], ui_links)
 
       IO.puts("[PluginRegistry] Registered #{inspect(module)} as #{slot} from #{caller_node}")
-      ExGoCD.ClusterEventLog.record(:plugin_registered, %{slot: slot, module: module, links: ui_links, node: caller_node})
+
+      ExGoCD.ClusterEventLog.record(:plugin_registered, %{
+        slot: slot,
+        module: module,
+        links: ui_links,
+        node: caller_node
+      })
+
       {:reply, :ok, state}
     else
       # Unauthorized — banish
       caller_node = node(elem(from, 0))
+
       if caller_node && caller_node != node() do
         IO.warn("[PluginRegistry] Banishing #{caller_node} — invalid secret")
         Task.start(fn -> Node.disconnect(caller_node) end)
       end
+
       {:reply, {:error, :invalid_secret}, state}
     end
   end

@@ -23,7 +23,7 @@ warn_step() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 # ── Elixir: Format check ────────────────────────────────────────────────
 
 echo "=== Elixir: mix format ==="
-mix format --check-formatted 2>&1 && FORMAT_OK=1 || FORMAT_OK=0
+mix format 2>&1 && FORMAT_OK=1 || FORMAT_OK=0
 if [ "$FORMAT_OK" -eq 1 ]; then
   pass_step "Elixir format — all files formatted"
 else

@@ -29,6 +29,7 @@ defmodule ExGoCDWeb.PluginLive do
       []
     else
       node = hd(plugin_nodes)
+
       case :erpc.call(node, RegionalAffinity.SchedulingDecisions, :decisions, [], 2000) do
         {:ok, decisions} -> decisions
         _ -> []
@@ -112,12 +113,17 @@ defmodule ExGoCDWeb.PluginLive do
                       </div>
                     </td>
                     <td class="px-4 py-2.5">
-                      <%= if entry.chosen do %>
+                      <%= if entry.preferred do %>
                         <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
                           <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              d="M5 13l4 4L19 7"
+                            />
                           </svg>
-                          {String.slice(entry.chosen, 0..11)}
+                          {String.slice(entry.preferred, 0..11)}
                         </span>
                       <% else %>
                         <span class="text-xs text-slate-400">none</span>
