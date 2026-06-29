@@ -40,22 +40,24 @@ defmodule RegionalAffinity.Application do
     module = RegionalAffinity.AgentSelector
     slot = :agent_selector
 
-    # Find ex_gocd nodes and register via direct GenServer call
+    # Find ex_gocd nodes
     ex_gocd_nodes = Node.list() |> Enum.filter(&(to_string(&1) =~ ~r/ex_gocd/))
 
     if ex_gocd_nodes == [] do
       IO.warn("[regional_affinity] No ex_gocd nodes found, retrying...")
     else
       target = hd(ex_gocd_nodes)
-      registry = {ExGoCD.Plugin.Registry, target}
 
-      # Register the module
-      :ok = GenServer.call(registry, {:register, slot, module, secret})
+      # Use :erpc.call for reliable cross-node invocation
+      case :erpc.call(target, ExGoCD.Plugin.Registry, :register, [slot, module, secret]) do
+        :ok ->
+          IO.puts("[regional_affinity] Registered #{inspect(module)} as #{slot} on #{target}")
+          # Also send UI links via the public API
+          :erpc.call(target, ExGoCD.Plugin.Registry, :accept_ui_links, [slot, secret, links])
 
-      # Send UI links
-      send(registry, {:plugin_ui_links, slot, secret, links})
-
-      IO.puts("[regional_affinity] Registered as #{slot} on #{target}")
+        other ->
+          IO.warn("[regional_affinity] Registration failed: #{inspect(other)}")
+      end
     end
   end
 

@@ -61,6 +61,13 @@ defmodule ExGoCD.Plugin.Registry do
     GenServer.call(__MODULE__, {:register, slot, module, secret})
   end
 
+  @doc """
+  Accepts UI links from a remote plugin node. Called via :erpc.call.
+  """
+  def accept_ui_links(slot, secret, links) when slot in @slots do
+    GenServer.call(__MODULE__, {:accept_ui_links, slot, secret, links})
+  end
+
   # -- Callbacks --
 
   @impl true
@@ -124,8 +131,18 @@ defmodule ExGoCD.Plugin.Registry do
   end
 
   def handle_call({:register, slot, module, secret}, _from, state) do
-    if valid_secret?(state.secret, secret) do
-      {:reply, :ok, put_in(state.slots[slot], module)}
+    configured = Map.get(state, :secret, "")
+    if valid_secret?(configured, secret) do
+      {:reply, :ok, put_in(state, [:slots, slot], module)}
+    else
+      {:reply, {:error, :invalid_secret}, state}
+    end
+  end
+
+  def handle_call({:accept_ui_links, slot, secret, links}, _from, state) do
+    configured = Map.get(state, :secret, "")
+    if valid_secret?(configured, secret) do
+      {:reply, :ok, put_in(state, [:ui_links, slot], links)}
     else
       {:reply, {:error, :invalid_secret}, state}
     end
