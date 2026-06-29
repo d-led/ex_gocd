@@ -6,7 +6,7 @@ defmodule RegionalAffinityWeb.PluginDashboardLive do
   @impl true
   def mount(_params, _session, socket) do
     if connected?(socket) do
-      Phoenix.PubSub.subscribe(ExGoCD.PubSub, "plugin:decisions")
+      Phoenix.PubSub.subscribe(RegionalAffinity.PubSub, "plugin:decisions")
     end
 
     {:ok,

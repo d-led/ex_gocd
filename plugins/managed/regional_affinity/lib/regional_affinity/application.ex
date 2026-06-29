@@ -14,6 +14,7 @@ defmodule RegionalAffinity.Application do
     children = [
       {Cluster.Supervisor, [topologies, [name: RegionalAffinity.ClusterSupervisor]]},
       RegionalAffinityWeb.Telemetry,
+      {Phoenix.PubSub, name: RegionalAffinity.PubSub},
       {Phoenix.PubSub, name: ExGoCD.PubSub},
       RegionalAffinity.SchedulingDecisions,
       RegionalAffinityWeb.Endpoint
