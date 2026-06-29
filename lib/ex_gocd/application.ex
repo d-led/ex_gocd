@@ -70,6 +70,7 @@ defmodule ExGoCD.Application do
         ExGoCDWeb.Telemetry,
         {DNSCluster, query: Application.get_env(:ex_gocd, :dns_cluster_query) || :ignore},
         {Phoenix.PubSub, name: ExGoCD.PubSub},
+        ExGoCD.ClusterPresence,
         ExGoCDWeb.AgentPresence,
         ExGoCD.Plugin.Registry,
         ExGoCD.Plugin.Managed.RegionalAffinity,

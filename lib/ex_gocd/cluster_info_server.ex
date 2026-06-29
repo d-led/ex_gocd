@@ -1,19 +1,17 @@
 defmodule ExGoCD.ClusterInfoServer do
   @moduledoc """
-  Polls cluster state every 3 seconds and broadcasts via PubSub.
+  Tracks this node's singleton locations via Phoenix Presence every 3s.
+  Presence handles joins/leaves/crashes — no manual cleanup needed.
+  AdminLive subscribes to "cluster:presence" for stable, sorted updates.
   """
   use GenServer
 
-  @topic "cluster:info"
+  @topic "cluster:presence"
   @interval_ms 3_000
-
-  # -- Public API --
 
   def start_link(opts) do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
-
-  # -- Callbacks --
 
   @impl true
   def init(_opts) do
@@ -23,43 +21,41 @@ defmodule ExGoCD.ClusterInfoServer do
 
   @impl true
   def handle_info(:tick, state) do
-    info = collect_cluster_info()
-    Phoenix.PubSub.broadcast(ExGoCD.PubSub, @topic, {:cluster_info, info})
+    track_presence()
     schedule_tick()
     {:noreply, state}
   end
 
   defp schedule_tick, do: Process.send_after(self(), :tick, @interval_ms)
 
-  # -- Info collection --
+  # -- Presence tracking --
 
-  defp collect_cluster_info do
-    nodes = Node.list() |> Enum.map(&to_string/1)
-    singleton_locations = singleton_process_locations()
-    node_self = to_string(Node.self())
+  defp track_presence do
+    node_str = to_string(Node.self())
+    singletons = singleton_locations()
 
-    %{
-      self: node_self,
-      nodes: [node_self | nodes],
-      singletons: singleton_locations
-    }
+    ExGoCD.ClusterPresence.track(
+      self(),
+      @topic,
+      node_str,
+      %{singletons: singletons, tracked_at: System.system_time(:second)}
+    )
   end
 
-  def singleton_process_locations do
+  defp singleton_locations do
     registry = ExGoCD.HordeRegistry
 
     singleton_modules()
     |> Enum.map(fn mod ->
-      {mod, lookup_singleton(registry, mod)}
+      node =
+        case Horde.Registry.lookup(registry, mod) do
+          [{pid, _}] -> to_string(node(pid))
+          [] -> :not_found
+        end
+
+      {mod, node}
     end)
     |> Enum.into(%{})
-  end
-
-  defp lookup_singleton(registry, mod) do
-    case Horde.Registry.lookup(registry, mod) do
-      [{pid, _}] -> to_string(node(pid))
-      [] -> :not_found
-    end
   end
 
   defp singleton_modules do
