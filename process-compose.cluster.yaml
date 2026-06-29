@@ -40,15 +40,6 @@ processes:
     availability:
       restart: always
 
-  # ── Plugin Observer Node ───────────────────────────────────────────
-  plugin-observer:
-    command: "elixir --name plugin_observer@127.0.0.1 --cookie ex-gocd-demo-cookie -S mix run -e 'ExGoCD.PluginNode.start()'"
-    working_dir: "."
-    environment:
-      - "MIX_ENV=dev"
-    availability:
-      restart: always
-
   # ── Plugin: RegionalAffinity (AgentSelector) ────────────────────────
   plugin-regional-affinity:
     command: "elixir --name regional_affinity@127.0.0.1 --cookie ex-gocd-demo-cookie -S mix phx.server"
