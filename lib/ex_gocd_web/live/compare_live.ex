@@ -85,7 +85,7 @@ defmodule ExGoCDWeb.CompareLive do
               <option value="">Select counter...</option>
               <%= for inst <- @instances do %>
                 <option value={inst.counter} selected={@from_counter == inst.counter}>
-                  ##{inst.counter} — {inst.label || inst.status || "N/A"}
+                  ##{inst.counter} — {inst.label || "N/A"}
                 </option>
               <% end %>
             </select>
@@ -114,7 +114,7 @@ defmodule ExGoCDWeb.CompareLive do
               <option value="">Select counter...</option>
               <%= for inst <- @instances do %>
                 <option value={inst.counter} selected={@to_counter == inst.counter}>
-                  ##{inst.counter} — {inst.label || inst.status || "N/A"}
+                  ##{inst.counter} — {inst.label || "N/A"}
                 </option>
               <% end %>
             </select>
@@ -285,7 +285,7 @@ defmodule ExGoCDWeb.CompareLive do
         where: p.name == ^name,
         order_by: [desc: pi.counter],
         limit: 50,
-        select: %{counter: pi.counter, label: pi.label, status: pi.status}
+        select: %{counter: pi.counter, label: pi.label}
     )
   end
 

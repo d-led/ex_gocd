@@ -284,6 +284,7 @@ defmodule ExGoCDWeb.JobDetailsLive do
               id: to_string(idx),
               timestamp: parsed.timestamp,
               message: parsed.message,
+              formatted_message: format_line_message(parsed.message),
               type: :fold_start,
               fold_id: fold_id,
               fold_name: fold_name,
@@ -300,6 +301,7 @@ defmodule ExGoCDWeb.JobDetailsLive do
                   id: to_string(idx),
                   timestamp: parsed.timestamp,
                   message: parsed.message,
+                  formatted_message: format_line_message(parsed.message),
                   type: :fold_end,
                   fold_id: current_fold,
                   parent_fold_id: List.first(rest),
@@ -313,6 +315,7 @@ defmodule ExGoCDWeb.JobDetailsLive do
                   id: to_string(idx),
                   timestamp: parsed.timestamp,
                   message: parsed.message,
+                  formatted_message: format_line_message(parsed.message),
                   type: :normal,
                   fold_id: nil,
                   parent_fold_id: nil,
@@ -329,6 +332,7 @@ defmodule ExGoCDWeb.JobDetailsLive do
               id: to_string(idx),
               timestamp: parsed.timestamp,
               message: parsed.message,
+              formatted_message: format_line_message(parsed.message),
               type: :normal,
               fold_id: nil,
               parent_fold_id: parent,
@@ -536,6 +540,9 @@ defmodule ExGoCDWeb.JobDetailsLive do
   def console_with_links(log) do
     ExGoCDWeb.ConsoleLogHelper.format_log(log)
   end
+
+  defp format_line_message(nil), do: nil
+  defp format_line_message(msg), do: ExGoCDWeb.ConsoleLogHelper.format_log(msg)
 
   def failure_reason(job_instance) do
     state = job_instance[:state] || "Unknown"

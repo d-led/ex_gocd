@@ -157,7 +157,7 @@
               placeholder="Filter..."
               autocomplete="off"
               class="w-32 px-2 py-0.5 text-[10px] bg-gray-800 border border-gray-700 rounded text-gray-300 placeholder-gray-600 focus:outline-none focus:border-gray-500"
-              oninput="var rows=this.closest('.p-6').querySelectorAll('.log-row'); var parts=this.value.toLowerCase().split(/\s+/).filter(function(p){return p.length>0}); rows.forEach(function(row){ var msg=row.querySelector('.log-message'); if(!msg)return; var m=msg.textContent.toLowerCase(); if(parts.length===0 || parts.every(function(p){return m.indexOf(p)!==-1})){row.classList.remove('hidden')}else{row.classList.add('hidden')}})"
+              oninput="var inp=this; clearTimeout(inp._debounce); inp._debounce=setTimeout(function(){var rows=inp.closest('.console-log').querySelectorAll('.log-row'); var parts=inp.value.toLowerCase().split(/\s+/).filter(function(p){return p.length>0}); rows.forEach(function(row){var msg=row.querySelector('.log-message'); if(!msg)return; var m=msg.textContent.toLowerCase(); row.classList.toggle('filter-hidden', parts.length>0 && !parts.every(function(p){return m.indexOf(p)!==-1}))})},150)"
             />
             <button
               class="text-[10px] text-gray-400 hover:text-gray-200 font-bold uppercase tracking-wider"
@@ -260,7 +260,7 @@
                     @wrap_lines && "whitespace-pre-wrap break-all",
                     !@wrap_lines && "whitespace-pre"
                   ]}>
-                    {console_with_links(line.message)}
+                    {line.formatted_message}
                   </span>
                 </div>
               <% end %>
@@ -426,19 +426,3 @@
     </div>
   </div>
 </div>
-
-<script :type={Phoenix.LiveView.ColocatedHook} name=".ConsoleScroller">
-  export default {
-    mounted() {
-      this.scrollIfFollowing();
-    },
-    updated() {
-      this.scrollIfFollowing();
-    },
-    scrollIfFollowing() {
-      if (this.el.dataset.follow === "true") {
-        this.el.scrollTop = this.el.scrollHeight;
-      }
-    }
-  }
-</script>
