@@ -2176,11 +2176,12 @@ defmodule ExGoCDWeb.AdminLive do
     <div class="bg-white rounded border border-[#d6e0e2] shadow-sm p-6">
       <h3 class="text-lg font-bold text-[#333] mb-4">Cluster Status</h3>
 
-      <div :if={@cluster_info.self == nil} class="text-slate-400 text-sm">
-        Cluster information not yet available. The ClusterInfoServer polls every 3 seconds.
-      </div>
-
-      <div :if={@cluster_info.self != nil} class="space-y-6">
+      <%= if @cluster_info.self == nil do %>
+        <div class="text-slate-400 text-sm animate-pulse">
+          ⏳ Connecting to cluster... polls every 3 seconds.
+        </div>
+      <% else %>
+        <div class="space-y-6">
         <!-- Nodes -->
         <div>
           <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Nodes</h4>
@@ -2257,7 +2258,8 @@ defmodule ExGoCDWeb.AdminLive do
             </table>
           </div>
         </div>
-      </div>
+        </div>
+      <% end %>
     </div>
     """
   end
