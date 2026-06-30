@@ -326,6 +326,15 @@ body {
   word-break: normal !important;
 }
 
+/* Defense-in-depth: collapse whitespace text nodes between flex children.
+   Template reformatting must not reintroduce blank-line pollution. */
+.log-row {
+  font-size: 0;
+}
+.log-row > * {
+  font-size: 11px;
+}
+
 #console-container {
   scrollbar-width: thin;
   scrollbar-color: #374151 #111827;
