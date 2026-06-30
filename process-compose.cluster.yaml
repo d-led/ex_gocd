@@ -73,7 +73,7 @@ processes:
     availability:
       restart: always
 
-  # ── CI Agent ────────────────────────────────────────────────────────
+  # ── CI Agent (elixir, postgres resources) ───────────────────────────
   ci-agent:
     command: "go run ."
     working_dir: "agent"
@@ -85,5 +85,45 @@ processes:
       - "AGENT_HOSTNAME=ci-agent"
       - "AGENT_UUID=00010000-1000-4000-a000-000000000001"
       - "EX_GOCD_DEMO_COOKIE=ex-gocd-demo-cookie"
+      - "OTEL_TRACES_EXPORTER=otlp"
+      - "OTEL_EXPORTER_OTLP_ENDPOINT=localhost:4318"
+      - "OTEL_SERVICE_NAME=gocd-agent"
+    availability:
+      restart: always
+
+  # ── Docker Agent (docker resource) ──────────────────────────────────
+  docker-agent:
+    command: "go run ."
+    working_dir: "agent"
+    environment:
+      - "AGENT_SERVER_URL=http://127.0.0.1:4000"
+      - "AGENT_WORK_DIR=/tmp/ex_gocd_agent_docker_work"
+      - "AGENT_AUTO_REGISTER_RESOURCES=docker"
+      - "AGENT_HOSTNAME=docker-agent"
+      - "AGENT_UUID=00020000-2000-4000-a000-000000000001"
+      - "EX_GOCD_DEMO_COOKIE=ex-gocd-demo-cookie"
+      - "OTEL_TRACES_EXPORTER=otlp"
+      - "OTEL_EXPORTER_OTLP_ENDPOINT=localhost:4318"
+      - "OTEL_SERVICE_NAME=gocd-docker-agent"
+    availability:
+      restart: always
+
+  # ── Elastic Docker Agent (self-terminates when idle) ────────────────
+  elastic-docker-agent:
+    command: "go run ."
+    working_dir: "agent"
+    environment:
+      - "AGENT_SERVER_URL=http://127.0.0.1:4000"
+      - "AGENT_WORK_DIR=/tmp/ex_gocd_agent_docker_elastic_work"
+      - "AGENT_AUTO_REGISTER_ELASTIC_AGENT_ID=elastic-docker-001"
+      - "AGENT_AUTO_REGISTER_ELASTIC_PLUGIN_ID=cd.go.contrib.elastic-agent.docker"
+      - "AGENT_AUTO_REGISTER_RESOURCES="
+      - "AGENT_IDLE_TIMEOUT=300s"
+      - "AGENT_HOSTNAME=elastic-docker-agent"
+      - "AGENT_UUID=00030000-3000-4000-a000-000000000001"
+      - "EX_GOCD_DEMO_COOKIE=ex-gocd-demo-cookie"
+      - "OTEL_TRACES_EXPORTER=otlp"
+      - "OTEL_EXPORTER_OTLP_ENDPOINT=localhost:4318"
+      - "OTEL_SERVICE_NAME=gocd-elastic-docker-agent"
     availability:
       restart: always
