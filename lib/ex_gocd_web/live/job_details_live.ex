@@ -169,6 +169,21 @@ defmodule ExGoCDWeb.JobDetailsLive do
   end
 
   @impl true
+  def handle_event("toggle_follow", _params, socket) do
+    {:noreply, assign(socket, :follow, !socket.assigns.follow)}
+  end
+
+  @impl true
+  def handle_event("toggle_timestamps", _params, socket) do
+    {:noreply, assign(socket, :show_timestamps, !socket.assigns.show_timestamps)}
+  end
+
+  @impl true
+  def handle_event("toggle_wrap", _params, socket) do
+    {:noreply, assign(socket, :wrap_lines, !socket.assigns.wrap_lines)}
+  end
+
+  @impl true
   def handle_event("toggle_artifact_dir", %{"path" => dir_path}, socket) do
     artifacts = toggle_dir(socket.assigns.artifacts, dir_path)
     {:noreply, assign(socket, artifacts: artifacts)}

@@ -160,7 +160,7 @@
           <span class="text-[10px] text-gray-400 uppercase tracking-wider font-bold">
             Console Output
           </span>
-          <div class="flex items-center gap-3">
+          <div class="flex items-center gap-3 flex-wrap">
             <a
               href={
                 ~p"/files/#{@pipeline_name}/#{@pipeline_counter}/#{@stage_name}/#{@stage_counter}/#{@job_name}/cruise-output/console.log"
@@ -188,8 +188,8 @@
                 id="toggle-wrap"
                 class="w-3 h-3"
                 checked={@wrap_lines}
-                onchange="var cl=document.getElementById('console-container'); cl.classList.toggle('no-wrap',!this.checked)"
-              /> Line Wrap
+              phx-change="toggle_wrap"
+            /> Line Wrap
             </label>
             <input
               type="text"
@@ -211,8 +211,8 @@
                 id="toggle-timestamps"
                 class="w-3 h-3"
                 checked={@show_timestamps}
-                onchange="document.getElementById('console-container').classList.toggle('show-timestamps')"
-              /> Timestamps
+              phx-change="toggle_timestamps"
+            /> Timestamps
             </label>
             <label class="flex items-center gap-1 text-[10px] text-gray-400 cursor-pointer select-none">
               <input
@@ -220,8 +220,8 @@
                 id="toggle-follow"
                 class="w-3 h-3"
                 checked={@follow}
-                onchange="document.getElementById('console-container').dataset.follow = this.checked"
-              /> Follow
+              phx-change="toggle_follow"
+            /> Follow
             </label>
           </div>
         </div>
