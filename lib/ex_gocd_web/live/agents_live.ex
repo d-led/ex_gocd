@@ -725,12 +725,12 @@ defmodule ExGoCDWeb.AgentsLive do
                       <td>{Enum.join(pod.resources, ", ")}</td>
                       <td>
                         <%= if pod.error do %>
-                          <span class="text-red-700">Error</span>
+                          <span class="text-error">Error</span>
                         <% else %>
                           <%= if pod.agent_uuid do %>
-                            <span class="text-green-700">Registered</span>
+                            <span class="text-success">Registered</span>
                           <% else %>
-                            <span class="text-green-700">Agent pending</span>
+                            <span class="text-success">Agent pending</span>
                           <% end %>
                         <% end %>
                       </td>
