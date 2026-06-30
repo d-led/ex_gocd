@@ -1,6 +1,8 @@
 # VSM (Value Stream Map) — Feature Parity Plan
 
-*Generated 2026-06-21. Cross-referenced with GoCD source at ../gocd/server/src/main/webapp/WEB-INF/rails/webpack/views/.*
+> **⚠️ SUPERSEDED** — VSM is complete. See `docs/comprehensive_parity_plan.md` for current state.
+
+*Generated 2026-06-21. Kept for historical reference.*
 
 ## GoCD VSM Reference
 

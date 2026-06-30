@@ -148,10 +148,11 @@ All B17-B21 complete: agent transitions schema, utilization snapshots (5-min Gen
 |----------|-------|--------|--------|
 | **P0** | — | — | ✅ DONE |
 | **P1** | — | — | ✅ DONE |
-| **P2** | Enhanced compare, gantt, config repos engine | M-XL | 2 medium + 1 large remaining |
+| **P2** | Enhanced compare, Gantt arrows, embedded stats | S-M | 3 UI polish items |
+| **P2** | Full config repos engine (PaC) | XL | Pipeline-as-code from git |
+| **P2** | External auth plugin (Ueberauth) | L | LDAP/OAuth/GitHub login |
 | **P3** | — | — | ✅ DONE (Analytics) |
-| **P4** | — | — | ✅ DONE (B22-B30 all complete) |
-| **Plugins** | External auth (Ueberauth) | L | Separate cluster app |
+| **P4** | — | — | ✅ DONE (B22-B30) |
 
 ## Part D: Build & Quality
 
@@ -197,51 +198,45 @@ The GoCD analytics plugin provides separate dashboard pages (not embedded in sta
 
 ---
 
-## Part G: Remaining Items — Consolidated (2026-06-30)
+## Part G: Remaining Items — Prioritized (2026-06-30)
 
-### 🟢 P2: Medium Effort
+### 🟡 P2: Medium Effort — UI Polish
 
-| Item | Effort | Notes |
-|------|--------|-------|
-| **Material VSM link** | S | `/go/materials/value_stream_map/:fingerprint/:revision` — GoCD renders "VSM" link on each material modification in `MaterialHeaderWidget`. Can parameterize existing VSM with `?fingerprint=&revision=` query params. |
-| Enhanced compare dialog (Phase 11) | M | Any-two-instance pickers, side-by-side diff |
-| Gantt chart view (Phase 12) | M | `phoenix_live_gantt` candidate |
-| Embedded pipeline/stage stats (Phase 13) | S | Charts in detail pages, not just analytics |
+| # | Item | Effort | Notes |
+|---|------|--------|-------|
+| G1 | Enhanced compare dialog | M | Any-two-instance pickers, side-by-side diff. CompareLive already exists with counter pickers + env vars + modifications table. |
+| G2 | Gantt chart dependency arrows | M | GanttLive exists at `/gantt` with SVG bars. Needs upstream/downstream arrows between pipeline runs. |
+| G3 | Embedded pipeline/stage stats | S | Charts in detail pages, not just `/analytics`. |
 
-### 🔴 P2: Large Effort (Plugin Cluster Apps)
+### 🔴 P2: Large Effort
 
-These are deployed as **separate Phoenix apps** in the cluster, not baked into ex_gocd:
+| # | Item | Effort | Notes |
+|---|------|--------|-------|
+| G4 | Full config repos engine (PaC) | XL | YAML/JSON parsing, git polling, merge engine. Data model done in `external-ci-pipeline-sync-plan.md`. |
+| G5 | External auth plugin (Ueberauth) | L | Separate Phoenix app in `plugins/managed/`. LDAP/OAuth/GitHub. Plugin architecture ready. |
 
-| Item | Effort | Notes |
-|------|--------|-------|
-| **External auth plugin** (Ueberauth: LDAP/OAuth/GitHub) | L | Separate Phoenix app in `plugins/managed/`. ex_gocd already supports plugin architecture with 5 behaviours. Auth plugin provides user authentication UI + callback. Not "auth plugin" in GoCD sense — this is a user-facing login app. |
-| **Org Hierarchy plugin** | M | `SimpleOrgChart` exists as example plugin. Wire into `PipelineGroupPolicy` for group-based permissions. Already deployed as separate app in cluster. |
-| Full config repos engine (PaC) | XL | YAML/JSON parsing, git polling, merge engine. Data model phases 0-2 done in `external-ci-pipeline-sync-plan.md`. |
+### ✅ Done (was P2)
 
-### ✅ Recently Completed
+| # | Item | When | Notes |
+|---|------|------|-------|
+| — | Material VSM link | — | ✅ Routes at `/materials/value_stream_map/:fingerprint/:revision` |
+| — | Org Hierarchy + PipelineGrouper | 2026-06-30 | ✅ SimpleOrgChart → PipelineGroupPolicy. PipelineGrouper wired into DashboardLive with fallback. 3 tests. |
 
-| Item | When | Notes |
-|------|------|-------|
-| Console log display fix | 2026-06-30 | Collapsed template whitespace — rows now tight 20px. Client-side toggles (timestamps, wrap, follow). Added `cypress/e2e/console_log_display.cy.js` (8 tests). |
-| Console log fold parsing | 2026-06-29 | Agent `##[fold]`/`##[endfold]` newline fix + server-side split. |
-| Console log performance | 2026-06-29 | Pre-computed `formatted_message`, debounced filter. |
-
-### ❌ Removed / Deferred
+### ❌ Deferred / Removed
 
 | Item | Reason |
 |------|--------|
-| "Auth plugin" (GoCD sense) | Unclear scope. User auth is handled by external auth plugin app, not a GoCD-style plugin. |
-| Docker elastic agent path | K8s-only. Docker elastic cluster profile would need Docker API client — not planned. |
-| K8s agent config admin UI | Deferred. Cluster profile auto-seed works via DB. |
+| Docker elastic agent path | K8s-only. No Docker API client planned. |
+| K8s agent config admin UI | Cluster profile auto-seed works via DB. |
 
 ---
 
 ## Part H: Build & Quality Summary
 
-- **Tests**: 886 ExUnit (0 skipped), Go agent clean, Cypress 116 tests (16 specs)
-- **Quality gate**: compile `--warnings-as-errors` clean, `mix format --check-formatted` clean, Credo 0 issues, Sobelow 0 findings
-- **LiveView pages**: 19 modules (added PluginDemoLive)
-- **API controllers**: 20 controllers (added SCMController), 83 actions
-- **Clustering**: M1-M5 done — libcluster+Horde, admin UI, 10 distributed singletons, OTEL propagator, Plugin.Registry+AgentSelector, 3 example plugins, process-compose verified
-- **Plugin architecture**: 5 behaviour modules, Plugin.Registry GenServer, AgentSelector wired into Scheduler. Plugins run as separate Phoenix apps in the cluster (not GoCD-style in-process plugins). Docs in `clustering_plugin_plan.md`.
-- **See also**: `clustering_plugin_plan.md`, `vsm_parity_plan.md`, `auth_and_env_plan.md`, `external-ci-pipeline-sync-plan.md`
+- **Tests**: 886 ExUnit (0 skipped), Go agent clean, Cypress 108 tests (15 specs)
+- **Quality gate**: compile `--warnings-as-errors` clean, Credo 0 issues, Sobelow 0 findings
+- **LiveView pages**: 19 modules
+- **API controllers**: 20 controllers, 83 actions
+- **Clustering**: M1-M5 done — libcluster+Horde, 10 distributed singletons, OTEL propagator
+- **Plugin architecture**: 5 behaviours, Plugin.Registry, AgentSelector wired, PipelineGrouper wired, 3 example plugins
+- **Single source of truth**: this file. Supersedes all other plan docs.

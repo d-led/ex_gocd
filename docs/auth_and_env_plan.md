@@ -1,6 +1,8 @@
 # Auth, Environments & Agent Job Types — Feature Parity Plan
 
-*2026-06-22. Cross-referenced with GoCD source at ../gocd/*
+> **⚠️ SUPERSEDED** — Auth, Environments, RBAC are complete. See `docs/comprehensive_parity_plan.md` for current state.
+
+*2026-06-22. Kept for historical reference.*
 
 ---
 

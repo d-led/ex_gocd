@@ -565,15 +565,21 @@ defmodule ExGoCDWeb.DashboardLive do
     |> Map.new()
   end
 
-  defp grouping_data(all_pipelines, "pipeline_group", true) do
+  defp grouping_data(all_pipelines, grouping_scheme, true) do
+    # Check for a registered PipelineGrouper plugin first.
+    case ExGoCD.Plugin.Registry.get(:pipeline_grouper) do
+      nil -> static_grouping(all_pipelines, grouping_scheme)
+      mod -> plugin_grouping(mod, all_pipelines)
+    end
+  end
+
+  defp static_grouping(all_pipelines, "pipeline_group") do
     Enum.group_by(all_pipelines, &(Map.get(&1, :group) || "Default"))
     |> Enum.sort_by(fn {k, _} -> k end)
     |> Map.new()
   end
 
-  defp grouping_data(all_pipelines, "environment", true) do
-    # Group by environment. Pipelines without an environment go under "Default".
-    # When environments are implemented, this will use the actual environment assignment.
+  defp static_grouping(all_pipelines, "environment") do
     env_map =
       Enum.group_by(all_pipelines, fn p ->
         env = Map.get(p, :environment) || p[:environment]
@@ -582,8 +588,14 @@ defmodule ExGoCDWeb.DashboardLive do
       |> Enum.sort_by(fn {k, _} -> k end)
       |> Map.new()
 
-    # Ensure there's always at least a "Default" key for consistent rendering
     Map.put_new(env_map, "Default", [])
+  end
+
+  defp plugin_grouping(mod, all_pipelines) do
+    case mod.compute_groups(all_pipelines, []) do
+      result when is_map(result) and map_size(result) > 0 -> result
+      _ -> static_grouping(all_pipelines, "environment")
+    end
   end
 
   defp group_pipelines(filtered_pipelines, grouped_data) when is_map(grouped_data) do

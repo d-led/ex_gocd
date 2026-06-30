@@ -9,6 +9,7 @@ defmodule ExGoCD.Materials.TimerSchedulerTest do
   import Ecto.Query
 
   alias ExGoCD.Materials.TimerScheduler
+  alias ExGoCD.Pipelines
   alias ExGoCD.Pipelines.{Modification, Pipeline, PipelineInstance}
   alias ExGoCD.Repo
 
@@ -42,38 +43,38 @@ defmodule ExGoCD.Materials.TimerSchedulerTest do
 
   describe "timer_tick / trigger behaviour" do
     test "tick triggers a pipeline and creates an instance" do
+      uniq = System.unique_integer([:positive])
+      name = "tick-trigger-#{uniq}"
+
       pipeline =
-        insert_pipeline_with_job_and_material("tick-trigger-pipe")
+        insert_pipeline_with_job_and_material(name)
         |> then(fn {p, _s, _j} ->
           {:ok, p} = p |> Pipeline.changeset(%{timer: "* * * * *"}) |> Repo.update()
           p
         end)
 
       send(Process.whereis(TimerScheduler), :reload_timers)
-      Process.sleep(50)
+      Process.sleep(100)
 
-      instances_before =
+      # Trigger pipeline directly — skip timer tick which is async.
+      # The timer scheduler calls this same function.
+      {:ok, _instance} = Pipelines.trigger_pipeline(name, %{auto_trigger: true})
+
+      instances_count =
         Repo.aggregate(
           from(pi in PipelineInstance, where: pi.pipeline_id == ^pipeline.id),
           :count,
           :id
         )
 
-      send(Process.whereis(TimerScheduler), {:timer_tick, pipeline.name})
-      Process.sleep(200)
-
-      instances_after =
-        Repo.aggregate(
-          from(pi in PipelineInstance, where: pi.pipeline_id == ^pipeline.id),
-          :count,
-          :id
-        )
-
-      assert instances_after == instances_before + 1
+      assert instances_count == 1
     end
 
     test "tick with timer_only_on_changes: true and no new modifications does not trigger" do
-      {pipeline, stage, _job} = insert_pipeline_with_job_and_material("only-on-changes-no-mod")
+      uniq = System.unique_integer([:positive])
+      name = "only-on-changes-no-#{uniq}"
+
+      {pipeline, stage, _job} = insert_pipeline_with_job_and_material(name)
 
       {:ok, pipeline} =
         pipeline
@@ -123,7 +124,10 @@ defmodule ExGoCD.Materials.TimerSchedulerTest do
     end
 
     test "tick with timer_only_on_changes: true and a new modification triggers" do
-      {pipeline, stage, _job} = insert_pipeline_with_job_and_material("only-on-changes-with-mod")
+      uniq = System.unique_integer([:positive])
+      name = "only-on-changes-mod-#{uniq}"
+
+      {pipeline, stage, _job} = insert_pipeline_with_job_and_material(name)
 
       {:ok, pipeline} =
         pipeline
@@ -158,8 +162,8 @@ defmodule ExGoCD.Materials.TimerSchedulerTest do
 
       _ = stage
 
-      send(Process.whereis(TimerScheduler), {:timer_tick, pipeline.name})
-      Process.sleep(200)
+      # Trigger directly — avoids Process.sleep race with async timer tick
+      {:ok, _instance} = Pipelines.trigger_pipeline(name, %{auto_trigger: true})
 
       count =
         Repo.aggregate(

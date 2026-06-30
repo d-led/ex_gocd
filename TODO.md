@@ -1,95 +1,45 @@
-# ex_gocd Feature Parity Implementation Plan
+# ex_gocd — Status & Remaining Work
 
-*Auto-generated and continuously updated. See `docs/comprehensive_parity_plan.md` for full context.*
-*Last updated: 2026-06-21*
+> **Single source of truth**: `docs/comprehensive_parity_plan.md`
+> Superseded: `docs/parity_roadmap_plan.md`, `docs/vsm_parity_plan.md`, `docs/auth_and_env_plan.md`, `docs/external-ci-pipeline-sync-plan.md`
 
-## ✅ Completed — Feature Parity
+*Last verified: 2026-06-30*
 
-### P0: User-Visible Gaps
-- [x] **Test report generation** — JUnit XML → HTML via xmerl + HTML builder
-- [x] **Console log auto-scroll** — JS ConsoleScroller hook
-- [x] **Artifact tree browser** — recursive expand/collapse directories
-- [x] **Honest job state** — no more fake "Completed/Passed" mock
-- [x] **Tests + Materials tabs** in job details page
-
-### P1: Artifact Integrity
-- [x] **MD5 checksums for artifacts** — agent uploads checksums, server stores to `cruise-output/md5.checksum` (functional, needs tests)
-- [x] **Agent resource/environment matching** — Agent schema: `resources`, `environments`. Job schema: `resources`. Scheduler `find_matching_job/2` matches case-insensitively.
-
-### P2: REST API Parity
-- [x] **Pipeline instance API** — `GET /api/pipelines/:name/history`, `GET /api/pipelines/:name/:counter`
-- [x] **Job instance API** — `GET /api/jobs/.../.../.../.../...`, `GET /api/jobs/.../.../.../history`
-- [x] **Stage instance API** — `GET /api/stages/.../.../.../...`, `GET /api/stages/.../.../history`, `POST /api/stages/.../.../.../cancel`
-- [x] **Users CRUD API** — `GET/POST/PATCH/DELETE /api/users/...`
-- [x] **Stage cancel** — `Pipelines.cancel_stage/3` marks jobs Cancelled, broadcasts update. Fixed JobInstance validation to accept "Cancelled" state.
-- [x] **Unreachable clause** — removed `_ -> :ok` dead code from trigger_pipeline case
-
-### Fixes (2026-06-21 session)
-- [x] charlist `~c""` deprecation (Elixir 1.20)
-- [x] xmerl tuple patterns (10-12 element tuples)
-- [x] vsm_tracer unused variable warning
-- [x] Credo: `with→case`, poller dedup
-- [x] Material crash (`m.name` → `m.url`) in job details
-- [x] Job name clickable in dashboard → job details
-- [x] Failure reason when no console log
-- [x] `JobInstance` "Cancelled" state validation
-- [x] Unreachable `_ -> :ok` clause
-- [x] Layout test aria-label mismatch
-- [x] **Dashboard REST API** — `GET /api/dashboard` JSON with pipeline groups, latest status
-- [x] **Pipeline config admin CRUD API** — `GET/POST/PUT/DELETE /api/admin/pipelines/:name`
-- [x] **Credo F-issues** — extracted helpers to reduce nesting depth
-- [x] **CCTray controller** — fixed unused `conn` variable warning
-
-### Admin Menu Audit (2026-06-21)
-All 18 admin sub-menu links route to AdminLive tabs. UI shells exist. Backend gaps:
-- **config_xml**: ❌ XML export
-- **package_repositories**: ❌ CRUD
-- **elastic_agent_configs**: ❌ Profiles
-- **config_repos**: ⚠️ Schema, no sync engine
-- **artifact_stores**: ❌ Config
-- **secret_configs**: ❌ Management
-- **scms**: ❌ CRUD
-- **backup**: ❌ Execution
-- **plugins**: ✅ Listing (Plugin Dashboard at /admin/plugins, plugin LiveViews)
-- **auth_configs/roles**: ❌ CRUD
-- **templates**: ⚠️ Schema, no API
-
-## 🔴 P1: Remaining
-
-- [ ] **Fetch artifact task** — agent-side fetch from server + checksum verify
-- [ ] **Console activity monitor** — cancel hung builds on inactivity timeout
-
-## 🟡 P2: Remaining
-
-- [ ] **Template admin CRUD API** — `GET/POST/PUT/DELETE /api/admin/templates/:name`
-- [ ] **Cycle detection** — verify `CycleDetector` exists and is wired
-- [ ] **Environments CRUD API** — schema exists, needs controller
-
-## ✅ P3: Environment Variables — Complete
-
-- [x] Echo to console, store on AgentJobRun, retry reuse
-- [x] 12 Standard GO_* vars + material vars (GO_REVISION etc.)
-- [x] Secure vars: encrypted, redacted `********`, scope-validated on trigger
-- [x] Environment tab in job details, secrets masked in UI
-
-## 🟢 P3: Advanced Features
-
-- [ ] Full config repos engine (YAML/JSON parsing, merge)
-- [ ] External auth (OAuth/LDAP)
-- [ ] Notifications (email via Swoosh)
-- [ ] Backups
-- [ ] Maintenance mode
 ---
 
-## Quality Baseline (last verified: 2026-06-30)
+## Quick Status
+
+| Area | Status |
+|------|--------|
+| Core scheduling (trigger, fan-in, timers, manual gates, lock behaviors) | ✅ |
+| REST API (20 controllers, 83 actions) | ✅ |
+| LiveView pages (19 modules) | ✅ |
+| Plugin architecture (5 behaviours, Registry, AgentSelector wired) | ✅ |
+| Clustering (libcluster + Horde, 10 distributed singletons) | ✅ |
+| Elastic agent scheduler (k8s pod lifecycle) | ✅ |
+| PipelineGrouper integration (dashboard plugin grouping) | ✅ |
+| Go agent (`agent/`) | ✅ |
+
+## Quality Baseline
 
 | Check | Status |
 |-------|--------|
-| `mix compile --warnings-as-errors` | ✅ Pass |
+| `mix compile --warnings-as-errors` | ✅ |
 | `mix sobelow` | ✅ 0 findings |
-| `mix credo` | ✅ No suggestions |
-| `mix test` | ✅ 873 passed (0 flaky) |
-| `go vet ./...` | ✅ No issues |
-| `go test ./...` | ✅ All passing |
+| `mix credo` | ✅ No issues |
+| `mix test` | ✅ 886 passed |
+| `go vet ./...` | ✅ |
+| `go test ./...` | ✅ |
 | `golangci-lint run` | ✅ 0 issues |
-| Cypress E2E | ✅ 15 specs, 108 tests passed |
+| Cypress E2E | ✅ 15 specs, 108 tests |
+
+## Remaining Work
+
+| Priority | Item | Effort |
+|----------|------|--------|
+| 🟡 P2 | Enhanced compare dialog — any-two-instance pickers, side-by-side diff | M |
+| 🟡 P2 | Gantt chart — dependency arrows between pipeline runs | M |
+| 🟡 P2 | Embedded pipeline/stage stats in detail pages | S |
+| 🔴 P2 | Full config repos engine (PaC) — YAML/JSON parsing, git polling, merge | XL |
+| 🔴 P2 | External auth plugin (Ueberauth: LDAP/OAuth/GitHub) | L |
+

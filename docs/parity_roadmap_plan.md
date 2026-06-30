@@ -1,5 +1,8 @@
 # GoCD Parity Implementation Roadmap
 
+> **⚠️ SUPERSEDED** — See `docs/comprehensive_parity_plan.md` for the current state.
+> This file is kept for historical reference only. Phases 1-10 are all complete.
+
 ✅ = Done, 🟡 = In progress, 🔴 = Not started
 
 ---

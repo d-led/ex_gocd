@@ -1,6 +1,8 @@
 # Plan: External CI Pipeline Sync & Execution
 
-> **Progress**: ✅ Phase 0 | ✅ Phase 1 | ✅ Phase 2 (translators, 30 total tests) | 🚧 Phase 3 next | Phase 4-6 not started
+> **⚠️ SUPERSEDED** — Phases 0-2 complete. Full config repos engine tracked in `docs/comprehensive_parity_plan.md` (G4).
+
+> **Progress**: ✅ Phase 0 | ✅ Phase 1 | ✅ Phase 2 | Phase 3-6 → G4 in comprehensive plan
 
 **TL;DR**: Make ex_gocd a run-to target for GitHub Actions and GitLab CI repos. Sync workflow/pipeline YAML files via config_repos, offer translation into GoCD native pipelines or direct execution via `act`/`gitlab-runner exec`. Add elastic agent support (Docker + K8s). Wizard-driven import with persisted selections and change detection.
 
