@@ -20,7 +20,8 @@ fi
 
 echo "=== Link Checker (lychee) ==="
 
-# lychee: check only localhost links, exclude external, low concurrency
+# lychee: check localhost links, follow links to pipeline/stage/job detail pages.
+# Multiple entry points ensure deep pages (pipelines, agents, admin) are crawled.
 "$LYCHEE" \
   --max-concurrency 2 \
   --max-redirects 5 \
@@ -33,7 +34,13 @@ echo "=== Link Checker (lychee) ==="
   --exclude '/favicon.*\.png' \
   --exclude '^#' \
   --no-progress \
-  "$BASE_URL" 2>&1
+  "$BASE_URL" \
+  "$BASE_URL/pipelines" \
+  "$BASE_URL/agents" \
+  "$BASE_URL/admin" \
+  "$BASE_URL/analytics" \
+  "$BASE_URL/materials" \
+  2>&1
 
 if [ $? -eq 0 ]; then
   echo "[PASS] Link checker — no broken internal links"

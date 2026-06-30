@@ -1023,6 +1023,25 @@ defmodule ExGoCD.Scheduler do
   end
 
   defp extract_env_vars_from_command(_), do: %{}
+
+  # Inject GO_AGENT_RESOURCES into the build command's export subcommands.
+  # GoCD sets this at assignment time (BuildAssignmentService.createWork).
+  defp inject_agent_resource_vars(%{"subCommands" => sub} = cmd, agent) do
+    resources = (agent.resources || []) |> Enum.join(",")
+
+    resource_cmds = [
+      %{
+        "name" => "echo",
+        "command" => "echo",
+        "args" => ["setting environment variable: GO_AGENT_RESOURCES=#{resources}"]
+      },
+      %{"name" => "export", "args" => ["GO_AGENT_RESOURCES", resources]}
+    ]
+
+    %{cmd | "subCommands" => resource_cmds ++ sub}
+  end
+
+  defp inject_agent_resource_vars(cmd, _agent), do: cmd
   # Captures the current OTel context so async handle_info processing
   # can attach it and create linked spans under the pipeline trace.
   defp trigger_assignment_for_idle_agents do
@@ -1104,6 +1123,7 @@ defmodule ExGoCD.Scheduler do
         stage_counter: stage_counter,
         job: job
       })
+      |> inject_agent_resource_vars(agent)
 
     console_uri = ExGoCDWeb.Endpoint.url() <> "/api/builds/" <> build_id <> "/console"
 
