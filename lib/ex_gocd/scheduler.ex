@@ -814,6 +814,9 @@ defmodule ExGoCD.Scheduler do
     # Standard GO_* variables (GoCD JobIdentifier.populateEnvironmentVariables parity)
     go_vars = build_standard_go_vars(pipeline, pipeline_instance, stage_instance, job_config)
 
+    # Material revision env vars (GO_REVISION, GO_FROM_REVISION, GO_TO_REVISION, GO_MATERIAL_*)
+    material_vars = build_material_env_vars(pipeline_instance)
+
     override_vars =
       case pipeline_instance.build_cause do
         %{"environmentVariables" => list} when is_list(list) ->
@@ -832,7 +835,7 @@ defmodule ExGoCD.Scheduler do
       pipe_vars ++ pipe_secure,
       stage_vars,
       job_vars ++ job_secure,
-      go_vars ++ override_vars
+      go_vars ++ material_vars ++ override_vars
     )
   end
 
@@ -879,8 +882,56 @@ defmodule ExGoCD.Scheduler do
     end
   end
 
-  # TODO: Material env vars (GO_REVISION, GO_FROM_REVISION, GO_TO_REVISION, GO_MATERIAL_HAS_CHANGED)
-  # will be populated when PipelineMaterialRevision is preloaded from the DB.
+  defp build_material_env_vars(pipeline_instance) do
+    # Preload material revisions with their material info for env var construction
+    pmrs =
+      if Ecto.get_meta(pipeline_instance, :state) == :loaded do
+        Repo.preload(pipeline_instance, pipeline_material_revisions: [:material, :modification])
+        |> Map.get(:pipeline_material_revisions, [])
+      else
+        []
+      end
+
+    Enum.flat_map(pmrs, fn pmr ->
+      material = pmr.material
+      revision = pmr.revision || ""
+      mod = pmr.modification
+
+      base = [
+        %{"name" => "GO_REVISION", "value" => revision},
+        %{
+          "name" => "GO_MATERIAL_HAS_CHANGED",
+          "value" => if(revision != "", do: "true", else: "false")
+        }
+      ]
+
+      from_rev =
+        if mod do
+          [
+            %{"name" => "GO_FROM_REVISION", "value" => mod.from_revision || ""},
+            %{"name" => "GO_TO_REVISION", "value" => mod.to_revision || revision}
+          ]
+        else
+          []
+        end
+
+      material_name =
+        if material do
+          [
+            %{
+              "name" => "GO_MATERIAL_#{String.upcase(material.type || "GIT")}_URL",
+              "value" => material.url || ""
+            }
+          ]
+        else
+          []
+        end
+
+      base ++ from_rev ++ material_name
+    end)
+  rescue
+    _ -> []
+  end
 
   defp get_env_level_vars(pipeline_name) do
     if mock_mode?() do
