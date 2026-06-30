@@ -993,7 +993,13 @@ defmodule ExGoCD.Scheduler do
     build_command =
       (job_spec.build_command ||
          %{"name" => "default", "command" => "echo", "args" => ["scheduled job ok"]})
-      |> maybe_put_working_dir(agent, build_id)
+      |> maybe_put_working_dir(agent, %{
+        pipeline: pipeline,
+        counter: pipeline_counter,
+        stage: stage,
+        stage_counter: stage_counter,
+        job: job
+      })
 
     console_uri = ExGoCDWeb.Endpoint.url() <> "/api/builds/" <> build_id <> "/console"
 
@@ -1057,18 +1063,42 @@ defmodule ExGoCD.Scheduler do
     )
   end
 
-  defp maybe_put_working_dir(cmd, agent, build_id) when is_map(cmd) do
+  defp maybe_put_working_dir(cmd, agent, path_parts) when is_map(cmd) do
     case agent.working_dir do
       dir when is_binary(dir) and dir != "" ->
-        # Hash-based unique directory per job — no path traversal possible
-        # since build_id is a server-generated UUID (build-{integer}).
-        # Isolated per assignment: parallel jobs never share a directory.
-        safe = String.replace(build_id || "default", ~r/[^a-zA-Z0-9_-]/, "-")
-        Map.put(cmd, "workingDirectory", Path.join([dir, "pipelines", safe]))
+        # Human-identifiable per-job directory.
+        # Path: {agent_work_dir}/ex_gocd_jobs/{pipeline}/{counter}/{stage}/{stage_counter}/{job}
+        # Component sanitization: only [a-zA-Z0-9_.-] allowed, rest → underscore.
+        pipeline = safe_path_component(path_parts[:pipeline])
+        counter = path_parts[:counter]
+        stage = safe_path_component(path_parts[:stage])
+        stage_counter = path_parts[:stage_counter]
+        job = safe_path_component(path_parts[:job])
 
-      _ -> cmd
+        job_dir =
+          if pipeline do
+            Path.join([
+              dir,
+              "ex_gocd_jobs",
+              pipeline,
+              to_string(counter),
+              stage,
+              to_string(stage_counter),
+              job
+            ])
+          else
+            Path.join(dir, "ex_gocd_jobs/default")
+          end
+
+        Map.put(cmd, "workingDirectory", job_dir)
+
+      _ ->
+        cmd
     end
   end
+
+  defp safe_path_component(nil), do: "unknown"
+  defp safe_path_component(s), do: String.replace(to_string(s), ~r/[^a-zA-Z0-9_.-]/, "_")
 
   # Safe DB execution helper to prevent Sandbox crashes in test mode
   defp safe_db(fun, fallback) do

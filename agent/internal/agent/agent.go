@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"mime/multipart"
 	"net"
 	"net/http"
@@ -22,6 +23,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"sync"
 	"syscall"
@@ -113,11 +115,13 @@ func (a *Agent) Start(ctx context.Context) error {
 
 	agentlog.Logger.Info().Str("uuid", a.config.UUID).Str("server", a.config.ServerURL.String()).Str("workdir", a.config.WorkingDir).Str("go_version", runtime.Version()).Msg("agent starting")
 
-	// Clean up stale build directories from previous runs.
-	// Each build gets a unique dir (pipelines/{build_id}), so anything left
-	// after a restart is orphaned and safe to remove.
-	a.cleanupStaleBuildDirs()
+	// Clean up stale job directories from previous runs on startup.
+	a.cleanupJobDirs()
 
+	// Start periodic cleanup if configured
+	if a.config.CleanupInterval > 0 {
+		go a.periodicCleanup(startCtx, a.config.CleanupInterval)
+	}
 	// Register with server
 	agentlog.Logger.Info().Msg("Registering with server...")
 	if err := a.registrar.Register(); err != nil {
@@ -1332,33 +1336,163 @@ func isDangerousEnvVar(k string) bool {
 	return false
 }
 
-// cleanupStaleBuildDirs removes orphaned build directories from previous agent runs.
-// Each build gets a unique working directory (pipelines/{build_id}), so any directory
-// present at startup is from a previous (potentially crashed) agent instance.
-// Parallel builds on the same running agent accumulate intentionally and are not cleaned here.
-func (a *Agent) cleanupStaleBuildDirs() {
-	pipelinesDir := filepath.Join(a.config.WorkingDir, "pipelines")
-	entries, err := os.ReadDir(pipelinesDir)
+// cleanupJobDirs removes old job directories keeping at most MaxJobDirs most recent
+// and at most MaxJobDirsMB total size. Only cleans dirs under ex_gocd_jobs/.
+// Safety: requires at least 3 levels below the work dir (ex_gocd_jobs/pipeline/counter/...)
+// before any removal, preventing accidental rm -rf /.
+func (a *Agent) cleanupJobDirs() {
+	jobsRoot := filepath.Join(a.config.WorkingDir, "ex_gocd_jobs")
+	entries, err := os.ReadDir(jobsRoot)
 	if err != nil {
 		if !os.IsNotExist(err) {
-			agentlog.Logger.Warn().Err(err).Str("dir", pipelinesDir).Msg("Failed to read pipelines directory for cleanup")
+			agentlog.Logger.Warn().Err(err).Str("dir", jobsRoot).Msg("Failed to read jobs directory")
 		}
 		return
 	}
 
-	removed := 0
+	type dirInfo struct {
+		path    string
+		modTime time.Time
+		size    int64
+		depth   int // path components below jobsRoot
+	}
+
+	var dirs []dirInfo
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
 		}
-		path := filepath.Join(pipelinesDir, entry.Name())
+		pipelineDir := filepath.Join(jobsRoot, entry.Name())
+
+		// Walk pipeline/counter/stage/stage_counter/job structure
+		_ = filepath.WalkDir(pipelineDir, func(path string, d fs.DirEntry, err error) error {
+			if err != nil || !d.IsDir() || path == pipelineDir {
+				return nil
+			}
+
+			rel, relErr := filepath.Rel(jobsRoot, path)
+			if relErr != nil {
+				return nil
+			}
+			depth := len(strings.Split(rel, string(filepath.Separator)))
+
+			// Safety: at least 3 levels deep (pipeline/counter/stage)
+			if depth < 3 {
+				return nil
+			}
+
+			info, statErr := d.Info()
+			if statErr != nil {
+				return nil
+			}
+
+			// Only target leaf job directories (5+ levels: pipeline/counter/stage/stage_counter/job)
+			// or 3+ levels with no subdirectories (orphaned leaves from older structure)
+			if depth >= 5 || !hasSubdirs(path) {
+				size := dirSize(path)
+				dirs = append(dirs, dirInfo{
+					path:    path,
+					modTime: info.ModTime(),
+					size:    size,
+					depth:   depth,
+				})
+			}
+			return nil
+		})
+	}
+
+	if len(dirs) == 0 {
+		return
+	}
+
+	// Sort oldest first
+	sort.Slice(dirs, func(i, j int) bool { return dirs[i].modTime.Before(dirs[j].modTime) })
+
+	// Compute current state
+	totalDirs := len(dirs)
+	var totalSize int64
+	for _, d := range dirs {
+		totalSize += d.size
+	}
+
+	// Determine which dirs to remove (oldest first) until within limits
+	toRemove := 0
+	keepSize := totalSize
+	for toRemove < len(dirs) {
+		if totalDirs-toRemove <= a.config.MaxJobDirs && keepSize <= a.config.MaxJobDirsMB*1024*1024 {
+			break
+		}
+		keepSize -= dirs[toRemove].size
+		toRemove++
+	}
+
+	if toRemove == 0 {
+		return
+	}
+
+	removed := 0
+	for i := 0; i < toRemove; i++ {
+		path := dirs[i].path
+		// Final safety: verify still at least 3 levels deep
+		rel, _ := filepath.Rel(jobsRoot, path)
+		if len(strings.Split(rel, string(filepath.Separator))) < 3 {
+			agentlog.Logger.Warn().Str("path", path).Msg("Skipping removal: insufficient path depth")
+			continue
+		}
 		if err := os.RemoveAll(path); err != nil {
-			agentlog.Logger.Warn().Err(err).Str("path", path).Msg("Failed to remove stale build directory")
+			agentlog.Logger.Warn().Err(err).Str("path", path).Msg("Failed to remove job directory")
 		} else {
 			removed++
 		}
 	}
 	if removed > 0 {
-		agentlog.Logger.Info().Int("count", removed).Str("dir", pipelinesDir).Msg("Cleaned up stale build directories")
+		agentlog.Logger.Info().
+			Int("removed", removed).
+			Int("remaining", totalDirs-removed).
+			Int64("freed_mb", (totalSize-keepSize)/(1024*1024)).
+			Msg("Circular cleanup: removed old job directories")
 	}
 }
+
+func (a *Agent) periodicCleanup(ctx context.Context, interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			a.cleanupJobDirs()
+		}
+	}
+}
+
+func hasSubdirs(path string) bool {
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return false
+	}
+	for _, e := range entries {
+		if e.IsDir() {
+			return true
+		}
+	}
+	return false
+}
+
+func dirSize(path string) int64 {
+	var size int64
+	_ = filepath.WalkDir(path, func(_ string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return nil
+		}
+		info, statErr := d.Info()
+		if statErr == nil {
+			size += info.Size()
+		}
+		return nil
+	})
+	return size
+}
+
+// cleanupStaleBuildDirs is DEPRECATED — replaced by cleanupJobDirs with circular limits.

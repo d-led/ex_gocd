@@ -46,6 +46,12 @@ type Config struct {
 
 	// Elastic agent: idle timeout before self-termination (0 = disabled = regular agent)
 	IdleTimeout time.Duration
+
+	// Job directory cleanup: keep at most MaxJobDirs most recent, up to MaxJobDirsMB total
+	MaxJobDirs   int
+	MaxJobDirsMB int64
+	// Cleanup interval (0 = only on startup)
+	CleanupInterval time.Duration
 }
 
 // getEnvWithLegacyFallback fetches configuration with fallback to legacy GOCD_ env var
@@ -97,6 +103,19 @@ func Load() (*Config, error) {
 		ElasticAgentID:     viper.GetString("auto.register.elastic.agent.id"),
 		ElasticPluginID:    viper.GetString("auto.register.elastic.plugin.id"),
 		IdleTimeout:        viper.GetDuration("idle.timeout"),
+		MaxJobDirs:         viper.GetInt("max.job.dirs"),
+		MaxJobDirsMB:       viper.GetInt64("max.job.dirs.mb"),
+		CleanupInterval:    viper.GetDuration("cleanup.interval"),
+	}
+
+	if cfg.MaxJobDirs <= 0 {
+		cfg.MaxJobDirs = 50
+	}
+	if cfg.MaxJobDirsMB <= 0 {
+		cfg.MaxJobDirsMB = 1024 // 1 GB
+	}
+	if cfg.CleanupInterval <= 0 {
+		cfg.CleanupInterval = 0 // only on startup
 	}
 
 	// Derive ConfigDir from WorkDir
