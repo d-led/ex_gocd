@@ -117,7 +117,8 @@
 | B10-B16 | Notifications, roles, elastic profiles, cluster profiles, packages, secrets, plugins | — | ✅ All done |
 | — | Elastic agent scheduler (Phase 9-10) | — | ✅ ~1100 lines: GenServer tick, k8s pod lifecycle, idle cleanup, orphan reaper, cluster profile auto-seed. K8s-only. |
 | — | Clustering (libcluster + Horde) | — | ✅ M1-M5 done: multi-node cluster, admin UI, 10 distributed singletons, plugin registry, OTEL propagator |
-| — | Enhanced compare dialog (Phase 11) | M | Any-two-instance pickers, side-by-side diff |
+| — | Enhanced compare dialog (Phase 11) | M | ✅ Any-two-instance pickers, side-by-side materials/env-vars diff, config-changed detection. `CompareLive` with `/compare/:name/:from/with/:to` routes. |
+| — | Embedded stats (Phase 11b) | S | ✅ Pass rate, MTTR, avg build/wait on pipeline activity; pass rate + avg duration summaries on stage trends tab. |
 | — | Gantt chart view (Phase 12) | M | Timeline + dependency arrows. Candidate: `phoenix_live_gantt` |
 | — | Auth plugin (Ueberauth/LDAP) in plugins/managed/ | L | Plugin architecture ready, not started |
 | — | Org Hierarchy + Pipeline Grouper integration | M | ✅ PipelineGrouper wired into DashboardLive.grouping_data via Plugin.Registry. Fallback to static grouping when no plugin registered. 3 tests. SimpleOrgChart already registered as :org_hierarchy + PipelineGroupPolicy uses org_hierarchy_access?. |
@@ -142,14 +143,14 @@ All B17-B21 complete: agent transitions schema, utilization snapshots (5-min Gen
 
 ---
 
-## Part C: Priority Matrix (2026-06-30, updated after embedded stats)
+## Part C: Priority Matrix (2026-07-01)
 
 | Priority | Items | Effort | Impact |
 |----------|-------|--------|--------|
 | **P0** | — | — | ✅ DONE |
 | **P1** | — | — | ✅ DONE |
-| **P2** | Embedded pipeline/stage stats | S | ✅ DONE (2026-06-30): pass rate, MTTR, avg build/wait on pipeline activity; pass rate + avg duration summaries on stage trends |
-| **P2** | Enhanced compare, Gantt arrows | M | 2 UI polish items remaining |
+| **P2** | Embedded stats, Enhanced compare | S-M | ✅ DONE |
+| **P2** | Gantt chart | M | 1 UI polish item remaining |
 | **P2** | Full config repos engine (PaC) | XL | Pipeline-as-code from git |
 | **P2** | External auth plugin (Ueberauth) | L | LDAP/OAuth/GitHub login |
 | **P3** | — | — | ✅ DONE (Analytics) |
