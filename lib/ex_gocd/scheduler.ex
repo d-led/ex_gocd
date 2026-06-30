@@ -548,11 +548,31 @@ defmodule ExGoCD.Scheduler do
     env_vars = get_all_job_env_vars(pipeline, stage_instance, job_config, pipeline_instance)
 
     export_cmds =
-      Enum.map(env_vars, fn var ->
-        %{
-          "name" => "export",
-          "args" => [var["name"], var["value"]]
-        }
+      env_vars
+      |> Enum.flat_map(fn var ->
+        name = var["name"] || var[:name]
+        value = var["value"] || var[:value]
+        secure? = var["secure"] == true || var[:secure] == true
+
+        # Echo to console: GoCD shows "setting environment variable: NAME=value"
+        # Secure vars show "********" instead of the actual value
+        echo_msg =
+          if secure?,
+            do: "setting environment variable: #{name}=********",
+            else: "setting environment variable: #{name}=#{value}"
+
+        [
+          %{
+            "name" => "echo",
+            "command" => "echo",
+            "args" => [echo_msg]
+          },
+          %{
+            "name" => "export",
+            "args" => [name, value],
+            "attributes" => %{"secure" => secure?}
+          }
+        ]
       end)
 
     checkout_cmds = build_checkout_commands(stage_instance, pipeline_instance)
@@ -791,6 +811,9 @@ defmodule ExGoCD.Scheduler do
     job_vars = if job_config, do: map_to_gocd_vars(job_config.environment_variables), else: []
     job_secure = if job_config, do: decrypt_secure_vars(job_config.secure_variables), else: []
 
+    # Standard GO_* variables (GoCD JobIdentifier.populateEnvironmentVariables parity)
+    go_vars = build_standard_go_vars(pipeline, pipeline_instance, stage_instance, job_config)
+
     override_vars =
       case pipeline_instance.build_cause do
         %{"environmentVariables" => list} when is_list(list) ->
@@ -809,8 +832,47 @@ defmodule ExGoCD.Scheduler do
       pipe_vars ++ pipe_secure,
       stage_vars,
       job_vars ++ job_secure,
-      override_vars
+      go_vars ++ override_vars
     )
+  end
+
+  defp build_standard_go_vars(pipeline, pipeline_instance, stage_instance, job_config) do
+    server_url = ExGoCDWeb.Endpoint.url()
+
+    vars = [
+      %{"name" => "GO_SERVER_URL", "value" => server_url},
+      %{"name" => "GO_PIPELINE_NAME", "value" => pipeline.name},
+      %{"name" => "GO_PIPELINE_COUNTER", "value" => to_string(pipeline_instance.counter)},
+      %{
+        "name" => "GO_PIPELINE_LABEL",
+        "value" => pipeline_instance.label || to_string(pipeline_instance.counter)
+      },
+      %{"name" => "GO_PIPELINE_GROUP_NAME", "value" => pipeline.group || "default"},
+      %{"name" => "GO_STAGE_NAME", "value" => stage_instance.name},
+      %{"name" => "GO_STAGE_COUNTER", "value" => to_string(stage_instance.counter)},
+      %{"name" => "GO_JOB_NAME", "value" => (job_config && job_config.name) || "default"},
+      %{"name" => "GO_TRIGGER_USER", "value" => get_trigger_user(pipeline_instance)}
+    ]
+
+    # Material revision variables
+    material_vars = build_material_env_vars(pipeline_instance)
+
+    vars ++ material_vars
+  end
+
+  defp get_trigger_user(pi) do
+    case pi.build_cause do
+      %{"approver" => approver} when is_binary(approver) -> approver
+      %{approver: approver} when is_binary(approver) -> approver
+      _ -> "changes"
+    end
+  end
+
+  defp build_material_env_vars(_pipeline_instance) do
+    # TODO: Query PipelineMaterialRevision for actual revision values.
+    # Material env vars (GO_REVISION, GO_FROM_REVISION, GO_TO_REVISION, GO_MATERIAL_HAS_CHANGED)
+    # will be populated when PipelineMaterialRevision is preloaded.
+    []
   end
 
   defp get_env_level_vars(pipeline_name) do
@@ -868,7 +930,7 @@ defmodule ExGoCD.Scheduler do
           :error -> "******"
         end
 
-      %{"name" => to_string(name), "value" => value}
+      %{"name" => to_string(name), "value" => value, "secure" => true}
     end)
   end
 
