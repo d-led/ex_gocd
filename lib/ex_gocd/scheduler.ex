@@ -993,7 +993,7 @@ defmodule ExGoCD.Scheduler do
     build_command =
       (job_spec.build_command ||
          %{"name" => "default", "command" => "echo", "args" => ["scheduled job ok"]})
-      |> maybe_put_working_dir(agent)
+      |> maybe_put_working_dir(agent, job_spec)
 
     console_uri = ExGoCDWeb.Endpoint.url() <> "/api/builds/" <> build_id <> "/console"
 
@@ -1057,9 +1057,36 @@ defmodule ExGoCD.Scheduler do
     )
   end
 
-  defp maybe_put_working_dir(cmd, agent) when is_map(cmd) do
+  defp maybe_put_working_dir(cmd, agent, job_spec) when is_map(cmd) do
     case agent.working_dir do
-      dir when is_binary(dir) and dir != "" -> Map.put(cmd, "workingDirectory", dir)
+      dir when is_binary(dir) and dir != "" ->
+        base_dir =
+          if job_spec do
+            pipeline = job_spec.pipeline || job_spec[:pipeline]
+            counter = job_spec.pipeline_counter || job_spec[:pipeline_counter]
+            stage = job_spec.stage || job_spec[:stage]
+            stage_counter = job_spec.stage_counter || job_spec[:stage_counter]
+            job = job_spec.job || job_spec[:job]
+
+            if pipeline do
+              Path.join([
+                dir,
+                "pipelines",
+                to_string(pipeline),
+                to_string(counter),
+                to_string(stage),
+                to_string(stage_counter),
+                to_string(job)
+              ])
+            else
+              dir
+            end
+          else
+            dir
+          end
+
+        Map.put(cmd, "workingDirectory", base_dir)
+
       _ -> cmd
     end
   end
