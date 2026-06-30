@@ -771,4 +771,172 @@ defmodule ExGoCD.AgentsTest do
       assert Agent.in_environment?(agent, "production") == false
     end
   end
+
+  describe "effective_status/2 with elastic agents" do
+    test "returns :idle for stale elastic agent (never :lost_contact)" do
+      {:ok, agent} =
+        Agents.register_agent(%{
+          uuid: "950e8400-e29b-41d4-a716-446655440001",
+          hostname: "k8s-agent",
+          ipaddress: "10.0.0.1",
+          elastic_agent_id: "pod-123",
+          elastic_plugin_id: "ex_gocd.elasticagent.kubernetes"
+        })
+
+      old = NaiveDateTime.add(NaiveDateTime.utc_now(), -700, :second)
+      agent = %{agent | updated_at: old}
+
+      # Stale elastic agent should show :idle, NOT :lost_contact
+      assert Agents.effective_status(agent, lost_contact_seconds: 600) == :idle
+    end
+
+    test "returns :idle for Docker elastic agent when stale" do
+      {:ok, agent} =
+        Agents.register_agent(%{
+          uuid: "a50e8400-e29b-41d4-a716-446655440002",
+          hostname: "docker-elastic",
+          ipaddress: "192.168.1.1",
+          elastic_agent_id: "elastic-docker-001",
+          elastic_plugin_id: "cd.go.contrib.elastic-agent.docker"
+        })
+
+      old = NaiveDateTime.add(NaiveDateTime.utc_now(), -700, :second)
+      agent = %{agent | updated_at: old}
+
+      assert Agents.effective_status(agent, lost_contact_seconds: 600) == :idle
+    end
+
+    test "returns :lost_contact for stale STATIC agent (NOT elastic)" do
+      {:ok, agent} =
+        Agents.register_agent(%{
+          uuid: "b50e8400-e29b-41d4-a716-446655440003",
+          hostname: "static-agent",
+          ipaddress: "192.168.1.1"
+        })
+
+      old = NaiveDateTime.add(NaiveDateTime.utc_now(), -700, :second)
+      agent = %{agent | updated_at: old}
+
+      assert Agents.effective_status(agent, lost_contact_seconds: 600) == :lost_contact
+    end
+
+    test "returns :idle for fresh elastic agent" do
+      {:ok, agent} =
+        Agents.register_agent(%{
+          uuid: "c50e8400-e29b-41d4-a716-446655440004",
+          hostname: "fresh-k8s",
+          ipaddress: "10.0.0.2",
+          elastic_agent_id: "pod-456",
+          elastic_plugin_id: "ex_gocd.elasticagent.kubernetes"
+        })
+
+      assert Agents.effective_status(agent) == :idle
+    end
+  end
+
+  describe "clean_stale_elastic_agents/1" do
+    import Ecto.Query
+
+    test "cleans stale Idle elastic agent" do
+      {:ok, agent} =
+        Agents.register_agent(%{
+          uuid: "d50e8400-e29b-41d4-a716-446655440005",
+          hostname: "stale-k8s",
+          ipaddress: "10.0.0.3",
+          elastic_agent_id: "pod-stale",
+          elastic_plugin_id: "ex_gocd.elasticagent.kubernetes"
+        })
+
+      # Make it stale (700 seconds ago) — update_all bypasses changeset
+      old = NaiveDateTime.add(NaiveDateTime.utc_now(), -700, :second)
+      {1, _} =
+        ExGoCD.Repo.update_all(
+          from(a in Agent, where: a.uuid == ^agent.uuid),
+          set: [updated_at: old, state: "Idle"]
+        )
+
+      assert Agents.clean_stale_elastic_agents(600) == 1
+      assert Agents.get_agent_by_uuid(agent.uuid).deleted == true
+    end
+
+    test "cleans stale LostContact elastic agent" do
+      {:ok, agent} =
+        Agents.register_agent(%{
+          uuid: "e50e8400-e29b-41d4-a716-446655440006",
+          hostname: "lost-k8s",
+          ipaddress: "10.0.0.4",
+          elastic_agent_id: "pod-lost",
+          elastic_plugin_id: "ex_gocd.elasticagent.kubernetes"
+        })
+
+      old = NaiveDateTime.add(NaiveDateTime.utc_now(), -700, :second)
+      {1, _} =
+        ExGoCD.Repo.update_all(
+          from(a in Agent, where: a.uuid == ^agent.uuid),
+          set: [updated_at: old, state: "LostContact"]
+        )
+
+      assert Agents.clean_stale_elastic_agents(600) == 1
+      assert Agents.get_agent_by_uuid(agent.uuid).deleted == true
+    end
+
+    test "does NOT clean stale Building elastic agent" do
+      {:ok, agent} =
+        Agents.register_agent(%{
+          uuid: "f50e8400-e29b-41d4-a716-446655440007",
+          hostname: "building-k8s",
+          ipaddress: "10.0.0.5",
+          elastic_agent_id: "pod-building",
+          elastic_plugin_id: "ex_gocd.elasticagent.kubernetes"
+        })
+
+      old = NaiveDateTime.add(NaiveDateTime.utc_now(), -700, :second)
+      {1, _} =
+        ExGoCD.Repo.update_all(
+          from(a in Agent, where: a.uuid == ^agent.uuid),
+          set: [updated_at: old, state: "Building"]
+        )
+
+      assert Agents.clean_stale_elastic_agents(600) == 0
+      assert Agents.get_agent_by_uuid(agent.uuid).deleted == false
+    end
+
+    test "does NOT clean stale static (non-elastic) agent" do
+      {:ok, agent} =
+        Agents.register_agent(%{
+          uuid: "0650e840-e29b-41d4-a716-446655440008",
+          hostname: "stale-static",
+          ipaddress: "192.168.1.1"
+        })
+
+      old = NaiveDateTime.add(NaiveDateTime.utc_now(), -700, :second)
+      {1, _} =
+        ExGoCD.Repo.update_all(
+          from(a in Agent, where: a.uuid == ^agent.uuid),
+          set: [updated_at: old, state: "Idle"]
+        )
+
+      assert Agents.clean_stale_elastic_agents(600) == 0
+      assert Agents.get_agent_by_uuid(agent.uuid).deleted == false
+    end
+
+    test "does NOT clean fresh elastic agent" do
+      {:ok, agent} =
+        Agents.register_agent(%{
+          uuid: "1650e840-e29b-41d4-a716-446655440009",
+          hostname: "fresh-k8s-2",
+          ipaddress: "10.0.0.6",
+          elastic_agent_id: "pod-fresh",
+          elastic_plugin_id: "ex_gocd.elasticagent.kubernetes"
+        })
+
+      # Agent was just created — not stale
+      assert Agents.clean_stale_elastic_agents(600) == 0
+      assert Agents.get_agent_by_uuid(agent.uuid).deleted == false
+    end
+
+    test "returns 0 when no stale elastic agents exist" do
+      assert Agents.clean_stale_elastic_agents(600) == 0
+    end
+  end
 end

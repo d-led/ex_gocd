@@ -862,6 +862,10 @@ defmodule ExGoCD.Agents do
   is older than the threshold (default 10 minutes). Elastic agents are ephemeral —
   they should not linger as LostContact. Called periodically by SnapshotCollector.
   Records each removal in the audit log.
+
+  Only cleans elastic agents (elastic_agent_id or elastic_plugin_id is present).
+  Never cleans Building agents — they may be running long jobs.
+  Never cleans static/non-elastic agents.
   """
   def clean_stale_elastic_agents(threshold_sec \\ 600) do
     agents =
@@ -869,7 +873,7 @@ defmodule ExGoCD.Agents do
         where:
           a.deleted == false and
             (not is_nil(a.elastic_agent_id) or not is_nil(a.elastic_plugin_id)) and
-            a.state in ["Idle", "Building", "LostContact"]
+            a.state in ["Idle", "LostContact"]
       )
       |> Repo.all()
       |> Enum.filter(&stale?(&1.updated_at, threshold_sec))
