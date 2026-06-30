@@ -1572,6 +1572,7 @@ defmodule ExGoCD.Pipelines do
       counter: 0,
       status: "Unknown",
       triggered_by: "—",
+      material_revisions: [],
       last_run: nil,
       stages:
         Enum.map(pipeline.stages || [], fn s ->
@@ -1605,6 +1606,7 @@ defmodule ExGoCD.Pipelines do
 
     build_cause = instance.build_cause || %{}
     triggered_by = build_cause["triggerMessage"] || "Triggered manually"
+    material_revisions = build_cause["materialRevisions"] || []
 
     %{
       name: pipeline.name,
@@ -1612,6 +1614,7 @@ defmodule ExGoCD.Pipelines do
       counter: instance.counter,
       status: pipeline_instance_status(instance),
       triggered_by: triggered_by,
+      material_revisions: material_revisions,
       last_run: instance.inserted_at,
       stages: filled_stages,
       paused: pipeline.paused,

@@ -3,6 +3,20 @@ defmodule ExGoCDWeb.DashboardLiveTest do
 
   import Phoenix.LiveViewTest
 
+  # Mock PipelineGrouper — groups pipelines by first letter of name.
+  # Used by pipeline grouper plugin integration tests.
+  defmodule LetterGrouper do
+    def compute_groups(pipelines, _opts) do
+      pipelines
+      |> Enum.group_by(fn p -> String.at(p.name, 0) |> String.upcase() end)
+      |> Map.new()
+    end
+
+    def group_for_pipeline(pipeline, _opts) do
+      String.at(pipeline.name, 0) |> String.upcase()
+    end
+  end
+
   describe "mount/3" do
     test "renders dashboard with default state", %{conn: conn} do
       {:ok, _view, html} = live(conn, ~p"/")
@@ -462,6 +476,74 @@ defmodule ExGoCDWeb.DashboardLiveTest do
       # Try triggering the pause event directly to ensure backend guards enforce permission
       assert render_click(view, "show_pause_modal", %{"name" => "test-viewer-pause"}) =~
                "You do not have operate permissions"
+    end
+  end
+
+  describe "pipeline grouper plugin integration" do
+    test "uses registered PipelineGrouper plugin for grouping when DB data is available", %{
+      conn: conn
+    } do
+      alias ExGoCD.Pipelines.Pipeline
+      alias ExGoCD.Repo
+
+      # Create pipelines with standard groups
+      Repo.insert!(%Pipeline{} |> Pipeline.changeset(%{name: "pg-plugin-a", group: "frontend"}))
+      Repo.insert!(%Pipeline{} |> Pipeline.changeset(%{name: "pg-plugin-b", group: "backend"}))
+
+      # Register the mock grouper — empty secret passes in test (no secret configured)
+      ExGoCD.Plugin.Registry.register(:pipeline_grouper, LetterGrouper, "")
+
+      on_exit(fn -> ExGoCD.Plugin.Registry.register(:pipeline_grouper, nil, "") end)
+
+      # Navigate to dashboard — pipeline group scheme triggers plugin path
+      {:ok, _view, html} = live(conn, ~p"/pipelines?group_by=pipeline_group")
+
+      # The plugin groups by first letter, so "F" and "B" group sections appear
+      assert html =~ "pg-plugin-a"
+      assert html =~ "pg-plugin-b"
+
+      # Plugin grouping should NOT show the static DB group names
+      refute html =~ "frontend"
+    end
+
+    test "falls back to static grouping when no PipelineGrouper plugin is registered", %{
+      conn: conn
+    } do
+      alias ExGoCD.Pipelines.Pipeline
+      alias ExGoCD.Repo
+
+      Repo.insert!(%Pipeline{} |> Pipeline.changeset(%{name: "pg-static-a", group: "frontend"}))
+      Repo.insert!(%Pipeline{} |> Pipeline.changeset(%{name: "pg-static-b", group: "backend"}))
+
+      {:ok, _view, html} = live(conn, ~p"/pipelines?group_by=pipeline_group")
+
+      # Static grouping should show the pipeline groups from DB
+      assert html =~ "frontend"
+      assert html =~ "backend"
+      assert html =~ "pg-static-a"
+      assert html =~ "pg-static-b"
+    end
+
+    test "plugin grouping produces distinct output from static grouping", %{conn: conn} do
+      alias ExGoCD.Pipelines.Pipeline
+      alias ExGoCD.Repo
+
+      Repo.insert!(%Pipeline{} |> Pipeline.changeset(%{name: "pg-dist-a", group: "frontend"}))
+      Repo.insert!(%Pipeline{} |> Pipeline.changeset(%{name: "pg-dist-b", group: "backend"}))
+
+      # Static grouping (default, no plugin)
+      {:ok, _view, static_html} = live(conn, ~p"/pipelines?group_by=pipeline_group")
+
+      # Register plugin grouper
+      ExGoCD.Plugin.Registry.register(:pipeline_grouper, LetterGrouper, "")
+
+      on_exit(fn -> ExGoCD.Plugin.Registry.register(:pipeline_grouper, nil, "") end)
+
+      {:ok, _view, plugin_html} = live(conn, ~p"/pipelines?group_by=pipeline_group")
+
+      # Plugin and static should produce different HTML
+      assert static_html != plugin_html,
+             "PipelineGrouper plugin must change dashboard grouping output"
     end
   end
 end
