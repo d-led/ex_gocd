@@ -838,6 +838,7 @@ defmodule ExGoCD.Scheduler do
 
   defp build_standard_go_vars(pipeline, pipeline_instance, stage_instance, job_config) do
     server_url = ExGoCDWeb.Endpoint.url()
+    env_name = get_pipeline_env_name(pipeline.name)
 
     vars = [
       %{"name" => "GO_SERVER_URL", "value" => server_url},
@@ -851,13 +852,23 @@ defmodule ExGoCD.Scheduler do
       %{"name" => "GO_STAGE_NAME", "value" => stage_instance.name},
       %{"name" => "GO_STAGE_COUNTER", "value" => to_string(stage_instance.counter)},
       %{"name" => "GO_JOB_NAME", "value" => (job_config && job_config.name) || "default"},
-      %{"name" => "GO_TRIGGER_USER", "value" => get_trigger_user(pipeline_instance)}
+      %{"name" => "GO_TRIGGER_USER", "value" => get_trigger_user(pipeline_instance)},
+      %{"name" => "GO_ENVIRONMENT_NAME", "value" => env_name}
     ]
 
-    # Material revision variables
-    material_vars = build_material_env_vars(pipeline_instance)
+    # Material revision variables (deferred — needs PipelineMaterialRevision preload)
+    vars
+  end
 
-    vars ++ material_vars
+  defp get_pipeline_env_name(pipeline_name) do
+    if mock_mode?() do
+      ""
+    else
+      case ExGoCD.Environments.get_pipeline_environment(pipeline_name) do
+        nil -> ""
+        env -> env.name || ""
+      end
+    end
   end
 
   defp get_trigger_user(pi) do
@@ -868,12 +879,8 @@ defmodule ExGoCD.Scheduler do
     end
   end
 
-  defp build_material_env_vars(_pipeline_instance) do
-    # TODO: Query PipelineMaterialRevision for actual revision values.
-    # Material env vars (GO_REVISION, GO_FROM_REVISION, GO_TO_REVISION, GO_MATERIAL_HAS_CHANGED)
-    # will be populated when PipelineMaterialRevision is preloaded.
-    []
-  end
+  # TODO: Material env vars (GO_REVISION, GO_FROM_REVISION, GO_TO_REVISION, GO_MATERIAL_HAS_CHANGED)
+  # will be populated when PipelineMaterialRevision is preloaded from the DB.
 
   defp get_env_level_vars(pipeline_name) do
     if mock_mode?() do
