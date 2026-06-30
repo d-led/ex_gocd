@@ -31,12 +31,21 @@ defmodule ExGoCD.Analytics do
           counter: pi.counter,
           result: si.result,
           state: si.state,
-          duration: si.duration,
           scheduled_at: si.scheduled_at,
           completed_at: si.completed_at
         }
       )
       |> Repo.all()
+      |> Enum.map(fn row ->
+        duration =
+          case {row.scheduled_at, row.completed_at} do
+            {%DateTime{} = s, %DateTime{} = c} ->
+              max(DateTime.diff(c, s, :second), 0)
+            _ -> nil
+          end
+
+        Map.put(row, :duration, duration)
+      end)
       |> Enum.reverse()
     else
       []
