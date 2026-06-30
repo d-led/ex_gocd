@@ -142,13 +142,14 @@ All B17-B21 complete: agent transitions schema, utilization snapshots (5-min Gen
 
 ---
 
-## Part C: Priority Matrix (2026-06-30)
+## Part C: Priority Matrix (2026-06-30, updated after embedded stats)
 
 | Priority | Items | Effort | Impact |
 |----------|-------|--------|--------|
 | **P0** | — | — | ✅ DONE |
 | **P1** | — | — | ✅ DONE |
-| **P2** | Enhanced compare, Gantt arrows, embedded stats | S-M | 3 UI polish items |
+| **P2** | Embedded pipeline/stage stats | S | ✅ DONE (2026-06-30): pass rate, MTTR, avg build/wait on pipeline activity; pass rate + avg duration summaries on stage trends |
+| **P2** | Enhanced compare, Gantt arrows | M | 2 UI polish items remaining |
 | **P2** | Full config repos engine (PaC) | XL | Pipeline-as-code from git |
 | **P2** | External auth plugin (Ueberauth) | L | LDAP/OAuth/GitHub login |
 | **P3** | — | — | ✅ DONE (Analytics) |
@@ -156,7 +157,7 @@ All B17-B21 complete: agent transitions schema, utilization snapshots (5-min Gen
 
 ## Part D: Build & Quality
 
-- **Tests**: 861 ExUnit tests (0 skipped), Go agent tests pass, Cypress E2E suite (116 tests, 16 specs)
+- **Tests**: 886 ExUnit tests (0 skipped), Go agent tests pass, Cypress E2E suite (116 tests, 16 specs)
 - **Quality gate**: compile `--warnings-as-errors` clean, `mix format --check-formatted` clean, Credo, Sobelow pass
 - **Compile**: clean with `--warnings-as-errors` on all files
 - **Go agent**: `go build`, `go vet`, `go test ./...` — all clean

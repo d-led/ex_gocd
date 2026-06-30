@@ -632,7 +632,11 @@ defmodule ExGoCDWeb.DashboardLive do
       <ul class="dashboard-group_items">
         <%= for pipeline <- @pipelines do %>
           <li class="dashboard-group_pipeline">
-            <.pipeline_widget pipeline={pipeline} current_user={@current_user} show_changes_for={@show_changes_for} />
+            <.pipeline_widget
+              pipeline={pipeline}
+              current_user={@current_user}
+              show_changes_for={@show_changes_for}
+            />
           </li>
         <% end %>
       </ul>
@@ -753,9 +757,7 @@ defmodule ExGoCDWeb.DashboardLive do
         </div>
       </div>
       <div class="pipeline_instances">
-        <%
-          is_showing = @show_changes_for == @pipeline.name
-        %>
+        <% is_showing = @show_changes_for == @pipeline.name %>
         <.pipeline_instance pipeline={@pipeline} show_changes={is_showing} />
       </div>
     </div>
@@ -796,7 +798,9 @@ defmodule ExGoCDWeb.DashboardLive do
                     phx-click="toggle_changes"
                     phx-value-name={@pipeline.name}
                     class="text-gray-500 hover:text-gray-300 text-lg leading-none"
-                  >&times;</button>
+                  >
+                    &times;
+                  </button>
                 </div>
                 <% revisions = @pipeline[:material_revisions] || [] %>
                 <%= if revisions == [] do %>
@@ -805,23 +809,32 @@ defmodule ExGoCDWeb.DashboardLive do
                   <%= for rev <- revisions do %>
                     <div class="mb-3 last:mb-0">
                       <div class="flex items-center gap-2 mb-1">
-                        <span class="font-mono text-[10px] text-[#2d6ca2] truncate max-w-[200px]" title={rev["material"]["url"]}>
-                          {rev["material"]["url"] |> String.replace("https://github.com/", "") |> String.replace(".git", "")}
+                        <span
+                          class="font-mono text-[10px] text-[#2d6ca2] truncate max-w-[200px]"
+                          title={rev["material"]["url"]}
+                        >
+                          {rev["material"]["url"]
+                          |> String.replace("https://github.com/", "")
+                          |> String.replace(".git", "")}
                         </span>
                         <span class={"ml-auto px-1.5 py-0.5 rounded text-[9px] font-bold " <> if rev["changed"], do: "bg-green-900/50 text-green-400", else: "bg-gray-800 text-gray-500"}>
-                          <%= if rev["changed"], do: "changed", else: "unchanged" %>
+                          {if rev["changed"], do: "changed", else: "unchanged"}
                         </span>
                       </div>
                       <%= for mod <- rev["modifications"] || [] do %>
                         <div class="pl-2 border-l-2 border-gray-700 ml-1 mb-2 last:mb-0">
                           <div class="flex items-center gap-2">
-                            <span class="font-mono text-[10px] text-[#2d6ca2]">{String.slice(mod["revision"], 0, 8)}</span>
+                            <span class="font-mono text-[10px] text-[#2d6ca2]">
+                              {String.slice(mod["revision"], 0, 8)}
+                            </span>
                             <span class="text-gray-400">{mod["username"]}</span>
                             <span class="text-gray-600 text-[9px] ml-auto" title={mod["modifiedTime"]}>
                               {format_change_time(mod["modifiedTime"])}
                             </span>
                           </div>
-                          <p class="text-gray-500 mt-0.5 truncate" title={mod["comment"]}>{mod["comment"]}</p>
+                          <p class="text-gray-500 mt-0.5 truncate" title={mod["comment"]}>
+                            {mod["comment"]}
+                          </p>
                         </div>
                       <% end %>
                     </div>
@@ -913,7 +926,7 @@ defmodule ExGoCDWeb.DashboardLive do
         cond do
           diff < 60 -> "just now"
           diff < 3600 -> "#{div(diff, 60)}m ago"
-          diff < 86400 -> "#{div(diff, 3600)}h ago"
+          diff < 86_400 -> "#{div(diff, 3600)}h ago"
           true -> String.slice(time_str, 0, 10)
         end
 

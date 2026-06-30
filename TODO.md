@@ -39,7 +39,7 @@
 |----------|------|--------|
 | 🟡 P2 | Enhanced compare dialog — any-two-instance pickers, side-by-side diff | M |
 | 🟡 P2 | Gantt chart — dependency arrows between pipeline runs | M |
-| 🟡 P2 | Embedded pipeline/stage stats in detail pages | S |
+| 🟡 P2 | Embedded pipeline/stage stats in detail pages | ✅ Done (2026-06-30) |
 | 🔴 P2 | Full config repos engine (PaC) — YAML/JSON parsing, git polling, merge | XL |
 | 🔴 P2 | External auth plugin (Ueberauth: LDAP/OAuth/GitHub) | L |
 

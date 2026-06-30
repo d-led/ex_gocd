@@ -7,6 +7,7 @@ defmodule ExGoCDWeb.PipelineActivityLive do
 
   alias ExGoCD.MockData
   alias ExGoCD.Pipelines
+  alias ExGoCD.Analytics
 
   @impl true
   def mount(_params, _session, socket) do
@@ -32,11 +33,13 @@ defmodule ExGoCDWeb.PipelineActivityLive do
        |> redirect(to: "/pipelines")}
     else
       runs = get_pipeline_runs(name)
+      stats = if use_mock?(name), do: nil, else: Analytics.pipeline_analytics(name)
 
       {:noreply,
        socket
        |> assign(:pipeline, pipeline)
        |> assign(:runs, runs)
+       |> assign(:stats, stats)
        |> assign(:page_title, "#{name} Activity")}
     end
   end
@@ -304,6 +307,14 @@ defmodule ExGoCDWeb.PipelineActivityLive do
   defp run_status_dot("Building"), do: "bg-[#5bc0de]"
   defp run_status_dot(_), do: "bg-gray-300"
 
+  defp format_duration_short(seconds) when is_number(seconds) do
+    mins = div(round(seconds), 60)
+    secs = rem(round(seconds), 60)
+    if mins > 0, do: "#{mins}m #{secs}s", else: "#{secs}s"
+  end
+
+  defp format_duration_short(_), do: "—"
+
   @impl true
   def render(assigns) do
     ~H"""
@@ -321,6 +332,57 @@ defmodule ExGoCDWeb.PipelineActivityLive do
           </h1>
         </div>
       </div>
+
+      <%= if @stats && @stats.run_count > 0 do %>
+        <div class="stats-bar flex flex-wrap gap-4 mb-4">
+          <div class="bg-white border border-gray-200 rounded shadow-sm px-4 py-3 flex flex-col gap-0.5 min-w-[120px]">
+            <span class="text-[9px] uppercase font-bold text-gray-400 tracking-wider font-mono">
+              Pass Rate
+            </span>
+            <span class={[
+              "text-lg font-extrabold font-mono",
+              if(@stats.pass_rate >= 80,
+                do: "text-green-600",
+                else: if(@stats.pass_rate >= 50, do: "text-amber-600", else: "text-red-600")
+              )
+            ]}>
+              {@stats.pass_rate}%
+            </span>
+            <span class="text-[10px] text-gray-400">last {@stats.run_count} runs</span>
+          </div>
+          <div class="bg-white border border-gray-200 rounded shadow-sm px-4 py-3 flex flex-col gap-0.5 min-w-[120px]">
+            <span class="text-[9px] uppercase font-bold text-gray-400 tracking-wider font-mono">
+              MTTR
+            </span>
+            <span class="text-lg font-extrabold font-mono text-gray-800">
+              {if @stats.mttr_sec, do: format_duration_short(@stats.mttr_sec), else: "—"}
+            </span>
+            <span class="text-[10px] text-gray-400">mean time to recover</span>
+          </div>
+          <div class="bg-white border border-gray-200 rounded shadow-sm px-4 py-3 flex flex-col gap-0.5 min-w-[120px]">
+            <span class="text-[9px] uppercase font-bold text-gray-400 tracking-wider font-mono">
+              Avg Build
+            </span>
+            <span class="text-lg font-extrabold font-mono text-gray-800">
+              {if @stats.avg_build_time_sec,
+                do: format_duration_short(@stats.avg_build_time_sec),
+                else: "—"}
+            </span>
+            <span class="text-[10px] text-gray-400">per run</span>
+          </div>
+          <div class="bg-white border border-gray-200 rounded shadow-sm px-4 py-3 flex flex-col gap-0.5 min-w-[120px]">
+            <span class="text-[9px] uppercase font-bold text-gray-400 tracking-wider font-mono">
+              Avg Wait
+            </span>
+            <span class="text-lg font-extrabold font-mono text-gray-800">
+              {if @stats.avg_wait_time_sec,
+                do: format_duration_short(@stats.avg_wait_time_sec),
+                else: "—"}
+            </span>
+            <span class="text-[10px] text-gray-400">before agent picks up</span>
+          </div>
+        </div>
+      <% end %>
 
       <div class="activity-container flex flex-col gap-2">
         <%= for run <- @runs do %>

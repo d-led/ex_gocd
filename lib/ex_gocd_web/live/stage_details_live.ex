@@ -534,6 +534,48 @@ defmodule ExGoCDWeb.StageDetailsLive do
                   <%= if @trends == [] do %>
                     <p class="text-gray-400 text-xs">No historical data for this stage yet.</p>
                   <% else %>
+                    <% passed = Enum.count(@trends, &(&1.result == "Passed")) %>
+                    <% total = length(@trends) %>
+                    <% pass_rate = Float.round(passed / total * 100, 1) %>
+                    <% durs = Enum.map(@trends, &(&1.duration || 0)) %>
+                    <% avg_dur = if durs != [], do: Float.round(Enum.sum(durs) / length(durs), 1) %>
+
+                    <div class="flex flex-wrap gap-4 mb-5">
+                      <div class="bg-gray-50 border border-gray-200 rounded px-4 py-3 flex flex-col gap-0.5 min-w-[110px]">
+                        <span class="text-[9px] uppercase font-bold text-gray-400 tracking-wider font-mono">
+                          Pass Rate
+                        </span>
+                        <span class={[
+                          "text-lg font-extrabold font-mono",
+                          if(pass_rate >= 80,
+                            do: "text-green-600",
+                            else: if(pass_rate >= 50, do: "text-amber-600", else: "text-red-600")
+                          )
+                        ]}>
+                          {pass_rate}%
+                        </span>
+                        <span class="text-[10px] text-gray-400">last {total} runs</span>
+                      </div>
+                      <div class="bg-gray-50 border border-gray-200 rounded px-4 py-3 flex flex-col gap-0.5 min-w-[110px]">
+                        <span class="text-[9px] uppercase font-bold text-gray-400 tracking-wider font-mono">
+                          Avg Duration
+                        </span>
+                        <span class="text-lg font-extrabold font-mono text-gray-800">
+                          {format_duration(round(avg_dur))}
+                        </span>
+                        <span class="text-[10px] text-gray-400">per run</span>
+                      </div>
+                      <div class="bg-gray-50 border border-gray-200 rounded px-4 py-3 flex flex-col gap-0.5 min-w-[110px]">
+                        <span class="text-[9px] uppercase font-bold text-gray-400 tracking-wider font-mono">
+                          Passed
+                        </span>
+                        <span class="text-lg font-extrabold font-mono text-green-600">
+                          {passed}/{total}
+                        </span>
+                        <span class="text-[10px] text-gray-400">{total - passed} failed</span>
+                      </div>
+                    </div>
+
                     <% max_dur = Enum.max_by(@trends, &(&1.duration || 0)).duration || 1 %>
                     <div class="space-y-2">
                       <%= for t <- @trends do %>
@@ -569,11 +611,6 @@ defmodule ExGoCDWeb.StageDetailsLive do
                           </span>
                         </div>
                       <% end %>
-                    </div>
-                    <div class="mt-3 text-[10px] text-gray-400">
-                      <% passed = Enum.count(@trends, &(&1.result == "Passed")) %> Last {length(
-                        @trends
-                      )} runs: {passed} passed, {length(@trends) - passed} failed
                     </div>
                   <% end %>
                 </div>
