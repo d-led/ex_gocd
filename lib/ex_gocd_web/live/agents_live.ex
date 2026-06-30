@@ -730,7 +730,7 @@ defmodule ExGoCDWeb.AgentsLive do
                           <%= if pod.agent_uuid do %>
                             <span class="text-green-700">Registered</span>
                           <% else %>
-                            <span class="text-amber-700">Agent pending</span>
+                            <span class="text-green-700">Agent pending</span>
                           <% end %>
                         <% end %>
                       </td>
