@@ -113,6 +113,11 @@ func (a *Agent) Start(ctx context.Context) error {
 
 	agentlog.Logger.Info().Str("uuid", a.config.UUID).Str("server", a.config.ServerURL.String()).Str("workdir", a.config.WorkingDir).Str("go_version", runtime.Version()).Msg("agent starting")
 
+	// Clean up stale build directories from previous runs.
+	// Each build gets a unique dir (pipelines/{build_id}), so anything left
+	// after a restart is orphaned and safe to remove.
+	a.cleanupStaleBuildDirs()
+
 	// Register with server
 	agentlog.Logger.Info().Msg("Registering with server...")
 	if err := a.registrar.Register(); err != nil {
@@ -1325,4 +1330,35 @@ func isDangerousEnvVar(k string) bool {
 		return true
 	}
 	return false
+}
+
+// cleanupStaleBuildDirs removes orphaned build directories from previous agent runs.
+// Each build gets a unique working directory (pipelines/{build_id}), so any directory
+// present at startup is from a previous (potentially crashed) agent instance.
+// Parallel builds on the same running agent accumulate intentionally and are not cleaned here.
+func (a *Agent) cleanupStaleBuildDirs() {
+	pipelinesDir := filepath.Join(a.config.WorkingDir, "pipelines")
+	entries, err := os.ReadDir(pipelinesDir)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			agentlog.Logger.Warn().Err(err).Str("dir", pipelinesDir).Msg("Failed to read pipelines directory for cleanup")
+		}
+		return
+	}
+
+	removed := 0
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		path := filepath.Join(pipelinesDir, entry.Name())
+		if err := os.RemoveAll(path); err != nil {
+			agentlog.Logger.Warn().Err(err).Str("path", path).Msg("Failed to remove stale build directory")
+		} else {
+			removed++
+		}
+	}
+	if removed > 0 {
+		agentlog.Logger.Info().Int("count", removed).Str("dir", pipelinesDir).Msg("Cleaned up stale build directories")
+	}
 }
