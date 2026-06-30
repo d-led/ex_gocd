@@ -326,13 +326,17 @@ body {
   word-break: normal !important;
 }
 
-/* Defense-in-depth: collapse whitespace text nodes between flex children.
-   Template reformatting must not reintroduce blank-line pollution. */
+/* Defense-in-depth: collapse whitespace text nodes. Template reformatting
+   must not reintroduce blank-line pollution.
+   - .log-row font-size:0 + line-height:0 collapses all text nodes
+   - .msg-text/.ts-text/.fold-chevron explicitly restore 11px/1.25rem */
 .log-row {
   font-size: 0;
+  line-height: 0;
 }
-.log-row > * {
+.msg-text, .ts-text, .fold-chevron {
   font-size: 11px;
+  line-height: 1.25rem;
 }
 
 #console-container {

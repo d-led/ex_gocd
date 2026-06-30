@@ -233,7 +233,10 @@
                 >
                   <span class="fold-chevron text-gray-500 mr-3 shrink-0 inline-block w-3">
                     <i class="fa fa-chevron-down text-[9px]"></i>
-                  </span><span class="log-message text-gray-300 flex-1 font-bold whitespace-pre-wrap break-all"><%= line.fold_name %></span>
+                  </span>
+                  <span class="log-message text-gray-300 flex-1 font-bold whitespace-pre-wrap break-all">
+                    <span class="msg-text">{line.fold_name}</span>
+                  </span>
                 </div>
               <% else %>
                 <div
@@ -246,9 +249,13 @@
                   data-fold-end={to_string(line.type == :fold_end)}
                 >
                   <%= if line.timestamp do %>
-                    <span class="log-timestamp text-gray-500 select-none mr-3 shrink-0"><%= line.timestamp %></span>
+                    <span class="log-timestamp text-gray-500 select-none mr-3 shrink-0">
+                      <span class="ts-text">{line.timestamp}</span>
+                    </span>
                   <% end %>
-                  <span class="log-message text-gray-300 flex-1 whitespace-pre-wrap break-all"><%= line.formatted_message %></span>
+                  <span class="log-message text-gray-300 flex-1 whitespace-pre-wrap break-all">
+                    <span class="msg-text">{line.formatted_message}</span>
+                  </span>
                 </div>
               <% end %>
             <% end %>

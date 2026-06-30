@@ -213,35 +213,31 @@ defmodule ExGoCDWeb.JobDetailsLiveTest do
       conn = get(conn, ~p"/go/tab/build/detail/demo/1/build/1/default")
       html = html_response(conn, 200)
 
-      ~r{<span[^>]*class="log-message[^"]*"[^>]*>(.*?)</span>}s
+      # Content is wrapped in .msg-text spans inside .log-message (CSS defense)
+      ~r{<span[^>]*class="msg-text"[^>]*>(.*?)</span>}s
       |> Regex.scan(html)
       |> Enum.each(fn [_, text] ->
         trimmed = String.trim(text)
         if trimmed != "" do
           refute String.starts_with?(text, "\n"),
-            "log-message starts with newline: #{inspect(String.slice(text, 0, 40))}"
+            "msg-text starts with newline: #{inspect(String.slice(text, 0, 40))}"
           refute String.starts_with?(text, " "),
-            "log-message starts with space: #{inspect(String.slice(text, 0, 40))}"
+            "msg-text starts with space: #{inspect(String.slice(text, 0, 40))}"
         end
       end)
     end
   end
 
   describe "CSS defense against template reformatting" do
-    test "app.css contains font-size:0 defense on .log-row" do
-      css_path = Path.join(File.cwd!(), "assets/css/app.css")
-      css = File.read!(css_path)
-
-      # The defense rule: .log-row { font-size: 0 } collapses whitespace text nodes
+    test "app.css contains font-size:0 on .log-row" do
+      css = File.read!("assets/css/app.css")
       assert css =~ ~r/\.log-row\s*\{[^}]*font-size:\s*0/
     end
 
-    test "app.css restores font-size on .log-row children" do
-      css_path = Path.join(File.cwd!(), "assets/css/app.css")
-      css = File.read!(css_path)
-
-      # Children rule: .log-row > * { font-size: 11px } restores on real elements
-      assert css =~ ~r/\.log-row\s*>\s*\*\s*\{[^}]*font-size:\s*11px/
+    test "app.css restores font-size on .msg-text, .ts-text, .fold-chevron" do
+      css = File.read!("assets/css/app.css")
+      assert css =~ ~r/\.msg-text[^}]*font-size:\s*11px/
+      assert css =~ ~r/\.ts-text[^}]*font-size:\s*11px/
     end
   end
 end
