@@ -988,6 +988,41 @@ defmodule ExGoCD.Scheduler do
   end
 
   # Triggers try_assign_work for all currently connected idle agents.
+
+  # Store resolved environment variables on the AgentJobRun for retry reuse + UI display.
+  defp store_job_env_vars(build_id, build_command) do
+    env_vars = extract_env_vars_from_command(build_command)
+
+    if env_vars != %{} do
+      case Repo.get_by(AgentJobRuns.AgentJobRun, build_id: build_id) do
+        nil ->
+          :ok
+
+        run ->
+          AgentJobRuns.AgentJobRun.changeset(run, %{environment_variables: env_vars})
+          |> Repo.update()
+          |> case do
+            {:ok, _} -> :ok
+            _ -> :ok
+          end
+      end
+    end
+  rescue
+    _ -> :ok
+  end
+
+  defp extract_env_vars_from_command(%{"subCommands" => subcommands}) when is_list(subcommands) do
+    subcommands
+    |> Enum.filter(&(&1["name"] == "export"))
+    |> Enum.reduce(%{}, fn cmd, acc ->
+      args = cmd["args"] || []
+      name = Enum.at(args, 0)
+      value = Enum.at(args, 1)
+      if name, do: Map.put(acc, name, value), else: acc
+    end)
+  end
+
+  defp extract_env_vars_from_command(_), do: %{}
   # Captures the current OTel context so async handle_info processing
   # can attach it and create linked spans under the pipeline trace.
   defp trigger_assignment_for_idle_agents do
@@ -1075,6 +1110,9 @@ defmodule ExGoCD.Scheduler do
     artifact_upload_base_url =
       ExGoCDWeb.Endpoint.url() <>
         "/files/#{pipeline}/#{pipeline_counter}/#{stage}/#{stage_counter}/#{job}"
+
+    # Store resolved environment variables on the AgentJobRun for retry reuse and UI display
+    store_job_env_vars(build_id, build_command)
 
     payload =
       %{

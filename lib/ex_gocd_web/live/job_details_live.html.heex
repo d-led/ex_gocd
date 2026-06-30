@@ -142,6 +142,14 @@
       >
         <i class="fa fa-code-branch mr-1.5 text-gray-400"></i> Materials
       </button>
+      <button
+        phx-click="select_tab"
+        phx-value-tab="environment"
+        class={"px-4 py-3 text-xs font-bold font-mono tracking-wide border-b-2 " <>
+          if @active_tab == "environment", do: "border-[#2d6ca2] text-[#2d6ca2]", else: "border-transparent text-gray-500 hover:text-gray-700"}
+      >
+        <i class="fa fa-cog mr-1.5 text-gray-400"></i> Environment
+      </button>
     </nav>
     
 <!-- Tab Contents -->
@@ -448,6 +456,43 @@
             </div>
           <% end %>
         </div>
+      </div>
+      <!-- Environment Tab -->
+      <div class={[@active_tab != "environment" && "hidden"]}>
+        <%= if @environment_variables == %{} do %>
+          <div class="text-gray-500 italic py-12 text-center flex flex-col items-center justify-center gap-2 border border-dashed border-gray-200 rounded-lg bg-gray-50/50">
+            <i class="fa fa-cog text-2xl text-gray-300"></i>
+            <span>No environment variables recorded for this job run.</span>
+            <span class="text-[10px] text-gray-400">
+              Variables are stored when the build is assigned to an agent.
+            </span>
+          </div>
+        <% else %>
+          <div class="border border-gray-200 rounded overflow-hidden">
+            <table class="min-w-full divide-y divide-gray-200 text-xs text-left">
+              <thead>
+                <tr class="bg-gray-50 text-[10px] uppercase font-bold text-gray-400 tracking-wider font-mono">
+                  <th class="px-6 py-3 w-1/3">Variable</th>
+                  <th class="px-6 py-3">Value</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-100 font-mono text-gray-700">
+                <%= for {name, value} <- Enum.sort(@environment_variables) do %>
+                  <tr class="hover:bg-gray-50/50">
+                    <td class="px-6 py-3.5 font-bold text-gray-800">{name}</td>
+                    <td class="px-6 py-3.5 text-[11px] text-gray-600 break-all">
+                      <%= if String.contains?(name, "PASSWORD") or String.contains?(name, "SECRET") or String.contains?(name, "TOKEN") do %>
+                        <span class="text-gray-400 italic">********</span>
+                      <% else %>
+                        {value}
+                      <% end %>
+                    </td>
+                  </tr>
+                <% end %>
+              </tbody>
+            </table>
+          </div>
+        <% end %>
       </div>
     </div>
   </div>

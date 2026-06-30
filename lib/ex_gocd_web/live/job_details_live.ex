@@ -41,6 +41,8 @@ defmodule ExGoCDWeb.JobDetailsLive do
 
     agent = resolve_agent(job_instance)
 
+    env_vars = get_run_env_vars(run)
+
     {:ok,
      socket
      |> assign(:pipeline_name, pipeline_name)
@@ -54,6 +56,7 @@ defmodule ExGoCDWeb.JobDetailsLive do
      |> assign(:artifacts, artifacts)
      |> assign(:materials, materials)
      |> assign(:agent, agent)
+     |> assign(:environment_variables, env_vars)
      |> assign(:show_timestamps, false)
      |> assign(:follow, true)
      |> assign(:wrap_lines, true)
@@ -112,6 +115,17 @@ defmodule ExGoCDWeb.JobDetailsLive do
     do: Agents.get_agent_by_uuid(uuid)
 
   defp resolve_agent(_job_instance), do: nil
+
+  defp get_run_env_vars(%{build_id: bid}) when is_binary(bid) do
+    case Repo.get_by(AgentJobRuns.AgentJobRun, build_id: bid) do
+      %{environment_variables: vars} when is_map(vars) -> vars
+      _ -> %{}
+    end
+  rescue
+    _ -> %{}
+  end
+
+  defp get_run_env_vars(_), do: %{}
 
   @doc """
   Constructs the working directory path for a job run.
