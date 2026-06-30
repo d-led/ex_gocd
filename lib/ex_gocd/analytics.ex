@@ -39,8 +39,8 @@ defmodule ExGoCD.Analytics do
       |> Enum.map(fn row ->
         duration =
           case {row.scheduled_at, row.completed_at} do
-            {%DateTime{} = s, %DateTime{} = c} ->
-              max(DateTime.diff(c, s, :second), 0)
+            {%NaiveDateTime{} = s, %NaiveDateTime{} = c} ->
+              max(NaiveDateTime.diff(c, s, :second), 0)
 
             _ ->
               nil
