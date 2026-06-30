@@ -250,7 +250,10 @@ defmodule ExGoCD.Agents do
       agents = Repo.all(from a in Agent, where: a.disabled == true and a.deleted == false)
       Enum.each(agents, fn a -> do_delete_agent(a) end)
       count = length(agents)
-      ExGoCD.AuditLog.Events.agents_cleaned_disabled("admin", count)
+      ExGoCD.AuditLog.log("admin", "agents.clean_disabled",
+        resource_type: "agent",
+        details: %{count: count}
+      )
       count
     end
   end
@@ -426,6 +429,8 @@ defmodule ExGoCD.Agents do
   @doc """
   Effective status for display: disabled, lost_contact (no recent ping), building, idle, or unknown.
   Uses updated_at vs now to derive LostContact when no heartbeat within opts[:lost_contact_seconds].
+  Elastic agents (with elastic_agent_id or elastic_plugin_id) never show LostContact —
+  they are ephemeral and auto-cleaned separately.
   """
   @spec effective_status(Agent.t(), keyword()) ::
           :disabled | :lost_contact | :building | :idle | :unknown
@@ -436,11 +441,15 @@ defmodule ExGoCD.Agents do
     threshold_sec = Keyword.get(opts, :lost_contact_seconds, 600)
 
     if not use_mock?() and stale?(agent.updated_at, threshold_sec) do
-      :lost_contact
+      if is_elastic?(agent), do: :idle, else: :lost_contact
     else
       state_to_status(agent.state)
     end
   end
+
+  defp is_elastic?(%Agent{elastic_agent_id: id}) when is_binary(id) and id != "", do: true
+  defp is_elastic?(%Agent{elastic_plugin_id: id}) when is_binary(id) and id != "", do: true
+  defp is_elastic?(_), do: false
 
   defp stale?(nil, _), do: false
 
@@ -818,14 +827,17 @@ defmodule ExGoCD.Agents do
 
   @doc """
   Soft-deletes all LostContact agents. Returns count deleted.
-  Only affects non-deleted agents in LostContact state.
+  Uses effective_status (stale updated_at) not just raw state, so agents
+  with state="Idle" but no recent heartbeat are also caught.
+  Only affects non-deleted agents.
   """
   def clean_lost_agents do
     agents =
       from(a in Agent,
-        where: a.state == "LostContact" and a.deleted == false
+        where: a.state in ["Idle", "Building", "LostContact"] and a.deleted == false
       )
       |> Repo.all()
+      |> Enum.filter(&(effective_status(&1) == :lost_contact))
 
     count =
       Enum.reduce(agents, 0, fn agent, acc ->
@@ -836,7 +848,56 @@ defmodule ExGoCD.Agents do
       end)
 
     if count > 0 do
-      ExGoCD.AuditLog.Events.agents_cleaned_disabled("admin", count)
+      ExGoCD.AuditLog.log("system", "agents.clean_lost",
+        resource_type: "agent",
+        details: %{count: count}
+      )
+    end
+
+    count
+  end
+
+  @doc """
+  Soft-deletes stale elastic agents (K8s and Docker elastic) whose last heartbeat
+  is older than the threshold (default 10 minutes). Elastic agents are ephemeral —
+  they should not linger as LostContact. Called periodically by SnapshotCollector.
+  Records each removal in the audit log.
+  """
+  def clean_stale_elastic_agents(threshold_sec \\ 600) do
+    agents =
+      from(a in Agent,
+        where:
+          a.deleted == false and
+            (not is_nil(a.elastic_agent_id) or not is_nil(a.elastic_plugin_id)) and
+            a.state in ["Idle", "Building", "LostContact"]
+      )
+      |> Repo.all()
+      |> Enum.filter(&stale?(&1.updated_at, threshold_sec))
+
+    count =
+      Enum.reduce(agents, 0, fn agent, acc ->
+        case do_delete_agent(agent) do
+          {:ok, _} ->
+            ExGoCD.AuditLog.log("system", "agents.elastic_cleaned",
+              resource_type: "agent",
+              resource_name: agent.hostname,
+              details: %{
+                uuid: agent.uuid,
+                elastic_agent_id: agent.elastic_agent_id,
+                elastic_plugin_id: agent.elastic_plugin_id,
+                last_seen: agent.updated_at
+              }
+            )
+
+            acc + 1
+
+          _ ->
+            acc
+        end
+      end)
+
+    if count > 0 do
+      Logger.info("[Agents] Cleaned #{count} stale elastic agent(s)")
     end
 
     count
@@ -907,18 +968,27 @@ defmodule ExGoCD.Agents do
       else
         count = Enum.count(agents)
         Enum.each(agents, fn a -> do_delete_agent(a) end)
-        ExGoCD.AuditLog.Events.agents_bulk_deleted("admin", count)
+        ExGoCD.AuditLog.log("admin", "agents.bulk_deleted",
+          resource_type: "agent",
+          details: %{count: count, uuids: Enum.map(agents, & &1.uuid)}
+        )
         {:ok, count}
       end
     end
   end
 
   defp audit_agent_action({:ok, _agent}, uuid, action) do
-    case action do
-      :enabled -> ExGoCD.AuditLog.Events.agent_enabled("admin", uuid)
-      :disabled -> ExGoCD.AuditLog.Events.agent_disabled("admin", uuid)
-      :deleted -> ExGoCD.AuditLog.Events.agent_deleted("admin", uuid)
-    end
+    action_str =
+      case action do
+        :enabled -> "agents.enabled"
+        :disabled -> "agents.disabled"
+        :deleted -> "agents.deleted"
+      end
+
+    ExGoCD.AuditLog.log("admin", action_str,
+      resource_type: "agent",
+      resource_name: uuid
+    )
   end
 
   defp audit_agent_action(_, _, _), do: :ok
