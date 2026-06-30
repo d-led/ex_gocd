@@ -20,18 +20,18 @@ docker run -d --name ex_gocd_ci --network host \
 
 echo "=== Waiting for server ==="
 server_ready=false
-for i in $(seq 1 30); do
+for i in $(seq 1 60); do
   if curl -s -o /dev/null -w "%{http_code}" http://localhost:4000/materials 2>/dev/null | grep -q 200; then
     echo "Server ready on port 4000"
     server_ready=true
     break
   fi
-  echo "  waiting... ($i/30)"
+  echo "  waiting... ($i/60)"
   sleep 2
 done
 
 if [ "$server_ready" = false ]; then
-  echo "=== ERROR: Server failed to start within 60 seconds ==="
+  echo "=== ERROR: Server failed to start within 120 seconds ==="
   echo "=== Docker logs ==="
   docker logs ex_gocd_ci || true
   echo "=== Exiting with failure ==="
