@@ -849,6 +849,7 @@ defmodule ExGoCD.AgentsTest do
 
       # Make it stale (700 seconds ago) — update_all bypasses changeset
       old = NaiveDateTime.add(NaiveDateTime.utc_now(), -700, :second)
+
       {1, _} =
         ExGoCD.Repo.update_all(
           from(a in Agent, where: a.uuid == ^agent.uuid),
@@ -870,6 +871,7 @@ defmodule ExGoCD.AgentsTest do
         })
 
       old = NaiveDateTime.add(NaiveDateTime.utc_now(), -700, :second)
+
       {1, _} =
         ExGoCD.Repo.update_all(
           from(a in Agent, where: a.uuid == ^agent.uuid),
@@ -891,6 +893,7 @@ defmodule ExGoCD.AgentsTest do
         })
 
       old = NaiveDateTime.add(NaiveDateTime.utc_now(), -700, :second)
+
       {1, _} =
         ExGoCD.Repo.update_all(
           from(a in Agent, where: a.uuid == ^agent.uuid),
@@ -910,6 +913,7 @@ defmodule ExGoCD.AgentsTest do
         })
 
       old = NaiveDateTime.add(NaiveDateTime.utc_now(), -700, :second)
+
       {1, _} =
         ExGoCD.Repo.update_all(
           from(a in Agent, where: a.uuid == ^agent.uuid),

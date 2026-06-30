@@ -250,10 +250,12 @@ defmodule ExGoCD.Agents do
       agents = Repo.all(from a in Agent, where: a.disabled == true and a.deleted == false)
       Enum.each(agents, fn a -> do_delete_agent(a) end)
       count = length(agents)
+
       ExGoCD.AuditLog.log("admin", "agents.clean_disabled",
         resource_type: "agent",
         details: %{count: count}
       )
+
       count
     end
   end
@@ -271,8 +273,9 @@ defmodule ExGoCD.Agents do
       |> Enum.filter(fn a -> (a.free_space || 0) < threshold_mb * 1_048_576 end)
     else
       from(a in Agent,
-        where: a.disabled == false and a.deleted == false and
-               a.free_space < ^(threshold_mb * 1_048_576)
+        where:
+          a.disabled == false and a.deleted == false and
+            a.free_space < ^(threshold_mb * 1_048_576)
       )
       |> Repo.all()
     end
@@ -285,7 +288,9 @@ defmodule ExGoCD.Agents do
           {n, _} when n > 0 -> n
           _ -> 1024
         end
-      _ -> 1024
+
+      _ ->
+        1024
     end
   end
 
@@ -441,15 +446,15 @@ defmodule ExGoCD.Agents do
     threshold_sec = Keyword.get(opts, :lost_contact_seconds, 600)
 
     if not use_mock?() and stale?(agent.updated_at, threshold_sec) do
-      if is_elastic?(agent), do: :idle, else: :lost_contact
+      if elastic?(agent), do: :idle, else: :lost_contact
     else
       state_to_status(agent.state)
     end
   end
 
-  defp is_elastic?(%Agent{elastic_agent_id: id}) when is_binary(id) and id != "", do: true
-  defp is_elastic?(%Agent{elastic_plugin_id: id}) when is_binary(id) and id != "", do: true
-  defp is_elastic?(_), do: false
+  defp elastic?(%Agent{elastic_agent_id: id}) when is_binary(id) and id != "", do: true
+  defp elastic?(%Agent{elastic_plugin_id: id}) when is_binary(id) and id != "", do: true
+  defp elastic?(_), do: false
 
   defp stale?(nil, _), do: false
 
@@ -972,10 +977,12 @@ defmodule ExGoCD.Agents do
       else
         count = Enum.count(agents)
         Enum.each(agents, fn a -> do_delete_agent(a) end)
+
         ExGoCD.AuditLog.log("admin", "agents.bulk_deleted",
           resource_type: "agent",
           details: %{count: count, uuids: Enum.map(agents, & &1.uuid)}
         )
+
         {:ok, count}
       end
     end

@@ -207,7 +207,9 @@ defmodule ExGoCDWeb.AgentChannel do
         _ = Scheduler.try_assign_work(socket.assigns.agent_uuid)
       rescue
         e ->
-          Logger.warning("Scheduler.try_assign_work failed (agent will retry on next ping): #{inspect(e)}")
+          Logger.warning(
+            "Scheduler.try_assign_work failed (agent will retry on next ping): #{inspect(e)}"
+          )
       end
     end
 
