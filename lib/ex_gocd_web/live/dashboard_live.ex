@@ -24,7 +24,8 @@ defmodule ExGoCDWeb.DashboardLive do
      |> assign(:selected_jobs, MapSet.new())
      |> assign(:show_pause_modal, false)
      |> assign(:active_pause_pipeline, nil)
-     |> assign(:pause_cause_input, "")}
+     |> assign(:pause_cause_input, "")
+     |> assign(:show_changes_for, nil)}
   end
 
   @impl true
@@ -117,6 +118,13 @@ defmodule ExGoCDWeb.DashboardLive do
      |> assign(:show_pause_modal, false)
      |> assign(:active_pause_pipeline, nil)
      |> assign(:pause_cause_input, "")}
+  end
+
+  @impl true
+  def handle_event("toggle_changes", %{"name" => name}, socket) do
+    current = socket.assigns.show_changes_for
+    next = if current == name, do: nil, else: name
+    {:noreply, assign(socket, :show_changes_for, next)}
   end
 
   @impl true
@@ -624,7 +632,7 @@ defmodule ExGoCDWeb.DashboardLive do
       <ul class="dashboard-group_items">
         <%= for pipeline <- @pipelines do %>
           <li class="dashboard-group_pipeline">
-            <.pipeline_widget pipeline={pipeline} current_user={@current_user} />
+            <.pipeline_widget pipeline={pipeline} current_user={@current_user} show_changes_for={@show_changes_for} />
           </li>
         <% end %>
       </ul>
@@ -745,7 +753,10 @@ defmodule ExGoCDWeb.DashboardLive do
         </div>
       </div>
       <div class="pipeline_instances">
-        <.pipeline_instance pipeline={@pipeline} />
+        <%
+          is_showing = @show_changes_for == @pipeline.name
+        %>
+        <.pipeline_instance pipeline={@pipeline} show_changes={is_showing} />
       </div>
     </div>
     """
@@ -767,10 +778,57 @@ defmodule ExGoCDWeb.DashboardLive do
               Compare
             </a>
           </li>
-          <li>
-            <a aria-label="Changes" title="Changes">
+          <li class="relative">
+            <a
+              aria-label="Changes"
+              title="Changes"
+              phx-click="toggle_changes"
+              phx-value-name={@pipeline.name}
+              class="cursor-pointer"
+            >
               <span class="changes">Changes</span>
             </a>
+            <%= if assigns[:show_changes] == true do %>
+              <div class="absolute z-50 top-full left-0 mt-1 w-80 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl p-4 text-xs">
+                <div class="flex items-center justify-between mb-2 pb-2 border-b border-gray-700">
+                  <span class="font-bold text-gray-200 uppercase tracking-wider">Changes</span>
+                  <button
+                    phx-click="toggle_changes"
+                    phx-value-name={@pipeline.name}
+                    class="text-gray-500 hover:text-gray-300 text-lg leading-none"
+                  >&times;</button>
+                </div>
+                <% revisions = @pipeline[:material_revisions] || [] %>
+                <%= if revisions == [] do %>
+                  <p class="text-gray-500 italic">No material revisions recorded.</p>
+                <% else %>
+                  <%= for rev <- revisions do %>
+                    <div class="mb-3 last:mb-0">
+                      <div class="flex items-center gap-2 mb-1">
+                        <span class="font-mono text-[10px] text-[#2d6ca2] truncate max-w-[200px]" title={rev["material"]["url"]}>
+                          {rev["material"]["url"] |> String.replace("https://github.com/", "") |> String.replace(".git", "")}
+                        </span>
+                        <span class={"ml-auto px-1.5 py-0.5 rounded text-[9px] font-bold " <> if rev["changed"], do: "bg-green-900/50 text-green-400", else: "bg-gray-800 text-gray-500"}>
+                          <%= if rev["changed"], do: "changed", else: "unchanged" %>
+                        </span>
+                      </div>
+                      <%= for mod <- rev["modifications"] || [] do %>
+                        <div class="pl-2 border-l-2 border-gray-700 ml-1 mb-2 last:mb-0">
+                          <div class="flex items-center gap-2">
+                            <span class="font-mono text-[10px] text-[#2d6ca2]">{String.slice(mod["revision"], 0, 8)}</span>
+                            <span class="text-gray-400">{mod["username"]}</span>
+                            <span class="text-gray-600 text-[9px] ml-auto" title={mod["modifiedTime"]}>
+                              {format_change_time(mod["modifiedTime"])}
+                            </span>
+                          </div>
+                          <p class="text-gray-500 mt-0.5 truncate" title={mod["comment"]}>{mod["comment"]}</p>
+                        </div>
+                      <% end %>
+                    </div>
+                  <% end %>
+                <% end %>
+              </div>
+            <% end %>
           </li>
           <li>
             <a
@@ -845,6 +903,26 @@ defmodule ExGoCDWeb.DashboardLive do
   end
 
   defp format_duration(_), do: "—"
+
+  defp format_change_time(time_str) when is_binary(time_str) do
+    case DateTime.from_iso8601(time_str) do
+      {:ok, dt, _} ->
+        now = DateTime.utc_now()
+        diff = DateTime.diff(now, dt, :second)
+
+        cond do
+          diff < 60 -> "just now"
+          diff < 3600 -> "#{div(diff, 60)}m ago"
+          diff < 86400 -> "#{div(diff, 3600)}h ago"
+          true -> String.slice(time_str, 0, 10)
+        end
+
+      _ ->
+        String.slice(time_str, 0, 10)
+    end
+  end
+
+  defp format_change_time(_), do: ""
 
   # Status dot — CSS class for coloured circle indicator
   def status_dot_class(job) do
