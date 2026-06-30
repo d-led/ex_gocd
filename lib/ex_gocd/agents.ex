@@ -235,7 +235,8 @@ defmodule ExGoCD.Agents do
     if use_mock?() do
       Mock.list_agents()
     else
-      Repo.all(Agent)
+      from(a in Agent, where: a.deleted == false)
+      |> Repo.all()
     end
   end
 
