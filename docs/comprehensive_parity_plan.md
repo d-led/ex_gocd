@@ -120,7 +120,7 @@
 | — | Enhanced compare dialog (Phase 11) | M | Any-two-instance pickers, side-by-side diff |
 | — | Gantt chart view (Phase 12) | M | Timeline + dependency arrows. Candidate: `phoenix_live_gantt` |
 | — | Auth plugin (Ueberauth/LDAP) in plugins/managed/ | L | Plugin architecture ready, not started |
-| — | Org Hierarchy + Pipeline Grouper integration | M | Wire SimpleOrgChart into PipelineGroupPolicy, PipelineGrouper into dashboard |
+| — | Org Hierarchy + Pipeline Grouper integration | M | ✅ PipelineGrouper wired into DashboardLive.grouping_data via Plugin.Registry. Fallback to static grouping when no plugin registered. 3 tests. SimpleOrgChart already registered as :org_hierarchy + PipelineGroupPolicy uses org_hierarchy_access?. |
 
 ### 🔵 P3: Analytics — ✅ Done
 
@@ -148,10 +148,10 @@ All B17-B21 complete: agent transitions schema, utilization snapshots (5-min Gen
 |----------|-------|--------|--------|
 | **P0** | — | — | ✅ DONE |
 | **P1** | — | — | ✅ DONE |
-| **P2** | Material VSM link, enhanced compare, gantt, embedded stats, config repos engine | S-XL | 4 small + 1 large remaining |
+| **P2** | Enhanced compare, gantt, config repos engine | M-XL | 2 medium + 1 large remaining |
 | **P3** | — | — | ✅ DONE (Analytics) |
 | **P4** | — | — | ✅ DONE (B22-B30 all complete) |
-| **Plugins** | External auth (Ueberauth), Org Hierarchy integration | L-M | Separate cluster apps |
+| **Plugins** | External auth (Ueberauth) | L | Separate cluster app |
 
 ## Part D: Build & Quality
 
@@ -238,8 +238,8 @@ These are deployed as **separate Phoenix apps** in the cluster, not baked into e
 
 ## Part H: Build & Quality Summary
 
-- **Tests**: 861 ExUnit (0 skipped), Go agent clean, Cypress 116 tests (16 specs)
-- **Quality gate**: compile `--warnings-as-errors` clean, `mix format --check-formatted` clean, Credo, Sobelow
+- **Tests**: 886 ExUnit (0 skipped), Go agent clean, Cypress 116 tests (16 specs)
+- **Quality gate**: compile `--warnings-as-errors` clean, `mix format --check-formatted` clean, Credo 0 issues, Sobelow 0 findings
 - **LiveView pages**: 19 modules (added PluginDemoLive)
 - **API controllers**: 20 controllers (added SCMController), 83 actions
 - **Clustering**: M1-M5 done — libcluster+Horde, admin UI, 10 distributed singletons, OTEL propagator, Plugin.Registry+AgentSelector, 3 example plugins, process-compose verified
