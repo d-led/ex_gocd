@@ -97,8 +97,7 @@ defmodule ExGoCD.ConfigRepos.Poller do
            System.cmd("git", ["-C", dir, "rev-parse", "HEAD"], stderr_to_stdout: true),
          {_, 0} <-
            System.cmd("git", ["-C", dir, "reset", "--hard", "origin/HEAD"],
-             stderr_to_stdout: true,
-             timeout: 30_000
+             stderr_to_stdout: true
            ),
          {after_rev, 0} <-
            System.cmd("git", ["-C", dir, "rev-parse", "HEAD"], stderr_to_stdout: true) do
