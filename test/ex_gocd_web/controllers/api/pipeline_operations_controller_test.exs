@@ -236,7 +236,10 @@ defmodule ExGoCDWeb.API.PipelineOperationsControllerTest do
     end
 
     test "schedules pipeline with environment variables and materials overrides", %{conn: conn} do
-      pipeline = seed_pipeline_with_material("test-api-schedule-overrides")
+      pipeline =
+        seed_pipeline_with_material("test-api-schedule-overrides", %{
+          environment_variables: %{"OVERRIDDEN_VAR" => "default_val"}
+        })
 
       material =
         Repo.one(
@@ -288,8 +291,9 @@ defmodule ExGoCDWeb.API.PipelineOperationsControllerTest do
 
   # ── Helpers ──────────────────────────────────────────────────────────
 
-  defp seed_pipeline_with_material(name) do
-    pipeline = Repo.insert!(%Pipelines.Pipeline{name: name, group: "test"})
+  defp seed_pipeline_with_material(name, extra_attrs \\ %{}) do
+    attrs = Map.merge(%{name: name, group: "test"}, extra_attrs)
+    pipeline = Repo.insert!(struct(Pipelines.Pipeline, attrs))
 
     material =
       Repo.insert!(%Pipelines.Material{

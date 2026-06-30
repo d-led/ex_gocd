@@ -264,6 +264,7 @@ defmodule ExGoCD.Pipelines do
              {:maintenance, false} <- {:maintenance, ExGoCD.MaintenanceMode.enabled?()},
              pipeline = Repo.preload(pipeline, [:materials, :template, stages: [jobs: :tasks]]),
              pipeline = resolve_template_stages(pipeline),
+             :ok <- validate_trigger_variables(pipeline, options),
              {:ok, proposed} <- resolve_proposed_revisions(pipeline, options),
              :ok <- FanInResolver.verify_consistency(proposed) do
           # Mark pipeline as triggered for debounce
@@ -2048,6 +2049,60 @@ defmodule ExGoCD.Pipelines do
     else
       env_vars
     end
+  end
+
+  @doc """
+  GoCD parity: validates that trigger override variables exist in the pipeline config scope.
+  Returns :ok or {:error, {:unconfigured_variable, name}}.
+  """
+  def validate_trigger_variables(pipeline, options) do
+    env_vars =
+      Map.get(options, :environment_variables) || Map.get(options, "environment_variables") ||
+        Map.get(options, :variables) || Map.get(options, "variables") || %{}
+
+    secure_vars =
+      Map.get(options, :secure_variables) || Map.get(options, "secure_variables") || %{}
+
+    all_names =
+      if(is_list(env_vars),
+        do: Enum.map(env_vars, &(Map.get(&1, "name") || Map.get(&1, :name))),
+        else: Map.keys(env_vars)
+      ) ++
+        Map.keys(secure_vars)
+
+    configured = configured_var_names(pipeline)
+
+    Enum.find(all_names, fn name ->
+      name_s = to_string(name)
+      not Enum.any?(configured, fn c -> String.downcase(c) == String.downcase(name_s) end)
+    end)
+    |> case do
+      nil -> :ok
+      bad -> {:error, {:unconfigured_variable, to_string(bad)}}
+    end
+  end
+
+  defp configured_var_names(pipeline) do
+    pipeline = Repo.preload(pipeline, stages: [jobs: :tasks])
+
+    pipe_names =
+      Map.keys(pipeline.environment_variables || %{}) ++
+        Map.keys(pipeline.secure_variables || %{})
+
+    stage_names =
+      (pipeline.stages || [])
+      |> Enum.flat_map(fn s ->
+        Map.keys(s.environment_variables || %{}) ++ Map.keys(s.secure_variables || %{})
+      end)
+
+    job_names =
+      (pipeline.stages || [])
+      |> Enum.flat_map(&(&1.jobs || []))
+      |> Enum.flat_map(fn j ->
+        Map.keys(j.environment_variables || %{}) ++ Map.keys(j.secure_variables || %{})
+      end)
+
+    Enum.uniq(pipe_names ++ stage_names ++ job_names)
   end
 
   defp trigger_next_stage(stage_instance) do
