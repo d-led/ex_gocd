@@ -6,6 +6,8 @@
 defmodule ExGoCDWeb.AgentChannel do
   use Phoenix.Channel
 
+  require Logger
+
   alias ExGoCD.AgentJobRuns
   alias ExGoCD.AgentRegistry
   alias ExGoCD.Agents
@@ -198,9 +200,15 @@ defmodule ExGoCDWeb.AgentChannel do
     runtime_info = payload["agentRuntimeInfo"] || payload["data"] || payload
     _ = Agents.touch_agent_on_heartbeat(socket.assigns.agent_uuid, runtime_info)
     # GoCD-style: when agent reports Idle, try to assign work from the scheduler queue.
+    # Rescue: Scheduler may not be available yet on this node (Horde singleton startup race).
     if (runtime_info["runtimeStatus"] || get_in(payload, ["agentRuntimeInfo", "runtimeStatus"])) ==
          "Idle" do
-      _ = Scheduler.try_assign_work(socket.assigns.agent_uuid)
+      try do
+        _ = Scheduler.try_assign_work(socket.assigns.agent_uuid)
+      rescue
+        e ->
+          Logger.warning("Scheduler.try_assign_work failed (agent will retry on next ping): #{inspect(e)}")
+      end
     end
 
     {:reply, {:ok, %{}}, socket}

@@ -351,6 +351,12 @@ func (a *Agent) handleMessage(msg *protocol.Message) error {
 		agentlog.Logger.Info().Msg("Server closed channel (phx_close); will reconnect")
 		return fmt.Errorf("channel closed by server")
 
+	case "phx_error":
+		// Server channel process crashed (phx_error); reconnect so pings reach the server.
+		// Without this, the agent stays on a dead channel and is marked LostContact.
+		agentlog.Logger.Info().Msg("Server channel error (phx_error); will reconnect")
+		return fmt.Errorf("channel error from server")
+
 	default:
 		// Unhandled action: likely a bug (new server message we don't support, or typo).
 		agentlog.Logger.Info().Str("action", msg.Action).Msg("Unknown message action")
