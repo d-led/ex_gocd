@@ -71,6 +71,18 @@
             ({String.slice(@agent.uuid, 0, 8)}...)
           </span>
         </.link>
+        <% work_dir = build_working_dir(@agent, @pipeline_name, @pipeline_counter, @stage_name, @stage_counter, @job_name) %>
+        <%= if work_dir do %>
+          <span class="text-gray-300 mx-1">|</span>
+          <span class="text-gray-400 font-bold uppercase tracking-wider text-[10px]"
+                title={"Working directory: #{work_dir}"}>
+            Dir
+          </span>
+          <span class="font-mono text-[10px] text-gray-500 truncate max-w-[200px]"
+                title={work_dir}>
+            {Path.join(["…", "ex_gocd_jobs", @pipeline_name, to_string(@pipeline_counter), @stage_name, to_string(@stage_counter), @job_name])}
+          </span>
+        <% end %>
       <% end %>
     </div>
   <% end %>

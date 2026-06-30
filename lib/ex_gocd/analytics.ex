@@ -41,7 +41,9 @@ defmodule ExGoCD.Analytics do
           case {row.scheduled_at, row.completed_at} do
             {%DateTime{} = s, %DateTime{} = c} ->
               max(DateTime.diff(c, s, :second), 0)
-            _ -> nil
+
+            _ ->
+              nil
           end
 
         Map.put(row, :duration, duration)

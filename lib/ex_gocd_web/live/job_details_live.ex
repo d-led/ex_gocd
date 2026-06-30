@@ -113,6 +113,19 @@ defmodule ExGoCDWeb.JobDetailsLive do
 
   defp resolve_agent(_job_instance), do: nil
 
+  @doc """
+  Constructs the working directory path for a job run.
+  Mirror of the server-side pattern: {agent.working_dir}/ex_gocd_jobs/{pipeline}/{counter}/{stage}/{stage_counter}/{job}
+  """
+  def build_working_dir(agent, pipeline_name, pipeline_counter, stage_name, stage_counter, job_name) do
+    case agent && agent.working_dir do
+      dir when is_binary(dir) and dir != "" ->
+        safe = fn s -> String.replace(to_string(s), ~r/[^a-zA-Z0-9_.-]/, "_") end
+        Path.join([dir, "ex_gocd_jobs", safe.(pipeline_name), to_string(pipeline_counter), safe.(stage_name), to_string(stage_counter), safe.(job_name)])
+      _ -> nil
+    end
+  end
+
   @impl true
   def handle_params(_params, _uri, socket) do
     {:noreply, socket}

@@ -70,12 +70,18 @@ describe("Console Log Display", () => {
     // Toggle ON
     cy.get("#toggle-timestamps").check();
     cy.get("#console-container").should("have.class", "show-timestamps");
-    cy.get(".log-timestamp").first().invoke("css", "display").should("not.eq", "none");
+    cy.get(".log-timestamp")
+      .first()
+      .invoke("css", "display")
+      .should("not.eq", "none");
 
     // Toggle OFF
     cy.get("#toggle-timestamps").uncheck();
     cy.get("#console-container").should("not.have.class", "show-timestamps");
-    cy.get(".log-timestamp").first().invoke("css", "display").should("eq", "none");
+    cy.get(".log-timestamp")
+      .first()
+      .invoke("css", "display")
+      .should("eq", "none");
   });
 
   it("line-wrap toggle controls white-space via CSS class", () => {

@@ -218,11 +218,13 @@ defmodule ExGoCDWeb.JobDetailsLiveTest do
       |> Regex.scan(html)
       |> Enum.each(fn [_, text] ->
         trimmed = String.trim(text)
+
         if trimmed != "" do
           refute String.starts_with?(text, "\n"),
-            "msg-text starts with newline: #{inspect(String.slice(text, 0, 40))}"
+                 "msg-text starts with newline: #{inspect(String.slice(text, 0, 40))}"
+
           refute String.starts_with?(text, " "),
-            "msg-text starts with space: #{inspect(String.slice(text, 0, 40))}"
+                 "msg-text starts with space: #{inspect(String.slice(text, 0, 40))}"
         end
       end)
     end

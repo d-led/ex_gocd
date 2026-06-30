@@ -75,7 +75,25 @@ All 18 admin sub-menu links route to AdminLive tabs. UI shells exist. Backend ga
 - [ ] Backups
 - [ ] Maintenance mode
 
-## 🔵 P4: Analytics (from gocd-analytics-plugin)
+## � P3: Environment Variables Parity (GoCD-style)
+
+GoCD echoes env vars to the console and stores them as job properties so retries use the same values. Our current `export` subcommands exist in the build tree but only set vars for the child process — they're not echoed or stored.
+
+- [ ] **Echo exported env vars** to console: `setting environment variable: GO_PIPELINE_NAME=demo`
+- [ ] **Store resolved env vars** as job properties on `AgentJobRun` (DB column or JSON blob)
+- [ ] **Reuse stored env vars on retry**: re-export from stored properties instead of re-resolving
+- [ ] **Standard GO_* vars** (GoCD parity):
+  - `GO_PIPELINE_NAME`, `GO_PIPELINE_COUNTER`, `GO_PIPELINE_LABEL`
+  - `GO_STAGE_NAME`, `GO_STAGE_COUNTER`
+  - `GO_JOB_NAME`
+  - `GO_SERVER_URL`, `GO_TRIGGER_USER`
+  - `GO_PIPELINE_GROUP_NAME`, `GO_ENVIRONMENT_NAME`
+  - `GO_AGENT_RESOURCES`
+- [ ] **Material env vars**: `GO_REVISION`, `GO_FROM_REVISION`, `GO_TO_REVISION`, `GO_MATERIAL_*`
+- [ ] **Secure env vars**: redacted in console (`[value hidden]`) but available to build
+- [ ] **Job detail "Environment" tab**: show resolved env vars for the run (GoCD calls this "Environment Variables" tab)
+
+## �🔵 P4: Analytics (from gocd-analytics-plugin)
 
 - [ ] Agent state transitions table
 - [ ] Agent utilization snapshots
@@ -85,14 +103,15 @@ All 18 admin sub-menu links route to AdminLive tabs. UI shells exist. Backend ga
 
 ---
 
-## Quality Baseline (last verified: 2026-06-21)
+## Quality Baseline (last verified: 2026-06-30)
 
 | Check | Status |
 |-------|--------|
 | `mix compile --warnings-as-errors` | ✅ Pass |
 | `mix sobelow` | ✅ 0 findings |
 | `mix credo` | ✅ No suggestions |
-| `mix test` | ✅ 430 passed (0 flaky) |
+| `mix test` | ✅ 873 passed (0 flaky) |
 | `go vet ./...` | ✅ No issues |
 | `go test ./...` | ✅ All passing |
 | `golangci-lint run` | ✅ 0 issues |
+| Cypress E2E | ✅ 15 specs, 108 tests passed |
