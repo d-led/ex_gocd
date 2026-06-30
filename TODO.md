@@ -50,7 +50,7 @@ All 18 admin sub-menu links route to AdminLive tabs. UI shells exist. Backend ga
 - **secret_configs**: ❌ Management
 - **scms**: ❌ CRUD
 - **backup**: ❌ Execution
-- **plugins**: ❌ Listing
+- **plugins**: ✅ Listing (Plugin Dashboard at /admin/plugins, plugin LiveViews)
 - **auth_configs/roles**: ❌ CRUD
 - **templates**: ⚠️ Schema, no API
 
@@ -61,11 +61,16 @@ All 18 admin sub-menu links route to AdminLive tabs. UI shells exist. Backend ga
 
 ## 🟡 P2: Remaining
 
-- [ ] **Pipeline config admin CRUD API** — `GET/POST/PUT/DELETE /api/admin/pipelines/:name`
 - [ ] **Template admin CRUD API** — `GET/POST/PUT/DELETE /api/admin/templates/:name`
 - [ ] **Cycle detection** — verify `CycleDetector` exists and is wired
-- [ ] **Dashboard REST API** — `GET /api/dashboard` JSON endpoint
 - [ ] **Environments CRUD API** — schema exists, needs controller
+
+## ✅ P3: Environment Variables — Complete
+
+- [x] Echo to console, store on AgentJobRun, retry reuse
+- [x] 12 Standard GO_* vars + material vars (GO_REVISION etc.)
+- [x] Secure vars: encrypted, redacted `********`, scope-validated on trigger
+- [x] Environment tab in job details, secrets masked in UI
 
 ## 🟢 P3: Advanced Features
 
@@ -74,33 +79,6 @@ All 18 admin sub-menu links route to AdminLive tabs. UI shells exist. Backend ga
 - [ ] Notifications (email via Swoosh)
 - [ ] Backups
 - [ ] Maintenance mode
-
-## � P3: Environment Variables Parity (GoCD-style)
-
-GoCD echoes env vars to the console and stores them as job properties so retries use the same values. Our current `export` subcommands exist in the build tree but only set vars for the child process — they're not echoed or stored.
-
-- [ ] **Echo exported env vars** to console: `setting environment variable: GO_PIPELINE_NAME=demo`
-- [ ] **Store resolved env vars** as job properties on `AgentJobRun` (DB column or JSON blob)
-- [ ] **Reuse stored env vars on retry**: re-export from stored properties instead of re-resolving
-- [ ] **Standard GO_* vars** (GoCD parity):
-  - `GO_PIPELINE_NAME`, `GO_PIPELINE_COUNTER`, `GO_PIPELINE_LABEL`
-  - `GO_STAGE_NAME`, `GO_STAGE_COUNTER`
-  - `GO_JOB_NAME`
-  - `GO_SERVER_URL`, `GO_TRIGGER_USER`
-  - `GO_PIPELINE_GROUP_NAME`, `GO_ENVIRONMENT_NAME`
-  - `GO_AGENT_RESOURCES`
-- [ ] **Material env vars**: `GO_REVISION`, `GO_FROM_REVISION`, `GO_TO_REVISION`, `GO_MATERIAL_*`
-- [ ] **Secure env vars**: redacted in console (`[value hidden]`) but available to build
-- [ ] **Job detail "Environment" tab**: show resolved env vars for the run (GoCD calls this "Environment Variables" tab)
-
-## �🔵 P4: Analytics (from gocd-analytics-plugin)
-
-- [ ] Agent state transitions table
-- [ ] Agent utilization snapshots
-- [ ] Pipeline workflow tracking
-- [ ] 11 analytics queries (pipeline build time, agent utilization, VSM trends, etc.)
-- [ ] Analytics API + chart UI
-
 ---
 
 ## Quality Baseline (last verified: 2026-06-30)
