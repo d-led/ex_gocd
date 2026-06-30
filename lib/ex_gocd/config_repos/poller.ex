@@ -91,8 +91,7 @@ defmodule ExGoCD.ConfigRepos.Poller do
     # Fetch + reset to avoid merge conflicts (like GoCD's approach)
     with {_, 0} <-
            System.cmd("git", ["-C", dir, "fetch", "origin"],
-             stderr_to_stdout: true,
-             timeout: 30_000
+             stderr_to_stdout: true
            ),
          {before, 0} <-
            System.cmd("git", ["-C", dir, "rev-parse", "HEAD"], stderr_to_stdout: true),
