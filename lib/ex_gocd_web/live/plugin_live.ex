@@ -117,7 +117,9 @@ defmodule ExGoCDWeb.PluginLive do
                           ]}>
                             {if host, do: detail.hostname, else: String.slice(detail.uuid, 0, 7)}
                             <%= if host do %>
-                              <span class="opacity-40 font-mono">{String.slice(detail.uuid, 0, 7)}</span>
+                              <span class="opacity-40 font-mono">
+                                {String.slice(detail.uuid, 0, 7)}
+                              </span>
                             <% end %>
                           </span>
                         <% end %>
@@ -127,12 +129,21 @@ defmodule ExGoCDWeb.PluginLive do
                       <%= if entry.preferred_detail do %>
                         <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
                           <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              d="M5 13l4 4L19 7"
+                            />
                           </svg>
                           <% host = entry.preferred_detail.hostname not in [nil, ""] %>
-                          {if host, do: entry.preferred_detail.hostname, else: String.slice(entry.preferred_detail.uuid, 0, 11)}
+                          {if host,
+                            do: entry.preferred_detail.hostname,
+                            else: String.slice(entry.preferred_detail.uuid, 0, 11)}
                           <%= if host do %>
-                            <span class="opacity-40 font-mono text-[10px]">{String.slice(entry.preferred_detail.uuid, 0, 8)}</span>
+                            <span class="opacity-40 font-mono text-[10px]">
+                              {String.slice(entry.preferred_detail.uuid, 0, 8)}
+                            </span>
                           <% end %>
                         </span>
                       <% else %>

@@ -220,8 +220,38 @@
               !@wrap_lines && "overflow-x-auto"
             ]}
             phx-update="stream"
-          ><%!-- prettier-ignore --%>
-            <%= for {dom_id, line} <- @streams.log_lines do %><%= if line.type == :fold_start do %><div id={dom_id} class="log-row fold-start flex items-start font-mono text-[11px] leading-5 cursor-pointer select-none hover:bg-gray-800/50" data-fold-id={line.fold_id} data-fold-parents={line.fold_parents} onclick="var f=this.closest('.fold-start'); f.classList.toggle('collapsed'); window.dispatchEvent(new CustomEvent('update-folds'))"><span class="fold-chevron text-gray-500 mr-3 shrink-0 inline-block w-3"><i class="fa fa-chevron-down text-[9px]"></i></span><span class="log-message text-gray-300 flex-1 font-bold whitespace-pre-wrap break-all"><%= line.fold_name %></span></div><% else %><div id={dom_id} class={["log-row flex items-start font-mono text-[11px] leading-5", line.type == :fold_end && "hidden"]} data-fold-parents={line.fold_parents} data-fold-end={to_string(line.type == :fold_end)}><%= if line.timestamp do %><span class="log-timestamp text-gray-500 select-none mr-3 shrink-0"><%= line.timestamp %></span><% end %><span class="log-message text-gray-300 flex-1 whitespace-pre-wrap break-all"><%= line.formatted_message %></span></div><% end %><% end %>
+          >
+            <%!-- prettier-ignore --%>
+            <%= for {dom_id, line} <- @streams.log_lines do %>
+              <%= if line.type == :fold_start do %>
+                <div
+                  id={dom_id}
+                  class="log-row fold-start flex items-start font-mono text-[11px] leading-5 cursor-pointer select-none hover:bg-gray-800/50"
+                  data-fold-id={line.fold_id}
+                  data-fold-parents={line.fold_parents}
+                  onclick="var f=this.closest('.fold-start'); f.classList.toggle('collapsed'); window.dispatchEvent(new CustomEvent('update-folds'))"
+                >
+                  <span class="fold-chevron text-gray-500 mr-3 shrink-0 inline-block w-3">
+                    <i class="fa fa-chevron-down text-[9px]"></i>
+                  </span><span class="log-message text-gray-300 flex-1 font-bold whitespace-pre-wrap break-all"><%= line.fold_name %></span>
+                </div>
+              <% else %>
+                <div
+                  id={dom_id}
+                  class={[
+                    "log-row flex items-start font-mono text-[11px] leading-5",
+                    line.type == :fold_end && "hidden"
+                  ]}
+                  data-fold-parents={line.fold_parents}
+                  data-fold-end={to_string(line.type == :fold_end)}
+                >
+                  <%= if line.timestamp do %>
+                    <span class="log-timestamp text-gray-500 select-none mr-3 shrink-0"><%= line.timestamp %></span>
+                  <% end %>
+                  <span class="log-message text-gray-300 flex-1 whitespace-pre-wrap break-all"><%= line.formatted_message %></span>
+                </div>
+              <% end %>
+            <% end %>
           </div>
 
           <%= cond do %>

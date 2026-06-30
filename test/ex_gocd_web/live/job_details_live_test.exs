@@ -207,4 +207,41 @@ defmodule ExGoCDWeb.JobDetailsLiveTest do
       assert html =~ "line 1200"
     end
   end
+
+  describe "whitespace regression guard" do
+    test "log-message spans have no leading whitespace in static HTML", %{conn: conn} do
+      conn = get(conn, ~p"/go/tab/build/detail/demo/1/build/1/default")
+      html = html_response(conn, 200)
+
+      ~r{<span[^>]*class="log-message[^"]*"[^>]*>(.*?)</span>}s
+      |> Regex.scan(html)
+      |> Enum.each(fn [_, text] ->
+        trimmed = String.trim(text)
+        if trimmed != "" do
+          refute String.starts_with?(text, "\n"),
+            "log-message starts with newline: #{inspect(String.slice(text, 0, 40))}"
+          refute String.starts_with?(text, " "),
+            "log-message starts with space: #{inspect(String.slice(text, 0, 40))}"
+        end
+      end)
+    end
+  end
+
+  describe "CSS defense against template reformatting" do
+    test "app.css contains font-size:0 defense on .log-row" do
+      css_path = Path.join(File.cwd!(), "assets/css/app.css")
+      css = File.read!(css_path)
+
+      # The defense rule: .log-row { font-size: 0 } collapses whitespace text nodes
+      assert css =~ ~r/\.log-row\s*\{[^}]*font-size:\s*0/
+    end
+
+    test "app.css restores font-size on .log-row children" do
+      css_path = Path.join(File.cwd!(), "assets/css/app.css")
+      css = File.read!(css_path)
+
+      # Children rule: .log-row > * { font-size: 11px } restores on real elements
+      assert css =~ ~r/\.log-row\s*>\s*\*\s*\{[^}]*font-size:\s*11px/
+    end
+  end
 end
