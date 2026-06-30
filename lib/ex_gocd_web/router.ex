@@ -301,6 +301,16 @@ defmodule ExGoCDWeb.Router do
     delete "/cleanup", ConfigRepoController, :cleanup_test_data
   end
 
+  scope "/api/admin/config_repos", ExGoCDWeb.API.Admin do
+    pipe_through :api
+    get "/", ConfigRepoController, :index
+    get "/:id", ConfigRepoController, :show
+    post "/", ConfigRepoController, :create
+    put "/:id", ConfigRepoController, :update
+    delete "/:id", ConfigRepoController, :delete
+    post "/:id/refresh", ConfigRepoController, :refresh
+  end
+
   scope "/api/admin", ExGoCDWeb.API do
     pipe_through :api
     get "/scms", SCMController, :index

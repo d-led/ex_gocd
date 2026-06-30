@@ -143,17 +143,17 @@ All B17-B21 complete: agent transitions schema, utilization snapshots (5-min Gen
 
 ---
 
-## Part C: Priority Matrix (2026-07-01)
+## Part C: Priority Matrix (2026-07-01) — ALL DONE ✅
 
-| Priority | Items | Effort | Impact |
+| Priority | Items | Effort | Status |
 |----------|-------|--------|--------|
-| **P0** | — | — | ✅ DONE |
-| **P1** | — | — | ✅ DONE |
+| **P0** | Core scheduling, API, LiveView, plugins, clustering | — | ✅ DONE |
+| **P1** | Completeness polish | — | ✅ DONE |
 | **P2** | Embedded stats, Enhanced compare, Gantt chart | S-M | ✅ DONE |
-| **P2** | Full config repos engine (PaC) | XL | Pipeline-as-code from git |
-| **P2** | External auth plugin (Ueberauth) | L | LDAP/OAuth/GitHub login |
-| **P3** | — | — | ✅ DONE (Analytics) |
-| **P4** | — | — | ✅ DONE (B22-B30) |
+| **P2** | Config repos engine (PaC) — poller, parser, API, admin UI | XL | ✅ DONE |
+| **P2** | External auth — oauth2-proxy + PAT + plugin-ready | L | ✅ DONE |
+| **P3** | Analytics | — | ✅ DONE |
+| **P4** | Feeds, mail server, job timeout, notifications, SCMs, permissions | S | ✅ DONE |
 
 ## Part D: Build & Quality
 
