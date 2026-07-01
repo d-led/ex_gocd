@@ -17,8 +17,7 @@ defmodule ExGoCDWeb.AdminK8sLive do
   alias ExGoCD.ClusterProfiles.ClusterProfile
   alias ExGoCD.ElasticAgentProfiles.ElasticAgentProfile
 
-  @compile {:nowarn_unused_function,
-            [{:connection_status_badge, 1}, {:get_conn_status, 2}]}
+  @compile {:nowarn_unused_function, [{:connection_status_badge, 1}, {:get_conn_status, 2}]}
 
   @impl true
   def mount(_params, _session, socket) do

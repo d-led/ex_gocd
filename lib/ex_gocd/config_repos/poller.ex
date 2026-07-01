@@ -90,9 +90,7 @@ defmodule ExGoCD.ConfigRepos.Poller do
   defp git_pull(dir) do
     # Fetch + reset to avoid merge conflicts (like GoCD's approach)
     with {_, 0} <-
-           System.cmd("git", ["-C", dir, "fetch", "origin"],
-             stderr_to_stdout: true
-           ),
+           System.cmd("git", ["-C", dir, "fetch", "origin"], stderr_to_stdout: true),
          {before, 0} <-
            System.cmd("git", ["-C", dir, "rev-parse", "HEAD"], stderr_to_stdout: true),
          {_, 0} <-

@@ -77,7 +77,12 @@
 
   <%= if @has_pipelines do %>
     <%= for {group_name, pipelines} <- @pipeline_groups do %>
-      <.pipeline_group name={group_name} pipelines={pipelines} current_user={@current_user} show_changes_for={@show_changes_for} />
+      <.pipeline_group
+        name={group_name}
+        pipelines={pipelines}
+        current_user={@current_user}
+        show_changes_for={@show_changes_for}
+      />
     <% end %>
   <% else %>
     <div class="dashboard-message text-center" role="status" aria-live="polite">
