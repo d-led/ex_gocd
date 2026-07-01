@@ -477,24 +477,68 @@ func (a *Agent) handleBuild(build *protocol.Build) {
 // runBuildCommand runs the build's command (or subCommands in sequence) in the agent working dir.
 // When build.ConsoleUrl is set, stdout/stderr are captured and streamed to that URL with timestamp prefix.
 // ctx can be cancelled to abort the build (e.g. cancelBuild from server).
+//
+// Before executing the command tree, the agent prepares the job working directory:
+//   - Creates the per-job directory (e.g. ex_gocd_jobs/pipeline/82/ci/1/quality)
+//   - Nukes any stale .git to prevent shallow-clone object corruption
+//   - Runs circular cleanup of old job directories
+// All filesystem operations use Go's os package — no shell commands — for Windows/Linux/macOS portability.
 func (a *Agent) runBuildCommand(ctx context.Context, build *protocol.Build) error {
 	cmd := build.BuildCommand
 	if cmd == nil {
 		return nil
 	}
+
+	// Prepare the job working directory (platform-safe, pure Go).
+	if cmd.WorkingDir != "" {
+		jobDir := cmd.WorkingDir
+		if err := os.MkdirAll(jobDir, 0755); err != nil {
+			return fmt.Errorf("prepare job dir %s: %w", jobDir, err)
+		}
+		// Nuke .git to prevent shallow-clone corruption from previous runs.
+		gitDir := filepath.Join(jobDir, ".git")
+		if _, err := os.Stat(gitDir); err == nil {
+			if err := os.RemoveAll(gitDir); err != nil {
+				agentlog.Logger.Warn().Err(err).Str("dir", gitDir).Msg("Failed to remove stale .git directory")
+			}
+		}
+		// Circular buffer cleanup: trim old job directories.
+		a.cleanupJobDirs()
+	}
+
 	env := make(map[string]string)
-	return a.executeCommandTree(ctx, build, cmd, env)
+	return a.executeCommandTree(ctx, build, cmd, a.config.WorkingDir, env)
 }
 
-func (a *Agent) executeCommandTree(ctx context.Context, build *protocol.Build, cmd *protocol.BuildCommand, env map[string]string) error {
+// executeCommandTree recursively executes a command tree.
+// parentWorkingDir is the resolved working directory of the parent compose node.
+// For leaf commands without their own WorkingDir, the parent's value is inherited.
+// Relative WorkingDir values are resolved against the parent (e.g. material destination "src" → "{jobDir}/src").
+func (a *Agent) executeCommandTree(ctx context.Context, build *protocol.Build, cmd *protocol.BuildCommand, parentWorkingDir string, env map[string]string) error {
+	// Resolve this command's working directory.
+	if cmd.WorkingDir == "" {
+		// Inherit from parent.
+		cmd.WorkingDir = parentWorkingDir
+	} else if !filepath.IsAbs(cmd.WorkingDir) {
+		// Relative path (e.g. material destination "src") — resolve against parent.
+		cmd.WorkingDir = filepath.Join(parentWorkingDir, cmd.WorkingDir)
+	}
+	// else: absolute path — use as-is.
+
 	if len(cmd.SubCommands) > 0 {
 		for _, sub := range cmd.SubCommands {
-			if err := a.executeCommandTree(ctx, build, sub, env); err != nil {
+			if err := a.executeCommandTree(ctx, build, sub, cmd.WorkingDir, env); err != nil {
 				return err
 			}
 		}
 		return nil
 	}
+
+	// Ensure working directory exists (handles material destination subfolders).
+	if err := os.MkdirAll(cmd.WorkingDir, 0755); err != nil {
+		return fmt.Errorf("create working dir %s: %w", cmd.WorkingDir, err)
+	}
+
 	// Wrap leaf commands (except export) with ##[fold] markers for UI collapsible sections
 	return a.runOneCommandWithFold(ctx, build, cmd, env)
 }
@@ -575,9 +619,11 @@ func (a *Agent) runOneCommand(ctx context.Context, build *protocol.Build, cmd *p
 	if path == "" {
 		return nil
 	}
-	dir := a.config.WorkingDir
-	if cmd.WorkingDir != "" {
-		dir = cmd.WorkingDir
+	// WorkingDir is already resolved by executeCommandTree (inherited from parent,
+	// relative paths resolved, directory created via os.MkdirAll).
+	dir := cmd.WorkingDir
+	if dir == "" {
+		dir = a.config.WorkingDir
 	}
 	absDir, err := filepath.Abs(dir)
 	if err != nil {

@@ -78,6 +78,9 @@ defmodule ExGoCD.Application do
         ExGoCD.ClusterEventLog,
         ExGoCD.ConfigRepos.Poller,
         ExGoCD.TestAgentSupervisor,
+        # Per-node artifact cleanup (must run on every node with a disk cache,
+        # NOT as a Horde singleton — each node has its own artifact storage)
+        ExGoCD.ArtifactCleanup,
         ExGoCDWeb.Endpoint
       ] ++ cluster_children
 

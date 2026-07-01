@@ -1,11 +1,25 @@
 # Copyright 2026 ex_gocd
-# Module to clean up artifacts when storage limit is exceeded.
+# Artifact rotation & cleanup — mirrors GoCD's purge logic with explicit
+# "keep last N runs per stage" retention (not in original GoCD source).
 
 defmodule ExGoCD.ArtifactCleanup do
   @moduledoc """
-  Manages artifact storage limits by purging old stage artifacts.
-  Always keeps the artifacts of the latest run of any job/stage.
+  Manages artifact storage: size-based purge, age-based purge, per-stage
+  retention count, never_cleanup_artifacts flag, and a global on/off toggle.
+
+  Two triggers:
+    - On-upload: `cleanup_if_needed/0` called by ArtifactsController
+    - Periodic:  GenServer runs `cleanup_if_needed/0` every 5 minutes
+
+  Protection order (earlier = stronger):
+    1. Global toggle OFF        → nothing deleted
+    2. never_cleanup_artifacts  → stage's artifacts never deleted
+    3. Retention runs (N)       → keep artifacts from last N pipeline runs
+    4. Age threshold            → only delete if older than max_age_days
+    5. Size limit               → delete oldest-first until under limit
   """
+  use GenServer
+
   import Ecto.Query
   alias ExGoCD.Pipelines.{Pipeline, PipelineInstance, StageInstance}
   alias ExGoCD.Repo
@@ -13,42 +27,281 @@ defmodule ExGoCD.ArtifactCleanup do
   require Logger
 
   @default_max_size_mb 500
+  @default_max_age_days 0
+  @default_cleanup_interval_ms 300_000
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # Public API
+  # ═══════════════════════════════════════════════════════════════════════
+
+  @doc "Periodic GenServer entry point (Horde singleton)."
+  def start_link(opts \\ []) do
+    ExGoCD.DistSingleton.start_link(__MODULE__, opts)
+  end
 
   @doc """
-  Runs the cleanup check and purges old artifacts if the limit is exceeded.
+  Runs the cleanup check: size-based, age-based, respecting all protections.
+  Returns :ok (always — failures are logged, never crash the caller).
   """
+  @spec cleanup_if_needed :: :ok
   def cleanup_if_needed do
-    limit_mb = get_limit_mb()
-    artifacts_path = artifacts_dir()
+    unless cleanup_enabled?() do
+      Logger.debug("Artifact cleanup disabled via EX_GOCD_ARTIFACT_CLEANUP_ENABLED")
+      :ok
+    else
+      artifacts_path = artifacts_dir()
 
-    if File.exists?(artifacts_path) do
-      current_size = get_dir_size(artifacts_path)
-      limit_bytes = limit_mb * 1024 * 1024
-
-      if current_size > limit_bytes do
-        Logger.info(
-          "Artifacts directory size (#{current_size} bytes) exceeds limit (#{limit_bytes} bytes). Starting cleanup..."
-        )
-
-        purge_old_artifacts(current_size - limit_bytes)
-        :ok
+      if File.exists?(artifacts_path) do
+        run_cleanup(artifacts_path)
       else
         :ok
       end
-    else
-      :ok
     end
   end
 
-  defp get_limit_mb do
-    case System.get_env("EX_GOCD_MAX_ARTIFACTS_SIZE_MB") do
+  @doc """
+  Returns the recursive size of a file or directory in bytes.
+  """
+  @spec get_dir_size(String.t()) :: non_neg_integer()
+  def get_dir_size(path) do
+    if File.dir?(path) do
+      dir_contents_size(path)
+    else
+      file_size(path)
+    end
+  end
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # GenServer callbacks
+  # ═══════════════════════════════════════════════════════════════════════
+
+  @impl true
+  def init(_opts) do
+    interval = env_int("EX_GOCD_CLEANUP_INTERVAL_MS", @default_cleanup_interval_ms)
+    schedule_check(interval)
+    {:ok, %{interval: interval}}
+  end
+
+  @impl true
+  def handle_info(:cleanup_check, state) do
+    cleanup_if_needed()
+    schedule_check(state.interval)
+    {:noreply, state}
+  end
+
+  defp schedule_check(interval) do
+    Process.send_after(self(), :cleanup_check, interval)
+  end
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # Core cleanup logic
+  # ═══════════════════════════════════════════════════════════════════════
+
+  defp run_cleanup(artifacts_path) do
+    current_size = get_dir_size(artifacts_path)
+    limit_bytes = limit_bytes()
+    max_age_days = max_age_days()
+
+    Logger.debug(
+      "Cleanup check: size=#{current_size}B limit=#{limit_bytes}B age_limit=#{max_age_days}d"
+    )
+
+    cond do
+      # Age-based: delete anything older than max_age_days (if configured > 0)
+      max_age_days > 0 ->
+        age_seconds = round(max_age_days * 86_400)
+        age_cutoff = DateTime.add(DateTime.utc_now(), -age_seconds, :second)
+        Logger.info("Age-based cleanup: deleting artifacts older than #{max_age_days} days")
+        purge_by_age(age_cutoff)
+
+      # Size-based: delete oldest first until under limit
+      current_size > limit_bytes ->
+        Logger.info(
+          "Size-based cleanup: #{current_size}B exceeds #{limit_bytes}B limit"
+        )
+
+        purge_old_artifacts(current_size - limit_bytes)
+
+      true ->
+        :ok
+    end
+
+    :ok
+  end
+
+  # ── Size-based purge ───────────────────────────────────────────────
+
+  defp purge_old_artifacts(bytes_to_free) do
+    completed_stages = fetch_completed_stages()
+
+    Enum.reduce_while(completed_stages, bytes_to_free, fn si, remaining ->
+      if remaining <= 0, do: {:halt, remaining}, else: purge_if_unprotected(si, remaining)
+    end)
+  end
+
+  # ── Age-based purge ────────────────────────────────────────────────
+
+  defp purge_by_age(age_cutoff) do
+    stages =
+      StageInstance
+      |> where(state: "Completed", artifacts_deleted: false)
+      |> where([si], si.completed_at < ^age_cutoff)
+      |> order_by(asc: :completed_at)
+      |> Repo.all()
+      |> Repo.preload(pipeline_instance: [pipeline: :stages])
+
+    Enum.each(stages, fn si ->
+      {:cont, _} = purge_if_unprotected(si, :ignore_size)
+    end)
+
+    :ok
+  end
+
+  # ── Shared: fetch & protect & delete ───────────────────────────────
+
+  defp fetch_completed_stages do
+    StageInstance
+    |> where(state: "Completed", artifacts_deleted: false)
+    |> order_by(asc: :completed_at)
+    |> Repo.all()
+    |> Repo.preload(pipeline_instance: [pipeline: :stages])
+  end
+
+  defp purge_if_unprotected(si, remaining_or_atom) do
+    pipeline_instance = si.pipeline_instance
+    pipeline = pipeline_instance.pipeline
+
+    cond do
+      never_cleanup?(pipeline, si.name) ->
+        {:cont, remaining_or_atom}
+
+      within_retention_runs?(pipeline, si) ->
+        {:cont, remaining_or_atom}
+
+      true ->
+        delete_and_mark(si, pipeline, pipeline_instance, remaining_or_atom)
+    end
+  end
+
+  defp delete_and_mark(si, pipeline, pipeline_instance, remaining_or_atom) do
+    stage_dir = stage_artifact_dir(pipeline, pipeline_instance, si)
+    size = get_dir_size(stage_dir)
+
+    # sobelow_skip ["Traversal.FileModule"]
+    case File.rm_rf(stage_dir) do
+      {:ok, _} ->
+        Logger.info(
+          "Purged artifacts: #{pipeline.name}/#{pipeline_instance.counter}/" <>
+            "#{si.name}/#{si.counter} (#{size}B freed)"
+        )
+
+        si
+        |> StageInstance.changeset(%{artifacts_deleted: true})
+        |> Repo.update!()
+
+        case remaining_or_atom do
+          :ignore_size -> {:cont, :ignore_size}
+          remaining -> {:cont, remaining - size}
+        end
+
+      {:error, reason, _file} ->
+        Logger.error("Failed to delete #{stage_dir}: #{inspect(reason)}")
+        {:cont, remaining_or_atom}
+    end
+  end
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # Protection predicates
+  # ═══════════════════════════════════════════════════════════════════════
+
+  defp never_cleanup?(%Pipeline{stages: stages}, stage_name) do
+    case Enum.find(stages || [], &(&1.name == stage_name)) do
+      nil -> false
+      stage_config -> stage_config.never_cleanup_artifacts
+    end
+  end
+
+  # Keep last N runs: queries stage instances for this
+  # (pipeline_id, stage_name), sorted by (counter DESC), takes top N.
+  defp within_retention_runs?(%Pipeline{id: pipeline_id, stages: stages}, si) do
+    n = retention_n(stages, si.name)
+
+    if n <= 0 do
+      false
+    else
+      recent =
+        StageInstance
+        |> where(state: "Completed", artifacts_deleted: false, name: ^si.name)
+        |> join(:inner, [si2], pi in PipelineInstance, on: si2.pipeline_instance_id == pi.id)
+        |> where([_si2, pi], pi.pipeline_id == ^pipeline_id)
+        |> order_by([_si2, pi], desc: pi.counter, desc: :counter)
+        |> limit(^n)
+        |> select([si2, _pi], si2.id)
+        |> Repo.all()
+
+      si.id in recent
+    end
+  end
+
+  defp retention_n(stages, stage_name) do
+    case Enum.find(stages || [], &(&1.name == stage_name)) do
+      nil -> 1
+      stage_config -> stage_config.artifact_retention_runs || 1
+    end
+  end
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # Helpers
+  # ═══════════════════════════════════════════════════════════════════════
+
+  defp stage_artifact_dir(pipeline, pipeline_instance, si) do
+    Path.expand(
+      Path.join([
+        artifacts_dir(),
+        pipeline.name,
+        to_string(pipeline_instance.counter),
+        si.name,
+        to_string(si.counter)
+      ])
+    )
+  end
+
+  # ── Config ──────────────────────────────────────────────────────────
+
+  defp cleanup_enabled? do
+    System.get_env("EX_GOCD_ARTIFACT_CLEANUP_ENABLED", "true") == "true"
+  end
+
+  defp limit_bytes do
+    env_int("EX_GOCD_MAX_ARTIFACTS_SIZE_MB", @default_max_size_mb) * 1024 * 1024
+  end
+
+  defp max_age_days do
+    env_num("EX_GOCD_MAX_ARTIFACT_AGE_DAYS", @default_max_age_days)
+  end
+
+  defp env_num(key, default) do
+    case System.get_env(key) do
       nil ->
-        Application.get_env(:ex_gocd, :max_artifact_storage_mb, @default_max_size_mb)
+        Application.get_env(:ex_gocd, String.to_atom(String.downcase(key)), default)
+
+      val ->
+        case Float.parse(val) do
+          {n, _} -> n
+          :error -> default
+        end
+    end
+  end
+
+  defp env_int(key, default) do
+    case System.get_env(key) do
+      nil ->
+        Application.get_env(:ex_gocd, String.to_atom(String.downcase(key)), default)
 
       val ->
         case Integer.parse(val) do
-          {num, _} -> num
-          :error -> @default_max_size_mb
+          {n, _} -> n
+          :error -> default
         end
     end
   end
@@ -57,16 +310,7 @@ defmodule ExGoCD.ArtifactCleanup do
     System.get_env("ARTIFACTS_DIR") || "artifacts"
   end
 
-  @doc """
-  Returns the recursive size of a file or directory in bytes.
-  """
-  def get_dir_size(path) do
-    if File.dir?(path) do
-      dir_contents_size(path)
-    else
-      file_size(path)
-    end
-  end
+  # ── File system ─────────────────────────────────────────────────────
 
   defp dir_contents_size(path) do
     case File.ls(path) do
@@ -84,106 +328,6 @@ defmodule ExGoCD.ArtifactCleanup do
     case File.stat(path) do
       {:ok, stat} -> stat.size
       _ -> 0
-    end
-  end
-
-  # Purges old completed stage instances' artifacts
-  defp purge_old_artifacts(bytes_to_free) do
-    # 1. Query completed stage instances ordered by completed_at ascending (oldest first)
-    completed_stages =
-      StageInstance
-      |> where(state: "Completed", artifacts_deleted: false)
-      |> order_by(asc: :completed_at)
-      |> Repo.all()
-      |> Repo.preload(pipeline_instance: [pipeline: :stages])
-
-    # 2. Iterate and delete those that are not protected
-    Enum.reduce_while(completed_stages, bytes_to_free, fn stage_instance, remaining_bytes ->
-      if remaining_bytes <= 0 do
-        {:halt, remaining_bytes}
-      else
-        purge_stage_if_not_protected(stage_instance, remaining_bytes)
-      end
-    end)
-  end
-
-  defp purge_stage_if_not_protected(stage_instance, remaining_bytes) do
-    pipeline_instance = stage_instance.pipeline_instance
-    pipeline = pipeline_instance.pipeline
-
-    cond do
-      # Check never_cleanup_artifacts from pipeline stage config
-      stage_protected_by_config?(pipeline, stage_instance.name) ->
-        {:cont, remaining_bytes}
-
-      # "always keeping the last job's run's artifacts"
-      latest_run?(pipeline.id, stage_instance.name, stage_instance) ->
-        {:cont, remaining_bytes}
-
-      true ->
-        delete_stage_artifacts(stage_instance, pipeline, pipeline_instance, remaining_bytes)
-    end
-  end
-
-  defp delete_stage_artifacts(stage_instance, pipeline, pipeline_instance, remaining_bytes) do
-    stage_dir =
-      Path.expand(
-        Path.join([
-          artifacts_dir(),
-          pipeline.name,
-          to_string(pipeline_instance.counter),
-          stage_instance.name,
-          to_string(stage_instance.counter)
-        ])
-      )
-
-    size = get_dir_size(stage_dir)
-
-    # sobelow_skip ["Traversal.FileModule"]
-    case File.rm_rf(stage_dir) do
-      {:ok, _} ->
-        Logger.info(
-          "Cleaned up artifacts for stage: #{pipeline.name}/#{pipeline_instance.counter}/#{stage_instance.name}/#{stage_instance.counter} (freed #{size} bytes)"
-        )
-
-        # Mark as deleted in DB
-        stage_instance
-        |> StageInstance.changeset(%{artifacts_deleted: true})
-        |> Repo.update!()
-
-        {:cont, remaining_bytes - size}
-
-      {:error, reason, _file} ->
-        Logger.error("Failed to delete directory #{stage_dir}: #{inspect(reason)}")
-        {:cont, remaining_bytes}
-    end
-  end
-
-  defp stage_protected_by_config?(%Pipeline{stages: stages}, stage_name) do
-    case Enum.find(stages || [], &(&1.name == stage_name)) do
-      nil -> false
-      stage_config -> stage_config.never_cleanup_artifacts
-    end
-  end
-
-  defp latest_run?(pipeline_id, stage_name, stage_instance) do
-    # A stage instance is the latest run of its stage config if its latest_run is true
-    # or if no newer stage instance exists in the database.
-    if stage_instance.latest_run do
-      true
-    else
-      # Check if a newer stage instance exists for this stage config name under this pipeline
-      query =
-        from si in StageInstance,
-          join: pi in PipelineInstance,
-          on: si.pipeline_instance_id == pi.id,
-          where:
-            pi.pipeline_id == ^pipeline_id and si.name == ^stage_name and
-              (pi.counter > ^stage_instance.pipeline_instance.counter or
-                 (pi.counter == ^stage_instance.pipeline_instance.counter and
-                    si.counter > ^stage_instance.counter))
-
-      Repo.exists?(query) == false
     end
   end
 end

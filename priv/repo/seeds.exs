@@ -186,6 +186,66 @@ else
   IO.puts("Config repo already seeded, skipping")
 end
 
+# ── Config repo seed: dont_wait_forever_for_the_tests ──────────────────
+alias ExGoCD.ConfigRepos
+
+dont_wait_url = "https://github.com/d-led/dont_wait_forever_for_the_tests.git"
+
+unless Repo.get_by(ConfigRepo, url: dont_wait_url) do
+  {:ok, cr} =
+    %ConfigRepo{}
+    |> ConfigRepo.changeset(%{
+      url: dont_wait_url,
+      branch: "master",
+      source_type: "gocd_pipeline",
+      material_type: "git"
+    })
+    |> Repo.insert()
+
+  # Parse the ci.gocd.yaml content into pipelines
+  dont_wait_yaml = ~s"""
+  pipelines:
+    dont_wait_forever_for_the_tests:
+      group: defaultGroup
+      locking: off
+      materials:
+        main_repo:
+          git: https://github.com/d-led/dont_wait_forever_for_the_tests.git
+          branch: master
+      stages:
+        - test:
+            environment_variables:
+              GRADLE_USER_HOME: ./.gradle
+            clean_workspace: true
+            jobs:
+              unit:
+                run_instances: all
+                resources:
+                  - gradle
+                  - java
+                tasks:
+                 - exec:
+                     command: chmod
+                     arguments:
+                       - +x
+                       - gradlew
+                 - exec:
+                     command: ./gradlew
+                     arguments:
+                      - --no-daemon
+  """
+
+  case ConfigRepos.refresh_config_repo_with_content(cr, dont_wait_yaml) do
+    {:ok, count} ->
+      IO.puts("Seeded config repo: dont_wait_forever_for_the_tests (#{count} pipeline(s))")
+
+    {:error, reason} ->
+      IO.puts("Config repo seeded but parse failed: #{reason}")
+  end
+else
+  IO.puts("Config repo 'dont_wait_forever_for_the_tests' already seeded, skipping")
+end
+
 # ── Fan-in / Fan-out demo: classic GoCD gate pattern ──────────────────
 # Pattern: C1 → (C2, C3) → Package (gate)
 # C1 = upstream-lib: builds a shared library

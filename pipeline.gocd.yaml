@@ -57,8 +57,8 @@ pipelines:
                     command: mix
                     arguments: [deps.get]
                 - exec:
-                    command: mix
-                    arguments: [credo, --strict]
+                    command: bash
+                    arguments: [scripts/quality-gate.sh]
 
   # ── Docker pipeline (runs on docker-agent or elastic-docker-agent) ─────
   ex_gocd_docker:

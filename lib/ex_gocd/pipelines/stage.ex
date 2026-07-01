@@ -19,6 +19,7 @@ defmodule ExGoCD.Pipelines.Stage do
           fetch_materials: boolean() | nil,
           clean_working_directory: boolean() | nil,
           never_cleanup_artifacts: boolean() | nil,
+          artifact_retention_runs: integer() | nil,
           approval_type: String.t() | nil,
           environment_variables: map() | nil,
           secure_variables: map() | nil,
@@ -37,6 +38,7 @@ defmodule ExGoCD.Pipelines.Stage do
     field :fetch_materials, :boolean, default: true
     field :clean_working_directory, :boolean, default: false
     field :never_cleanup_artifacts, :boolean, default: false
+    field :artifact_retention_runs, :integer, default: 1
     field :approval_type, :string, default: "success"
     field :environment_variables, :map, default: %{}
     field :secure_variables, :map, default: %{}
@@ -60,6 +62,7 @@ defmodule ExGoCD.Pipelines.Stage do
       :fetch_materials,
       :clean_working_directory,
       :never_cleanup_artifacts,
+      :artifact_retention_runs,
       :approval_type,
       :environment_variables,
       :approval_authorization,
