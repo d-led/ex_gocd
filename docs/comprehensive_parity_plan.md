@@ -166,23 +166,13 @@ All B17-B21 complete: agent transitions schema, utilization snapshots (5-min Gen
 
 ---
 
-## Part E: VSM — Fully Shipped ✅
+## Part E: VSM — Shipped
 
-See [vsm_parity_plan.md](vsm_parity_plan.md) for full details. All 5 phases complete.
+All 5 phases complete: trigger info, FI/FO badges, breadcrumbs, responsive layout, SVG arrows, Cypress E2E tests. 
 
-### VSM Link Audit (vs GoCD source `spark_routes.ts`, 2026-06-30)
+### Material VSM Link Gap
 
-GoCD links to VSM from these locations:
-
-| GoCD Link Point | Route | ex_gocd Status |
-|-----------------|-------|----------------|
-| Pipeline activity → VSM per run (`getVSMLink` in run info widget) | `/go/pipelines/value_stream_map/:name/:counter` | ✅ "VSM" link on each counter row in `PipelineActivityLive` |
-| Dashboard → VSM (pipeline card) | `/go/pipelines/value_stream_map/:name/:counter` | ✅ "VSM" link on each pipeline instance card |
-| Stage details → VSM (breadcrumb counter link) | `/go/pipelines/value_stream_map/:name/:counter` | ✅ Breadcrumbs link to VSM for pipeline counter |
-| **Material → material VSM** (`SparkRoutes.materialsVsmLink(fingerprint, revision)`) | `/go/materials/value_stream_map/:fingerprint/:revision` | ❌ **Not yet implemented** |
-| Stage overview → VSM (`stage_overview_shim_for_vsm.tsx`) | `/go/pipelines/value_stream_map/:name/:counter` | ❌ Not applicable (GoCD-specific D3 shim) |
-
-**Gap**: Material VSM — GoCD renders a "VSM" link next to each material modification showing that revision in the value stream. Needs a `MaterialVSM` LiveView or a parameterized VSM that accepts `?fingerprint=X&revision=Y`.
+One known gap: GoCD shows a "VSM" link per material modification at `/go/materials/value_stream_map/:fingerprint/:revision`. The route exists (via `ValueStreamMap.get_material_vsm/2`) but is not yet linked from material modification entries in the UI.
 
 ---
 
@@ -197,47 +187,7 @@ Parity with `gocd-analytics-plugin`. All dashboard types implemented:
 - **VSM Trends**: Run duration distribution across counters
 - **Charts**: All HTML horizontal bar charts (Contex SVG removed — unified style)
 
-The GoCD analytics plugin provides separate dashboard pages (not embedded in stage/job views). Our `/analytics` page matches this pattern. Embedded stats in stage/job detail pages would be a nice-to-have.
-
----
-
-## Part G: Remaining Items — Prioritized (2026-06-30)
-
-### 🟡 P2: Medium Effort — UI Polish
-
-| # | Item | Effort | Notes |
-|---|------|--------|-------|
-| G1 | Enhanced compare dialog | M | Any-two-instance pickers, side-by-side diff. CompareLive already exists with counter pickers + env vars + modifications table. |
-| G2 | Gantt chart dependency arrows | M | GanttLive exists at `/gantt` with SVG bars. Needs upstream/downstream arrows between pipeline runs. |
-| G3 | Embedded pipeline/stage stats | S | Charts in detail pages, not just `/analytics`. |
-
-### 🔴 P2: Large Effort
-
-| # | Item | Effort | Notes |
-|---|------|--------|-------|
-| G4 | Full config repos engine (PaC) | XL | YAML/JSON parsing, git polling, merge engine. Data model done in `external-ci-pipeline-sync-plan.md`. |
-| G5 | External auth plugin (Ueberauth) | L | Separate Phoenix app in `plugins/managed/`. LDAP/OAuth/GitHub. Plugin architecture ready. |
-
-### ✅ Done (was P2)
-
-| # | Item | When | Notes |
-|---|------|------|-------|
-| — | Material VSM link | — | ✅ Routes at `/materials/value_stream_map/:fingerprint/:revision` |
-| — | Org Hierarchy + PipelineGrouper | 2026-06-30 | ✅ SimpleOrgChart → PipelineGroupPolicy. PipelineGrouper wired into DashboardLive with fallback. 3 tests. |
-
-### ❌ Deferred / Removed
-
-| Item | Reason |
-|------|--------|
-| Docker elastic agent path | K8s-only. No Docker API client planned. |
-| K8s agent config admin UI | Cluster profile auto-seed works via DB. |
-
----
-
-## Part H: Build & Quality Summary
-
-- **Tests**: 886 ExUnit (0 skipped), Go agent clean, Cypress 108 tests (15 specs)
-- **Quality gate**: compile `--warnings-as-errors` clean, Credo 0 issues, Sobelow 0 findings
+The GoCD analytics plugin provides separate dashboard pages (not embedded in stage/job views). Our `/analytics` page matches this pattern, and embedded stats are now also available on pipeline activity and stage details pages.
 - **LiveView pages**: 19 modules
 - **API controllers**: 20 controllers, 83 actions
 - **Clustering**: M1-M5 done — libcluster+Horde, 10 distributed singletons, OTEL propagator

@@ -2,6 +2,7 @@ defmodule ExGoCDWeb.PipelineActivityLiveTest do
   use ExGoCDWeb.ConnCase, async: false
 
   import Phoenix.LiveViewTest
+
   import ExGoCD.PipelinesFixtures,
     only: [
       insert_pipeline_with_jobs: 2,

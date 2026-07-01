@@ -2,6 +2,7 @@ defmodule ExGoCDWeb.CompareLiveTest do
   use ExGoCDWeb.ConnCase, async: false
 
   import Phoenix.LiveViewTest
+
   import ExGoCD.PipelinesFixtures,
     only: [
       insert_pipeline_with_jobs: 2,
@@ -30,8 +31,18 @@ defmodule ExGoCDWeb.CompareLiveTest do
       ExGoCD.Pipelines.complete_job_instance(ji1.id, "Passed")
 
       pi2 = insert_pipeline_instance_by_name("cmp-pipeline", 2, DateTime.add(@now, 300, :second))
-      si2 = insert_stage_instance(pi2.id, stage.name, created_time: DateTime.add(@now, 300, :second))
-      ji2 = insert_job_instance(si2.id, job.name, DateTime.add(@now, 300, :second), DateTime.add(@now, 360, :second))
+
+      si2 =
+        insert_stage_instance(pi2.id, stage.name, created_time: DateTime.add(@now, 300, :second))
+
+      ji2 =
+        insert_job_instance(
+          si2.id,
+          job.name,
+          DateTime.add(@now, 300, :second),
+          DateTime.add(@now, 360, :second)
+        )
+
       ExGoCD.Pipelines.complete_job_instance(ji2.id, "Passed")
 
       {:ok, _view, html} = live(conn, ~p"/compare/cmp-pipeline/1/with/2")

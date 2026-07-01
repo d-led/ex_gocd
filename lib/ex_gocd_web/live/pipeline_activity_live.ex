@@ -332,9 +332,15 @@ defmodule ExGoCDWeb.PipelineActivityLive do
 
       <%!-- Legend --%>
       <div class="flex items-center gap-4 mb-5 text-[10px] text-gray-500">
-        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded bg-[#5cb85c]"></span> Passed</span>
-        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded bg-[#d9534f]"></span> Failed</span>
-        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded bg-[#5bc0de]"></span> Building</span>
+        <span class="flex items-center gap-1">
+          <span class="w-2.5 h-2.5 rounded bg-[#5cb85c]"></span> Passed
+        </span>
+        <span class="flex items-center gap-1">
+          <span class="w-2.5 h-2.5 rounded bg-[#d9534f]"></span> Failed
+        </span>
+        <span class="flex items-center gap-1">
+          <span class="w-2.5 h-2.5 rounded bg-[#5bc0de]"></span> Building
+        </span>
       </div>
 
       <%= if @runs == [] do %>
@@ -350,16 +356,26 @@ defmodule ExGoCDWeb.PipelineActivityLive do
             <%!-- Time axis header --%>
             <div class="flex border-b border-gray-200 pb-2 mb-3 text-[9px] text-gray-400 font-mono">
               <span class="w-16 shrink-0">#</span>
-              <span class="w-24 shrink-0 text-right"><%= Calendar.strftime(min_ts, "%H:%M") %></span>
-              <span class="flex-1 text-center"><%= Calendar.strftime(DateTime.add(min_ts, div(span, 2), :second), "%H:%M") %></span>
-              <span class="w-24 shrink-0 text-right"><%= Calendar.strftime(max_ts, "%H:%M") %></span>
+              <span class="w-24 shrink-0 text-right">{Calendar.strftime(min_ts, "%H:%M")}</span>
+              <span class="flex-1 text-center">
+                {Calendar.strftime(DateTime.add(min_ts, div(span, 2), :second), "%H:%M")}
+              </span>
+              <span class="w-24 shrink-0 text-right">{Calendar.strftime(max_ts, "%H:%M")}</span>
             </div>
 
             <div class="space-y-2">
               <%= for run <- Enum.reverse(@runs) do %>
                 <% dur = timeline_run_duration(run) %>
-                <% left_pct = if span > 0, do: Float.round(max(DateTime.diff(run.last_run || min_ts, min_ts, :second), 0) / span * 100, 1), else: 0 %>
-                <% width_pct = if span > 0 and dur > 0, do: Float.round(dur / span * 100, 1), else: 0.5 %>
+                <% left_pct =
+                  if span > 0,
+                    do:
+                      Float.round(
+                        max(DateTime.diff(run.last_run || min_ts, min_ts, :second), 0) / span * 100,
+                        1
+                      ),
+                    else: 0 %>
+                <% width_pct =
+                  if span > 0 and dur > 0, do: Float.round(dur / span * 100, 1), else: 0.5 %>
 
                 <div class="flex items-center gap-2 text-xs">
                   <%!-- Counter label --%>
@@ -512,84 +528,84 @@ defmodule ExGoCDWeb.PipelineActivityLive do
       <% else %>
         <div class="activity-container flex flex-col gap-2">
           <%= for run <- @runs do %>
-          <div class={"flex bg-white border border-gray-200 rounded shadow-sm hover:shadow-md transition-shadow " <> run_status_border(run.status)}>
-            <!-- Row: counter, VSM, revision, trigger, status, stages — all one line -->
-            <div class="flex-grow min-w-0 px-3 py-2 flex flex-col gap-1">
-              <!-- Top line: counter + VSM + revisions + trigger time + status -->
-              <div class="flex items-center gap-2 flex-wrap text-xs">
-                <span class="font-mono font-extrabold text-gray-900">#{run.label}</span>
-                <.link
-                  navigate={~p"/pipelines/value_stream_map/#{@pipeline.name}/#{run.counter}"}
-                  class="text-[#2d6ca2] hover:underline font-bold text-[10px]"
-                >
-                  VSM
-                </.link>
-
-                <%= for mod <- run.modifications do %>
+            <div class={"flex bg-white border border-gray-200 rounded shadow-sm hover:shadow-md transition-shadow " <> run_status_border(run.status)}>
+              <!-- Row: counter, VSM, revision, trigger, status, stages — all one line -->
+              <div class="flex-grow min-w-0 px-3 py-2 flex flex-col gap-1">
+                <!-- Top line: counter + VSM + revisions + trigger time + status -->
+                <div class="flex items-center gap-2 flex-wrap text-xs">
+                  <span class="font-mono font-extrabold text-gray-900">#{run.label}</span>
                   <.link
-                    navigate={~p"/materials/value_stream_map/#{mod.fingerprint}/#{mod.revision}"}
-                    class="font-mono text-cyan-600 hover:underline"
+                    navigate={~p"/pipelines/value_stream_map/#{@pipeline.name}/#{run.counter}"}
+                    class="text-[#2d6ca2] hover:underline font-bold text-[10px]"
                   >
-                    {String.slice(mod.revision, 0, 8)}
+                    VSM
                   </.link>
-                <% end %>
 
-                <span class="text-gray-400" title={format_local_time(run.last_run)}>
-                  {format_local_time(run.last_run)}
-                </span>
+                  <%= for mod <- run.modifications do %>
+                    <.link
+                      navigate={~p"/materials/value_stream_map/#{mod.fingerprint}/#{mod.revision}"}
+                      class="font-mono text-cyan-600 hover:underline"
+                    >
+                      {String.slice(mod.revision, 0, 8)}
+                    </.link>
+                  <% end %>
 
-                <span class="text-gray-500">{run.triggered_by}</span>
+                  <span class="text-gray-400" title={format_local_time(run.last_run)}>
+                    {format_local_time(run.last_run)}
+                  </span>
 
-                <span
-                  class={"inline-block w-2 h-2 rounded-full shrink-0 " <> run_status_dot(run.status)}
-                  title={run.status}
-                >
-                </span>
-                <span class="text-gray-500 font-medium">{run.status}</span>
+                  <span class="text-gray-500">{run.triggered_by}</span>
 
-                <%= if Map.get(run, :config_changed) do %>
-                  <.link
-                    navigate={~p"/pipelines/#{@pipeline.name}/#{run.counter}/config_diff"}
-                    class="text-purple-500 hover:text-purple-700"
-                    title="Config changed since previous run — click to view diff"
+                  <span
+                    class={"inline-block w-2 h-2 rounded-full shrink-0 " <> run_status_dot(run.status)}
+                    title={run.status}
                   >
-                    <i class="fa fa-cog"></i>
-                  </.link>
+                  </span>
+                  <span class="text-gray-500 font-medium">{run.status}</span>
+
+                  <%= if Map.get(run, :config_changed) do %>
+                    <.link
+                      navigate={~p"/pipelines/#{@pipeline.name}/#{run.counter}/config_diff"}
+                      class="text-purple-500 hover:text-purple-700"
+                      title="Config changed since previous run — click to view diff"
+                    >
+                      <i class="fa fa-cog"></i>
+                    </.link>
+                  <% end %>
+                </div>
+                
+    <!-- Commit messages: every material, full text, no clipping -->
+                <%= if Enum.any?(run.modifications, & &1.comment) do %>
+                  <div class="flex flex-col gap-0.5">
+                    <%= for mod <- run.modifications, mod.comment do %>
+                      <div class="text-[11px] text-gray-500 italic break-all leading-snug">
+                        {mod.comment}
+                      </div>
+                    <% end %>
+                  </div>
                 <% end %>
               </div>
               
-    <!-- Commit messages: every material, full text, no clipping -->
-              <%= if Enum.any?(run.modifications, & &1.comment) do %>
-                <div class="flex flex-col gap-0.5">
-                  <%= for mod <- run.modifications, mod.comment do %>
-                    <div class="text-[11px] text-gray-500 italic break-all leading-snug">
-                      {mod.comment}
-                    </div>
-                  <% end %>
-                </div>
-              <% end %>
-            </div>
-            
     <!-- Stage pipeline: compact horizontal strip -->
-            <div class="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 border-l border-gray-100">
-              <%= for {stage, idx} <- Enum.with_index(run.stages) do %>
-                <%= if idx > 0 do %>
-                  <span class="text-gray-300 text-xs">&rarr;</span>
+              <div class="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 border-l border-gray-100">
+                <%= for {stage, idx} <- Enum.with_index(run.stages) do %>
+                  <%= if idx > 0 do %>
+                    <span class="text-gray-300 text-xs">&rarr;</span>
+                  <% end %>
+                  <.link
+                    navigate={
+                      ~p"/pipelines/#{@pipeline.name}/#{run.counter}/#{stage.name}/#{stage.counter}"
+                    }
+                    class={"px-2 py-1 rounded text-white font-mono font-bold text-[10px] hover:scale-105 transition-transform shadow-sm " <> stage_status_class(stage.status)}
+                    title={"#{stage.name} — #{stage.status}"}
+                  >
+                    {stage.name}
+                  </.link>
                 <% end %>
-                <.link
-                  navigate={
-                    ~p"/pipelines/#{@pipeline.name}/#{run.counter}/#{stage.name}/#{stage.counter}"
-                  }
-                  class={"px-2 py-1 rounded text-white font-mono font-bold text-[10px] hover:scale-105 transition-transform shadow-sm " <> stage_status_class(stage.status)}
-                  title={"#{stage.name} — #{stage.status}"}
-                >
-                  {stage.name}
-                </.link>
-              <% end %>
+              </div>
             </div>
-          </div>
-        <% end %>
-      </div>
+          <% end %>
+        </div>
       <% end %>
     </div>
     """

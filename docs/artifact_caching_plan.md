@@ -50,6 +50,16 @@ Server-side caching of directory-as-zip downloads. Mirrors GoCD's `ZipArtifactCa
 - On subsequent requests: serve cached zip directly
 - Invalidation: clear cache when new artifacts are uploaded to the same stage
 - Configurable via `EX_GOCD_ARTIFACT_CACHE_SIZE_MB` (default 200MB) with LRU eviction
+- **Server-side only** — this is built into the server, not a plugin
+
+**Admin UI:**
+- Admin page at `/admin/artifact_cache` shows cache size, file count, last cleanup
+- Manual "Clear Cache" button for emergency cleanup
+- Per-pipeline cache breakdown (size per pipeline/stage)
+
+### Phase 2: Pipeline Build Cache (Plugin)
+
+Cross-run caching of build dependencies. This would be a **plugin** (separate OTP app in `plugins/managed/`), not built into the server. Inspired by GitLab CI `cache:`.
 
 ### Phase 2: Pipeline Build Cache (New Feature)
 

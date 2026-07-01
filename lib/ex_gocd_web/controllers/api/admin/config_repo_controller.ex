@@ -76,7 +76,9 @@ defmodule ExGoCDWeb.API.Admin.ConfigRepoController do
         }
 
         case ConfigRepos.update_config_repo(repo, attrs) do
-          {:ok, updated} -> json(conn, %{config_repo: updated})
+          {:ok, updated} ->
+            json(conn, %{config_repo: updated})
+
           {:error, changeset} ->
             conn
             |> put_status(:unprocessable_entity)
