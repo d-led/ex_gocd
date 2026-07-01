@@ -37,6 +37,9 @@ services:
       SECRET_KEY_BASE: "demo-secret-key-base-do-not-use-in-production"
       PHX_HOST: "localhost"
       PORT: "4000"
+      EX_GOCD_AUTO_ENABLE_AGENTS: "true"
+      EX_GOCD_AUTO_CREATE_USERS: "true"
+      EX_GOCD_ADMIN_USERS: "admin"
     volumes:
       - exgocd_artifacts:/app/artifacts
     healthcheck:
