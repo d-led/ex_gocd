@@ -32,22 +32,36 @@ defmodule ExGoCD.MockData do
 
   @doc "Pauses a pipeline in mock mode."
   def pause_pipeline(name, paused_by, pause_cause) do
-    Agent.update(__MODULE__, fn state ->
-      Map.put(state, name, %{
-        paused: true,
-        paused_by: paused_by,
-        pause_cause: pause_cause,
-        paused_at: DateTime.utc_now() |> DateTime.truncate(:second)
-      })
-    end)
+    if Process.whereis(__MODULE__) do
+      Agent.update(__MODULE__, fn state ->
+        Map.put(state, name, %{
+          paused: true,
+          paused_by: paused_by,
+          pause_cause: pause_cause,
+          paused_at: DateTime.utc_now() |> DateTime.truncate(:second)
+        })
+      end)
+    end
 
     :ok
   end
 
   @doc "Unpauses a pipeline in mock mode."
   def unpause_pipeline(name) do
-    Agent.update(__MODULE__, fn state -> Map.delete(state, name) end)
+    if Process.whereis(__MODULE__) do
+      Agent.update(__MODULE__, fn state -> Map.delete(state, name) end)
+    end
+
     :ok
+  end
+
+  # Safe Agent read — returns empty map when Agent not started (e.g. tests)
+  defp safe_agent_state(pipeline_name) do
+    if Process.whereis(__MODULE__) do
+      Agent.get(__MODULE__, &Map.get(&1, pipeline_name, %{}))
+    else
+      %{}
+    end
   end
 
   # ── Pipeline data ───────────────────────────────────────────────────
@@ -273,7 +287,7 @@ defmodule ExGoCD.MockData do
     ]
     |> Enum.map(fn p ->
       defaults = %{paused: false, paused_by: nil, pause_cause: nil, paused_at: nil}
-      agent_state = Agent.get(__MODULE__, &Map.get(&1, p.name, %{}))
+      agent_state = safe_agent_state(p.name)
       Map.merge(defaults, p) |> Map.merge(agent_state)
     end)
   end
