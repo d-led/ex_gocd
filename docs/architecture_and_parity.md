@@ -81,22 +81,9 @@ context headers in WebSocket build messages. No external plugin required.
 
 ---
 
-## GoCD Feature Parity — All Complete ✅
+## GoCD Feature Parity — Complete
 
-### Environment Variables — ✅
-### Pipeline Scheduling — ✅
-### REST API — ✅ (20+ controllers, 83+ actions)
-### Agent — ✅ (Go binary, WebSocket, console streaming, artifacts, elastic)
-### Job Details — ✅ (Console, Tests, Artifacts, Materials, Environment)
-### Value Stream Map — ✅ (Trigger info, FI/FO, breadcrumbs, responsive, SVG)
-### Analytics — ✅ (Pipeline, stage, agent, VSM trends, HTML bar charts)
-### Embedded Stats — ✅ (Pipeline activity stats bar, Stage trends summaries)
-### Enhanced Compare — ✅ (Any-two pickers, materials/env-vars side-by-side, config diff)
-### Gantt/Timeline — ✅ (Pipeline activity timeline tab, color-coded bars)
-### External Auth — ✅ (oauth2-proxy via AuthHeaderPlug, PAT tokens, plugin-ready)
-### Config Repos (PaC) — ✅ (Git poller, JSON/YAML parser, admin API + UI)
-### Clustering — ✅ (libcluster + Horde, 10 distributed singletons)
-### Plugin System — ✅ (5 behaviour slots, Registry, AgentSelector, PipelineGrouper)
+All major GoCD features are implemented: environment variables, pipeline scheduling, REST API (20+ controllers, 83+ actions), Go agent (WebSocket, console streaming, artifacts, elastic), job details (console, tests, artifacts, materials), value stream map, analytics, embedded stats, enhanced compare, Gantt/timeline, external auth (oauth2-proxy + PAT), config repos engine (Git poller + YAML/JSON parser), clustering (libcluster + Horde), and plugin system (5 behaviour slots).
 
 ---
 
