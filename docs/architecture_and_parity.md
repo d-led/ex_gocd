@@ -23,7 +23,7 @@ distributed OTP cluster with plugin extensibility and built-in observability.
 │  OTP Cluster (libcluster, gossip strategy)               │
 │                                                          │
 │  ┌──────────┐  ┌──────────┐  ┌───────────────────────┐  │
-│  │ ex_gocd  │  │ ex_gocd2 │  │ regional_affinity     │  │
+│  │ ex_gocd  │  │ ex_gocd2 │  │ sample_scheduling_plugin │  │
 │  │ :4000    │  │ :4050    │  │ :4100 (AgentSelector) │  │
 │  └──────────┘  └──────────┘  └───────────────────────┘  │
 │       │              │              │                    │
@@ -49,7 +49,7 @@ Available plugin slots:
 
 | Slot                 | Behaviour                     | Example                                                          |
 | -------------------- | ----------------------------- | ---------------------------------------------------------------- |
-| `:agent_selector`    | `ExGoCD.Plugin.AgentSelector` | `RegionalAffinity` (region-aware), `CorpPolicy` (least-utilized) |
+| `:agent_selector`    | `ExGoCD.Plugin.AgentSelector` | `SampleSchedulingPlugin` (region-aware example), `CorpPolicy` (least-utilized) |
 | `:pipeline_grouper`  | Pipeline group assignment     | —                                                                |
 | `:org_hierarchy`     | Organization structure        | `SimpleOrgChart`                                                 |
 | `:auth_provider`     | External authentication       | —                                                                |
@@ -57,14 +57,11 @@ Available plugin slots:
 
 Each plugin can expose its own **LiveView UI** via `ui_links/0` — accessible
 both from the main Plugin Dashboard (`/admin/plugins`) and directly on their
-own ports (e.g. `:4100` for RegionalAffinity).
+own ports (e.g. `:4100` for SampleSchedulingPlugin).
 
-### Scheduling Plugin — Regional Affinity
+### Scheduling Plugin — SampleSchedulingPlugin
 
-Implements the `AgentSelector` behaviour. The scheduler calls the plugin via
-`:erpc` for every agent-work assignment. The plugin applies regional affinity
-(prefer same-region agents), logs decisions to a GenServer, and broadcasts
-via PubSub to a real-time LiveView at `:4100`.
+Implements the `AgentSelector` behaviour. The scheduler calls the plugin via `:erpc` for every agent-work assignment. The plugin applies regional affinity (prefer same-region agents), logs decisions to a GenServer, and broadcasts via PubSub to a real-time LiveView at `:4100`.
 
 Every decision includes a human-readable reason:
 

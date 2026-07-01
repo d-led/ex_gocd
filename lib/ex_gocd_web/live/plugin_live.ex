@@ -23,14 +23,14 @@ defmodule ExGoCDWeb.PluginLive do
 
   defp fetch_decisions do
     # Find plugin nodes and query SchedulingDecisions GenServer directly
-    plugin_nodes = Node.list() |> Enum.filter(&(to_string(&1) =~ ~r/regional_affinity/))
+    plugin_nodes = Node.list() |> Enum.filter(&(to_string(&1) =~ ~r/sample_scheduling_plugin/))
 
     if plugin_nodes == [] do
       []
     else
       node = hd(plugin_nodes)
 
-      case :erpc.call(node, RegionalAffinity.SchedulingDecisions, :decisions, [], 2000) do
+      case :erpc.call(node, SampleSchedulingPlugin.SchedulingDecisions, :decisions, [], 2000) do
         {:ok, decisions} -> decisions
         _ -> []
       end

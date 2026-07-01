@@ -40,10 +40,10 @@ processes:
     availability:
       restart: always
 
-  # ── Plugin: RegionalAffinity (AgentSelector) ────────────────────────
-  plugin-regional-affinity-4100:
-    command: "elixir --name regional_affinity@127.0.0.1 --cookie ex-gocd-demo-cookie -S mix phx.server"
-    working_dir: "plugins/managed/regional_affinity"
+  # ── Plugin: SampleSchedulingPlugin (AgentSelector) ─────────────────
+  plugin-sample-scheduling-4100:
+    command: "elixir --name sample_scheduling_plugin@127.0.0.1 --cookie ex-gocd-demo-cookie -S mix phx.server"
+    working_dir: "plugins/managed/sample_scheduling_plugin"
     environment:
       - "PORT=4100"
       - "MIX_ENV=dev"

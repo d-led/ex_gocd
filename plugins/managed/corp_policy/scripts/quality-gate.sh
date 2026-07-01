@@ -1,6 +1,6 @@
 #!/bin/bash
 # Quality Gate for extracted plugin OTP apps.
-# Run from the plugin directory root (e.g., plugins/managed/regional_affinity/).
+# Run from the plugin directory root (e.g., plugins/managed/sample_scheduling_plugin/).
 # Exit code 0 = all checks pass.
 
 set -euo pipefail

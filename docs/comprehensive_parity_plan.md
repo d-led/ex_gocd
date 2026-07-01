@@ -95,7 +95,7 @@
 | Admin dropdown | ✅ | CSS-driven with JS edge guard; mobile responsive with vertical list + phx-update="ignore" |
 | Plugins removed | ✅ | No plugin architecture — ex_gocd bakes in features directly. Removed from UI and nav. |
 | Roles CRUD | ✅ | Schema + migration + API at `/api/admin/security/roles`. GoCD parity: `delete_role` validates not-in-use. |
-| Clustering (libcluster + Horde) | ✅ | M1-M5 done: multi-node cluster, admin UI, 10 distributed singletons, Plugin.Registry + AgentSelector, OTEL process propagator, 3 example plugins (RegionalAffinity with audit log, CorpPolicy, SimpleOrgChart), PluginDemoLive at /admin/plugins, non-clustered --sname support, process-compose verified (:4000→200). |
+| Clustering (libcluster + Horde) | ✅ | M1-M5 done: multi-node cluster, admin UI, 10 distributed singletons, Plugin.Registry + AgentSelector, OTEL process propagator, 3 example plugins (SampleSchedulingPlugin with audit log, CorpPolicy, SimpleOrgChart), PluginDemoLive at /admin/plugins, non-clustered --sname support, process-compose verified (:4000→200). |
 
 ---
 

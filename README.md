@@ -106,7 +106,8 @@ Built-in observability with **zero external tools required**:
 
 ## Documentation
 
-- [Architecture & Parity](docs/architecture_and_parity.md) — stack, cluster topology, plugin system, feature parity matrix
+- [Architecture & Parity](docs/architecture_and_parity.md) — stack, cluster topology, plugin system, feature parity
+- [Plugin Authoring Guide](docs/plugin_authoring.md) — how to write plugins
 - [Comprehensive Parity Plan](docs/comprehensive_parity_plan.md) — detailed audited parity report
 - [Development Status](docs/status.md)
 - [Agent Implementation](agent/README.md)
