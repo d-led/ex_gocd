@@ -7,6 +7,10 @@ defmodule ExGoCDWeb.ArtifactsController do
 
   require Logger
 
+  import Ecto.Query
+  alias ExGoCD.Pipelines.{Pipeline, PipelineInstance, StageInstance}
+  alias ExGoCD.Repo
+
   # Helper to determine where artifacts are stored
   defp artifacts_dir do
     System.get_env("ARTIFACTS_DIR") || "artifacts"
@@ -183,7 +187,8 @@ defmodule ExGoCDWeb.ArtifactsController do
       )
 
     with :ok <- check_safe_segments(file_path),
-         :ok <- check_boundary(target_path, job_dir) do
+         :ok <- check_boundary(target_path, job_dir),
+         :ok <- check_artifacts_not_purged(pipeline_name, pipeline_counter, stage_name, stage_counter) do
       # Route to appropriate content provider
       cond do
         Path.join(file_path) == "cruise-output/console.log" ->
@@ -331,6 +336,34 @@ defmodule ExGoCDWeb.ArtifactsController do
   defp file_entry(parent_path, name) do
     type = if File.dir?(Path.join(parent_path, name)), do: "folder", else: "file"
     %{name: name, type: type}
+  end
+
+  # ── Atomicity guard (GoCD pattern) ──────────────────────────────────
+  # Before any file I/O, check the DB flag.  Cleanup sets artifacts_deleted
+  # BEFORE deleting files, so this is the single source of truth.  Agent
+  # gets 410 Gone if artifacts were purged, even if files still exist on disk.
+
+  defp check_artifacts_not_purged(pipeline_name, pipeline_counter, stage_name, stage_counter) do
+    query =
+      from si in StageInstance,
+        join: pi in PipelineInstance, on: si.pipeline_instance_id == pi.id,
+        join: p in Pipeline, on: pi.pipeline_id == p.id,
+        where:
+          p.name == ^pipeline_name and pi.counter == ^pipeline_counter and
+            si.name == ^stage_name and si.counter == ^stage_counter,
+        select: si.artifacts_deleted
+
+    case Repo.one(query) do
+      nil ->
+        # Stage instance not found — let downstream handle (404)
+        :ok
+
+      true ->
+        {:error, 410, "Artifact has been purged by the cleanup policy."}
+
+      false ->
+        :ok
+    end
   end
 
   defp serve_not_found(conn, file_path) do

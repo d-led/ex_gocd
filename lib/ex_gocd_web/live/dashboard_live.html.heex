@@ -295,8 +295,8 @@
 
   <%!-- Pause Pipeline Modal --%>
   <%= if @show_pause_modal and @active_pause_pipeline do %>
-    <div class="modal-backdrop" phx-click="close_pause_modal" id="pause-modal-backdrop">
-      <div class="gocd-modal" onclick="event.stopPropagation();" id="pause-modal">
+    <div class="modal-backdrop" id="pause-modal-backdrop">
+      <div class="gocd-modal" id="pause-modal" phx-click-away="close_pause_modal">
         <div class="modal-header">
           <h3>Pause pipeline {@active_pause_pipeline}</h3>
           <button class="close-btn" phx-click="close_pause_modal" aria-label="Close modal">

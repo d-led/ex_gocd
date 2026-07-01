@@ -6,10 +6,51 @@ defmodule ExGoCD.MockData do
   the UI in isolation. This allows rapid iteration on visual design and
   user interactions without I/O overhead.
 
+  Mutable pause state is stored in an Agent so pause/unpause works in mock mode.
+
   Usage:
       pipelines = ExGoCD.MockData.pipelines()
       grouped = ExGoCD.MockData.pipelines_by_group()
   """
+
+  # ── Mutable pause state (Agent) ─────────────────────────────────────
+
+  @doc "Starts the pause-state Agent. Called once at app startup."
+  def start_link(_opts \\ []) do
+    Agent.start_link(fn -> %{} end, name: __MODULE__)
+  end
+
+  def child_spec(opts) do
+    %{
+      id: __MODULE__,
+      start: {__MODULE__, :start_link, [opts]},
+      type: :worker,
+      restart: :permanent,
+      shutdown: 500
+    }
+  end
+
+  @doc "Pauses a pipeline in mock mode."
+  def pause_pipeline(name, paused_by, pause_cause) do
+    Agent.update(__MODULE__, fn state ->
+      Map.put(state, name, %{
+        paused: true,
+        paused_by: paused_by,
+        pause_cause: pause_cause,
+        paused_at: DateTime.utc_now() |> DateTime.truncate(:second)
+      })
+    end)
+
+    :ok
+  end
+
+  @doc "Unpauses a pipeline in mock mode."
+  def unpause_pipeline(name) do
+    Agent.update(__MODULE__, fn state -> Map.delete(state, name) end)
+    :ok
+  end
+
+  # ── Pipeline data ───────────────────────────────────────────────────
 
   @doc """
   Returns a list of mock pipeline configurations with realistic data.
@@ -231,7 +272,9 @@ defmodule ExGoCD.MockData do
       }
     ]
     |> Enum.map(fn p ->
-      Map.merge(%{paused: false, paused_by: nil, pause_cause: nil, paused_at: nil}, p)
+      defaults = %{paused: false, paused_by: nil, pause_cause: nil, paused_at: nil}
+      agent_state = Agent.get(__MODULE__, &Map.get(&1, p.name, %{}))
+      Map.merge(defaults, p) |> Map.merge(agent_state)
     end)
   end
 

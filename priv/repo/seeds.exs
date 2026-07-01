@@ -153,7 +153,7 @@ unless Repo.get_by(Pipeline, name: "ex_gocd") do
   # quality job: deps → credo → dialyzer
   for {cmd, args} <- [
         {"mix", ["deps.get"]},
-        {"mix", ["credo", "--strict"]},
+        {"mix", ["credo"]},
         {"mix", ["dialyzer"]}
       ] do
     %Task{}

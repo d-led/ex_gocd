@@ -320,6 +320,11 @@ body {
   background-color: #4d4d4d;
 }
 
+.pipeline_btn.unpause:hover {
+  background-color: #ec971f;
+  border-color: #c77c11;
+}
+
 .pipeline_btn::before {
   content: "";
   position: absolute;
@@ -367,15 +372,17 @@ body {
 }
 
 .pipeline_btn.unpause {
-  background-color: #4d4d4d;
+  background-color: #f0ad4e;
+  border-color: #eea236;
 }
 
 .pipeline_btn.unpause:hover {
-  background-color: #fff;
+  background-color: #ec971f;
+  border-color: #d58512;
 }
 
 .pipeline_btn.unpause:hover::before {
-  color: var(--dark-gray);
+  color: #fff;
 }
 
 .pipeline_btn.disabled {

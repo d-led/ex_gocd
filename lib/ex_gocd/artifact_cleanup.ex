@@ -34,9 +34,9 @@ defmodule ExGoCD.ArtifactCleanup do
   # Public API
   # ═══════════════════════════════════════════════════════════════════════
 
-  @doc "Periodic GenServer entry point (Horde singleton)."
+  @doc "Per-node GenServer entry point (one per node, NOT Horde singleton)."
   def start_link(opts \\ []) do
-    ExGoCD.DistSingleton.start_link(__MODULE__, opts)
+    GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
 
   @doc """
@@ -185,6 +185,17 @@ defmodule ExGoCD.ArtifactCleanup do
 
   defp delete_and_mark(si, pipeline, pipeline_instance, remaining_or_atom) do
     stage_dir = stage_artifact_dir(pipeline, pipeline_instance, si)
+
+    # ── Atomicity (GoCD pattern) ──────────────────────────────────
+    # Mark as deleted in DB FIRST — this is the single source of truth.
+    # If an agent requests this artifact after this point, the controller
+    # sees artifacts_deleted=true and returns 410 Gone, even if the files
+    # are still momentarily on disk.  File deletion happens below; failure
+    # to delete is logged but the artifact remains "unavailable" to agents.
+    si
+    |> StageInstance.changeset(%{artifacts_deleted: true})
+    |> Repo.update!()
+
     size = get_dir_size(stage_dir)
 
     # sobelow_skip ["Traversal.FileModule"]
@@ -195,18 +206,16 @@ defmodule ExGoCD.ArtifactCleanup do
             "#{si.name}/#{si.counter} (#{size}B freed)"
         )
 
-        si
-        |> StageInstance.changeset(%{artifacts_deleted: true})
-        |> Repo.update!()
-
-        case remaining_or_atom do
-          :ignore_size -> {:cont, :ignore_size}
-          remaining -> {:cont, remaining - size}
-        end
-
       {:error, reason, _file} ->
-        Logger.error("Failed to delete #{stage_dir}: #{inspect(reason)}")
-        {:cont, remaining_or_atom}
+        Logger.error(
+          "Failed to delete #{stage_dir} after marking as purged: #{inspect(reason)}. " <>
+            "Files may remain on disk but DB flag is set — artifact is unavailable to agents."
+        )
+    end
+
+    case remaining_or_atom do
+      :ignore_size -> {:cont, :ignore_size}
+      remaining -> {:cont, remaining - size}
     end
   end
 

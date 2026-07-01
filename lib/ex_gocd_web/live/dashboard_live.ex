@@ -135,9 +135,9 @@ defmodule ExGoCDWeb.DashboardLive do
     case ExGoCD.Policies.permit?(ExGoCD.Policies.EnvironmentPolicy, :trigger_pipeline, user) do
       true ->
         username = (user && user.username) || "anonymous"
-        # If running mock data, mock the pause behavior locally
         result =
           if use_mock?() do
+            MockData.pause_pipeline(pipeline_name, username, cause)
             {:ok, nil}
           else
             Pipelines.pause_pipeline(pipeline_name, username, cause)
@@ -171,6 +171,7 @@ defmodule ExGoCDWeb.DashboardLive do
       true ->
         result =
           if use_mock?() do
+            MockData.unpause_pipeline(name)
             {:ok, nil}
           else
             Pipelines.unpause_pipeline(name)
@@ -742,19 +743,19 @@ defmodule ExGoCDWeb.DashboardLive do
               </a>
             </li>
           </ul>
-          <%= if @pipeline.paused do %>
-            <div class="pipeline_pause-message">
-              Paused by {@pipeline.paused_by || "anonymous"} ({if @pipeline.pause_cause == "",
-                do: "",
-                else: @pipeline.pause_cause})
-              <%= if @pipeline.paused_at do %>
-                <div title={format_server_time(@pipeline.paused_at)}>
-                  on {format_local_time(@pipeline.paused_at)}
-                </div>
-              <% end %>
-            </div>
-          <% end %>
         </div>
+        <%= if @pipeline.paused do %>
+          <div class="pipeline_pause-message">
+            Paused by {@pipeline.paused_by || "anonymous"} ({if @pipeline.pause_cause == "",
+              do: "",
+              else: @pipeline.pause_cause})
+            <%= if @pipeline.paused_at do %>
+              <div title={format_server_time(@pipeline.paused_at)}>
+                on {format_local_time(@pipeline.paused_at)}
+              </div>
+            <% end %>
+          </div>
+        <% end %>
       </div>
       <div class="pipeline_instances">
         <% is_showing = @show_changes_for == @pipeline.name %>

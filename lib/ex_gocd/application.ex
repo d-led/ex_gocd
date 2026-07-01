@@ -91,6 +91,14 @@ defmodule ExGoCD.Application do
         [ExGoCDWeb.Telemetry, ExGoCD.Repo | Enum.drop(base, 1)]
       end
 
+    # Mock data pause-state agent — only started when USE_MOCK_DATA=true
+    children =
+      if System.get_env("USE_MOCK_DATA") == "true" do
+        children ++ [ExGoCD.MockData]
+      else
+        children
+      end
+
     # See https://hexdocs.pm/elixir/Supervisor.html
     # for other strategies and supported options
     opts = [strategy: :one_for_one, name: ExGoCD.Supervisor]
