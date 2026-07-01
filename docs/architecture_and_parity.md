@@ -7,14 +7,14 @@ distributed OTP cluster with plugin extensibility and built-in observability.
 
 ### Stack
 
-| Layer | Technology |
-|---|---|
-| Server | Elixir + Phoenix LiveView + Ecto (PostgreSQL) |
-| Agents | Go (`agent/`) — lightweight, self-registering, WebSocket-connected |
-| Plugins | Standalone OTP applications, self-registering via libcluster |
-| Observability | OpenTelemetry (OTLP → Jaeger), built-in VSM tracing |
-| Frontend | Phoenix LiveView (SSR) + Tailwind CSS + daisyUI |
-| Testing | ExUnit (873 tests) + Cypress E2E (116 specs) + Go tests |
+| Layer         | Technology                                                         |
+| ------------- | ------------------------------------------------------------------ |
+| Server        | Elixir + Phoenix LiveView + Ecto (PostgreSQL)                      |
+| Agents        | Go (`agent/`) — lightweight, self-registering, WebSocket-connected |
+| Plugins       | Standalone OTP applications, self-registering via libcluster       |
+| Observability | OpenTelemetry (OTLP → Jaeger), built-in VSM tracing                |
+| Frontend      | Phoenix LiveView (SSR) + Tailwind CSS + daisyUI                    |
+| Testing       | ExUnit (873 tests) + Cypress E2E (116 specs) + Go tests            |
 
 ### Cluster Topology
 
@@ -47,13 +47,13 @@ gossip and authenticate with a shared `PLUGIN_SECRET`.
 
 Available plugin slots:
 
-| Slot | Behaviour | Example |
-|---|---|---|
-| `:agent_selector` | `ExGoCD.Plugin.AgentSelector` | `RegionalAffinity` (region-aware), `CorpPolicy` (least-utilized) |
-| `:pipeline_grouper` | Pipeline group assignment | — |
-| `:org_hierarchy` | Organization structure | `SimpleOrgChart` |
-| `:auth_provider` | External authentication | — |
-| `:notification_sink` | Build notifications | — |
+| Slot                 | Behaviour                     | Example                                                          |
+| -------------------- | ----------------------------- | ---------------------------------------------------------------- |
+| `:agent_selector`    | `ExGoCD.Plugin.AgentSelector` | `RegionalAffinity` (region-aware), `CorpPolicy` (least-utilized) |
+| `:pipeline_grouper`  | Pipeline group assignment     | —                                                                |
+| `:org_hierarchy`     | Organization structure        | `SimpleOrgChart`                                                 |
+| `:auth_provider`     | External authentication       | —                                                                |
+| `:notification_sink` | Build notifications           | —                                                                |
 
 Each plugin can expose its own **LiveView UI** via `ui_links/0` — accessible
 both from the main Plugin Dashboard (`/admin/plugins`) and directly on their
@@ -85,23 +85,23 @@ context headers in WebSocket build messages. No external plugin required.
 
 ### Environment Variables — ✅ Complete
 
-| Source | ex_gocd |
-|---|---|
-| Pipeline/Stage/Job config vars (plain) | ✅ `environment_variables` map |
-| Pipeline/Stage/Job secure vars | ✅ `secure_variables` map (AES encrypted via `ExGoCD.Cipher`) |
-| Environment-level vars | ✅ `ExGoCD.Environments.get_pipeline_environment/1` |
-| Trigger overrides (`variables`, `secure_variables` in API body) | ✅ scope-validated via `validate_trigger_variables/2` |
-| `GO_PIPELINE_NAME`, `GO_PIPELINE_COUNTER`, `GO_PIPELINE_LABEL` | ✅ |
-| `GO_STAGE_NAME`, `GO_STAGE_COUNTER` | ✅ |
-| `GO_JOB_NAME`, `GO_SERVER_URL`, `GO_TRIGGER_USER` | ✅ |
-| `GO_PIPELINE_GROUP_NAME`, `GO_ENVIRONMENT_NAME` | ✅ |
-| `GO_AGENT_RESOURCES` | ✅ injected at assignment time |
-| `GO_REVISION`, `GO_FROM_REVISION`, `GO_TO_REVISION` | ✅ |
-| `GO_MATERIAL_HAS_CHANGED`, `GO_MATERIAL_{TYPE}_URL` | ✅ |
-| Console echo (`setting environment variable: NAME=value`) | ✅ echo subcommand |
-| Secure redaction (`********` in console) | ✅ |
-| Storage for retry (on `AgentJobRun.environment_variables`) | ✅ JSON column |
-| Environment tab in job details UI | ✅ |
+| Source                                                          | ex_gocd                                                       |
+| --------------------------------------------------------------- | ------------------------------------------------------------- |
+| Pipeline/Stage/Job config vars (plain)                          | ✅ `environment_variables` map                                |
+| Pipeline/Stage/Job secure vars                                  | ✅ `secure_variables` map (AES encrypted via `ExGoCD.Cipher`) |
+| Environment-level vars                                          | ✅ `ExGoCD.Environments.get_pipeline_environment/1`           |
+| Trigger overrides (`variables`, `secure_variables` in API body) | ✅ scope-validated via `validate_trigger_variables/2`         |
+| `GO_PIPELINE_NAME`, `GO_PIPELINE_COUNTER`, `GO_PIPELINE_LABEL`  | ✅                                                            |
+| `GO_STAGE_NAME`, `GO_STAGE_COUNTER`                             | ✅                                                            |
+| `GO_JOB_NAME`, `GO_SERVER_URL`, `GO_TRIGGER_USER`               | ✅                                                            |
+| `GO_PIPELINE_GROUP_NAME`, `GO_ENVIRONMENT_NAME`                 | ✅                                                            |
+| `GO_AGENT_RESOURCES`                                            | ✅ injected at assignment time                                |
+| `GO_REVISION`, `GO_FROM_REVISION`, `GO_TO_REVISION`             | ✅                                                            |
+| `GO_MATERIAL_HAS_CHANGED`, `GO_MATERIAL_{TYPE}_URL`             | ✅                                                            |
+| Console echo (`setting environment variable: NAME=value`)       | ✅ echo subcommand                                            |
+| Secure redaction (`********` in console)                        | ✅                                                            |
+| Storage for retry (on `AgentJobRun.environment_variables`)      | ✅ JSON column                                                |
+| Environment tab in job details UI                               | ✅                                                            |
 
 ### Pipeline Scheduling — ✅ Complete
 
@@ -117,7 +117,7 @@ Fan-in resolution. Pipeline comparison (VSM + compare view).
 `POST /api/pipelines/:name/schedule` (with env var + material overrides),
 `POST /api/pipelines/:name/pause|unpause`, `GET/POST/PATCH/DELETE /api/users/...`,
 `GET/POST/PUT/DELETE /api/admin/pipelines/:name`, `GET /api/dashboard`,
-`GET /go/cctray.xml`.  Templates and environments CRUD APIs are schema-only.
+`GET /go/cctray.xml`. Templates and environments CRUD APIs are schema-only.
 
 ### Agent
 
@@ -140,35 +140,35 @@ Follow (auto-scroll), Filter, Raw output download, Working directory display.
 
 ## Architecture Differences
 
-| Aspect | GoCD (Java) | ex_gocd (Elixir) |
-|---|---|---|
-| **Runtime** | JVM + Spring | BEAM (Erlang VM) |
-| **Distribution** | Single server + agents | OTP cluster (libcluster gossip) |
-| **Plugin system** | OSGi / GoCD plugin API | Standalone OTP apps, self-registering |
-| **Plugin communication** | Java interfaces, in-process | `:erpc` across cluster nodes |
-| **Plugin UI** | Embedded in GoCD UI | Independent Phoenix LiveViews on own ports |
-| **Frontend** | Angular/React SPA | Phoenix LiveView (SSR over WebSocket) |
-| **Observability** | External analytics plugin | Built-in OpenTelemetry + VSM tracing |
-| **Agent** | Java agent JAR | Go binary (single-file, ~10 MB) |
-| **Configuration** | XML + CruiseConfig | Ecto schemas + PostgreSQL |
-| **Database** | H2 or PostgreSQL | PostgreSQL only |
-| **Secrets** | GoCD cipher (AES) | `ExGoCD.Cipher` (AES, same approach) |
-| **Build dirs** | `pipelines/{name}/` (shared) | `ex_gocd_jobs/{pipeline}/{counter}/...` (unique per job, circular cleanup) |
+| Aspect                   | GoCD (Java)                  | ex_gocd (Elixir)                                                           |
+| ------------------------ | ---------------------------- | -------------------------------------------------------------------------- |
+| **Runtime**              | JVM + Spring                 | BEAM (Erlang VM)                                                           |
+| **Distribution**         | Single server + agents       | OTP cluster (libcluster gossip)                                            |
+| **Plugin system**        | OSGi / GoCD plugin API       | Standalone OTP apps, self-registering                                      |
+| **Plugin communication** | Java interfaces, in-process  | `:erpc` across cluster nodes                                               |
+| **Plugin UI**            | Embedded in GoCD UI          | Independent Phoenix LiveViews on own ports                                 |
+| **Frontend**             | Angular/React SPA            | Phoenix LiveView (SSR over WebSocket)                                      |
+| **Observability**        | External analytics plugin    | Built-in OpenTelemetry + VSM tracing                                       |
+| **Agent**                | Java agent JAR               | Go binary (single-file, ~10 MB)                                            |
+| **Configuration**        | XML + CruiseConfig           | Ecto schemas + PostgreSQL                                                  |
+| **Database**             | H2 or PostgreSQL             | PostgreSQL only                                                            |
+| **Secrets**              | GoCD cipher (AES)            | `ExGoCD.Cipher` (AES, same approach)                                       |
+| **Build dirs**           | `pipelines/{name}/` (shared) | `ex_gocd_jobs/{pipeline}/{counter}/...` (unique per job, circular cleanup) |
 
 ---
 
 ## Quality Baseline (2026-06-30)
 
-| Check | Status |
-|---|---|
-| `mix compile --warnings-as-errors` | ✅ |
-| `mix format --check-formatted` | ✅ |
-| `mix sobelow` | ✅ 0 findings |
-| `mix credo --strict` | ✅ |
-| `mix test` | ✅ 873 passed |
-| `go vet ./...` | ✅ |
-| `go test ./...` | ✅ |
-| `golangci-lint run` | ✅ 0 issues |
-| ESLint + TypeScript + Prettier | ✅ |
-| Cypress E2E | ✅ 116 specs, 114 passed |
-| Link checker (6 entry points, 74 links) | ✅ 0 errors |
+| Check                                   | Status                   |
+| --------------------------------------- | ------------------------ |
+| `mix compile --warnings-as-errors`      | ✅                       |
+| `mix format --check-formatted`          | ✅                       |
+| `mix sobelow`                           | ✅ 0 findings            |
+| `mix credo --strict`                    | ✅                       |
+| `mix test`                              | ✅ 873 passed            |
+| `go vet ./...`                          | ✅                       |
+| `go test ./...`                         | ✅                       |
+| `golangci-lint run`                     | ✅ 0 issues              |
+| ESLint + TypeScript + Prettier          | ✅                       |
+| Cypress E2E                             | ✅ 116 specs, 114 passed |
+| Link checker (6 entry points, 74 links) | ✅ 0 errors              |
