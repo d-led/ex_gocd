@@ -1,8 +1,8 @@
 # Comprehensive GoCD Feature Parity Plan
 
-*Audited 2026-06-22. Updated 2026-06-30. 861 ExUnit tests (0 skipped), 16/16 quality gate.*
+*Audited 2026-07-01. 890 ExUnit tests (0 skipped). All P0-P4 complete.*
 
-> This is the single source of truth. Supersedes: `parity_roadmap_plan.md`, `vsm_parity_plan.md`, `auth_and_env_plan.md`, `external-ci-pipeline-sync-plan.md`.
+> See `architecture_and_parity.md` for the condensed parity summary.
 
 ---
 
@@ -155,12 +155,14 @@ All B17-B21 complete: agent transitions schema, utilization snapshots (5-min Gen
 | **P3** | Analytics | — | ✅ DONE |
 | **P4** | Feeds, mail server, job timeout, notifications, SCMs, permissions | S | ✅ DONE |
 
-## Part D: Build & Quality
+## Part D: Build & Quality (2026-07-01)
 
-- **Tests**: 886 ExUnit tests (0 skipped), Go agent tests pass, Cypress E2E suite (116 tests, 16 specs)
+- **Tests**: 890 ExUnit tests (0 skipped), Go agent tests pass, Cypress E2E suite (16 specs, 111+ tests)
 - **Quality gate**: compile `--warnings-as-errors` clean, `mix format --check-formatted` clean, Credo, Sobelow pass
 - **Compile**: clean with `--warnings-as-errors` on all files
 - **Go agent**: `go build`, `go vet`, `go test ./...` — all clean
+
+> Superseded plan documents removed 2026-07-01: `TODO.md`, `parity_roadmap_plan.md`, `vsm_parity_plan.md`, `auth_and_env_plan.md`, `external-ci-pipeline-sync-plan.md`, `clustering_plugin_plan.md`. See `architecture_and_parity.md` for the definitive parity summary.
 
 ---
 

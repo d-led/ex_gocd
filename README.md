@@ -106,7 +106,8 @@ Built-in observability with **zero external tools required**:
 
 ## Documentation
 
-- [Rewrite Plan & Requirements](docs/rewrite.md) - **READ THIS FIRST**
+- [Architecture & Parity](docs/architecture_and_parity.md) — stack, cluster topology, plugin system, feature parity matrix
+- [Comprehensive Parity Plan](docs/comprehensive_parity_plan.md) — detailed audited parity report
 - [Development Status](docs/status.md)
 - [Agent Implementation](agent/README.md)
 
