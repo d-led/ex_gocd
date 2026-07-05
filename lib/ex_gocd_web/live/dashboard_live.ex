@@ -135,6 +135,7 @@ defmodule ExGoCDWeb.DashboardLive do
     case ExGoCD.Policies.permit?(ExGoCD.Policies.EnvironmentPolicy, :trigger_pipeline, user) do
       true ->
         username = (user && user.username) || "anonymous"
+
         result =
           if use_mock?() do
             MockData.pause_pipeline(pipeline_name, username, cause)

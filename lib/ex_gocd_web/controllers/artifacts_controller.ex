@@ -188,7 +188,8 @@ defmodule ExGoCDWeb.ArtifactsController do
 
     with :ok <- check_safe_segments(file_path),
          :ok <- check_boundary(target_path, job_dir),
-         :ok <- check_artifacts_not_purged(pipeline_name, pipeline_counter, stage_name, stage_counter) do
+         :ok <-
+           check_artifacts_not_purged(pipeline_name, pipeline_counter, stage_name, stage_counter) do
       # Route to appropriate content provider
       cond do
         Path.join(file_path) == "cruise-output/console.log" ->
@@ -346,8 +347,10 @@ defmodule ExGoCDWeb.ArtifactsController do
   defp check_artifacts_not_purged(pipeline_name, pipeline_counter, stage_name, stage_counter) do
     query =
       from si in StageInstance,
-        join: pi in PipelineInstance, on: si.pipeline_instance_id == pi.id,
-        join: p in Pipeline, on: pi.pipeline_id == p.id,
+        join: pi in PipelineInstance,
+        on: si.pipeline_instance_id == pi.id,
+        join: p in Pipeline,
+        on: pi.pipeline_id == p.id,
         where:
           p.name == ^pipeline_name and pi.counter == ^pipeline_counter and
             si.name == ^stage_name and si.counter == ^stage_counter,

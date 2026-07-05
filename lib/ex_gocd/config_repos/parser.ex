@@ -198,11 +198,10 @@ defmodule ExGoCD.ConfigRepos.Parser do
             "approval_type" => stage_config["approval"] || "success",
             "fetch_materials" => Map.get(stage_config, "fetch_materials", true),
             "clean_working_directory" =>
-              Map.get(stage_config, "clean_workspace", false) || Map.get(stage_config, "clean_working_directory", false),
-            "never_cleanup_artifacts" =>
-              Map.get(stage_config, "never_cleanup_artifacts", false),
-            "artifact_retention_runs" =>
-              Map.get(stage_config, "artifact_retention_runs", 1),
+              Map.get(stage_config, "clean_workspace", false) ||
+                Map.get(stage_config, "clean_working_directory", false),
+            "never_cleanup_artifacts" => Map.get(stage_config, "never_cleanup_artifacts", false),
+            "artifact_retention_runs" => Map.get(stage_config, "artifact_retention_runs", 1),
             "environment_variables" => stage_config["environment_variables"] || %{},
             "jobs" => normalize_gocd_jobs(stage_config["jobs"] || %{})
           }

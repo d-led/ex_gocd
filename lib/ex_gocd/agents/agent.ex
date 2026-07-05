@@ -119,6 +119,7 @@ defmodule ExGoCD.Agents.Agent do
 
   defp put_default_ipaddress(changeset) do
     ip = get_field(changeset, :ipaddress)
+
     if is_nil(ip) || ip == "" do
       put_change(changeset, :ipaddress, "0.0.0.0")
     else
@@ -128,6 +129,7 @@ defmodule ExGoCD.Agents.Agent do
 
   defp maybe_validate_ip_address(changeset) do
     ip = get_field(changeset, :ipaddress)
+
     if is_nil(ip) || ip == "" do
       changeset
     else

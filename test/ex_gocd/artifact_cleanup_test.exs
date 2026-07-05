@@ -71,12 +71,14 @@ defmodule ExGoCD.ArtifactCleanupTest do
 
       # counter 1 purged
       assert Repo.get!(StageInstance, si1.id).artifacts_deleted == true
+
       refute File.exists?(
                Path.join([artifacts_dir, "ret-1-pipe", "1", "build", "1", "job", "data1.txt"])
              )
 
       # counter 3 (latest) kept
       assert Repo.get!(StageInstance, si3.id).artifacts_deleted == false
+
       assert File.exists?(
                Path.join([artifacts_dir, "ret-1-pipe", "3", "build", "1", "job", "data3.txt"])
              )
@@ -118,17 +120,20 @@ defmodule ExGoCD.ArtifactCleanupTest do
 
       # counter 1 purged (outside retention window of 2)
       assert Repo.get!(StageInstance, si1.id).artifacts_deleted == true
+
       refute File.exists?(
                Path.join([artifacts_dir, "ret-2-pipe", "1", "build", "1", "job", "data1.txt"])
              )
 
       # counter 2 and 3 kept (within last 2)
       assert Repo.get!(StageInstance, si2.id).artifacts_deleted == false
+
       assert File.exists?(
                Path.join([artifacts_dir, "ret-2-pipe", "2", "build", "1", "job", "data2.txt"])
              )
 
       assert Repo.get!(StageInstance, si3.id).artifacts_deleted == false
+
       assert File.exists?(
                Path.join([artifacts_dir, "ret-2-pipe", "3", "build", "1", "job", "data3.txt"])
              )
@@ -165,6 +170,7 @@ defmodule ExGoCD.ArtifactCleanupTest do
       # Both purged — retention=0 means keep none
       assert Repo.get!(StageInstance, si1.id).artifacts_deleted == true
       assert Repo.get!(StageInstance, si2.id).artifacts_deleted == true
+
       refute File.exists?(
                Path.join([artifacts_dir, "ret-0-pipe", "2", "build", "1", "job", "data2.txt"])
              )
@@ -198,6 +204,7 @@ defmodule ExGoCD.ArtifactCleanupTest do
 
       # Protected by never_cleanup_artifacts — even with retention_runs=0
       assert Repo.get!(StageInstance, si1.id).artifacts_deleted == false
+
       assert File.exists?(
                Path.join([artifacts_dir, "never-pipe", "1", "build", "1", "job", "data.txt"])
              )
@@ -237,12 +244,14 @@ defmodule ExGoCD.ArtifactCleanupTest do
 
       # si1 is older than age cutoff → purged
       assert Repo.get!(StageInstance, si1.id).artifacts_deleted == true
+
       refute File.exists?(
                Path.join([artifacts_dir, "age-pipe", "1", "build", "1", "job", "old.txt"])
              )
 
       # si2 is recent → kept
       assert Repo.get!(StageInstance, si2.id).artifacts_deleted == false
+
       assert File.exists?(
                Path.join([artifacts_dir, "age-pipe", "2", "build", "1", "job", "new.txt"])
              )
@@ -278,6 +287,7 @@ defmodule ExGoCD.ArtifactCleanupTest do
 
       # Nothing deleted — cleanup disabled globally
       assert Repo.get!(StageInstance, si1.id).artifacts_deleted == false
+
       assert File.exists?(
                Path.join([artifacts_dir, "tog-pipe", "1", "build", "1", "job", "data.txt"])
              )
@@ -301,7 +311,13 @@ defmodule ExGoCD.ArtifactCleanupTest do
     )
   end
 
-  defp insert_stage_instance(pipeline_instance_id, name, counter, created_offset, completed_offset) do
+  defp insert_stage_instance(
+         pipeline_instance_id,
+         name,
+         counter,
+         created_offset,
+         completed_offset
+       ) do
     now = DateTime.utc_now()
 
     Repo.insert!(

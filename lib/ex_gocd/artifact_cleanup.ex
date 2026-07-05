@@ -116,9 +116,7 @@ defmodule ExGoCD.ArtifactCleanup do
 
       # Size-based: delete oldest first until under limit
       current_size > limit_bytes ->
-        Logger.info(
-          "Size-based cleanup: #{current_size}B exceeds #{limit_bytes}B limit"
-        )
+        Logger.info("Size-based cleanup: #{current_size}B exceeds #{limit_bytes}B limit")
 
         purge_old_artifacts(current_size - limit_bytes)
 
