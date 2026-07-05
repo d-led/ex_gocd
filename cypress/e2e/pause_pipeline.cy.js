@@ -89,7 +89,10 @@ describe("Pipeline Pause/Unpause", () => {
     modalShouldBeClosed();
 
     // Pipeline should still be unpaused (not changed state)
-    cy.get(".pipeline").first().find(".pipeline_btn.pause", { timeout: 5000 }).should("exist");
+    cy.get(".pipeline")
+      .first()
+      .find(".pipeline_btn.pause", { timeout: 5000 })
+      .should("exist");
   });
 
   // ── Submit pause → verify paused state → unpause ────────────────
@@ -148,9 +151,15 @@ describe("Pipeline Pause/Unpause", () => {
         // State should be unchanged — still paused if it was paused, still
         // unpaused if it was unpaused
         if (wasPaused) {
-          cy.get(".pipeline").first().find(".pipeline_btn.unpause").should("exist");
+          cy.get(".pipeline")
+            .first()
+            .find(".pipeline_btn.unpause")
+            .should("exist");
         } else {
-          cy.get(".pipeline").first().find(".pipeline_btn.pause").should("exist");
+          cy.get(".pipeline")
+            .first()
+            .find(".pipeline_btn.pause")
+            .should("exist");
         }
       });
   });

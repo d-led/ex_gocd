@@ -482,6 +482,7 @@ func (a *Agent) handleBuild(build *protocol.Build) {
 //   - Creates the per-job directory (e.g. ex_gocd_jobs/pipeline/82/ci/1/quality)
 //   - Nukes any stale .git to prevent shallow-clone object corruption
 //   - Runs circular cleanup of old job directories
+//
 // All filesystem operations use Go's os package — no shell commands — for Windows/Linux/macOS portability.
 func (a *Agent) runBuildCommand(ctx context.Context, build *protocol.Build) error {
 	cmd := build.BuildCommand

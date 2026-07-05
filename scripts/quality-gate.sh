@@ -92,6 +92,14 @@ fi
 # ── Go: agent static analysis ──────────────────────────────────────────
 
 echo ""
+echo "=== Go: fmt ==="
+if (cd agent && go fmt ./... 2>&1); then
+  pass_step "Go fmt — no issues"
+else
+  fail_step "Go fmt failed"
+fi
+
+echo ""
 echo "=== Go: vet ==="
 if (cd agent && go vet ./... 2>&1); then
   pass_step "Go vet — no issues"
