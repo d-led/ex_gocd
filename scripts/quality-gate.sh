@@ -35,19 +35,11 @@ echo ""
 
 # ── Elixir: Compile with warnings-as-errors ─────────────────────────────
 
-echo "=== Elixir: Compile (warnings as errors on non-otel files) ==="
-COMPILE_OUT=$(mix compile --force --warnings-as-errors 2>&1) && COMPILE_OK=1 || COMPILE_OK=0
-OTEL_WARNINGS=$(echo "$COMPILE_OUT" | grep -c "lib/ex_gocd/otel" || true)
-OTHER_WARNINGS=$(echo "$COMPILE_OUT" | grep -c "warning:" || true)
-REAL_WARNINGS=$((OTHER_WARNINGS - OTEL_WARNINGS))
-if [ "$COMPILE_OK" -eq 1 ] && [ "$REAL_WARNINGS" -le 0 ]; then
-  pass_step "Elixir compile — no warnings (ignoring otel WIP)"
+echo "=== Elixir: Compile (warnings as errors) ==="
+if mix compile --force --warnings-as-errors 2>&1; then
+  pass_step "Elixir compile — no warnings"
 else
-  echo ""
-  echo "=== COMPILE ERRORS/WARNINGS ==="
-  echo "$COMPILE_OUT" | grep -E "warning:|error:|\\*\\*" | grep -v "lib/ex_gocd/otel"
-  echo "=== END ==="
-  fail_step "Elixir compile — ${REAL_WARNINGS} warnings found"
+  fail_step "Elixir compile — warnings or errors found"
 fi
 
 # ── Elixir: Sobelow security scan ───────────────────────────────────────
