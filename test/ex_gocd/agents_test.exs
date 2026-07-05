@@ -77,10 +77,10 @@ defmodule ExGoCD.AgentsTest do
       assert "can't be blank" in errors_on(changeset).hostname
     end
 
-    test "requires ipaddress" do
+    test "defaults ipaddress to 0.0.0.0 when missing" do
       attrs = %{uuid: @valid_uuid, hostname: "agent"}
-      assert {:error, changeset} = Agents.register_agent(attrs)
-      assert "can't be blank" in errors_on(changeset).ipaddress
+      assert {:ok, agent} = Agents.register_agent(attrs)
+      assert agent.ipaddress == "0.0.0.0"
     end
 
     test "validates UUID format" do

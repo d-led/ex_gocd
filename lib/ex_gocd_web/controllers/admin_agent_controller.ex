@@ -47,7 +47,7 @@ defmodule ExGoCDWeb.AdminAgentController do
     base_attrs = %{
       "uuid" => params["uuid"],
       "hostname" => params["hostname"] || params["agentAutoRegisterHostname"],
-      "ipaddress" => params["ipAddress"],
+      "ipaddress" => params["ipAddress"] || "0.0.0.0",
       "working_dir" => params["location"],
       "free_space" => parse_free_space(params["usablespace"]),
       "operating_system" => params["operatingSystem"],

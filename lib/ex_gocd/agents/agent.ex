@@ -78,9 +78,9 @@ defmodule ExGoCD.Agents.Agent do
       :state,
       :capabilities
     ])
-    |> validate_required([:uuid, :hostname, :ipaddress])
+    |> validate_required([:uuid, :hostname])
     |> validate_format(:uuid, ~r/^[a-f0-9-]{36}$/i, message: "must be a valid UUID")
-    |> validate_ip_address()
+    |> maybe_validate_ip_address()
     |> validate_resources()
     |> unique_constraint(:uuid)
   end
@@ -106,14 +106,33 @@ defmodule ExGoCD.Agents.Agent do
       :state,
       :capabilities
     ])
-    |> validate_required([:uuid, :hostname, :ipaddress])
+    |> validate_required([:uuid, :hostname])
     |> validate_format(:uuid, ~r/^[a-f0-9-]{36}$/i, message: "must be a valid UUID")
-    |> validate_ip_address()
+    |> maybe_validate_ip_address()
     |> validate_resources()
     |> put_change(:disabled, false)
     |> put_change(:deleted, false)
     |> put_change(:state, "Idle")
+    |> put_default_ipaddress()
     |> unique_constraint(:uuid)
+  end
+
+  defp put_default_ipaddress(changeset) do
+    ip = get_field(changeset, :ipaddress)
+    if is_nil(ip) || ip == "" do
+      put_change(changeset, :ipaddress, "0.0.0.0")
+    else
+      changeset
+    end
+  end
+
+  defp maybe_validate_ip_address(changeset) do
+    ip = get_field(changeset, :ipaddress)
+    if is_nil(ip) || ip == "" do
+      changeset
+    else
+      validate_ip_address(changeset)
+    end
   end
 
   defp validate_ip_address(changeset) do

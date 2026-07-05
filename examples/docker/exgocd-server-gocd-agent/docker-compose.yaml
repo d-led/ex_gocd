@@ -1,7 +1,9 @@
 # Example 3: ex_gocd server with official GoCD Java agent
 #
-# Our Phoenix server with the official gocd/gocd-agent-alpine container.
-# The Java agent auto-registers with our server.
+# Our Phoenix server + nginx reverse proxy + official gocd/gocd-agent-alpine container.
+# nginx serves GoCD agent JARs (agent-launcher.jar, agent.jar, etc.) from local
+# ./jars/ and proxies everything else to the ex_gocd server.
+# The Java agent bootstrapper downloads JARs from GO_SERVER_URL/admin/.
 # Access ex_gocd dashboard at http://localhost:4003
 
 services:
@@ -26,8 +28,6 @@ services:
     build:
       context: ../../..
       dockerfile: Dockerfile
-    ports:
-      - '4003:4000'
     depends_on:
       postgres:
         condition: service_healthy
@@ -47,16 +47,26 @@ services:
       retries: 15
       start_period: 30s
 
+  nginx:
+    image: nginx:alpine
+    ports:
+      - '4003:80'
+    depends_on:
+      ex-gocd-server:
+        condition: service_healthy
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./jars:/jars:ro
+
   gocd-java-agent:
     image: gocd/gocd-agent-alpine:v25.4.0
     depends_on:
-      - ex-gocd-server
+      - nginx
     environment:
-      GO_SERVER_URL: "http://ex-gocd-server:4000"
+      GO_SERVER_URL: "http://nginx:80/go"
       AGENT_AUTO_REGISTER_KEY: "ex-gocd-demo-cookie"
       AGENT_AUTO_REGISTER_RESOURCES: "java,alpine"
       AGENT_AUTO_REGISTER_ENVIRONMENTS: "staging"
-      AGENT_BOOTSTRAPPER_AGENT_LAUNCHER_PROPERTIES: "/dev/null"
 
 volumes:
   pgdata:
