@@ -120,6 +120,39 @@ defmodule ExGoCDWeb.API.AgentController do
   end
 
   @doc """
+  POST /api/agents/:uuid/kill_running_tasks
+
+  Kills all running tasks on the specified agent.
+  GoCD parity: AgentsControllerV7.killRunningTasks() in api-agents-v7.
+
+  Returns 202 Accepted on success. The server will terminate running jobs
+  on the agent's current build assignment.
+
+  Returns 409 if the agent has no running tasks.
+  """
+  def kill_running_tasks(conn, %{"uuid" => uuid}) do
+    case Agents.get_agent_by_uuid(uuid) do
+      nil ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{error: "Agent not found"})
+
+      agent ->
+        case Agents.kill_running_tasks(agent) do
+          :ok ->
+            conn
+            |> put_status(:accepted)
+            |> json(%{message: "Killed running tasks on agent."})
+
+          {:error, :no_running_tasks} ->
+            conn
+            |> put_status(:conflict)
+            |> json(%{error: "Agent has no running tasks"})
+        end
+    end
+  end
+
+  @doc """
   PUT /api/agents/:uuid/enable
 
   Enables an agent.

@@ -18,6 +18,8 @@ defmodule ExGoCD.Agents do
   alias ExGoCD.Agents.Agent
   alias ExGoCD.Agents.Mock
   alias ExGoCD.Repo
+  alias ExGoCD.AgentJobRuns.AgentJobRun
+  alias ExGoCD.Pipelines.JobInstance
 
   @agents_topic "agents:updates"
   @reg_log_table :agent_registration_log
@@ -827,6 +829,59 @@ defmodule ExGoCD.Agents do
       |> Agent.changeset(%{deleted: true})
       |> Repo.update()
       |> broadcast(:agent_deleted)
+    end
+  end
+
+  @doc """
+  Kills all running tasks on the given agent.
+  Cancels any AgentJobRun in "Scheduled" or "Building" state for this agent's uuid.
+
+  Returns `:ok` if any tasks were killed, or `{:error, :no_running_tasks}` if none.
+  """
+  @spec kill_running_tasks(Agent.t()) :: :ok | {:error, :no_running_tasks}
+  def kill_running_tasks(%Agent{uuid: uuid}) do
+    if use_mock?() do
+      Mock.kill_running_tasks(uuid)
+    else
+      do_kill_running_tasks(uuid)
+    end
+  end
+
+  defp do_kill_running_tasks(uuid) do
+    import Ecto.Query
+
+    running_states = ["Scheduled", "Building", "Assigned"]
+
+    runs =
+      AgentJobRun
+      |> where([r], r.agent_uuid == ^uuid and r.state in ^running_states)
+      |> Repo.all()
+
+    if runs == [] do
+      {:error, :no_running_tasks}
+    else
+      Enum.each(runs, &cancel_run/1)
+      broadcast({:ok, %{agent: uuid}}, :agent_tasks_killed)
+      :ok
+    end
+  end
+
+  defp cancel_run(run) do
+    run
+    |> AgentJobRun.changeset(%{state: "Cancelled", result: "Cancelled"})
+    |> Repo.update!()
+
+    cancel_linked_job_instance(run.job_instance_id)
+  end
+
+  defp cancel_linked_job_instance(nil), do: :ok
+
+  defp cancel_linked_job_instance(job_instance_id) do
+    JobInstance
+    |> Repo.get(job_instance_id)
+    |> case do
+      nil -> :ok
+      ji -> ji |> Ecto.Changeset.change(state: "Cancelled", result: "Cancelled") |> Repo.update!()
     end
   end
 

@@ -226,6 +226,7 @@ defmodule ExGoCDWeb.Router do
     delete "/agents/:uuid", AgentController, :delete
     put "/agents/:uuid/enable", AgentController, :enable
     put "/agents/:uuid/disable", AgentController, :disable
+    post "/agents/:uuid/kill_running_tasks", AgentController, :kill_running_tasks
 
     # Build console log upload (agent streams stdout/stderr here)
     post "/builds/:build_id/console", BuildConsoleController, :append
@@ -260,6 +261,10 @@ defmodule ExGoCDWeb.Router do
     post "/admin/materials/git/notify", WebhookController, :git_notify
     post "/webhooks/github/notify", WebhookController, :github_notify
     post "/webhooks/gitlab/notify", WebhookController, :gitlab_notify
+    post "/webhooks/bitbucket-server/notify", WebhookController, :bitbucket_server_notify
+    post "/webhooks/bitbucket-cloud/notify", WebhookController, :bitbucket_cloud_notify
+    post "/admin/materials/hg/notify", WebhookController, :hg_notify
+    post "/admin/materials/other-scm/notify", WebhookController, :other_scm_notify
 
     # Pipeline instance history & details
     get "/pipelines/:pipeline_name/history", PipelineInstanceController, :history
@@ -347,6 +352,9 @@ defmodule ExGoCDWeb.Router do
     resources "/artifact_stores", ArtifactStoreController, except: [:new, :edit]
     get "/site_url", SiteURLController, :show
     get "/permissions", PermissionsController, :index
+
+    # Encryption API (GoCD parity: POST /api/admin/encrypt)
+    post "/encrypt", EncryptionController, :encrypt
   end
 
   scope "/api/current_user", ExGoCDWeb.API do
@@ -361,6 +369,11 @@ defmodule ExGoCDWeb.Router do
   scope "/api/feeds", ExGoCDWeb do
     pipe_through :api
     get "/pipelines.xml", FeedsController, :pipelines
+    get "/pipelines/:pipeline_name/stages.xml", FeedsController, :pipeline_stages
+    get "/stages/:pipeline/:counter/:stage/:stage_counter", FeedsController, :stage
+    get "/jobs/:pipeline/:counter/:stage/:stage_counter/:job", FeedsController, :job
+    get "/materials/:pipeline/:counter/:fingerprint", FeedsController, :material
+    get "/jobs/scheduled.xml", FeedsController, :scheduled_jobs
   end
 
   scope "/go/api/current_user", ExGoCDWeb.API do
@@ -386,6 +399,7 @@ defmodule ExGoCDWeb.Router do
     delete "/agents/:uuid", AgentController, :delete
     put "/agents/:uuid/enable", AgentController, :enable
     put "/agents/:uuid/disable", AgentController, :disable
+    post "/agents/:uuid/kill_running_tasks", AgentController, :kill_running_tasks
     post "/builds/:build_id/console", BuildConsoleController, :append
     post "/jobs/schedule", JobController, :schedule
 
@@ -416,6 +430,10 @@ defmodule ExGoCDWeb.Router do
     post "/admin/materials/git/notify", WebhookController, :git_notify
     post "/webhooks/github/notify", WebhookController, :github_notify
     post "/webhooks/gitlab/notify", WebhookController, :gitlab_notify
+    post "/webhooks/bitbucket-server/notify", WebhookController, :bitbucket_server_notify
+    post "/webhooks/bitbucket-cloud/notify", WebhookController, :bitbucket_cloud_notify
+    post "/admin/materials/hg/notify", WebhookController, :hg_notify
+    post "/admin/materials/other-scm/notify", WebhookController, :other_scm_notify
 
     # Pipeline instance history & details
     get "/pipelines/:pipeline_name/history", PipelineInstanceController, :history
@@ -433,6 +451,9 @@ defmodule ExGoCDWeb.Router do
          :rerun_failed_jobs
 
     post "/stages/:pipeline_name/:pipeline_counter/:stage_name/cancel", StageController, :cancel
+
+    # Encryption API
+    post "/admin/encrypt", Admin.EncryptionController, :encrypt
 
     # User management (GoCD users v3)
     get "/users", UserController, :index

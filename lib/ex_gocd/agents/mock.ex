@@ -216,6 +216,16 @@ defmodule ExGoCD.Agents.Mock do
   end
 
   @doc """
+  Mock kill running tasks on agent.
+  """
+  def kill_running_tasks(uuid) when is_binary(uuid) do
+    case get_agent_by_uuid(uuid) do
+      nil -> {:error, :no_running_tasks}
+      _agent -> :ok
+    end
+  end
+
+  @doc """
   Mock register agent.
   """
   def register_agent(attrs) do
