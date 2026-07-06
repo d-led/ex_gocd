@@ -97,7 +97,7 @@ defmodule ExGoCDWeb.API.Admin.PipelineConfigController do
             name: stage.name,
             approval_type: stage.approval_type || "success",
             fetch_materials: stage.fetch_materials,
-            clean_working_dir: stage.clean_working_dir,
+            clean_working_dir: stage.clean_working_directory,
             never_cleanup_artifacts: stage.never_cleanup_artifacts,
             jobs:
               Enum.map(stage.jobs || [], fn job ->
@@ -114,8 +114,8 @@ defmodule ExGoCDWeb.API.Admin.PipelineConfigController do
                       %{
                         type: task.type,
                         command: task.command,
-                        args: task.args,
-                        working_dir: task.working_dir,
+                        arguments: task.arguments,
+                        working_directory: task.working_directory,
                         run_if: task.run_if
                       }
                     end)

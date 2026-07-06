@@ -1,7 +1,7 @@
 # ex_gocd — Unified Feature Parity Plan
 
 > Single source of truth. Supersedes all previous plan/roadmap/status documents.
-> Last audited: 2026-07-06. 890 tests. 65 controllers. 21 LiveView pages. 20 GenServers.
+> Last audited: 2026-07-06. 900+ tests. 67 controllers. 21 LiveView pages. 20 GenServers. 40 migrations.
 
 ---
 
@@ -57,7 +57,8 @@ ex_gocd has achieved ~95% parity with GoCD. The remaining ~11 gaps are in 4 cate
 | Elastic Agent Scheduler | — | ✅ AdminLive K8s tab | ✅ elastic_agent_scheduler.ex (~1100 lines) |
 | Go Agent | ✅ WebSocket protocol | — | ✅ agent/ (Go binary, ~700 lines) |
 | Pipeline Build Cache | — | — | ❌ not started |
-| Docker Elastic Agent | — | — | ❌ K8s-only currently |
+|| Docker Elastic Agent | — | — | ❌ K8s-only |
+|| Pipeline config API | ✅ CRUD | ✅ AdminLive | FIXED: field name mismatch |
 
 ---
 
@@ -87,8 +88,8 @@ ex_gocd has achieved ~95% parity with GoCD. The remaining ~11 gaps are in 4 cate
 
 | # | Gap | Effort | Status |
 |---|-----|--------|--------|
-| C1 | **Packages CRUD API** | M | ❌ |
-| C2 | **Pluggable SCM full CRUD** | S | ⚠️ GET only |
+| C1 | **Packages CRUD API** | M | ✅ |
+| C2 | **Pluggable SCM full CRUD** | S | ⚠️ | Materials are pipeline-managed, not independent |
 
 ### 🟡 Category D: Planned but Not Started (2)
 
