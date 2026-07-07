@@ -245,6 +245,11 @@ defmodule ExGoCDWeb.Router do
     get "/server_health_messages", ServerHealthController, :show
     get "/plugin_info", PluginInfoController, :index
 
+    # Agent health monitoring (GoCD parity)
+    get "/agent_health", AgentHealthController, :index
+    get "/agent_health/:uuid", AgentHealthController, :show
+    post "/agent_health", AgentHealthController, :create
+
     # Pipeline operations (pause/unpause/approve/status/unlock/schedule/comment)
     get "/pipelines/:pipeline_name/status", PipelineOperationsController, :status
     post "/pipelines/:pipeline_name/pause", PipelineOperationsController, :pause
@@ -421,6 +426,11 @@ defmodule ExGoCDWeb.Router do
     get "/version", VersionController, :show
     get "/server_health_messages", ServerHealthController, :show
     get "/plugin_info", PluginInfoController, :index
+
+    # Agent health monitoring (GoCD parity)
+    get "/agent_health", AgentHealthController, :index
+    get "/agent_health/:uuid", AgentHealthController, :show
+    post "/agent_health", AgentHealthController, :create
 
     # Pipeline operations (pause/unpause/approve/status/unlock/schedule/comment)
     get "/pipelines/:pipeline_name/status", PipelineOperationsController, :status

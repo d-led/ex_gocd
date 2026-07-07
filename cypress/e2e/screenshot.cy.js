@@ -44,10 +44,13 @@ describe("Auto screenshot", () => {
   it("agents (elastic tab)", function () {
     cy.navigateAndVerify("/agents", ".agents-page");
     cy.get("body").then(($body) => {
-      const tab = $body.find("button").filter((_, el) =>
-        el.textContent.trim() === "ELASTIC"
-      );
-      if (!tab.length) { this.skip(); return; }
+      const tab = $body
+        .find("button")
+        .filter((_, el) => el.textContent.trim() === "ELASTIC");
+      if (!tab.length) {
+        this.skip();
+        return;
+      }
     });
     cy.clickTab("ELASTIC");
     cy.captureScreenshot("agents-elastic");
@@ -56,10 +59,13 @@ describe("Auto screenshot", () => {
   it("agents (k8s pods tab)", function () {
     cy.navigateAndVerify("/agents", ".agents-page");
     cy.get("body").then(($body) => {
-      const tab = $body.find("button").filter((_, el) =>
-        el.textContent.trim() === "K8S PODS"
-      );
-      if (!tab.length) { this.skip(); return; }
+      const tab = $body
+        .find("button")
+        .filter((_, el) => el.textContent.trim() === "K8S PODS");
+      if (!tab.length) {
+        this.skip();
+        return;
+      }
     });
     cy.clickTab("K8S PODS");
     cy.captureScreenshot("agents-k8s-pods");
@@ -107,10 +113,13 @@ describe("Auto screenshot", () => {
   it("analytics (vsm trends)", function () {
     cy.navigateAndVerify("/analytics");
     cy.get("body").then(($body) => {
-      const tab = $body.find("button").filter((_, el) =>
-        el.textContent.trim() === "VSM Trends"
-      );
-      if (!tab.length) { this.skip(); return; }
+      const tab = $body
+        .find("button")
+        .filter((_, el) => el.textContent.trim() === "VSM Trends");
+      if (!tab.length) {
+        this.skip();
+        return;
+      }
     });
     cy.clickTab("VSM Trends");
     cy.captureScreenshot("analytics-vsm-trends");
@@ -264,10 +273,13 @@ describe("Auto screenshot", () => {
   it("stage details (configuration tab)", function () {
     visitStageDetails.call(this, () => {
       cy.get("body").then(($body) => {
-        const tab = $body.find("button").filter((_, el) =>
-          el.textContent.trim() === "Configuration"
-        );
-        if (!tab.length) { this.skip(); return; }
+        const tab = $body
+          .find("button")
+          .filter((_, el) => el.textContent.trim() === "Configuration");
+        if (!tab.length) {
+          this.skip();
+          return;
+        }
       });
       cy.clickTab("Configuration");
       cy.captureScreenshot("stage-configuration");
@@ -277,10 +289,13 @@ describe("Auto screenshot", () => {
   it("stage details (trends tab)", function () {
     visitStageDetails.call(this, () => {
       cy.get("body").then(($body) => {
-        const tab = $body.find("button").filter((_, el) =>
-          el.textContent.trim() === "Trends"
-        );
-        if (!tab.length) { this.skip(); return; }
+        const tab = $body
+          .find("button")
+          .filter((_, el) => el.textContent.trim() === "Trends");
+        if (!tab.length) {
+          this.skip();
+          return;
+        }
       });
       cy.clickTab("Trends");
       cy.captureScreenshot("stage-trends");
@@ -318,10 +333,13 @@ describe("Auto screenshot", () => {
   it("job details (artifacts tab)", function () {
     visitJobDetails.call(this, () => {
       cy.get("body").then(($body) => {
-        const tab = $body.find("button").filter((_, el) =>
-          el.textContent.trim() === "Artifacts"
-        );
-        if (!tab.length) { this.skip(); return; }
+        const tab = $body
+          .find("button")
+          .filter((_, el) => el.textContent.trim() === "Artifacts");
+        if (!tab.length) {
+          this.skip();
+          return;
+        }
       });
       cy.clickTab("Artifacts");
       cy.captureScreenshot("job-details-artifacts");
@@ -343,7 +361,10 @@ describe("Auto screenshot", () => {
     cy.navigateAndVerify("/pipelines", ".dashboard");
     cy.discoverFirstPipeline();
     cy.get("@pipeline").then(function (p) {
-      if (!p.counter) { this.skip(); return; }
+      if (!p.counter) {
+        this.skip();
+        return;
+      }
       const url = `/go/pipelines/${p.name}/${p.counter}/config_diff`;
       cy.request({ url, failOnStatusCode: false }).then((resp) => {
         if (resp.status !== 200) {
@@ -365,7 +386,10 @@ describe("Auto screenshot", () => {
     cy.navigateAndVerify("/pipelines", ".dashboard");
     cy.discoverFirstPipeline();
     cy.get("@pipeline").then(function (p) {
-      if (!p.counter) { this.skip(); return; }
+      if (!p.counter) {
+        this.skip();
+        return;
+      }
       const url = `/go/pipelines/value_stream_map/${p.name}/${p.counter}`;
       cy.request({ url, failOnStatusCode: false }).then((resp) => {
         if (resp.status !== 200) {
@@ -387,7 +411,10 @@ describe("Auto screenshot", () => {
     cy.navigateAndVerify("/pipelines", ".dashboard");
     cy.discoverFirstPipeline();
     cy.get("@pipeline").then(function (p) {
-      if (!p.counter) { this.skip(); return; }
+      if (!p.counter) {
+        this.skip();
+        return;
+      }
       const from = Math.max(1, Number(p.counter) - 1);
       const url = `/go/compare/${p.name}/${from}/with/${p.counter}`;
       cy.request({ url, failOnStatusCode: false }).then((resp) => {

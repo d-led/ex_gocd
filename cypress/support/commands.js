@@ -400,11 +400,13 @@ Cypress.Commands.add("verifyElementExists", (selector) => {
 Cypress.Commands.add("navigateAndVerify", (url, selector) => {
   cy.visit(url);
   // Wait for body first, then try phx-connected (may not exist on non-LV pages)
-  cy.get("body", { timeout: 10000 }).should("exist").then(($body) => {
-    if ($body.find(".phx-connected").length) {
-      cy.get(".phx-connected", { timeout: 10000 }).should("exist");
-    }
-  });
+  cy.get("body", { timeout: 10000 })
+    .should("exist")
+    .then(($body) => {
+      if ($body.find(".phx-connected").length) {
+        cy.get(".phx-connected", { timeout: 10000 }).should("exist");
+      }
+    });
   if (selector) {
     cy.get(selector, { timeout: 5000 }).should("exist");
   }
