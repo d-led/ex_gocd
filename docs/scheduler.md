@@ -2,9 +2,63 @@
 
 ## Overview
 
-The scheduler is a Horde-distributed singleton GenServer (`ExGoCD.Scheduler`) that manages two
-job queues and assigns work to agents. Two elastic agent schedulers provision containers/pods
-when no idle static agent can handle a job.
+Three Horde-distributed singleton GenServers collaborate:
+
+```
+                    Horde.DynamicSupervisor
+                    ├── Scheduler            (job queue + assignment)
+                    ├── ElasticAgentScheduler     (K8s pods)
+                    └── DockerElasticAgentScheduler (Docker containers)
+```
+
+- **`Scheduler`** owns the job queue and agent assignment. It is the single source of truth.
+- **Elastic schedulers** read pending jobs from the Scheduler and provision agents (pods/containers).
+  They do NOT assign work — they only create capacity.
+- Once an elastic agent registers and pings Idle, the central Scheduler assigns it work
+  like any static agent.
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     Central Scheduler                            │
+│  State: %{in_memory_queue: [...], db_pending_count: N}          │
+│                                                                  │
+│  Every 5s: reload_db_pending_count(), trigger idle agents       │
+│  Agent pings Idle: try_assign_work(agent_uuid)                  │
+└───────────────┬─────────────────────────────────────────────────┘
+                │ read-only (get_queue_state + load_db_job_plans)
+    ┌───────────┴───────────┐
+    ▼                       ▼
+┌───────────────┐   ┌──────────────────────┐
+│ ElasticAgent  │   │ DockerElasticAgent   │
+│ Scheduler     │   │ Scheduler            │
+│ (K8s pods)    │   │ (Docker containers)  │
+│               │   │                      │
+│ every 30s:    │   │ every 30s:           │
+│ 1. get pending│   │ 1. get pending jobs  │
+│ 2. needs      │   │ 2. needs elastic?    │
+│    elastic?   │   │ 3. match profile     │
+│ 3. match      │   │ 4. pick image        │
+│    profile    │   │ 5. create container  │
+│ 4. create pod │   │ 6. track + cleanup   │
+│ 5. track +    │   │                      │
+│    cleanup    │   │                      │
+└───────┬───────┘   └──────────┬───────────┘
+        │                      │
+        ▼                      ▼
+   K8s API              Docker socket
+   (create pod)         (create container)
+        │                      │
+        └──────────┬───────────┘
+                   ▼
+          Agent auto-registers
+          with matching resources
+                   │
+                   ▼
+          Central Scheduler assigns
+          waiting job to agent
+```
+
+The central `Scheduler` manages two job queues and assigns work to agents. Two elastic agent schedulers provision containers/pods when no idle static agent can handle a job.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
