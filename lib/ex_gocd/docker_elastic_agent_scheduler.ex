@@ -24,6 +24,7 @@ defmodule ExGoCD.DockerElasticAgentScheduler do
   alias ExGoCD.Docker
   alias ExGoCD.ElasticAgentProfiles
   alias ExGoCD.ElasticAgentProfiles.ElasticAgentProfile
+  alias ExGoCD.ElasticSchedulerHelpers, as: H
 
   @tick_ms 30_000
   @idle_timeout_seconds 300
@@ -218,7 +219,7 @@ defmodule ExGoCD.DockerElasticAgentScheduler do
   defp cleanup_idle_containers(state) do
     {to_delete, remaining} =
       Enum.split_with(state.containers, fn {_cid, info} ->
-        idle_too_long?(info) or container_in_error?(info)
+        H.idle_too_long?(info, @idle_timeout_seconds) or container_in_error?(info)
       end)
 
     state =
@@ -230,24 +231,6 @@ defmodule ExGoCD.DockerElasticAgentScheduler do
       end)
 
     %{state | containers: Map.new(remaining)}
-  end
-
-  defp idle_too_long?(info) do
-    agent_uuid = info[:agent_uuid]
-
-    if agent_uuid do
-      case Agents.get_agent_by_uuid(agent_uuid) do
-        %{state: "Idle", updated_at: updated_at} ->
-          idle_seconds = DateTime.diff(DateTime.utc_now(), updated_at)
-          idle_seconds > @idle_timeout_seconds
-
-        _ ->
-          false
-      end
-    else
-      created_at = info[:created_at] || DateTime.utc_now()
-      DateTime.diff(DateTime.utc_now(), created_at) > 600
-    end
   end
 
   defp container_in_error?(info) do

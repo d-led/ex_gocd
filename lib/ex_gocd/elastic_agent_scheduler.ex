@@ -25,6 +25,7 @@ defmodule ExGoCD.ElasticAgentScheduler do
   alias ExGoCD.ClusterProfiles.ClusterProfile
   alias ExGoCD.ElasticAgentProfiles
   alias ExGoCD.ElasticAgentProfiles.ElasticAgentProfile
+  alias ExGoCD.ElasticSchedulerHelpers, as: H
   alias ExGoCD.K8s
   alias ExGoCD.Scheduler
 
@@ -230,7 +231,7 @@ defmodule ExGoCD.ElasticAgentScheduler do
   defp cleanup_idle_pods(state) do
     {to_delete, remaining} =
       Enum.split_with(state.pods, fn {_pod_name, info} ->
-        idle_too_long?(info) or pod_in_error?(info)
+        H.idle_too_long?(info, @idle_timeout_seconds) or pod_in_error?(info)
       end)
 
     state =
@@ -242,25 +243,6 @@ defmodule ExGoCD.ElasticAgentScheduler do
       end)
 
     %{state | pods: Map.new(remaining)}
-  end
-
-  defp idle_too_long?(info) do
-    agent_uuid = info[:agent_uuid]
-
-    if agent_uuid do
-      case Agents.get_agent_by_uuid(agent_uuid) do
-        %{state: "Idle", updated_at: updated_at} ->
-          idle_seconds = DateTime.diff(DateTime.utc_now(), updated_at)
-          idle_seconds > @idle_timeout_seconds
-
-        _ ->
-          false
-      end
-    else
-      # Pod created but agent hasn't registered yet — check timeout
-      created_at = info[:created_at] || DateTime.utc_now()
-      DateTime.diff(DateTime.utc_now(), created_at) > 600
-    end
   end
 
   defp pod_in_error?(info) do
