@@ -35,9 +35,11 @@ defmodule ExGoCDWeb.GanttLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="px-8 py-8 bg-[#f4f8f9] min-h-screen font-sans">
+    <div class="px-8 py-8 bg-[#f4f8f9] min-h-screen font-sans" data-test-id="gantt-page">
       <div class="page-header border-b border-gray-200 pb-4 mb-6">
-        <h1 class="text-2xl font-extrabold text-gray-950 font-mono">Pipeline Gantt</h1>
+        <h1 class="text-2xl font-extrabold text-gray-950 font-mono" data-test-id="gantt-title">
+          Pipeline Gantt
+        </h1>
         <p class="text-sm text-gray-500 mt-1">
           Timeline of recent pipeline runs. Auto-refreshes every 30s.
         </p>
@@ -223,7 +225,7 @@ defmodule ExGoCDWeb.GanttLive do
               name: s.name,
               result: s.result,
               inserted_at: s.inserted_at,
-              started_at: s.started_at,
+              started_at: s.scheduled_at,
               completed_at: s.completed_at,
               updated_at: s.updated_at
             }
