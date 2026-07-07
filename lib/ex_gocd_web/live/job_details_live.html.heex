@@ -150,6 +150,16 @@
       >
         <i class="fa fa-cog mr-1.5 text-gray-400"></i> Environment
       </button>
+      <%= for {tab_name, tab_path} <- @custom_tabs do %>
+        <button
+          phx-click="select_tab"
+          phx-value-tab={"custom:#{tab_name}"}
+          class={"px-4 py-3 text-xs font-bold font-mono tracking-wide border-b-2 " <>
+            if @active_tab == "custom:#{tab_name}", do: "border-[#2d6ca2] text-[#2d6ca2]", else: "border-transparent text-gray-500 hover:text-gray-700"}
+        >
+          <i class="fa fa-link mr-1.5 text-gray-400"></i> {tab_name}
+        </button>
+      <% end %>
     </nav>
     
 <!-- Tab Contents -->
@@ -568,6 +578,24 @@
           </div>
         <% end %>
       </div>
+      
+<!-- Custom Tabs -->
+      <%= for {tab_name, tab_path} <- @custom_tabs do %>
+        <div class={[@active_tab != "custom:#{tab_name}" && "hidden"]}>
+          <div class="text-gray-500 py-12 text-center flex flex-col items-center justify-center gap-2 border border-dashed border-gray-200 rounded-lg bg-gray-50/50">
+            <i class="fa fa-external-link text-2xl text-gray-300"></i>
+            <span>Custom tab: <strong class="text-gray-700">{tab_name}</strong></span>
+            <a
+              href={"/files/#{@pipeline_name}/#{@pipeline_counter}/#{@stage_name}/#{@stage_counter}/#{@job_name}/#{tab_path}"}
+              target="_blank"
+              class="text-[#2d6ca2] hover:underline font-bold text-xs mt-1"
+            >
+              <i class="fa fa-external-link mr-1"></i>
+              Open {tab_path |> String.split("/") |> List.last()}
+            </a>
+          </div>
+        </div>
+      <% end %>
     </div>
   </div>
 </div>

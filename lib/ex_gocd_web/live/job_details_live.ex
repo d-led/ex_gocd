@@ -46,6 +46,8 @@ defmodule ExGoCDWeb.JobDetailsLive do
 
     diagnostics = scheduling_diagnostics(job_instance)
 
+    custom_tabs = get_custom_tabs(job_instance)
+
     {:ok,
      socket
      |> assign(:pipeline_name, pipeline_name)
@@ -61,6 +63,7 @@ defmodule ExGoCDWeb.JobDetailsLive do
      |> assign(:agent, agent)
      |> assign(:environment_variables, env_vars)
      |> assign(:scheduling_diagnostics, diagnostics)
+     |> assign(:custom_tabs, custom_tabs)
      |> assign(:show_timestamps, false)
      |> assign(:follow, true)
      |> assign(:wrap_lines, true)
@@ -472,6 +475,11 @@ defmodule ExGoCDWeb.JobDetailsLive do
 
   defp scheduling_diagnostics(_ji), do: nil
 
+  defp get_custom_tabs(%{job: %{tabs: tabs}}) when is_map(tabs) and tabs != %{},
+    do: tabs
+
+  defp get_custom_tabs(_), do: %{}
+
   defp get_run_by_params(pipeline_name, pipeline_counter, stage_name, stage_counter, job_name) do
     AgentJobRuns.get_run_by_params(
       pipeline_name,
@@ -571,6 +579,15 @@ defmodule ExGoCDWeb.JobDetailsLive do
       <i class="fa-solid fa-file-lines text-blue-400 w-4 text-center"></i>
       <span class="flex-1 text-gray-700">{@name}</span>
       <span class="text-gray-400">{format_size(@size)}</span>
+      <%= if String.ends_with?(@name, ".html") or String.ends_with?(@name, ".htm") do %>
+        <a
+          href={"/files/#{@pipeline_name}/#{@pipeline_counter}/#{@stage_name}/#{@stage_counter}/#{@job_name}/#{@rel_path}"}
+          target="_blank"
+          class="text-green-600 hover:underline font-bold"
+        >
+          <i class="fa fa-eye mr-1"></i> View
+        </a>
+      <% end %>
       <a
         href={"/files/#{@pipeline_name}/#{@pipeline_counter}/#{@stage_name}/#{@stage_counter}/#{@job_name}/#{@rel_path}"}
         target="_blank"
