@@ -4,7 +4,7 @@ defmodule ExGoCDWeb.API.ConfigRepoController do
   """
   use ExGoCDWeb, :controller
 
-  alias ExGoCD.{Repo, ConfigRepos.ConfigRepo}
+  alias ExGoCD.{ConfigRepos.ConfigRepo, Repo}
   import Ecto.Query
 
   @doc """

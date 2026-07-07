@@ -1,8 +1,8 @@
 defmodule ExGoCDWeb.CCTrayControllerTest do
   use ExGoCDWeb.ConnCase, async: true
 
-  alias ExGoCD.Repo
   alias ExGoCD.Pipelines.{Pipeline, PipelineInstance, Stage, StageInstance}
+  alias ExGoCD.Repo
 
   import ExGoCD.PipelinesFixtures,
     only: [

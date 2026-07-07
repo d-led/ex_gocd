@@ -108,25 +108,23 @@ defmodule ExGoCD.LoggerJSON do
   # Extracts trace_id and span_id from the current OTel context, if active.
   # Returns the entry map unchanged if no span is active or SDK is disabled.
   defp inject_trace_context(entry) do
-    try do
-      ctx = :otel_ctx.get_current()
+    ctx = :otel_ctx.get_current()
 
-      case :otel_tracer.current_span_ctx(ctx) do
-        {:span_ctx, _version, trace_id, span_id, _parent_id, _flags, _tracestate, _is_recording,
-         true = _is_valid, _timestamp, _instrumentation_scope}
-        when byte_size(trace_id) == 16 and byte_size(span_id) == 8 ->
-          Map.merge(entry, %{
-            "trace_id" => Base.encode16(trace_id, case: :lower),
-            "span_id" => Base.encode16(span_id, case: :lower)
-          })
+    case :otel_tracer.current_span_ctx(ctx) do
+      {:span_ctx, _version, trace_id, span_id, _parent_id, _flags, _tracestate, _is_recording,
+       true = _is_valid, _timestamp, _instrumentation_scope}
+      when byte_size(trace_id) == 16 and byte_size(span_id) == 8 ->
+        Map.merge(entry, %{
+          "trace_id" => Base.encode16(trace_id, case: :lower),
+          "span_id" => Base.encode16(span_id, case: :lower)
+        })
 
-        _ ->
-          entry
-      end
-    rescue
-      e ->
-        IO.puts(:stderr, "[LoggerJSON] trace context injection failed: #{inspect(e)}")
+      _ ->
         entry
     end
+  rescue
+    e ->
+      IO.puts(:stderr, "[LoggerJSON] trace context injection failed: #{inspect(e)}")
+      entry
   end
 end

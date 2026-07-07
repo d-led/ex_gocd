@@ -3,8 +3,8 @@ defmodule ExGoCDWeb.API.DashboardController do
 
   import Ecto.Query
 
-  alias ExGoCD.{Repo}
   alias ExGoCD.Pipelines.{Pipeline, PipelineInstance}
+  alias ExGoCD.Repo
 
   @doc """
   GET /api/dashboard — GoCD v4-compatible dashboard JSON.

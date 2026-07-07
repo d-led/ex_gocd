@@ -12,9 +12,9 @@ defmodule ExGoCDWeb.API.JobController do
   """
   use ExGoCDWeb, :controller
 
-  alias ExGoCD.{Scheduler, Repo}
   alias ExGoCD.AgentJobRuns
   alias ExGoCD.Pipelines.JobInstance
+  alias ExGoCD.{Repo, Scheduler}
 
   def schedule(conn, params) do
     spec = Map.take(params, ~w(pipeline stage job resources environments))

@@ -12,7 +12,7 @@ defmodule ExGoCDWeb.AdminSchedulingLive do
   """
   use ExGoCDWeb, :live_view
 
-  alias ExGoCD.{Agents, Scheduler, AuditLog}
+  alias ExGoCD.{Agents, AuditLog, Scheduler}
   alias ExGoCD.Pipelines.JobInstance
   alias ExGoCD.Repo
 

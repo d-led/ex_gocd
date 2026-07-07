@@ -1,8 +1,8 @@
 defmodule ExGoCDWeb.GanttLive do
   use ExGoCDWeb, :live_view
 
-  alias ExGoCD.Repo
   alias ExGoCD.Pipelines.{PipelineInstance, StageInstance}
+  alias ExGoCD.Repo
 
   import Ecto.Query
 

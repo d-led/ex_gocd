@@ -322,11 +322,82 @@
                 </p>
               </div>
             <% is_nil(@run) || @run.state in ["Scheduled", "Assigned", "Preparing"] -> %>
-              <div class="text-gray-500 italic py-8 text-center flex flex-col items-center justify-center gap-2">
-                <i class="fa fa-spinner animate-spin text-xl text-gray-600"></i>
-                <span>
-                  Job is {(@run && @run.state) || "Scheduled"}. Waiting for agent to start...
-                </span>
+              <div class="py-8 px-6 flex flex-col items-center gap-4">
+                <div class="text-gray-500 italic text-center flex flex-col items-center justify-center gap-2">
+                  <i class="fa fa-spinner animate-spin text-xl text-gray-600"></i>
+                  <span>
+                    Job is {(@run && @run.state) || "Scheduled"}. Waiting for agent to start...
+                  </span>
+                </div>
+                <%= if @scheduling_diagnostics do %>
+                  <div class="bg-amber-50 border border-amber-200 rounded-lg p-5 max-w-lg w-full text-left">
+                    <div class="flex items-center gap-2 mb-3">
+                      <i class="fa fa-search text-amber-600"></i>
+                      <span class="text-xs font-bold text-amber-800 uppercase tracking-wider">
+                        Why isn't this job running?
+                      </span>
+                    </div>
+                    <div class="space-y-2 text-xs text-gray-700 font-mono">
+                      <div>
+                        <span class="text-gray-400">Required resources:</span>
+                        <span class="font-bold text-amber-700 ml-1">
+                          {Enum.join(@scheduling_diagnostics.required_resources, ", ")}
+                        </span>
+                      </div>
+                      <div>
+                        <span class="text-gray-400">Agents connected:</span>
+                        <span class="font-bold ml-1">
+                          <%= if @scheduling_diagnostics.any_agent_connected do %>
+                            <span class="text-green-600">
+                              {@scheduling_diagnostics.total_agents} agent(s)
+                            </span>
+                          <% else %>
+                            <span class="text-red-500">None</span>
+                          <% end %>
+                        </span>
+                      </div>
+                      <div>
+                        <span class="text-gray-400">Agents matching:</span>
+                        <span class="font-bold ml-1">
+                          <%= if @scheduling_diagnostics.matching_agents != [] do %>
+                            <span class="text-green-600">
+                              {length(@scheduling_diagnostics.matching_agents)} agent(s): {@scheduling_diagnostics.matching_agents
+                              |> Enum.map(& &1.hostname)
+                              |> Enum.join(", ")}
+                            </span>
+                          <% else %>
+                            <span class="text-red-500">None</span>
+                          <% end %>
+                        </span>
+                      </div>
+                      <%= if @scheduling_diagnostics.non_matching_detail != [] do %>
+                        <div class="mt-2 pt-2 border-t border-amber-200">
+                          <span class="text-gray-400 block mb-1">Agents that don't match:</span>
+                          <%= for item <- @scheduling_diagnostics.non_matching_detail do %>
+                            <div class="ml-2 mb-1">
+                              <span class="text-gray-600">
+                                <i class="fa fa-desktop text-gray-400 mr-1"></i>
+                                {item.hostname}
+                              </span>
+                              <span class="text-gray-400 ml-1">
+                                has [{Enum.join(item.has, ", ")}],
+                                missing [<span class="text-red-500 font-bold"><%= Enum.join(item.missing, ", ") %></span>]
+                              </span>
+                            </div>
+                          <% end %>
+                        </div>
+                      <% end %>
+                      <%= if !@scheduling_diagnostics.any_agent_connected do %>
+                        <div class="mt-2 pt-2 border-t border-amber-200">
+                          <span class="text-red-500 font-bold">
+                            <i class="fa fa-exclamation-triangle mr-1"></i>
+                            No agents are connected. Start agents with matching resources.
+                          </span>
+                        </div>
+                      <% end %>
+                    </div>
+                  </div>
+                <% end %>
               </div>
             <% @run.state == "Building" && @line_count == 0 -> %>
               <div class="text-gray-500 italic py-8 text-center flex flex-col items-center justify-center gap-2">

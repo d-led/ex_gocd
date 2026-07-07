@@ -11,7 +11,10 @@ defmodule ExGoCD.Pipelines do
   """
   import Ecto.Query
   require Logger
+  alias ExGoCD.Agents
+  alias ExGoCD.AuditLog.Events
   alias ExGoCD.Materials.ScmClient
+  alias ExGoCD.Params
   alias ExGoCD.Pipelines.CycleDetector
   alias ExGoCD.Pipelines.FanInResolver
   alias ExGoCD.Pipelines.Job
@@ -27,10 +30,7 @@ defmodule ExGoCD.Pipelines do
   alias ExGoCD.Pipelines.Template
   alias ExGoCD.Repo
   alias ExGoCD.Scheduler
-  alias ExGoCD.Params
   alias ExGoCD.VsmTracer
-  alias ExGoCD.Agents
-  alias ExGoCD.AuditLog.Events
 
   @doc """
   Lists all pipeline configs with stages and jobs (and tasks) preloaded.

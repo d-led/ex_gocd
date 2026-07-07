@@ -44,7 +44,7 @@ fi
 # ── CI mode (symlink name or env) ─────────────────────────────────────
 if [[ "${BASH_SOURCE[0]}" == *run-ci-agent* ]] || [[ "${AGENT_CI_MODE:-}" == "1" ]]; then
   AGENT_WORK_DIR="${AGENT_WORK_DIR:-/tmp/ex_gocd_ci_work}"
-  AGENT_AUTO_REGISTER_RESOURCES="${AGENT_AUTO_REGISTER_RESOURCES:-elixir,postgres}"
+  AGENT_AUTO_REGISTER_RESOURCES="${AGENT_AUTO_REGISTER_RESOURCES:-elixir,postgres,gradle,java}"
   AGENT_HOSTNAME="${AGENT_HOSTNAME:-ci-agent}"
 else
   AGENT_WORK_DIR="${AGENT_WORK_DIR:-/tmp/ex_gocd_agent_work}"

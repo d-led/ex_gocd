@@ -114,7 +114,7 @@ defmodule ExGoCD.DataCase do
   Used to reduce boilerplate in VSM, stage, and job tests.
   """
   def create_pipeline_with_result(name, stage_result, stage_state \\ "Completed") do
-    alias ExGoCD.Pipelines.{Pipeline, Stage, PipelineInstance, StageInstance}
+    alias ExGoCD.Pipelines.{Pipeline, PipelineInstance, Stage, StageInstance}
     alias ExGoCD.Repo
 
     {:ok, p} =

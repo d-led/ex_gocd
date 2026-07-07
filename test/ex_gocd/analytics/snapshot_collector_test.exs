@@ -1,8 +1,8 @@
 defmodule ExGoCD.Analytics.SnapshotCollectorTest do
   use ExGoCD.DataCase, async: true
 
-  alias ExGoCD.Analytics.AgentSnapshot
   alias ExGoCD.{Analytics, Repo}
+  alias ExGoCD.Analytics.AgentSnapshot
 
   describe "AgentSnapshot schema" do
     test "inserts a snapshot row with required fields" do

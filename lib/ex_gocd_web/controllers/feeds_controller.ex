@@ -7,8 +7,8 @@ defmodule ExGoCDWeb.FeedsController do
 
   require Ecto.Query
   alias ExGoCD.Pipelines
-  alias ExGoCD.Repo
   alias ExGoCD.Pipelines.PipelineInstance
+  alias ExGoCD.Repo
 
   @doc "GET /api/feeds/pipelines.xml — Atom feed of all pipeline instances"
   def pipelines(conn, _params) do
@@ -224,7 +224,7 @@ defmodule ExGoCDWeb.FeedsController do
         "stage_counter" => stage_counter,
         "job" => job_name
       }) do
-    alias ExGoCD.Pipelines.{JobInstance, StageInstance, PipelineInstance}
+    alias ExGoCD.Pipelines.{JobInstance, PipelineInstance, StageInstance}
 
     counter_i = String.to_integer(counter)
     stage_counter_i = String.to_integer(stage_counter)
@@ -294,7 +294,7 @@ defmodule ExGoCDWeb.FeedsController do
         "counter" => counter,
         "fingerprint" => fingerprint
       }) do
-    alias ExGoCD.Pipelines.{Modification, Material}
+    alias ExGoCD.Pipelines.{Material, Modification}
 
     counter_i = String.to_integer(counter)
 

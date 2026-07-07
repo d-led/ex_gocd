@@ -5,7 +5,7 @@ defmodule ExGoCDWeb.API.Admin.PipelineGroupController do
   """
   use ExGoCDWeb, :controller
 
-  alias ExGoCD.{Repo, Pipelines}
+  alias ExGoCD.{Pipelines, Repo}
   alias ExGoCD.Pipelines.Pipeline
   import Ecto.Query
 

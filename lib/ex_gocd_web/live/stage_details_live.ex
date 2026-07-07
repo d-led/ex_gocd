@@ -5,9 +5,9 @@ defmodule ExGoCDWeb.StageDetailsLive do
   """
   use ExGoCDWeb, :live_view
 
-  alias ExGoCD.MockData
   alias ExGoCD.Agents
   alias ExGoCD.Analytics
+  alias ExGoCD.MockData
 
   @impl true
   def mount(_params, _session, socket) do

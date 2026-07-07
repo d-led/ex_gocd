@@ -5,7 +5,7 @@ defmodule ExGoCDWeb.API.Admin.BackupConfigController do
   """
   use ExGoCDWeb, :controller
 
-  alias ExGoCD.{Repo, BackupConfig}
+  alias ExGoCD.{BackupConfig, Repo}
 
   @doc "GET /api/admin/config/backup"
   def show(conn, _params) do

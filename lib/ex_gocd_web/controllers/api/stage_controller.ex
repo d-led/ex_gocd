@@ -2,7 +2,7 @@ defmodule ExGoCDWeb.API.StageController do
   use ExGoCDWeb, :controller
 
   alias ExGoCD.{Pipelines, Repo}
-  alias ExGoCD.Pipelines.{StageInstance, JobInstance}
+  alias ExGoCD.Pipelines.{JobInstance, StageInstance}
 
   defp get_actor(conn) do
     session = get_session(conn)

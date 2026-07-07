@@ -58,8 +58,8 @@ fi
 # ── Elixir: Credo (if available) ────────────────────────────────────────
 
 echo ""
-echo "=== Elixir: Credo ==="
-if mix credo --format=oneline 2>&1; then
+echo "=== Elixir: Credo (strict) ==="
+if mix credo --strict --format=oneline 2>&1; then
   pass_step "Credo — no suggestions"
 else
   fail_step "Credo — suggestions found"

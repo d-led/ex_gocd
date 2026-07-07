@@ -9,8 +9,8 @@ defmodule ExGoCD.Analytics.SnapshotCollector do
   """
 
   use GenServer
-  alias ExGoCD.{Repo, Analytics.AgentSnapshot}
   alias ExGoCD.Agents.Agent
+  alias ExGoCD.{Analytics.AgentSnapshot, Repo}
   import Ecto.Query
 
   @default_interval_ms 5 * 60 * 1000

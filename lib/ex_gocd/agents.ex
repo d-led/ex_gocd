@@ -15,11 +15,11 @@ defmodule ExGoCD.Agents do
   require Logger
 
   import Ecto.Query, warn: false
+  alias ExGoCD.AgentJobRuns.AgentJobRun
   alias ExGoCD.Agents.Agent
   alias ExGoCD.Agents.Mock
-  alias ExGoCD.Repo
-  alias ExGoCD.AgentJobRuns.AgentJobRun
   alias ExGoCD.Pipelines.JobInstance
+  alias ExGoCD.Repo
 
   @agents_topic "agents:updates"
   @reg_log_table :agent_registration_log

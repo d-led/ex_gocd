@@ -81,7 +81,7 @@ processes:
       - "AGENT_SERVER_URL=http://127.0.0.1:4000"
       - "AGENT_WORK_DIR=/tmp/ex_gocd_agent_work"
       - "AGENT_CI_MODE=1"
-      - "AGENT_AUTO_REGISTER_RESOURCES=elixir,postgres"
+      - "AGENT_AUTO_REGISTER_RESOURCES=elixir,postgres,gradle,java"
       - "AGENT_HOSTNAME=ci-agent"
       - "AGENT_UUID=00010000-1000-4000-a000-000000000001"
       - "EX_GOCD_DEMO_COOKIE=ex-gocd-demo-cookie"
@@ -98,7 +98,7 @@ processes:
     environment:
       - "AGENT_SERVER_URL=http://127.0.0.1:4000"
       - "AGENT_WORK_DIR=/tmp/ex_gocd_agent_docker_work"
-      - "AGENT_AUTO_REGISTER_RESOURCES=docker"
+      - "AGENT_AUTO_REGISTER_RESOURCES=docker,gradle,java"
       - "AGENT_HOSTNAME=docker-agent"
       - "AGENT_UUID=00020000-2000-4000-a000-000000000001"
       - "EX_GOCD_DEMO_COOKIE=ex-gocd-demo-cookie"

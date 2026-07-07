@@ -58,9 +58,10 @@ defmodule ExGoCD.Materials.ScmClient do
     defmodule Git do
       @moduledoc false
       require Logger
+      alias ExGoCD.Git, as: GitCmd
 
       def latest_revision(url, branch) do
-        case ExGoCD.Git.ls_remote(url, branch) do
+        case GitCmd.ls_remote(url, branch) do
           {:ok, sha} ->
             details = resolve_commit_details(url, sha)
 
@@ -80,28 +81,27 @@ defmodule ExGoCD.Materials.ScmClient do
       end
 
       defp resolve_commit_details(url, sha) do
-        try do
-          if File.dir?(url) do
-            case ExGoCD.Git.commit_details(url, sha) do
-              {:ok, details} -> details
-              _ -> %{}
-            end
-          else
-            # For remote URLs, try current working directory (dogfood scenario)
-            case ExGoCD.Git.commit_details(".", sha) do
-              {:ok, details} -> details
-              _ -> %{}
-            end
+        if File.dir?(url) do
+          case GitCmd.commit_details(url, sha) do
+            {:ok, details} -> details
+            _ -> %{}
           end
-        rescue
-          _ -> %{}
+        else
+          # For remote URLs, try current working directory (dogfood scenario)
+          case GitCmd.commit_details(".", sha) do
+            {:ok, details} -> details
+            _ -> %{}
+          end
         end
+      rescue
+        _ -> %{}
       end
     end
 
     defmodule Svn do
       @moduledoc false
       require Logger
+      alias ExGoCD.Svn, as: SvnCmd
 
       def latest_revision(%Material{type: "svn"} = mat) do
         svn_opts = build_svn_opts(mat)
@@ -111,7 +111,7 @@ defmodule ExGoCD.Materials.ScmClient do
         # Use branch as the full URL if specified, otherwise use url
         effective_url = if branch && branch != "trunk" && branch != "", do: branch, else: url
 
-        case ExGoCD.Svn.info_revision(effective_url, svn_opts) do
+        case SvnCmd.info_revision(effective_url, svn_opts) do
           {:ok, rev} ->
             # Try to get richer info via svn log or svn info --xml
             details = resolve_svn_details(effective_url, rev, svn_opts)
@@ -133,7 +133,7 @@ defmodule ExGoCD.Materials.ScmClient do
 
       defp resolve_svn_details(url, rev, opts) do
         # Try svn log --xml for commit message and author
-        case ExGoCD.Svn.latest_modification(url, opts) do
+        case SvnCmd.latest_modification(url, opts) do
           {:ok, %{author: author, date: date, message: msg}} ->
             %{
               committer_name: author,
@@ -144,7 +144,7 @@ defmodule ExGoCD.Materials.ScmClient do
 
           _ ->
             # Fallback: try svn info --xml for author
-            case ExGoCD.Svn.remote_info(url, opts) do
+            case SvnCmd.remote_info(url, opts) do
               {:ok, %{author: author, date: date}} ->
                 %{
                   committer_name: author,

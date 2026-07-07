@@ -633,8 +633,8 @@ defmodule ExGoCD.ConfigXml do
   end
 
   defp render_security do
-    alias ExGoCD.Repo
     alias ExGoCD.Accounts.Role
+    alias ExGoCD.Repo
 
     roles = Repo.all(Role)
 

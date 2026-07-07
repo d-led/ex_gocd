@@ -1,8 +1,8 @@
 defmodule ExGoCD.ArtifactStores do
   @moduledoc "Context for artifact store configurations (S3, GCS, local disk, etc.)."
   import Ecto.Query, warn: false
-  alias ExGoCD.Repo
   alias ExGoCD.ArtifactStores.ArtifactStore
+  alias ExGoCD.Repo
 
   def list_stores, do: Repo.all(ArtifactStore)
   def get_store!(id), do: Repo.get!(ArtifactStore, id)

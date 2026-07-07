@@ -4,7 +4,7 @@
 defmodule ExGoCDWeb.API.ConfigRepoControllerTest do
   use ExGoCDWeb.ConnCase, async: false
 
-  alias ExGoCD.{Repo, ConfigRepos.ConfigRepo}
+  alias ExGoCD.{ConfigRepos.ConfigRepo, Repo}
 
   setup do
     Repo.delete_all(ConfigRepo)

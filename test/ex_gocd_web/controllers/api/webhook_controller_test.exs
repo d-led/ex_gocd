@@ -1,9 +1,9 @@
 defmodule ExGoCDWeb.API.WebhookControllerTest do
   use ExGoCDWeb.ConnCase, async: false
 
-  alias ExGoCD.Repo
   alias ExGoCD.Accounts
   alias ExGoCD.Pipelines.{Job, Material, Modification, Pipeline, PipelineInstance, Stage, Task}
+  alias ExGoCD.Repo
   import Ecto.Query
 
   setup %{conn: conn} do

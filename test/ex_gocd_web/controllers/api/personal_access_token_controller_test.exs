@@ -1,9 +1,9 @@
 defmodule ExGoCDWeb.API.PersonalAccessTokenControllerTest do
   use ExGoCDWeb.ConnCase, async: true
 
-  alias ExGoCD.Repo
   alias ExGoCD.Accounts
-  alias ExGoCD.Accounts.{User, PersonalAccessToken}
+  alias ExGoCD.Accounts.{PersonalAccessToken, User}
+  alias ExGoCD.Repo
 
   setup %{conn: conn} do
     # Clean up DB before each test

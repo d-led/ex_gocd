@@ -1,8 +1,8 @@
 defmodule ExGoCD.AuthConfigs do
   @moduledoc "Context for authentication provider configurations (LDAP, GitHub OAuth, etc.)."
   import Ecto.Query, warn: false
-  alias ExGoCD.Repo
   alias ExGoCD.AuthConfigs.AuthConfig
+  alias ExGoCD.Repo
 
   def list_configs, do: Repo.all(AuthConfig)
   def get_config!(id), do: Repo.get!(AuthConfig, id)

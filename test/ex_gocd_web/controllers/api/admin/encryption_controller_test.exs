@@ -1,8 +1,8 @@
 defmodule ExGoCDWeb.API.Admin.EncryptionControllerTest do
   use ExGoCDWeb.ConnCase, async: true
 
-  alias ExGoCD.{Repo, Accounts, Crypto}
-  alias ExGoCD.Accounts.{User, PersonalAccessToken}
+  alias ExGoCD.{Accounts, Crypto, Repo}
+  alias ExGoCD.Accounts.{PersonalAccessToken, User}
 
   setup %{conn: conn} do
     {:ok, admin} =

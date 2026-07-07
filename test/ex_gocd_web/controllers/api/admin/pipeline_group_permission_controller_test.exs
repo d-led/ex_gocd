@@ -1,6 +1,6 @@
 defmodule ExGoCDWeb.API.Admin.PipelineGroupPermissionControllerTest do
   use ExGoCDWeb.ConnCase
-  alias ExGoCD.{Repo, Accounts}
+  alias ExGoCD.{Accounts, Repo}
 
   setup do
     {:ok, user} =

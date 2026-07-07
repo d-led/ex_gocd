@@ -54,7 +54,7 @@ if [[ -n "${AGENT_AUTO_REGISTER_ELASTIC_AGENT_ID:-}" ]] && [[ -n "${AGENT_AUTO_R
 fi
 
 # ── Resources ─────────────────────────────────────────────────────────
-: "${AGENT_AUTO_REGISTER_RESOURCES:=docker}"
+: "${AGENT_AUTO_REGISTER_RESOURCES:=docker,gradle,java}"
 export AGENT_AUTO_REGISTER_RESOURCES="$AGENT_AUTO_REGISTER_RESOURCES"
 export AGENT_HOSTNAME="${AGENT_HOSTNAME:-docker-agent}"
 

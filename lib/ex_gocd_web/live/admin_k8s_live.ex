@@ -13,8 +13,8 @@ defmodule ExGoCDWeb.AdminK8sLive do
   use ExGoCDWeb, :live_view
 
   alias ExGoCD.ClusterProfiles
-  alias ExGoCD.ElasticAgentProfiles
   alias ExGoCD.ClusterProfiles.ClusterProfile
+  alias ExGoCD.ElasticAgentProfiles
   alias ExGoCD.ElasticAgentProfiles.ElasticAgentProfile
 
   @compile {:nowarn_unused_function, [{:connection_status_badge, 1}, {:get_conn_status, 2}]}

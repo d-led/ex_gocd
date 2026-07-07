@@ -7,9 +7,9 @@ defmodule ExGoCD.Accounts do
   configured, role-based access control is enforced.
   """
   import Ecto.Query, warn: false
-  alias ExGoCD.Accounts.User
   alias ExGoCD.Accounts.PersonalAccessToken
   alias ExGoCD.Accounts.PipelineGroupPermission
+  alias ExGoCD.Accounts.User
   alias ExGoCD.Repo
 
   @doc """

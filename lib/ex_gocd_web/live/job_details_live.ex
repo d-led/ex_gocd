@@ -9,8 +9,9 @@ defmodule ExGoCDWeb.JobDetailsLive do
   alias ExGoCD.AgentJobRuns
   alias ExGoCD.Agents
   alias ExGoCD.Pipelines.JobInstance
-  alias ExGoCD.Repo
   alias ExGoCD.Pipelines.PipelineMaterialRevision
+  alias ExGoCD.Repo
+  alias ExGoCD.Scheduler
 
   @impl true
   def mount(params, _session, socket) do
@@ -43,6 +44,8 @@ defmodule ExGoCDWeb.JobDetailsLive do
 
     env_vars = get_run_env_vars(run)
 
+    diagnostics = scheduling_diagnostics(job_instance)
+
     {:ok,
      socket
      |> assign(:pipeline_name, pipeline_name)
@@ -57,6 +60,7 @@ defmodule ExGoCDWeb.JobDetailsLive do
      |> assign(:materials, materials)
      |> assign(:agent, agent)
      |> assign(:environment_variables, env_vars)
+     |> assign(:scheduling_diagnostics, diagnostics)
      |> assign(:show_timestamps, false)
      |> assign(:follow, true)
      |> assign(:wrap_lines, true)
@@ -458,8 +462,15 @@ defmodule ExGoCDWeb.JobDetailsLive do
     )
     |> limit(1)
     |> Repo.one()
-    |> Repo.preload(stage_instance: [pipeline_instance: :pipeline])
+    |> Repo.preload([:job, stage_instance: [pipeline_instance: :pipeline]])
   end
+
+  defp scheduling_diagnostics(%{job: %{resources: required}} = _ji)
+       when is_list(required) and required != [] do
+    Scheduler.diagnose_pending_job(required)
+  end
+
+  defp scheduling_diagnostics(_ji), do: nil
 
   defp get_run_by_params(pipeline_name, pipeline_counter, stage_name, stage_counter, job_name) do
     AgentJobRuns.get_run_by_params(

@@ -1,9 +1,9 @@
 defmodule ExGoCD.ConfigSnapshotTest do
   use ExGoCD.DataCase, async: false
 
+  alias ExGoCD.ClusterProfiles
   alias ExGoCD.ConfigSnapshot
   alias ExGoCD.ConfigVersion
-  alias ExGoCD.ClusterProfiles
   alias ExGoCD.Repo
 
   setup do

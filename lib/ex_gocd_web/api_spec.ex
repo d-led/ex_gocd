@@ -9,8 +9,8 @@ defmodule ExGoCDWeb.ApiSpec do
   """
   @behaviour OpenApiSpex.OpenApi
 
-  alias OpenApiSpex.{Info, OpenApi, Operation, PathItem, Response, Server, Tag}
   alias ExGoCDWeb.{Endpoint, Router}
+  alias OpenApiSpex.{Info, OpenApi, Operation, PathItem, Response, Server, Tag}
 
   @valid_methods MapSet.new(~w(get put post delete options head patch trace)a)
 

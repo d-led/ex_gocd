@@ -6,8 +6,8 @@ defmodule ExGoCD.ElasticAgentProfiles do
   """
 
   import Ecto.Query, warn: false
-  alias ExGoCD.Repo
   alias ExGoCD.ElasticAgentProfiles.ElasticAgentProfile
+  alias ExGoCD.Repo
 
   @doc "Returns all elastic agent profiles."
   def list_profiles do

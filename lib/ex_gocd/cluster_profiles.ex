@@ -6,9 +6,9 @@ defmodule ExGoCD.ClusterProfiles do
   """
 
   import Ecto.Query, warn: false
-  alias ExGoCD.Repo
   alias ExGoCD.ClusterProfiles.ClusterProfile
   alias ExGoCD.K8s
+  alias ExGoCD.Repo
 
   @doc "Returns all cluster profiles."
   def list_profiles do

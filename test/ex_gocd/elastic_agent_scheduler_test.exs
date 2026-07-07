@@ -1,11 +1,11 @@
 defmodule ExGoCD.ElasticAgentSchedulerTest do
   use ExGoCD.DataCase, async: false
 
-  alias ExGoCD.ElasticAgentScheduler
+  alias ExGoCD.Agents
   alias ExGoCD.ClusterProfiles
   alias ExGoCD.ElasticAgentProfiles
+  alias ExGoCD.ElasticAgentScheduler
   alias ExGoCD.Scheduler
-  alias ExGoCD.Agents
 
   @uuid "e2e00000-e29b-41d4-a716-446655440001"
 

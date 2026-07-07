@@ -2,8 +2,8 @@ defmodule ExGoCDWeb.AgentsLiveTest do
   use ExGoCDWeb.ConnCase, async: false
 
   import Phoenix.LiveViewTest
-  alias ExGoCD.Agents
   alias ExGoCD.Accounts
+  alias ExGoCD.Agents
 
   @valid_uuid "550e8400-e29b-41d4-a716-446655440000"
 

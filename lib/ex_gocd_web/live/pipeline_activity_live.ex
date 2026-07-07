@@ -5,9 +5,9 @@ defmodule ExGoCDWeb.PipelineActivityLive do
   """
   use ExGoCDWeb, :live_view
 
+  alias ExGoCD.Analytics
   alias ExGoCD.MockData
   alias ExGoCD.Pipelines
-  alias ExGoCD.Analytics
 
   @impl true
   def mount(_params, _session, socket) do

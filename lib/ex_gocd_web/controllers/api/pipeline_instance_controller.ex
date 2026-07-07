@@ -2,7 +2,7 @@ defmodule ExGoCDWeb.API.PipelineInstanceController do
   use ExGoCDWeb, :controller
 
   alias ExGoCD.Pipelines
-  alias ExGoCD.Pipelines.{PipelineInstance, StageInstance, JobInstance}
+  alias ExGoCD.Pipelines.{JobInstance, PipelineInstance, StageInstance}
   alias ExGoCD.Repo
 
   @doc """

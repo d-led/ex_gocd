@@ -12,8 +12,8 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
 
   import Ecto.Query
 
-  alias ExGoCD.Repo
   alias ExGoCD.ConfigRepos.{ConfigRepo, ConfigRepoFile}
+  alias ExGoCD.Repo
 
   @valid_modes ["translate", "execute_act", "execute_gitlab", "skip"]
 

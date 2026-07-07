@@ -1,9 +1,9 @@
 defmodule ExGoCD.ElasticAgentProfilesTest do
   use ExGoCD.DataCase
 
+  alias ExGoCD.ClusterProfiles
   alias ExGoCD.ElasticAgentProfiles
   alias ExGoCD.ElasticAgentProfiles.ElasticAgentProfile
-  alias ExGoCD.ClusterProfiles
 
   describe "elastic agent profiles" do
     @cluster_id Ecto.UUID.generate()

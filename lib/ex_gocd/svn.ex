@@ -172,7 +172,10 @@ defmodule ExGoCD.Svn do
   def parse_info_xml(xml_string) do
     # Minimal XML parser for svn info --xml output.
     # We use simple regex parsing to avoid adding an XML dependency.
-    # Format: <info><entry ...><url>...</url><commit revision="X"><author>...</author><date>...</date></commit></entry></info>
+    # Format:
+    # <info><entry ...><url>...</url><commit revision="X">
+    #   <author>...</author><date>...</date>
+    # </commit></entry></info>
     %{
       revision: extract_xml(xml_string, ~r/revision="(\d+)"/, 1),
       author: extract_xml(xml_string, ~r/<author>(.*?)<\/author>/, 1),

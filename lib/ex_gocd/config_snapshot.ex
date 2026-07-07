@@ -188,8 +188,8 @@ defmodule ExGoCD.ConfigSnapshot do
   end
 
   defp templates_config do
-    alias ExGoCD.Repo
     alias ExGoCD.Pipelines.PipelineTemplate
+    alias ExGoCD.Repo
 
     Repo.all(PipelineTemplate)
     |> Enum.map(fn t ->
@@ -202,8 +202,8 @@ defmodule ExGoCD.ConfigSnapshot do
   end
 
   defp environments_config do
-    alias ExGoCD.Repo
     alias ExGoCD.Environments.Environment
+    alias ExGoCD.Repo
 
     Repo.all(Environment)
     |> Enum.map(fn e ->
@@ -269,8 +269,8 @@ defmodule ExGoCD.ConfigSnapshot do
   end
 
   defp auth_configs do
-    alias ExGoCD.Repo
     alias ExGoCD.Accounts.AuthConfig
+    alias ExGoCD.Repo
 
     Repo.all(AuthConfig)
     |> Enum.map(fn a ->
@@ -286,8 +286,8 @@ defmodule ExGoCD.ConfigSnapshot do
   end
 
   defp roles_config do
-    alias ExGoCD.Repo
     alias ExGoCD.Accounts.Role
+    alias ExGoCD.Repo
 
     Repo.all(Role)
     |> Enum.map(fn r ->
@@ -303,8 +303,8 @@ defmodule ExGoCD.ConfigSnapshot do
   end
 
   defp artifact_stores_config do
-    alias ExGoCD.Repo
     alias ExGoCD.ArtifactStores.ArtifactStore
+    alias ExGoCD.Repo
 
     Repo.all(ArtifactStore)
     |> Enum.map(fn a ->
@@ -336,8 +336,8 @@ defmodule ExGoCD.ConfigSnapshot do
   end
 
   defp package_repos_config do
-    alias ExGoCD.Repo
     alias ExGoCD.Packages.PackageRepository
+    alias ExGoCD.Repo
 
     Repo.all(PackageRepository)
     |> Enum.map(fn p ->
@@ -358,8 +358,8 @@ defmodule ExGoCD.ConfigSnapshot do
   end
 
   defp config_repos_config do
-    alias ExGoCD.Repo
     alias ExGoCD.ConfigRepos.ConfigRepo
+    alias ExGoCD.Repo
 
     Repo.all(ConfigRepo)
     |> Enum.map(fn c ->

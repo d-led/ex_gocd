@@ -7,12 +7,12 @@ defmodule ExGoCDWeb.AdminLive do
   use ExGoCDWeb, :live_view
 
   alias ExGoCD.Accounts
-  alias ExGoCD.Pipelines
   alias ExGoCD.AuditLog
   alias ExGoCD.AuditLog.Events
+  alias ExGoCD.Backup
   alias ExGoCD.ConfigRepos
   alias ExGoCD.MaintenanceMode
-  alias ExGoCD.Backup
+  alias ExGoCD.Pipelines
 
   @impl true
   def mount(_params, _session, socket) do

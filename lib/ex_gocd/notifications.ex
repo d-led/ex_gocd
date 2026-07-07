@@ -8,8 +8,8 @@ defmodule ExGoCD.Notifications do
   """
 
   import Ecto.Query, warn: false
-  alias ExGoCD.Repo
   alias ExGoCD.Notifications.NotificationFilter
+  alias ExGoCD.Repo
 
   @doc "Lists notification filters for a user."
   def list_filters(user_id),

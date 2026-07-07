@@ -1,7 +1,7 @@
 defmodule ExGoCD.AgentHealths do
   @moduledoc "Context for agent health monitoring (GoCD parity: Agent Health API)."
   import Ecto.Query, warn: false
-  alias ExGoCD.{Repo, AgentHealth}
+  alias ExGoCD.{AgentHealth, Repo}
 
   def record_health(attrs) do
     %AgentHealth{}

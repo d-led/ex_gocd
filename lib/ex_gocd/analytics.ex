@@ -5,12 +5,12 @@ defmodule ExGoCD.Analytics do
   Accessible via LiveView at /analytics — no external tools required.
   """
   import Ecto.Query
-  alias ExGoCD.Repo
   alias ExGoCD.AgentJobRuns.AgentJobRun
-  alias ExGoCD.Analytics.AgentTransition
-  alias ExGoCD.Analytics.AgentSnapshot
   alias ExGoCD.Agents
+  alias ExGoCD.Analytics.AgentSnapshot
+  alias ExGoCD.Analytics.AgentTransition
   alias ExGoCD.Pipelines.{Pipeline, PipelineInstance, StageInstance}
+  alias ExGoCD.Repo
 
   @doc """
   Returns the last `limit` stage runs for a pipeline/stage with result and duration.

@@ -22,9 +22,9 @@ defmodule ExGoCD.ElasticAgentScheduler do
 
   alias ExGoCD.Agents
   alias ExGoCD.ClusterProfiles
+  alias ExGoCD.ClusterProfiles.ClusterProfile
   alias ExGoCD.ElasticAgentProfiles
   alias ExGoCD.ElasticAgentProfiles.ElasticAgentProfile
-  alias ExGoCD.ClusterProfiles.ClusterProfile
   alias ExGoCD.K8s
   alias ExGoCD.Scheduler
 
@@ -339,14 +339,12 @@ defmodule ExGoCD.ElasticAgentScheduler do
   # ── Job inspection ─────────────────────────────────────────────────────────
 
   defp get_pending_jobs do
-    try do
-      case Scheduler.get_queue_state() do
-        %{in_memory_jobs: jobs} -> jobs
-        _ -> []
-      end
-    rescue
+    case Scheduler.get_queue_state() do
+      %{in_memory_jobs: jobs} -> jobs
       _ -> []
     end
+  rescue
+    _ -> []
   end
 
   defp needs_elastic_agent?(job) do

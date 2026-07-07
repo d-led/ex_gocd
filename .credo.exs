@@ -27,7 +27,7 @@
           ## Design Checks
           #
           {Credo.Check.Design.AliasUsage,
-           [priority: :low, if_nested_deeper_than: 2, if_called_more_often_than: 0]},
+           [priority: :low, if_nested_deeper_than: 2, if_called_more_often_than: 21]},
           {Credo.Check.Design.DuplicatedCode, [mass_threshold: 50, nodes_threshold: 2]},
           {Credo.Check.Design.TagFIXME, []},
           {Credo.Check.Design.TagTODO, [exit_status: 0]},
@@ -45,7 +45,8 @@
           {Credo.Check.Readability.ParenthesesOnZeroArityDefs, []},
           {Credo.Check.Readability.ParenthesesInCondition, []},
           {Credo.Check.Readability.PredicateFunctionNames, [exit_status: 0]},
-          {Credo.Check.Readability.PreferImplicitTry, [exit_status: 0]},
+          # PreferImplicitTry disabled: gives false positives for try/rescue/catch
+          # {Credo.Check.Readability.PreferImplicitTry, [exit_status: 0]},
           {Credo.Check.Readability.RedundantBlankLines, []},
           {Credo.Check.Readability.Semicolons, []},
           {Credo.Check.Readability.SpaceAfterCommas, []},

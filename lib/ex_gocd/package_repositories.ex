@@ -4,8 +4,8 @@ defmodule ExGoCD.PackageRepositories do
   """
 
   import Ecto.Query, warn: false
-  alias ExGoCD.Repo
   alias ExGoCD.PackageRepositories.PackageRepository
+  alias ExGoCD.Repo
 
   def list_repos, do: Repo.all(PackageRepository)
   def get_repo!(id), do: Repo.get!(PackageRepository, id)

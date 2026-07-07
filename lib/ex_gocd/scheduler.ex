@@ -106,6 +106,19 @@ defmodule ExGoCD.Scheduler do
     GenServer.call(ExGoCD.DistSingleton.via_horde(__MODULE__), :get_queue_state)
   end
 
+  @doc """
+  Diagnoses why a job with the given required resources isn't being picked up.
+  Returns a map with matching/non-matching agent details for UI display.
+  Used by the Job Details page to show why a "Scheduled" job isn't running.
+  Delegates to the scheduler GenServer so scheduling decisions stay centralized.
+  """
+  @spec diagnose_pending_job([String.t()]) :: map() | nil
+  def diagnose_pending_job(resources) when is_list(resources) and resources != [] do
+    do_diagnose_pending_job(resources)
+  end
+
+  def diagnose_pending_job(_resources), do: nil
+
   # Server
 
   @impl true
@@ -429,7 +442,7 @@ defmodule ExGoCD.Scheduler do
   # Matches resources (subset) and environments. Consults AgentSelector plugin
   # if registered — the plugin can veto individual matches (e.g. corporate policy).
   defp find_matching_job(agent, queue) do
-    agent_resources = MapSet.new(agent.resources |> Enum.map(&String.downcase/1))
+    agent_resources = agent_resources(agent)
     agent_envs = MapSet.new(agent.environments |> Enum.map(&String.downcase/1))
 
     selector = ExGoCD.Plugin.Registry.get(:agent_selector)
@@ -485,6 +498,41 @@ defmodule ExGoCD.Scheduler do
     Enum.all?(resources, fn r ->
       MapSet.member?(agent_resources, String.downcase(r))
     end)
+  end
+
+  defp agent_resources(agent) do
+    MapSet.new((agent.resources || []) |> Enum.map(&String.downcase/1))
+  end
+
+  defp do_diagnose_pending_job(resources) do
+    all_agents = Agents.list_active_agents()
+
+    matching =
+      Enum.filter(all_agents, fn a ->
+        resources_match?(resources, agent_resources(a))
+      end)
+
+    non_matching_detail =
+      if matching == [] do
+        Enum.map(all_agents, fn a ->
+          agent_set = agent_resources(a)
+
+          missing =
+            Enum.reject(resources, fn r -> MapSet.member?(agent_set, String.downcase(r)) end)
+
+          %{hostname: a.hostname, uuid: a.uuid, has: a.resources || [], missing: missing}
+        end)
+      else
+        []
+      end
+
+    %{
+      required_resources: resources,
+      total_agents: length(all_agents),
+      matching_agents: Enum.map(matching, &%{hostname: &1.hostname, uuid: &1.uuid}),
+      non_matching_detail: non_matching_detail,
+      any_agent_connected: map_size(AgentPresence.list(@presence_topic)) > 0
+    }
   end
 
   # Rule:
@@ -547,33 +595,7 @@ defmodule ExGoCD.Scheduler do
 
     env_vars = get_all_job_env_vars(pipeline, stage_instance, job_config, pipeline_instance)
 
-    export_cmds =
-      env_vars
-      |> Enum.flat_map(fn var ->
-        name = var["name"] || var[:name]
-        value = var["value"] || var[:value]
-        secure? = var["secure"] == true || var[:secure] == true
-
-        # Echo to console: GoCD shows "setting environment variable: NAME=value"
-        # Secure vars show "********" instead of the actual value
-        echo_msg =
-          if secure?,
-            do: "setting environment variable: #{name}=********",
-            else: "setting environment variable: #{name}=#{value}"
-
-        [
-          %{
-            "name" => "echo",
-            "command" => "echo",
-            "args" => [echo_msg]
-          },
-          %{
-            "name" => "export",
-            "args" => [name, value],
-            "attributes" => %{"secure" => secure?}
-          }
-        ]
-      end)
+    export_cmds = build_env_commands(env_vars)
 
     checkout_cmds = build_checkout_commands(stage_instance, pipeline_instance)
 
@@ -689,6 +711,41 @@ defmodule ExGoCD.Scheduler do
         "dest" => dest
       }
     end)
+  end
+
+  defp build_env_commands(env_vars) when is_list(env_vars) do
+    echo_lines =
+      Enum.map(env_vars, fn var ->
+        name = var["name"] || var[:name]
+        value = var["value"] || var[:value]
+        secure? = var["secure"] == true || var[:secure] == true
+
+        if secure?,
+          do: "setting environment variable: #{name}=********",
+          else: "setting environment variable: #{name}=#{value}"
+      end)
+
+    if echo_lines == [] do
+      []
+    else
+      export_cmds =
+        Enum.map(env_vars, fn var ->
+          %{
+            "name" => "export",
+            "args" => [var["name"] || var[:name], var["value"] || var[:value]],
+            "attributes" => %{"secure" => var["secure"] == true || var[:secure] == true}
+          }
+        end)
+
+      [
+        %{
+          "name" => "env",
+          "command" => "echo",
+          "args" => [Enum.join(echo_lines, "\n")]
+        }
+        | export_cmds
+      ]
+    end
   end
 
   defp build_checkout_commands(%{fetch_materials: true}, pipeline_instance) do

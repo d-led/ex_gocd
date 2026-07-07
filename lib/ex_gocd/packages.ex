@@ -4,8 +4,8 @@ defmodule ExGoCD.Packages do
   GoCD parity: Packages API v2.
   """
   import Ecto.Query, warn: false
-  alias ExGoCD.Repo
   alias ExGoCD.PackageRepositories.Package
+  alias ExGoCD.Repo
 
   def list_packages, do: Repo.all(Package) |> Repo.preload(:package_repository)
   def get_package!(id), do: Repo.get!(Package, id) |> Repo.preload(:package_repository)
