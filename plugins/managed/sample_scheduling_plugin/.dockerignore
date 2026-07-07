@@ -1,0 +1,9 @@
+_build/
+deps/
+.git/
+.gitignore
+README.md
+test/
+doc/
+.credo.exs
+.formatter.exs
