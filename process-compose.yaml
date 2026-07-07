@@ -12,6 +12,12 @@ version: "0.5"
 
 log_location: /tmp/ex_gocd_processes.log
 log_level: info
+log_configuration:
+  rotation:
+    max_size_mb: 500
+    max_age_days: 7
+    max_backups: 3
+    compress: true
 is_strict: true
 
 processes:
