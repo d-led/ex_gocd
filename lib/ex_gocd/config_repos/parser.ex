@@ -224,7 +224,9 @@ defmodule ExGoCD.ConfigRepos.Parser do
         "run_instance_count" => job_config["run_instance_count"],
         "environment_variables" => job_config["environment_variables"] || %{},
         "timeout" => job_config["timeout"],
-        "tasks" => normalize_gocd_tasks(job_config["tasks"] || [])
+        "tasks" => normalize_gocd_tasks(job_config["tasks"] || []),
+        "tabs" => normalize_gocd_tabs(job_config["tabs"] || %{}),
+        "artifact_configs" => normalize_gocd_artifacts(job_config["artifacts"] || [])
       }
     end)
   end
@@ -232,6 +234,23 @@ defmodule ExGoCD.ConfigRepos.Parser do
   defp normalize_run_instances("all"), do: true
   defp normalize_run_instances(nil), do: false
   defp normalize_run_instances(_), do: false
+
+  defp normalize_gocd_tabs(tabs) when is_map(tabs), do: tabs
+  defp normalize_gocd_tabs(_), do: %{}
+
+  defp normalize_gocd_artifacts(artifacts) when is_list(artifacts) do
+    configs =
+      Enum.map(artifacts, fn art ->
+        type = art["type"] || "build"
+        src = art["src"] || ""
+        dest = art["dest"] || ""
+        %{"type" => type, "src" => src, "dest" => dest}
+      end)
+
+    %{"artifacts" => configs}
+  end
+
+  defp normalize_gocd_artifacts(_), do: %{}
 
   # GoCD YAML tasks: [{exec: {command, arguments}}] → [{type: "exec", command, arguments}]
   defp normalize_gocd_tasks(tasks) when is_list(tasks) do

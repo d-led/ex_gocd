@@ -709,11 +709,13 @@ defmodule ExGoCD.Scheduler do
     Enum.map(configs, fn config ->
       src = config["src"] || ""
       dest = config["dest"] || ""
+      type = config["type"] || "build"
 
       %{
-        "name" => "uploadArtifact",
+        "name" => if(type == "test", do: "uploadTestArtifact", else: "uploadArtifact"),
         "src" => src,
-        "dest" => dest
+        "dest" => dest,
+        "type" => type
       }
     end)
   end

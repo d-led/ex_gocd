@@ -131,7 +131,24 @@ unless Repo.get_by(Pipeline, name: "ex_gocd") do
 
   job_test =
     %Job{}
-    |> Job.changeset(%{name: "test", stage_id: stage.id, resources: ["elixir", "postgres"]})
+    |> Job.changeset(%{
+      name: "test",
+      stage_id: stage.id,
+      resources: ["elixir", "postgres"],
+      tabs: %{
+        "Coverage" => "cover/excoveralls.html",
+        "Docs" => "doc/index.html"
+      },
+      artifact_configs: %{
+        "artifacts" => [
+          %{
+            "type" => "test",
+            "src" => "_build/test/lib/ex_gocd/test-junit-report.xml",
+            "dest" => "testoutput"
+          }
+        ]
+      }
+    })
     |> Repo.insert!()
 
   job_quality =

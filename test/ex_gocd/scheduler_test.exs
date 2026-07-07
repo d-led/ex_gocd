@@ -799,7 +799,8 @@ defmodule ExGoCD.SchedulerTest do
       assert upload_cmd == %{
                "name" => "uploadArtifact",
                "src" => "target/app.jar",
-               "dest" => "libs"
+               "dest" => "libs",
+               "type" => "build"
              }
     end
 

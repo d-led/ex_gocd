@@ -182,7 +182,9 @@ defmodule ExGoCD.ConfigXml do
 
   defp render_job(job) do
     resources = Enum.map_join(job.resources || [], "", fn r -> tag3("resource", %{}, esc(r)) end)
+    tabs_xml = render_tabs(job.tabs || %{})
     tasks = Enum.map_join(job.tasks || [], "", &render_task/1)
+    artifacts_xml = render_artifacts(job.artifact_configs || %{})
 
     tag3(
       "job",
@@ -192,7 +194,10 @@ defmodule ExGoCD.ConfigXml do
         timeout: job.timeout || 0,
         runOnAllAgents: job.run_on_all_agents || false
       },
-      tag3("resources", %{}, resources) <> tag3("tasks", %{}, tasks)
+      tag3("resources", %{}, resources) <>
+        tabs_xml <>
+        tag3("tasks", %{}, tasks) <>
+        artifacts_xml
     )
   end
 
@@ -215,6 +220,37 @@ defmodule ExGoCD.ConfigXml do
   end
 
   defp render_task(_task), do: tag3("exec", %{command: "echo"}, tag3("arg", %{}, "unknown task"))
+
+  defp render_tabs(tabs) when is_map(tabs) and tabs != %{} do
+    inner =
+      Enum.map_join(tabs, "", fn {name, path} ->
+        ~s'<tab name="#{esc(name)}" path="#{esc(path)}" />'
+      end)
+
+    tag3("tabs", %{}, inner)
+  end
+
+  defp render_tabs(_), do: ""
+
+  defp render_artifacts(artifact_configs) when is_map(artifact_configs) do
+    items = artifact_configs["artifacts"] || []
+
+    if is_list(items) and items != [] do
+      inner =
+        Enum.map_join(items, "", fn art ->
+          type = art["type"] || "build"
+          src = art["src"] || ""
+          dest = art["dest"] || ""
+          ~s'<artifact type="#{esc(type)}" src="#{esc(src)}" dest="#{esc(dest)}" />'
+        end)
+
+      tag3("artifacts", %{}, inner)
+    else
+      ""
+    end
+  end
+
+  defp render_artifacts(_), do: ""
 
   # ── Import ────────────────────────────────────────────────────────
 
@@ -453,7 +489,9 @@ defmodule ExGoCD.ConfigXml do
       timeout: parse_int(attr(el, :timeout), 0),
       run_on_all_agents: attr(el, :runOnAllAgents) == "true",
       resources: parse_resources(el),
-      tasks: parse_tasks(el)
+      tasks: parse_tasks(el),
+      tabs: parse_tabs(el),
+      artifact_configs: parse_artifacts(el)
     }
   end
 
@@ -465,6 +503,42 @@ defmodule ExGoCD.ConfigXml do
 
       res_el ->
         find_elements(res_el, :resource) |> Enum.map(fn r -> text_content(r) |> to_string() end)
+    end
+  end
+
+  defp parse_tabs(el) do
+    find_child(el, :tabs)
+    |> case do
+      nil ->
+        %{}
+
+      tabs_el ->
+        find_elements(tabs_el, :tab)
+        |> Enum.reduce(%{}, fn tab_el, acc ->
+          name = to_string(attr(tab_el, :name))
+          path = to_string(attr(tab_el, :path))
+          if name != "" and path != "", do: Map.put(acc, name, path), else: acc
+        end)
+    end
+  end
+
+  defp parse_artifacts(el) do
+    find_child(el, :artifacts)
+    |> case do
+      nil ->
+        %{}
+
+      arts_el ->
+        configs =
+          find_elements(arts_el, :artifact)
+          |> Enum.map(fn art_el ->
+            type = to_string(attr(art_el, :type))
+            src = to_string(attr(art_el, :src))
+            dest = to_string(attr(art_el, :dest))
+            %{"type" => type, "src" => src, "dest" => dest}
+          end)
+
+        %{"artifacts" => configs}
     end
   end
 
