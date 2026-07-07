@@ -137,9 +137,11 @@ defmodule ExGoCDWeb.GanttLive do
         |> Enum.filter(&(&1.name == stage_name))
         |> Enum.filter(&(&1.result in ["Passed", "Failed"]))
         |> Enum.map(fn s ->
+          start_time = s.scheduled_at || s.created_time
+
           duration =
-            if s.completed_at && s.scheduled_at do
-              DateTime.diff(s.completed_at, s.scheduled_at, :second)
+            if s.completed_at && start_time do
+              DateTime.diff(s.completed_at, start_time, :second)
             else
               0
             end
@@ -326,6 +328,7 @@ defmodule ExGoCDWeb.GanttLive do
               inserted_at: s.inserted_at,
               scheduled_at: s.scheduled_at,
               completed_at: s.completed_at,
+              created_time: s.created_time,
               updated_at: s.updated_at
             }
           end)

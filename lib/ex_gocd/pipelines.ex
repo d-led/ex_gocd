@@ -943,6 +943,7 @@ defmodule ExGoCD.Pipelines do
         result: "Unknown",
         approval_type: first_stage.approval_type,
         created_time: now,
+        scheduled_at: now,
         fetch_materials: first_stage.fetch_materials,
         clean_working_dir: first_stage.clean_working_directory
       })
@@ -2189,6 +2190,7 @@ defmodule ExGoCD.Pipelines do
       result: "Unknown",
       approval_type: next_stage.approval_type,
       created_time: now,
+      scheduled_at: now,
       fetch_materials: next_stage.fetch_materials,
       clean_working_dir: next_stage.clean_working_directory
     })

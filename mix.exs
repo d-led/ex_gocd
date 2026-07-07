@@ -94,6 +94,7 @@ defmodule ExGoCD.MixProject do
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:logger_backends, "~> 1.0"},
       {:yaml_elixir, "~> 2.11"},
+      {:bodyguard, "~> 2.4"},
       {:ex_json_schema, "~> 0.10"},
       {:contex, "~> 0.5.0"},
       {:k8s, "~> 2.8"},

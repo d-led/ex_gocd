@@ -633,24 +633,24 @@ defmodule ExGoCD.Analytics do
                 (pi.stage_instances || [])
                 |> Enum.map(fn si ->
                   completed_dt = to_dt(si.completed_at)
-                  scheduled_dt = to_dt(si.scheduled_at)
+                  start_dt = to_dt(si.scheduled_at || si.created_time || si.inserted_at)
 
                   wait_sec =
-                    if scheduled_dt do
+                    if start_dt do
                       si_inserted = to_dt(si.inserted_at)
-                      si_inserted && DateTime.diff(scheduled_dt, si_inserted)
+                      si_inserted && DateTime.diff(start_dt, si_inserted)
                     end
 
                   build_sec =
-                    if completed_dt && scheduled_dt do
-                      DateTime.diff(completed_dt, scheduled_dt)
+                    if completed_dt && start_dt do
+                      DateTime.diff(completed_dt, start_dt)
                     end
 
                   %{
                     name: si.name,
                     result: si.result,
                     state: si.state,
-                    scheduled_at: scheduled_dt,
+                    scheduled_at: start_dt,
                     completed_at: completed_dt,
                     wait_time_sec: wait_sec || 0,
                     build_time_sec: build_sec || 0
