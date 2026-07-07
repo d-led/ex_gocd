@@ -2,7 +2,7 @@
 
 This document maps **ex_gocd** (Phoenix/Elixir) modules and files to the **original GoCD** (Java) source. Paths under "GoCD source" are relative to the `gocd/` repository root. Use this when implementing a feature to find the canonical behavior and data model in the legacy codebase.
 
-See also: [status.md](./status.md) (high-level module tables), [rewrite.md](./rewrite.md) (plan and protocol compatibility).
+See also: [PARITY.md](./PARITY.md) (single source of truth for feature parity, roadmap, and module mapping).
 
 ---
 

@@ -8,6 +8,81 @@
 
 ---
 
+## Architecture
+
+ex_gocd is an Elixir/Phoenix rewrite of Thoughtworks GoCD, designed as a
+distributed OTP cluster with plugin extensibility and built-in observability.
+
+### Stack
+
+| Layer         | Technology                                                         |
+| ------------- | ------------------------------------------------------------------ |
+| Server        | Elixir + Phoenix LiveView + Ecto (PostgreSQL)                      |
+| Agents        | Go (`agent/`) — lightweight, self-registering, WebSocket-connected |
+| Plugins       | Standalone OTP applications, self-registering via libcluster       |
+| Observability | OpenTelemetry (OTLP → Jaeger), built-in VSM tracing                |
+| Frontend      | Phoenix LiveView (SSR) + Tailwind CSS + daisyUI                    |
+| Testing       | ExUnit (900+ tests) + Cypress E2E (19 specs) + Go tests            |
+
+### Cluster Topology
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  OTP Cluster (libcluster, gossip strategy)               │
+│                                                          │
+│  ┌──────────┐  ┌──────────┐  ┌───────────────────────┐  │
+│  │ ex_gocd  │  │ ex_gocd2 │  │ sample_scheduling_plugin │  │
+│  │ :4000    │  │ :4050    │  │ :4100 (AgentSelector) │  │
+│  └──────────┘  └──────────┘  └───────────────────────┘  │
+│       │              │              │                    │
+│  ┌──────────┐  ┌─────────────────────────────────┐      │
+│  │corp_policy│ │ simple_org_chart (:4101)        │      │
+│  │:4102      │ │ enterprise_hierarchy (:4110)    │      │
+│  └──────────┘  └─────────────────────────────────┘      │
+│                                                          │
+│  Agents (Go, WebSocket):                                 │
+│    ci-agent (elixir,postgres)                            │
+│    docker-agent (docker)                                 │
+│    elastic-docker-agent (elastic, self-terminating)      │
+└──────────────────────────────────────────────────────────┘
+```
+
+### Plugin Architecture
+
+Plugins are **standalone OTP applications** that self-register with the
+cluster via `ExGoCD.Plugin.Registry`. They connect through libcluster
+gossip and authenticate with a shared `PLUGIN_SECRET`.
+
+| Slot                 | Behaviour                     | Implementations                                                              |
+| -------------------- | ----------------------------- | ---------------------------------------------------------------------------- |
+| `:agent_selector`    | `ExGoCD.Plugin.AgentSelector` | SampleSchedulingPlugin (region-aware), CorpPolicy (least-utilized)           |
+| `:pipeline_grouper`  | Pipeline group assignment     | — (empty; DashboardLive falls back to static grouping)                       |
+| `:org_hierarchy`     | Organization structure        | SimpleOrgChart, EnterpriseHierarchy (config-driven, YAML + JSON API, :4110)  |
+| `:auth_provider`     | External authentication       | — (empty)                                                                    |
+| `:notification_sink` | Build notifications           | — (empty; not yet wired)                                                     |
+
+11 distributed singletons via Horde.DynamicSupervisor, OTEL process propagator,
+`:erpc` plugin communication. Each plugin can expose its own LiveView UI.
+
+### Architecture Differences vs GoCD
+
+| Aspect               | GoCD (Java)                  | ex_gocd (Elixir)                                                    |
+| -------------------- | ---------------------------- | ------------------------------------------------------------------- |
+| **Runtime**          | JVM + Spring                 | BEAM (Erlang VM)                                                    |
+| **Distribution**     | Single server + agents       | OTP cluster (libcluster gossip)                                     |
+| **Plugin system**    | OSGi / GoCD plugin API       | Standalone OTP apps, self-registering                               |
+| **Plugin comm**      | Java interfaces, in-process  | `:erpc` across cluster nodes                                        |
+| **Plugin UI**        | Embedded in GoCD UI          | Independent Phoenix LiveViews on own ports                          |
+| **Frontend**         | Angular/React SPA            | Phoenix LiveView (SSR over WebSocket)                               |
+| **Observability**    | External analytics plugin    | Built-in OpenTelemetry + VSM tracing                                |
+| **Agent**            | Java agent JAR (~50MB)       | Go binary (~10MB)                                                   |
+| **Configuration**    | XML + CruiseConfig           | Ecto schemas + PostgreSQL                                           |
+| **Database**         | H2 or PostgreSQL             | PostgreSQL only                                                     |
+| **Secrets**          | GoCD cipher (AES)            | `ExGoCD.Cipher` (AES, same approach)                                |
+| **Build dirs**       | `pipelines/{name}/` (shared) | `ex_gocd_jobs/{pipeline}/{counter}/...` (unique per job, circular)  |
+
+---
+
 ## Current State
 
 ex_gocd has achieved ~95% parity with GoCD. The remaining ~11 gaps are in 4 categories.
@@ -166,14 +241,14 @@ The following docs have been removed (consolidated here):
 - ~~`artifact_caching_plan.md`~~ — merged (tracked as D1)
 - ~~`elastic-agent-reaper.md`~~ — merged (reaper is done, tracked in elastic agent scheduler)
 - ~~`status.md`~~ — merged (module mapping now in `module_mapping.md`)
+- ~~`architecture_and_parity.md`~~ — merged (architecture, topology, plugin system, quality baseline)
 
-### Reference Docs (kept)
+### Reference Docs (kept, not merged)
 
-- `architecture_and_parity.md` — condensed parity summary + architecture
-- `module_mapping.md` — Elixir ↔ GoCD Java file mapping
-- `gocd_console_log_format.md` — console stream format
-- `gocd_testing_analysis.md` — GoCD Java test patterns
-- `mock_mode.md` — UI dev without DB
-- `plugin_authoring.md` — plugin development guide
-- `pubsub_and_realtime_views.md` — PubSub pattern docs
-- `sobelow-justifications.md` — security scanner justifications
+- `module_mapping.md` — Elixir ↔ GoCD Java source file mapping
+- `gocd_console_log_format.md` — tagged console stream format analysis
+- `gocd_testing_analysis.md` — GoCD Java test patterns reference
+- `mock_mode.md` — UI development without database (`USE_MOCK_DATA=true`)
+- `plugin_authoring.md` — how to write standalone OTP plugins (5 behaviour slots)
+- `pubsub_and_realtime_views.md` — PubSub broadcast pattern for LiveView updates
+- `sobelow-justifications.md` — security scanner false positive explanations
