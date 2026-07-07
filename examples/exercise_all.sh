@@ -23,10 +23,10 @@ TIMEOUT_AGENT=60
 TIMEOUT_JOB=60
 POLL_INTERVAL=2
 
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+RED=$'\033[0;31m'
+GREEN=$'\033[0;32m'
+YELLOW=$'\033[1;33m'
+NC=$'\033[0m' # No Color
 
 passed=0
 failed=0
@@ -80,8 +80,8 @@ run_exgocd_example() {
 
   # ── Start ──────────────────────────────────────────────────────────────
   log "Starting $project..."
-  docker compose -f "$compose_file" -p "$project" build -q 2>&1
-  docker compose -f "$compose_file" -p "$project" up -d 2>&1
+  docker compose -f "$compose_file" -p "$project" build -q > /dev/null
+  docker compose -f "$compose_file" -p "$project" up -d > /dev/null
 
   # ── Milestone 1: Server healthy ────────────────────────────────────────
   if ! wait_for_http "${server_url}/api/version" $TIMEOUT_SERVER "ex_gocd server"; then
@@ -223,8 +223,8 @@ run_gocd_example() {
 
   # ── Start GoCD server only (agent uses profile, started later) ─────────
   log "Starting $project (GoCD server takes ~2-3 min to start)..."
-  docker compose -f "$compose_file" -p "$project" build -q go-server 2>&1
-  docker compose -f "$compose_file" -p "$project" up -d go-server 2>&1
+  docker compose -f "$compose_file" -p "$project" build -q go-server > /dev/null
+  docker compose -f "$compose_file" -p "$project" up -d go-server > /dev/null
 
   # ── Milestone 1: GoCD server healthy ───────────────────────────────────
   if ! wait_for_http "${server_url}/go/api/support" $TIMEOUT_SERVER "GoCD server"; then
@@ -248,8 +248,8 @@ run_gocd_example() {
 
   # ── Start agent with correct key ───────────────────────────────────────
   log "Starting ex_gocd agent with correct key..."
-  AGENT_AUTO_REGISTER_KEY="$auto_key" docker compose -f "$compose_file" -p "$project" --profile agent build -q ex-gocd-agent 2>&1
-  AGENT_AUTO_REGISTER_KEY="$auto_key" docker compose -f "$compose_file" -p "$project" --profile agent up -d ex-gocd-agent 2>&1
+  AGENT_AUTO_REGISTER_KEY="$auto_key" docker compose -f "$compose_file" -p "$project" --profile agent build -q ex-gocd-agent > /dev/null
+  AGENT_AUTO_REGISTER_KEY="$auto_key" docker compose -f "$compose_file" -p "$project" --profile agent up -d ex-gocd-agent > /dev/null
 
   # ── Milestone 2: Agent visible & idle ──────────────────────────────────
   log "Waiting for agent to register and become idle..."

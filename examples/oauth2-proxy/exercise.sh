@@ -26,10 +26,10 @@ TIMEOUT_SERVER=120
 TIMEOUT_PROXY=30
 POLL_INTERVAL=2
 
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
+RED=$'\033[0;31m'
+GREEN=$'\033[0;32m'
+YELLOW=$'\033[1;33m'
+NC=$'\033[0m'
 
 passed=0
 failed=0
@@ -89,8 +89,8 @@ main() {
   # ── Start full stack ───────────────────────────────────────────────────
   banner "Start: PostgreSQL + ExGoCD + oauth2-proxy + smtp4dev"
   log "Bringing up all services..."
-  docker compose -f "$COMPOSE_FILE" -p "$PROJECT" build -q 2>&1
-  docker compose -f "$COMPOSE_FILE" -p "$PROJECT" up -d 2>&1
+  docker compose -f "$COMPOSE_FILE" -p "$PROJECT" build -q > /dev/null
+  docker compose -f "$COMPOSE_FILE" -p "$PROJECT" up -d > /dev/null
 
   # ── M1: Server healthy ─────────────────────────────────────────────────
   banner "Milestone 1: ExGoCD server healthy"
