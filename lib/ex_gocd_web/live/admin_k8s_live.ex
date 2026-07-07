@@ -22,6 +22,8 @@ defmodule ExGoCDWeb.AdminK8sLive do
   @impl true
   def mount(_params, _session, socket) do
     k3s_status = ClusterProfiles.maybe_auto_seed_k3s()
+    _agent_seed = ElasticAgentProfiles.maybe_auto_seed_default_profile()
+    _docker_seed = ElasticAgentProfiles.maybe_auto_seed_docker_profile()
     profiles = ClusterProfiles.list_profiles()
 
     socket =

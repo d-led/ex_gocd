@@ -1741,6 +1741,30 @@ defmodule ExGoCD.Pipelines do
   end
 
   @doc """
+  Syncs a JobInstance state from the agent's reported job state.
+  Called on every agent status report (Preparing → Building → Completing → Completed).
+  When Completed, delegates to the full completion flow (VSM tracing + stage completion).
+  """
+  def update_job_instance_state(job_instance_id, job_state, result \\ nil)
+      when is_integer(job_instance_id) do
+    ji = Repo.get(JobInstance, job_instance_id) |> Repo.preload(:stage_instance)
+
+    if ji do
+      if job_state == "Completed" && result do
+        do_complete_job_instance(ji, result)
+      else
+        ji
+        |> JobInstance.changeset(%{state: job_state})
+        |> Repo.update()
+
+        Phoenix.PubSub.broadcast(ExGoCD.PubSub, "pipelines:updates", :pipelines_updated)
+      end
+    end
+
+    :ok
+  end
+
+  @doc """
   Marks a job instance as completed (state Completed, result, completed_at).
   If all jobs in the stage are completed, marks the stage instance completed.
   """

@@ -55,6 +55,6 @@ defmodule ExGoCD.ConfigRepos.ConfigRepo do
     |> validate_format(:url, ~r{^https?://|^git@}, message: "must be a valid git URL")
     |> validate_inclusion(:material_type, ["git"])
     |> validate_inclusion(:source_type, @valid_source_types)
-    |> unique_constraint(:url)
+    |> unique_constraint([:url, :source_type])
   end
 end

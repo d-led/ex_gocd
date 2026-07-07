@@ -356,15 +356,16 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
 
   defp simulate_discovery("github_actions") do
     [
-      %{path: ".github/workflows/ci.yml", job_names: ["build", "test", "lint"]},
-      %{path: ".github/workflows/deploy.yml", job_names: ["deploy-staging", "deploy-prod"]},
-      %{path: ".github/workflows/nightly.yml", job_names: ["nightly-build"]}
+      %{
+        path: ".github/workflows/gradle.yml",
+        job_names: ["property-based-testing", "mutation-testing"]
+      }
     ]
   end
 
   defp simulate_discovery("gitlab_ci") do
     [
-      %{path: ".gitlab-ci.yml", job_names: ["build", "test", "deploy"]}
+      %{path: ".gitlab-ci.yml", job_names: ["test", "pitest"]}
     ]
   end
 
@@ -772,6 +773,42 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
                   </button>
                 <% end %>
               </div>
+
+              <%!-- Resource requirement note --%>
+              <%= if cfg.mode == "execute_act" do %>
+                <p class="mt-2 text-[11px] text-blue-600 bg-blue-50 border border-blue-200 rounded px-3 py-2">
+                  <i class="fa fa-info-circle mr-1"></i>
+                  <strong>Agent requirement:</strong>
+                  Jobs in this mode request the <code class="bg-blue-100 px-1 rounded">act</code>
+                  resource.
+                  Make sure at least one agent has the
+                  <code class="bg-blue-100 px-1 rounded">act</code>
+                  resource (e.g. <code class="bg-blue-100 px-1 rounded">resources: ["act", "docker", "linux"]</code>).
+                  The
+                  <a href="https://github.com/nektos/act" target="_blank" class="underline">
+                    act CLI
+                  </a>
+                  must be installed on matching agents.
+                </p>
+              <% end %>
+              <%= if cfg.mode == "execute_gitlab" do %>
+                <p class="mt-2 text-[11px] text-orange-600 bg-orange-50 border border-orange-200 rounded px-3 py-2">
+                  <i class="fa fa-info-circle mr-1"></i>
+                  <strong>Agent requirement:</strong>
+                  Jobs in this mode request the
+                  <code class="bg-orange-100 px-1 rounded">gitlab-ci-local</code>
+                  resource.
+                  Make sure at least one agent has
+                  <a
+                    href="https://github.com/firecow/gitlab-ci-local"
+                    target="_blank"
+                    class="underline"
+                  >
+                    gitlab-ci-local
+                  </a>
+                  installed and the resource tag.
+                </p>
+              <% end %>
             </div>
 
             <%!-- Job selection (only when mode is translate or execute) --%>

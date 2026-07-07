@@ -226,7 +226,7 @@ defmodule ExGoCDWeb.AdminLive do
             <i class="fa-solid fa-circle-question"></i>
           </a>
         </div>
-        
+
     <!-- Page Header Actions (Dynamic based on Tab) -->
         <div class="flex flex-wrap items-center gap-4">
           <%= if @tab == "pipelines" do %>
@@ -261,7 +261,7 @@ defmodule ExGoCDWeb.AdminLive do
           <% end %>
         </div>
       </div>
-      
+
     <!-- Sub-Tab Navigation Bar -->
       <div class="bg-white border-b border-[#e9edef] px-6 py-2.5 flex flex-wrap gap-6 text-sm font-semibold shadow-sm">
         <.sub_tab_link active={@tab == "overview"} href="/admin/overview">Overview</.sub_tab_link>
@@ -288,7 +288,7 @@ defmodule ExGoCDWeb.AdminLive do
           🔗 Clustering
         </.sub_tab_link>
       </div>
-      
+
     <!-- Main Layout Body (Centered Content) -->
       <div class="max-w-[1400px] mx-auto px-6 py-6">
         <%= if @flash_info do %>
@@ -472,7 +472,7 @@ defmodule ExGoCDWeb.AdminLive do
             </div>
           </div>
         </div>
-        
+
     <!-- Quick Actions -->
         <div class="bg-white rounded border border-[#d6e0e2] p-5 shadow-sm">
           <h3 class="text-sm font-bold border-b border-[#e9edef] pb-3 flex items-center gap-2 text-slate-700">
@@ -575,7 +575,7 @@ defmodule ExGoCDWeb.AdminLive do
           </div>
         </form>
       <% end %>
-      
+
     <!-- Pipeline Group Cards -->
       <div class="space-y-6">
         <%= for group <- @filtered_groups do %>
@@ -816,7 +816,21 @@ defmodule ExGoCDWeb.AdminLive do
                     do: Calendar.strftime(repo.last_parsed_at, "%Y-%m-%d %H:%M"),
                     else: "—"}
                 </td>
-                <td class="px-5 py-4 text-right">
+                <td class="px-5 py-4 text-right whitespace-nowrap">
+                  <a
+                    href={"/admin/config_repos/" <> to_string(repo.id) <> "/edit"}
+                    class="text-xs text-slate-500 hover:text-[#943a9e] font-bold mr-3"
+                  >
+                    <i class="fa fa-pencil mr-1"></i> Edit
+                  </a>
+                  <button
+                    phx-click="trigger_config_repo"
+                    phx-value-id={repo.id}
+                    class="text-xs text-emerald-600 hover:text-emerald-800 font-bold mr-3"
+                    data-confirm="Re-run all pipelines from this config repo?"
+                  >
+                    <i class="fa fa-play mr-1"></i> Trigger
+                  </button>
                   <button
                     phx-click="sync_config_repo"
                     phx-value-id={repo.id}
@@ -1135,6 +1149,28 @@ defmodule ExGoCDWeb.AdminLive do
   end
 
   # --- Event Handlers ---
+
+  @impl true
+  def handle_event("trigger_config_repo", %{"id" => id}, socket) do
+    id = String.to_integer(id)
+
+    case ConfigRepos.get_config_repo(id) do
+      nil ->
+        {:noreply, put_flash(socket, :error, "Config repo not found.")}
+
+      repo ->
+        _result = ConfigRepos.refresh_config_repo(repo)
+        repos = ConfigRepos.list_config_repos()
+
+        {:noreply,
+         socket
+         |> assign(:config_repos, repos)
+         |> put_flash(
+           :info,
+           "Re-parse triggered for '#{repo.url}'. (Git clone not yet wired — use Sync for now.)"
+         )}
+    end
+  end
 
   @impl true
   def handle_event("sync_config_repo", %{"id" => id}, socket) do
@@ -2101,7 +2137,7 @@ defmodule ExGoCDWeb.AdminLive do
           </div>
         </form>
       </div>
-      
+
     <!-- Results Table -->
       <div class="bg-white rounded border border-[#d6e0e2] overflow-hidden shadow-sm">
         <div class="overflow-x-auto">
@@ -2238,7 +2274,7 @@ defmodule ExGoCDWeb.AdminLive do
             <% end %>
           </div>
         </div>
-        
+
     <!-- Cluster Events -->
         <div>
           <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
@@ -2268,7 +2304,7 @@ defmodule ExGoCDWeb.AdminLive do
             <% end %>
           </div>
         </div>
-        
+
     <!-- Plugin UIs -->
         <div>
           <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Plugin UIs</h4>
@@ -2287,7 +2323,7 @@ defmodule ExGoCDWeb.AdminLive do
             <% end %>
           </div>
         </div>
-        
+
     <!-- Singleton Locations -->
         <div>
           <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">

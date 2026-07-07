@@ -78,8 +78,7 @@ describe("External CI Repo Wizard E2E Tests", () => {
 
     // Should show step 2
     cy.contains("h2", "Files found in this repository").should("exist");
-    cy.contains(".github/workflows/ci.yml").should("exist");
-    cy.contains(".github/workflows/deploy.yml").should("exist");
+    cy.contains(".github/workflows/gradle.yml").should("exist");
     cy.contains("button", "Select all").should("exist");
     cy.contains("button", "Deselect all").should("exist");
   });

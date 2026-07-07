@@ -157,6 +157,9 @@ defmodule ExGoCD.ConfigRepos.GitHubActionsTranslatorTest do
       assert task.type == "external"
       assert task.external_config.executor == "act"
       assert task.external_config.job_name == "build"
+
+      # Should request "act" resource so only act-capable agents match
+      assert hd(jobs).resources == ["ubuntu-latest", "act"]
     end
   end
 

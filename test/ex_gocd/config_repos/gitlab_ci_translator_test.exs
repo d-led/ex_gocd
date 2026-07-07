@@ -104,4 +104,33 @@ defmodule ExGoCD.ConfigRepos.GitLabCITranslatorTest do
       assert attrs.stages == []
     end
   end
+
+  describe "translate/2 — execute_gitlab mode" do
+    test "creates external task pipeline for execute_gitlab mode", %{prefix: prefix} do
+      {:ok, ir} = GitLabCIParser.parse_gitlab_ci(@fixture_simple, ".gitlab-ci.yml")
+
+      {:ok, attrs} =
+        GitLabCITranslator.translate(ir, %{
+          mode: "execute_gitlab",
+          pipeline_name_prefix: prefix,
+          selected_jobs: %{"included" => ["build-job"]}
+        })
+
+      assert length(attrs.stages) == 1
+      assert hd(attrs.stages).name == "build"
+
+      jobs = hd(attrs.stages).jobs
+      assert length(jobs) == 1
+
+      tasks = hd(jobs).tasks
+      assert length(tasks) == 1
+      task = hd(tasks)
+      assert task.type == "external"
+      assert task.external_config.executor == "gitlab-ci-local"
+      assert task.external_config.job_name == "build-job"
+
+      # Should request gitlab-ci-local resource
+      assert hd(jobs).resources == ["gitlab-ci-local"]
+    end
+  end
 end

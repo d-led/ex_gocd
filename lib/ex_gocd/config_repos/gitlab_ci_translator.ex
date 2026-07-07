@@ -27,6 +27,7 @@ defmodule ExGoCD.ConfigRepos.GitLabCITranslator do
 
     case mode do
       "skip" -> {:ok, skip_attrs(ir, selections)}
+      "execute_gitlab" -> {:ok, execute_gitlab_attrs(ir, selections)}
       _ -> {:ok, translate_attrs(ir, selections)}
     end
   end
@@ -116,6 +117,51 @@ defmodule ExGoCD.ConfigRepos.GitLabCITranslator do
     # GitLab CI triggers via rules, not top-level on: — v1: no SCM material
     # Later: parse rules:if to extract branch filters
     []
+  end
+
+  # --- Execute gitlab-ci-local mode ---
+
+  defp execute_gitlab_attrs(ir, selections) do
+    prefix = Map.get(selections, :pipeline_name_prefix, "")
+    selected_jobs = get_in(selections, [:selected_jobs, "included"])
+
+    stages =
+      ir.jobs
+      |> TranslatorHelpers.filter_jobs(selected_jobs)
+      |> Enum.map(fn {job_name, job_data} ->
+        %{
+          name: job_data.stage || "default",
+          approval_type: if(job_data[:when] == "manual", do: "manual", else: "success"),
+          fetch_materials: true,
+          clean_working_directory: false,
+          jobs: [
+            %{
+              name: job_name,
+              resources: ["gitlab-ci-local"],
+              tasks: [
+                %{
+                  type: "external",
+                  command: "gitlab-ci-local",
+                  arguments: [],
+                  run_if: "passed",
+                  external_config: %{
+                    executor: "gitlab-ci-local",
+                    pipeline_file: ir.source_file,
+                    job_name: job_name
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      end)
+
+    %{
+      name: TranslatorHelpers.pipeline_name(ir, prefix),
+      group: prefix,
+      stages: stages,
+      materials: build_materials(ir)
+    }
   end
 
   # --- Helpers ---

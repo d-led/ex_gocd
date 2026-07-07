@@ -142,7 +142,7 @@ defmodule ExGoCD.AgentJobRuns do
       {:ok, updated} ->
         broadcast_job_runs(agent_uuid, :run_updated)
         broadcast_run_updated_for_console(build_id, updated)
-        maybe_complete_job_instance(updated, job_state, result)
+        sync_job_instance_state(updated, job_state, result)
         {:ok, updated}
 
       error ->
@@ -150,9 +150,9 @@ defmodule ExGoCD.AgentJobRuns do
     end
   end
 
-  defp maybe_complete_job_instance(updated, job_state, result) do
-    if updated.job_instance_id && job_state == "Completed" && result do
-      ExGoCD.Pipelines.complete_job_instance(updated.job_instance_id, result)
+  defp sync_job_instance_state(updated, job_state, result) do
+    if updated.job_instance_id do
+      ExGoCD.Pipelines.update_job_instance_state(updated.job_instance_id, job_state, result)
     end
   end
 

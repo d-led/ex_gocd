@@ -152,7 +152,7 @@ defmodule ExGoCD.ConfigRepos.GitHubActionsTranslator do
           jobs: [
             %{
               name: job_name,
-              resources: [job_data.runs_on],
+              resources: [job_data.runs_on, "act"],
               tasks: [
                 %{
                   type: "external",
