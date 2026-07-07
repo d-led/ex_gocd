@@ -19,6 +19,15 @@ defmodule ExGoCDWeb.Router do
     plug OpenApiSpex.Plug.PutApiSpec, module: ExGoCDWeb.ApiSpec
   end
 
+  pipeline :admin_api do
+    plug :accepts, ["json"]
+    plug :fetch_session
+    plug ExGoCDWeb.Plugs.TokenAuthPlug
+    plug ExGoCDWeb.Plugs.AdminApiPlug
+    plug ExGoCDWeb.Plugs.GoCDAPIHeaders
+    plug OpenApiSpex.Plug.PutApiSpec, module: ExGoCDWeb.ApiSpec
+  end
+
   pipeline :form do
     plug :accepts, ["html", "json"]
     plug :fetch_session
@@ -314,12 +323,12 @@ defmodule ExGoCDWeb.Router do
   end
 
   scope "/api/admin/config_repos", ExGoCDWeb.API do
-    pipe_through :api
+    pipe_through :admin_api
     delete "/cleanup", ConfigRepoController, :cleanup_test_data
   end
 
   scope "/api/admin/config_repos", ExGoCDWeb.API.Admin do
-    pipe_through :api
+    pipe_through :admin_api
     get "/", ConfigRepoController, :index
     get "/:id", ConfigRepoController, :show
     post "/", ConfigRepoController, :create
@@ -329,13 +338,13 @@ defmodule ExGoCDWeb.Router do
   end
 
   scope "/api/admin", ExGoCDWeb.API do
-    pipe_through :api
+    pipe_through :admin_api
     get "/scms", SCMController, :index
     get "/scms/:id", SCMController, :show
   end
 
   scope "/api/admin", ExGoCDWeb.API.Admin do
-    pipe_through :api
+    pipe_through :admin_api
 
     resources "/pipelines", PipelineConfigController, except: [:new, :edit], param: "name"
     resources "/pipeline_groups", PipelineGroupController, except: [:new, :edit], param: "name"

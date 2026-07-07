@@ -147,7 +147,10 @@ defmodule ExGoCDWeb.API.PersonalAccessTokenControllerTest do
 
       # No auth -> 403 Forbidden because they are guest viewer now
       conn_guest = get(conn, ~p"/api/admin/environments")
-      assert json_response(conn_guest, 403) == %{"error" => "Forbidden"}
+
+      assert json_response(conn_guest, 403) == %{
+               "error" => "Forbidden \u2014 admin access required"
+             }
 
       # Valid Bearer token authentication -> 200 OK
       conn_auth =

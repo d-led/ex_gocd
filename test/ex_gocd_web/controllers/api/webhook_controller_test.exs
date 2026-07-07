@@ -2,6 +2,7 @@ defmodule ExGoCDWeb.API.WebhookControllerTest do
   use ExGoCDWeb.ConnCase, async: false
 
   alias ExGoCD.Repo
+  alias ExGoCD.Accounts
   alias ExGoCD.Pipelines.{Job, Material, Modification, Pipeline, PipelineInstance, Stage, Task}
   import Ecto.Query
 
@@ -11,6 +12,10 @@ defmodule ExGoCDWeb.API.WebhookControllerTest do
     Repo.delete_all(PipelineInstance)
     Repo.delete_all(Pipeline)
     Repo.delete_all(Material)
+
+    # Clean up any admin users from other tests
+    {:ok, _} =
+      Ecto.Adapters.SQL.query(Repo, "DELETE FROM users WHERE username LIKE 'webhook_admin_%'")
 
     # Clean env variables
     System.delete_env("GOCD_WEBHOOK_SECRET")
@@ -26,25 +31,41 @@ defmodule ExGoCDWeb.API.WebhookControllerTest do
   end
 
   describe "POST /api/admin/materials/git/notify" do
-    test "returns 400 when Confirm header is missing", %{conn: conn} do
+    setup do
+      # Create admin user so system is in security mode
+      {:ok, admin} =
+        Accounts.create_user(%{
+          username: "webhook_admin_git",
+          display_name: "Webhook Admin",
+          roles: ["admin"],
+          status: "Active"
+        })
+
+      {:ok, admin: admin}
+    end
+
+    test "returns 401 when no admin session", %{conn: conn} do
       conn =
         post(conn, ~p"/api/admin/materials/git/notify", %{
           "repository_url" => "https://github.com/d-led/ex_gocd"
         })
 
-      assert json_response(conn, 400) == %{"error" => "Missing required header 'Confirm: true'"}
+      assert json_response(conn, 401) == %{"error" => "Admin access token required"}
     end
 
-    test "returns 400 when repository_url is missing", %{conn: conn} do
+    test "returns 400 when repository_url is missing (admin authenticated)", %{
+      conn: conn,
+      admin: admin
+    } do
       conn =
         conn
-        |> put_req_header("confirm", "true")
+        |> init_test_session(%{"username" => admin.username, "user_id" => admin.id})
         |> post(~p"/api/admin/materials/git/notify", %{})
 
       assert json_response(conn, 400) == %{"error" => "Missing parameter 'repository_url'"}
     end
 
-    test "triggers polling and returns 202 when parameters are valid", %{conn: conn} do
+    test "triggers polling and returns 202 with admin session", %{conn: conn, admin: admin} do
       seed_pipeline_with_stages("https://github.com/d-led/ex_gocd.git", "webhook-test-pipeline")
 
       # Mock revision in git client
@@ -53,7 +74,7 @@ defmodule ExGoCDWeb.API.WebhookControllerTest do
 
       conn =
         conn
-        |> put_req_header("confirm", "true")
+        |> init_test_session(%{"username" => admin.username, "user_id" => admin.id})
         |> post(~p"/api/admin/materials/git/notify", %{
           "repository_url" => "https://github.com/d-led/ex_gocd"
         })
@@ -179,6 +200,86 @@ defmodule ExGoCDWeb.API.WebhookControllerTest do
 
       # Polling is synchronous in test mode
       assert Repo.exists?(from m in Modification, where: m.revision == ^sha)
+    end
+  end
+
+  describe "POST /api/webhooks/bitbucket-server/notify" do
+    test "returns 202 when webhook secret is not set", %{conn: conn} do
+      seed_pipeline_with_stages(
+        "https://bitbucket.org/myteam/myrepo.git",
+        "bitbucket-server-pipeline"
+      )
+
+      sha = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      Application.put_env(:ex_gocd, :mock_git_revision, sha)
+
+      payload = %{
+        "repository" => %{
+          "links" => %{
+            "clone" => [%{"name" => "http", "href" => "https://bitbucket.org/myteam/myrepo.git"}]
+          }
+        }
+      }
+
+      conn = post(conn, ~p"/api/webhooks/bitbucket-server/notify", payload)
+      assert response(conn, 202) == "Accepted"
+      assert Repo.exists?(from m in Modification, where: m.revision == ^sha)
+    end
+
+    test "returns 401 when webhook secret is set and signature is missing", %{conn: conn} do
+      System.put_env("GOCD_WEBHOOK_SECRET", "bitbucket_secret")
+
+      payload = %{
+        "repository" => %{
+          "links" => %{
+            "clone" => [%{"name" => "http", "href" => "https://bitbucket.org/myteam/myrepo.git"}]
+          }
+        }
+      }
+
+      conn = post(conn, ~p"/api/webhooks/bitbucket-server/notify", payload)
+      assert response(conn, 401) == "Invalid signature"
+    end
+  end
+
+  describe "POST /api/webhooks/bitbucket-cloud/notify" do
+    test "returns 202 when webhook secret is not set", %{conn: conn} do
+      seed_pipeline_with_stages(
+        "https://bitbucket.org/myteam/myrepo-cloud.git",
+        "bitbucket-cloud-pipeline"
+      )
+
+      sha = "cccccccccccccccccccccccccccccccccccccccc"
+      Application.put_env(:ex_gocd, :mock_git_revision, sha)
+
+      payload = %{
+        "repository" => %{
+          "full_name" => "myteam/myrepo-cloud",
+          "links" => %{
+            "html" => %{"href" => "https://bitbucket.org/myteam/myrepo-cloud"}
+          }
+        }
+      }
+
+      conn = post(conn, ~p"/api/webhooks/bitbucket-cloud/notify", payload)
+      assert response(conn, 202) == "Accepted"
+      assert Repo.exists?(from m in Modification, where: m.revision == ^sha)
+    end
+
+    test "returns 401 when webhook secret is set and signature is missing", %{conn: conn} do
+      System.put_env("GOCD_WEBHOOK_SECRET", "bitbucket_cloud_secret")
+
+      payload = %{
+        "repository" => %{
+          "full_name" => "myteam/myrepo-cloud",
+          "links" => %{
+            "html" => %{"href" => "https://bitbucket.org/myteam/myrepo-cloud"}
+          }
+        }
+      }
+
+      conn = post(conn, ~p"/api/webhooks/bitbucket-cloud/notify", payload)
+      assert response(conn, 401) == "Invalid signature"
     end
   end
 

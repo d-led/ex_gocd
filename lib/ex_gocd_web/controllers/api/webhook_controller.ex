@@ -77,30 +77,44 @@ defmodule ExGoCDWeb.API.WebhookController do
   @doc """
   POST /api/webhooks/bitbucket-server/notify
   Bitbucket Server push webhook. Extracts repository URL from payload.
+  Requires webhook secret verification when GOCD_WEBHOOK_SECRET is set.
   """
   def bitbucket_server_notify(conn, params) do
-    case extract_bitbucket_server_url(params) do
-      url when is_binary(url) and url != "" ->
-        trigger_poll(url)
-        conn |> put_status(:accepted) |> text("Accepted")
+    if verify_webhook_secret(conn) do
+      case extract_bitbucket_server_url(params) do
+        url when is_binary(url) and url != "" ->
+          trigger_poll(url)
+          conn |> put_status(:accepted) |> text("Accepted")
 
-      _ ->
-        conn |> put_status(:bad_request) |> text("Missing repository URL in payload")
+        _ ->
+          conn |> put_status(:bad_request) |> text("Missing repository URL in payload")
+      end
+    else
+      conn
+      |> put_status(:unauthorized)
+      |> text("Invalid signature")
     end
   end
 
   @doc """
   POST /api/webhooks/bitbucket-cloud/notify
   Bitbucket Cloud push webhook. Extracts repository URL from payload.
+  Requires webhook secret verification when GOCD_WEBHOOK_SECRET is set.
   """
   def bitbucket_cloud_notify(conn, params) do
-    case extract_bitbucket_cloud_url(params) do
-      url when is_binary(url) and url != "" ->
-        trigger_poll(url)
-        conn |> put_status(:accepted) |> text("Accepted")
+    if verify_webhook_secret(conn) do
+      case extract_bitbucket_cloud_url(params) do
+        url when is_binary(url) and url != "" ->
+          trigger_poll(url)
+          conn |> put_status(:accepted) |> text("Accepted")
 
-      _ ->
-        conn |> put_status(:bad_request) |> text("Missing repository URL in payload")
+        _ ->
+          conn |> put_status(:bad_request) |> text("Missing repository URL in payload")
+      end
+    else
+      conn
+      |> put_status(:unauthorized)
+      |> text("Invalid signature")
     end
   end
 
@@ -116,12 +130,12 @@ defmodule ExGoCDWeb.API.WebhookController do
   """
   def other_scm_notify(conn, params), do: admin_notify(conn, params)
 
-  # ── Confirm-header-protected admin notify (git, hg, other-scm) ─────────────
+  # ── Admin-auth-protected admin notify (git, hg, other-scm) ────────────────
+  # Requires a valid admin-role Bearer token. Mirrors GoCD's
+  # MaterialNotifyControllerV2 which requires checkAdminUserAnd403.
 
   defp admin_notify(conn, params) do
-    confirm_header = get_req_header(conn, "confirm")
-
-    if List.first(confirm_header) == "true" do
+    if admin_authenticated?(conn) do
       case Map.get(params, "repository_url") do
         url when is_binary(url) and url != "" ->
           trigger_poll(url)
@@ -140,8 +154,58 @@ defmodule ExGoCDWeb.API.WebhookController do
       end
     else
       conn
-      |> put_status(:bad_request)
-      |> json(%{"error" => "Missing required header 'Confirm: true'"})
+      |> put_status(:unauthorized)
+      |> json(%{"error" => "Admin access token required"})
+    end
+  end
+
+  defp admin_authenticated?(conn) do
+    # GoCD open mode: no admin configured → anyone can trigger polling
+    not ExGoCD.Accounts.admin_configured?() or
+      conn
+      |> Plug.Conn.get_session()
+      |> ExGoCD.Accounts.get_current_user()
+      |> ExGoCD.Accounts.User.has_role?(:admin)
+  end
+
+  # Shared webhook secret verifier for bitbucket endpoints
+  defp verify_webhook_secret(conn) do
+    case System.get_env("GOCD_WEBHOOK_SECRET") do
+      nil ->
+        true
+
+      "" ->
+        true
+
+      secret ->
+        # Bitbucket Server uses X-Hub-Signature header
+        signature =
+          List.first(get_req_header(conn, "x-hub-signature")) ||
+            List.first(get_req_header(conn, "x-hub-signature-256"))
+
+        if signature do
+          expected =
+            if String.starts_with?(signature, "sha256=") do
+              "sha256=" <> expected_sig = signature
+              raw_body = conn.assigns[:raw_body] || ""
+
+              actual_sig =
+                :crypto.mac(:hmac, :sha256, secret, raw_body) |> Base.encode16(case: :lower)
+
+              Plug.Crypto.secure_compare(actual_sig, expected_sig)
+            else
+              raw_body = conn.assigns[:raw_body] || ""
+
+              actual_sig =
+                :crypto.mac(:hmac, :sha1, secret, raw_body) |> Base.encode16(case: :lower)
+
+              Plug.Crypto.secure_compare(actual_sig, signature)
+            end
+
+          expected
+        else
+          false
+        end
     end
   end
 

@@ -13,10 +13,8 @@ defmodule ExGoCDWeb.API.Admin.EnvironmentControllerTest do
   ]
 
   setup do
-    # Clean up DB tables
     Repo.delete_all(Environment)
     Repo.delete_all(Pipeline)
-    Repo.delete_all(Accounts.User)
 
     p1 = Repo.insert!(%Pipeline{name: "pipe-1", group: "default"})
     p2 = Repo.insert!(%Pipeline{name: "pipe-2", group: "default"})
@@ -24,8 +22,22 @@ defmodule ExGoCDWeb.API.Admin.EnvironmentControllerTest do
     {:ok, p1: p1, p2: p2}
   end
 
-  describe "Open Mode (No admin configured)" do
-    test "allows any unauthenticated request to perform CRUD", %{conn: conn, p1: p1} do
+  describe "Environment CRUD (admin authenticated)" do
+    setup do
+      {:ok, admin} =
+        Accounts.create_user(%{
+          username: "env-admin-#{System.unique_integer([:positive])}",
+          display_name: "Env Admin",
+          roles: ["admin"],
+          status: "Active"
+        })
+
+      {:ok, admin: admin}
+    end
+
+    test "full CRUD lifecycle as admin", %{conn: conn, p1: p1, admin: admin} do
+      conn = log_in_as(conn, admin.username)
+
       # Create
       create_conn =
         post(conn, ~p"/api/admin/environments", %{
@@ -124,7 +136,11 @@ defmodule ExGoCDWeb.API.Admin.EnvironmentControllerTest do
       assert json_response(delete_conn, 200)
     end
 
-    test "allows viewer to read but denies write actions", %{conn: conn, viewer: viewer, p1: p1} do
+    test "denies viewer all access — admin role required for admin API", %{
+      conn: conn,
+      viewer: viewer,
+      p1: p1
+    } do
       # Create an environment first using backend context
       {:ok, _env} =
         Environments.create_environment(%{
@@ -136,21 +152,19 @@ defmodule ExGoCDWeb.API.Admin.EnvironmentControllerTest do
       # Log in as viewer
       conn = log_in_as(conn, viewer.username)
 
-      # Read actions (List & Show) should be allowed
+      # All admin API operations are blocked for non-admin users
       list_conn = get(conn, ~p"/api/admin/environments")
-      assert json_response(list_conn, 200)
+      assert json_response(list_conn, 403)
 
       show_conn = get(conn, ~p"/api/admin/environments/stage-env")
-      assert json_response(show_conn, 200)
-      etag = List.first(get_resp_header(show_conn, "etag"))
+      assert json_response(show_conn, 403)
 
-      # Write actions should be forbidden (403)
       create_conn = post(conn, ~p"/api/admin/environments", %{"name" => "new-env"})
       assert json_response(create_conn, 403)
 
       update_conn =
         conn
-        |> put_req_header("if-match", etag)
+        |> put_req_header("if-match", "\"some-etag\"")
         |> put(~p"/api/admin/environments/stage-env", %{"pipelines" => []})
 
       assert json_response(update_conn, 403)

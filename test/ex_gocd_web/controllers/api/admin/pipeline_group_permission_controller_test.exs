@@ -1,6 +1,6 @@
 defmodule ExGoCDWeb.API.Admin.PipelineGroupPermissionControllerTest do
   use ExGoCDWeb.ConnCase
-  alias ExGoCD.Accounts
+  alias ExGoCD.{Repo, Accounts}
 
   setup do
     {:ok, user} =
@@ -15,7 +15,9 @@ defmodule ExGoCDWeb.API.Admin.PipelineGroupPermissionControllerTest do
 
   test "grants and lists pipeline group permissions", %{conn: conn, user: user} do
     conn =
-      post(conn, "/api/admin/pipeline_group_permissions", %{
+      conn
+      |> log_in_as(user.username)
+      |> post("/api/admin/pipeline_group_permissions", %{
         user_id: "#{user.id}",
         pipeline_group: "Build",
         role: "operator"
@@ -26,19 +28,23 @@ defmodule ExGoCDWeb.API.Admin.PipelineGroupPermissionControllerTest do
     assert %{"data" => %{"role" => "operator", "pipeline_group" => "Build"}} =
              json_response(conn, 201)
 
-    conn = get(conn, "/api/admin/pipeline_group_permissions?user_id=#{user.id}")
-    assert conn.status == 200
-    assert [%{"role" => "operator"}] = json_response(conn, 200)["data"]
+    list_conn =
+      build_conn()
+      |> Plug.Test.init_test_session(%{})
+      |> log_in_as(user.username)
+      |> get("/api/admin/pipeline_group_permissions?user_id=#{user.id}")
+
+    assert list_conn.status == 200
+    assert [%{"role" => "operator"}] = json_response(list_conn, 200)["data"]
   end
 
   test "revokes pipeline group permissions", %{conn: conn, user: user} do
     Accounts.grant_pipeline_group_permission(user.id, "Deploy", "viewer")
 
     conn =
-      delete(
-        conn,
-        "/api/admin/pipeline_group_permissions?user_id=#{user.id}&pipeline_group=Deploy"
-      )
+      conn
+      |> log_in_as(user.username)
+      |> delete("/api/admin/pipeline_group_permissions?user_id=#{user.id}&pipeline_group=Deploy")
 
     assert conn.status == 200
 
@@ -48,7 +54,9 @@ defmodule ExGoCDWeb.API.Admin.PipelineGroupPermissionControllerTest do
 
   test "rejects invalid role", %{conn: conn, user: user} do
     conn =
-      post(conn, "/api/admin/pipeline_group_permissions", %{
+      conn
+      |> log_in_as(user.username)
+      |> post("/api/admin/pipeline_group_permissions", %{
         user_id: "#{user.id}",
         pipeline_group: "Build",
         role: "superadmin"
