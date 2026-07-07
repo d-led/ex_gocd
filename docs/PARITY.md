@@ -2,6 +2,9 @@
 
 > Single source of truth. Supersedes all previous plan/roadmap/status documents.
 > Last audited: 2026-07-06. 900+ tests. 67 controllers. 21 LiveView pages. 20 GenServers. 40 migrations.
+> **Phase 1 parity (2026-07-06):** Encryption API, kill_running_tasks, webhook endpoints (bitbucket/hg/other-scm), feed XML (stage/job/material/scheduled).
+> **Phase 2 parity (2026-07-06):** Packages CRUD API, Backup config API, Backup status tracking, Pipeline groups admin API.
+> **Enterprise Org Hierarchy plugin (2026-07-06):** Config-driven GenServer, YAML org.yaml with hot-reload (30s file watch), change detection & broadcasting. 4 departments, 13 pipeline groups, nested inheritance. 13 tests. Standalone OTP app at `plugins/managed/enterprise_hierarchy/`. Replaces static SimpleOrgChart.
 
 ---
 

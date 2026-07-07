@@ -5,204 +5,458 @@
  * Run via: bash scripts/update-screenshots-cypress.sh
  * (NOT included in default `npm run cypress:run`)
  *
- * Every test discovers what's available dynamically — no hardcoded pipeline names.
- * If preconditions aren't met, the test skips with a log message instead of failing.
+ * Every test discovers what's available dynamically — no hardcoded names.
+ * If preconditions aren't met, the test skips gracefully.
+ *
+ * Uses ONLY reusable custom commands: no raw cy.get, no magic selectors.
  */
-
-const READY = { timeout: 10000 };
-
-/**
- * Visit /pipelines, discover the first pipeline name + counter,
- * then invoke `cb(name, counter)`.  If no pipeline exists, skip the test.
- */
-function withPipeline(runnable, cb) {
-  cy.visit("/pipelines");
-  cy.get(".phx-connected", READY);
-  cy.get("body").then(($body) => {
-    const nameEl = $body.find(".pipeline_name").first();
-    if (!nameEl.length) {
-      cy.log("** SKIP: no pipelines on dashboard");
-      runnable.skip();
-      return;
-    }
-    const name = nameEl.text().trim();
-
-    const labelEl = $body.find(".pipeline_instance-label").first();
-    let counter = null;
-    if (labelEl.length) {
-      const match = labelEl.text().match(/(\d+)/);
-      if (match) counter = match[1];
-    }
-
-    cy.log(`Pipeline: ${name} counter=${counter || "?"}`);
-    cb(name, counter);
-  });
-}
 
 describe("Auto screenshot", () => {
-  // ── Dashboard ────────────────────────────────────────────────
+  // Sign in once via Quick Login for admin-protected pages.
+  // NOTE: demo login page — will be removed in production
+  // once custom admin accounts are configured.
+  before(() => {
+    cy.loginAsAdmin();
+  });
+
+  beforeEach(() => {
+    cy.loginAsAdmin();
+  });
+
+  // ═══════════════════════════════════════════════════════════════
+  // DASHBOARD
+  // ═══════════════════════════════════════════════════════════════
 
   it("dashboard", function () {
-    cy.visit("/pipelines");
-    cy.get(".phx-connected", READY);
-    cy.get(".dashboard").should("exist");
-    cy.appScreenshot("dashboard");
+    cy.navigateAndVerify("/pipelines", ".dashboard");
+    cy.captureScreenshot("dashboard");
   });
 
-  // ── Agents ───────────────────────────────────────────────────
+  // ═══════════════════════════════════════════════════════════════
+  // AGENTS
+  // ═══════════════════════════════════════════════════════════════
 
   it("agents (static tab)", function () {
-    cy.visit("/agents");
-    cy.get(".phx-connected", READY);
-    cy.get(".agents-page").should("exist");
-    cy.appScreenshot("agents");
+    cy.navigateAndVerify("/agents", ".agents-page");
+    cy.captureScreenshot("agents");
   });
 
-  // ── Materials ────────────────────────────────────────────────
+  it("agents (elastic tab)", function () {
+    cy.navigateAndVerify("/agents", ".agents-page");
+    cy.get("body").then(($body) => {
+      const tab = $body.find("button").filter((_, el) =>
+        el.textContent.trim() === "ELASTIC"
+      );
+      if (!tab.length) { this.skip(); return; }
+    });
+    cy.clickTab("ELASTIC");
+    cy.captureScreenshot("agents-elastic");
+  });
+
+  it("agents (k8s pods tab)", function () {
+    cy.navigateAndVerify("/agents", ".agents-page");
+    cy.get("body").then(($body) => {
+      const tab = $body.find("button").filter((_, el) =>
+        el.textContent.trim() === "K8S PODS"
+      );
+      if (!tab.length) { this.skip(); return; }
+    });
+    cy.clickTab("K8S PODS");
+    cy.captureScreenshot("agents-k8s-pods");
+  });
+
+  it("agent job history", function () {
+    cy.navigateAndVerify("/agents", ".agents-page");
+    cy.discoverFirstAgent();
+    cy.get("@agent").then(function (agent) {
+      cy.navigateAndVerify(`/agents/${agent.uuid}/job_run_history`);
+      cy.captureScreenshot("agent-job-history");
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════
+  // MATERIALS
+  // ═══════════════════════════════════════════════════════════════
 
   it("materials", function () {
-    cy.visit("/materials");
-    cy.get(".phx-connected", READY);
-    cy.get(".materials-page").should("exist");
-    cy.appScreenshot("materials");
+    cy.navigateAndVerify("/materials", ".materials-page");
+    cy.captureScreenshot("materials");
   });
 
-  // ── Admin ────────────────────────────────────────────────────
+  // ═══════════════════════════════════════════════════════════════
+  // ANALYTICS
+  // ═══════════════════════════════════════════════════════════════
 
-  it("admin", function () {
-    cy.visit("/admin");
-    cy.get(".phx-connected", READY);
-    cy.appScreenshot("admin");
+  it("analytics (global)", function () {
+    cy.navigateAndVerify("/analytics");
+    cy.captureScreenshot("analytics-global");
   });
 
-  // ── Analytics ────────────────────────────────────────────────
-
-  it("analytics", function () {
-    cy.visit("/analytics");
-    cy.get(".phx-connected", READY);
-    cy.appScreenshot("analytics");
+  it("analytics (pipelines)", function () {
+    cy.navigateAndVerify("/analytics");
+    cy.clickTab("Pipelines");
+    cy.captureScreenshot("analytics-pipelines");
   });
 
-  // ── Pipeline activity ────────────────────────────────────────
+  it("analytics (agents)", function () {
+    cy.navigateAndVerify("/analytics");
+    cy.clickTab("Agents");
+    cy.captureScreenshot("analytics-agents");
+  });
+
+  it("analytics (vsm trends)", function () {
+    cy.navigateAndVerify("/analytics");
+    cy.get("body").then(($body) => {
+      const tab = $body.find("button").filter((_, el) =>
+        el.textContent.trim() === "VSM Trends"
+      );
+      if (!tab.length) { this.skip(); return; }
+    });
+    cy.clickTab("VSM Trends");
+    cy.captureScreenshot("analytics-vsm-trends");
+  });
+
+  // ═══════════════════════════════════════════════════════════════
+  // ADMIN — Overview & Sub-Pages
+  // ═══════════════════════════════════════════════════════════════
+
+  it("admin (overview)", function () {
+    cy.navigateAndVerify("/admin");
+    cy.captureScreenshot("admin-overview");
+  });
+
+  it("admin (pipelines)", function () {
+    cy.navigateAndVerify("/admin/pipelines");
+    cy.captureScreenshot("admin-pipelines");
+  });
+
+  it("admin (environments)", function () {
+    cy.navigateAndVerify("/admin/environments");
+    cy.captureScreenshot("admin-environments");
+  });
+
+  it("admin (templates)", function () {
+    cy.navigateAndVerify("/admin/templates");
+    cy.captureScreenshot("admin-templates");
+  });
+
+  it("admin (config repos)", function () {
+    cy.navigateAndVerify("/admin/config_repos");
+    cy.captureScreenshot("admin-config-repos");
+  });
+
+  it("admin (server config)", function () {
+    cy.navigateAndVerify("/admin/config/server");
+    cy.captureScreenshot("admin-server-config");
+  });
+
+  it("admin (security)", function () {
+    cy.navigateAndVerify("/admin/security/auth_configs");
+    cy.captureScreenshot("admin-security");
+  });
+
+  it("admin (audit log)", function () {
+    cy.navigateAndVerify("/admin/audit_log");
+    cy.captureScreenshot("admin-audit-log");
+  });
+
+  it("admin (elastic agents)", function () {
+    cy.navigateAndVerify("/admin/elastic_agents");
+    cy.captureScreenshot("admin-elastic-agents");
+  });
+
+  it("admin (clustering)", function () {
+    cy.navigateAndVerify("/admin/clustering");
+    cy.captureScreenshot("admin-clustering");
+  });
+
+  it("admin (plugins)", function () {
+    cy.navigateAndVerify("/admin/plugins");
+    cy.captureScreenshot("admin-plugins");
+  });
+
+  it("admin (config xml)", function () {
+    cy.navigateAndVerify("/admin/config_xml");
+    cy.captureScreenshot("admin-config-xml");
+  });
+
+  it("admin (package repos)", function () {
+    cy.navigateAndVerify("/admin/package_repositories/new");
+    cy.captureScreenshot("admin-package-repos");
+  });
+
+  // ═══════════════════════════════════════════════════════════════
+  // PIPELINE WIZARD (new pipeline)
+  // ═══════════════════════════════════════════════════════════════
+
+  it("pipeline wizard (new)", function () {
+    cy.navigateAndVerify("/admin/pipelines/new");
+    cy.captureScreenshot("pipeline-wizard-new");
+  });
+
+  // ═══════════════════════════════════════════════════════════════
+  // EXTERNAL CI REPO WIZARD
+  // ═══════════════════════════════════════════════════════════════
+
+  it("external ci repo wizard", function () {
+    cy.navigateAndVerify("/admin/config_repos/new");
+    cy.captureScreenshot("config-repo-wizard");
+  });
+
+  // ═══════════════════════════════════════════════════════════════
+  // PIPELINE ACTIVITY
+  // ═══════════════════════════════════════════════════════════════
 
   it("pipeline activity", function () {
-    withPipeline(this, (name) => {
-      cy.visit(`/pipeline/activity/${name}`);
-      cy.get(".phx-connected", READY);
-      cy.appScreenshot("pipeline-activity");
+    cy.navigateAndVerify("/pipelines", ".dashboard");
+    cy.discoverFirstPipeline();
+    cy.get("@pipeline").then(function (p) {
+      cy.navigateAndVerify(`/pipeline/activity/${p.name}`);
+      cy.captureScreenshot("pipeline-activity");
     });
   });
 
-  // ── Pipeline config wizard ───────────────────────────────────
+  // ═══════════════════════════════════════════════════════════════
+  // PIPELINE CONFIG WIZARD
+  // ═══════════════════════════════════════════════════════════════
 
   it("pipeline config", function () {
-    withPipeline(this, (name) => {
-      cy.visit(`/go/admin/pipelines/${name}/edit/materials`);
-      cy.get(".phx-connected", READY);
-      cy.appScreenshot("pipeline-config");
+    cy.navigateAndVerify("/pipelines", ".dashboard");
+    cy.discoverFirstPipeline();
+    cy.get("@pipeline").then(function (p) {
+      cy.navigateAndVerify(`/go/admin/pipelines/${p.name}/edit/materials`);
+      cy.captureScreenshot("pipeline-config");
     });
   });
 
-  // ── Stage details ────────────────────────────────────────────
+  // ═══════════════════════════════════════════════════════════════
+  // STAGE DETAILS — all tabs
+  // ═══════════════════════════════════════════════════════════════
 
-  it("stage details", function () {
-    withPipeline(this, (name, counter) => {
-      if (!counter) {
-        cy.log("** SKIP: no pipeline counter (no completed runs)");
+  function visitStageDetails(callback) {
+    cy.navigateAndVerify("/pipelines", ".dashboard");
+    cy.discoverFirstPipeline();
+    cy.get("@pipeline").then(function (p) {
+      if (!p.counter) {
+        cy.log("** SKIP: no completed runs");
         this.skip();
         return;
       }
-      const url = `/go/pipelines/${name}/${counter}/build/1`;
+      const url = `/go/pipelines/${p.name}/${p.counter}/build/1`;
       cy.request({ url, failOnStatusCode: false }).then((resp) => {
         if (resp.status !== 200) {
-          cy.log(`** SKIP: stage details returned ${resp.status}`);
+          cy.log(`** SKIP: stage returned ${resp.status}`);
           this.skip();
           return;
         }
-        cy.visit(url);
-        cy.get(".phx-connected", READY);
-        cy.appScreenshot("stage-details");
+        cy.navigateAndVerify(url);
+        callback(p);
+      });
+    });
+  }
+
+  it("stage details (jobs tab)", function () {
+    visitStageDetails.call(this, () => {
+      cy.captureScreenshot("stage-details");
+    });
+  });
+
+  it("stage details (configuration tab)", function () {
+    visitStageDetails.call(this, () => {
+      cy.get("body").then(($body) => {
+        const tab = $body.find("button").filter((_, el) =>
+          el.textContent.trim() === "Configuration"
+        );
+        if (!tab.length) { this.skip(); return; }
+      });
+      cy.clickTab("Configuration");
+      cy.captureScreenshot("stage-configuration");
+    });
+  });
+
+  it("stage details (trends tab)", function () {
+    visitStageDetails.call(this, () => {
+      cy.get("body").then(($body) => {
+        const tab = $body.find("button").filter((_, el) =>
+          el.textContent.trim() === "Trends"
+        );
+        if (!tab.length) { this.skip(); return; }
+      });
+      cy.clickTab("Trends");
+      cy.captureScreenshot("stage-trends");
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════
+  // JOB DETAILS — all tabs
+  // ═══════════════════════════════════════════════════════════════
+
+  function visitJobDetails(callback) {
+    visitStageDetails.call(this, (p) => {
+      cy.discoverFirstJobName();
+      cy.get("@jobName").then(function (jobName) {
+        const url = `/go/tab/build/detail/${p.name}/${p.counter}/build/1/${jobName}`;
+        cy.navigateAndVerify(url);
+        callback(p, jobName);
+      });
+    });
+  }
+
+  it("job details (console log)", function () {
+    visitJobDetails.call(this, () => {
+      cy.captureScreenshot("job-details-console");
+    });
+  });
+
+  it("job details (tests tab)", function () {
+    visitJobDetails.call(this, () => {
+      cy.clickTab("Tests");
+      cy.captureScreenshot("job-details-tests");
+    });
+  });
+
+  it("job details (artifacts tab)", function () {
+    visitJobDetails.call(this, () => {
+      cy.get("body").then(($body) => {
+        const tab = $body.find("button").filter((_, el) =>
+          el.textContent.trim() === "Artifacts"
+        );
+        if (!tab.length) { this.skip(); return; }
+      });
+      cy.clickTab("Artifacts");
+      cy.captureScreenshot("job-details-artifacts");
+    });
+  });
+
+  it("job details (materials tab)", function () {
+    visitJobDetails.call(this, () => {
+      cy.clickTab("Materials");
+      cy.captureScreenshot("job-details-materials");
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════
+  // CONFIG DIFF
+  // ═══════════════════════════════════════════════════════════════
+
+  it("config diff", function () {
+    cy.navigateAndVerify("/pipelines", ".dashboard");
+    cy.discoverFirstPipeline();
+    cy.get("@pipeline").then(function (p) {
+      if (!p.counter) { this.skip(); return; }
+      const url = `/go/pipelines/${p.name}/${p.counter}/config_diff`;
+      cy.request({ url, failOnStatusCode: false }).then((resp) => {
+        if (resp.status !== 200) {
+          cy.log(`** SKIP: config diff returned ${resp.status}`);
+          this.skip();
+          return;
+        }
+        cy.navigateAndVerify(url);
+        cy.captureScreenshot("config-diff");
       });
     });
   });
 
-  // ── Job details (console log) ────────────────────────────────
-
-  it("job details", function () {
-    withPipeline(this, (name, counter) => {
-      if (!counter) {
-        cy.log("** SKIP: no pipeline counter (no completed runs)");
-        this.skip();
-        return;
-      }
-      const url = `/go/tab/build/detail/${name}/${counter}/build/1/default`;
-      cy.request({ url, failOnStatusCode: false }).then((resp) => {
-        if (resp.status !== 200) {
-          cy.log(`** SKIP: job details returned ${resp.status}`);
-          this.skip();
-          return;
-        }
-        cy.visit(url);
-        cy.get(".phx-connected", READY);
-        cy.appScreenshot("job-details");
-      });
-    });
-  });
-
-  // ── VSM ──────────────────────────────────────────────────────
+  // ═══════════════════════════════════════════════════════════════
+  // VALUE STREAM MAP
+  // ═══════════════════════════════════════════════════════════════
 
   it("value stream map", function () {
-    withPipeline(this, (name, counter) => {
-      if (!counter) {
-        cy.log("** SKIP: no pipeline counter (no completed runs)");
-        this.skip();
-        return;
-      }
-      const url = `/go/pipelines/value_stream_map/${name}/${counter}`;
+    cy.navigateAndVerify("/pipelines", ".dashboard");
+    cy.discoverFirstPipeline();
+    cy.get("@pipeline").then(function (p) {
+      if (!p.counter) { this.skip(); return; }
+      const url = `/go/pipelines/value_stream_map/${p.name}/${p.counter}`;
       cy.request({ url, failOnStatusCode: false }).then((resp) => {
         if (resp.status !== 200) {
           cy.log(`** SKIP: VSM returned ${resp.status}`);
           this.skip();
           return;
         }
-        cy.visit(url);
-        cy.get(".phx-connected", READY);
-        cy.appScreenshot("vsm");
+        cy.navigateAndVerify(url);
+        cy.captureScreenshot("vsm");
       });
     });
   });
 
-  // ── Compare ──────────────────────────────────────────────────
+  // ═══════════════════════════════════════════════════════════════
+  // COMPARE
+  // ═══════════════════════════════════════════════════════════════
 
   it("compare", function () {
-    withPipeline(this, (name, counter) => {
-      if (!counter) {
-        cy.log("** SKIP: no pipeline counter (no completed runs)");
-        this.skip();
-        return;
-      }
-      const from = Math.max(1, Number(counter) - 1);
-      const url = `/go/compare/${name}/${from}/with/${counter}`;
+    cy.navigateAndVerify("/pipelines", ".dashboard");
+    cy.discoverFirstPipeline();
+    cy.get("@pipeline").then(function (p) {
+      if (!p.counter) { this.skip(); return; }
+      const from = Math.max(1, Number(p.counter) - 1);
+      const url = `/go/compare/${p.name}/${from}/with/${p.counter}`;
       cy.request({ url, failOnStatusCode: false }).then((resp) => {
         if (resp.status !== 200) {
           cy.log(`** SKIP: compare returned ${resp.status}`);
           this.skip();
           return;
         }
-        cy.visit(url);
-        cy.get(".compare-page, .phx-connected", READY);
-        cy.appScreenshot("compare");
+        cy.navigateAndVerify(url);
+        cy.captureScreenshot("compare");
       });
     });
   });
 
-  // ── Mobile navigation ────────────────────────────────────────
+  // ═══════════════════════════════════════════════════════════════
+  // SWAGGER UI
+  // ═══════════════════════════════════════════════════════════════
+
+  it("swagger ui", function () {
+    cy.request({ url: "/swaggerui", failOnStatusCode: false }).then((resp) => {
+      if (resp.status !== 200) {
+        cy.log(`** SKIP: swagger returned ${resp.status}`);
+        this.skip();
+        return;
+      }
+      cy.navigateAndVerify("/swaggerui");
+      cy.captureScreenshot("swagger-ui");
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════
+  // MOBILE VIEWPORTS
+  // ═══════════════════════════════════════════════════════════════
 
   it("dashboard mobile", function () {
     cy.viewport(375, 812);
-    cy.visit("/pipelines");
-    cy.get(".phx-connected", READY);
-    cy.get(".site-header").should("be.visible");
-    cy.appScreenshot("dashboard-mobile");
+    cy.navigateAndVerify("/pipelines", ".dashboard");
+    cy.captureScreenshot("dashboard-mobile");
+  });
+
+  it("agents mobile", function () {
+    cy.viewport(375, 812);
+    cy.navigateAndVerify("/agents", ".agents-page");
+    cy.captureScreenshot("agents-mobile");
+  });
+
+  it("materials mobile", function () {
+    cy.viewport(375, 812);
+    cy.navigateAndVerify("/materials", ".materials-page");
+    cy.captureScreenshot("materials-mobile");
+  });
+
+  it("stage details mobile", function () {
+    cy.viewport(375, 812);
+    visitStageDetails.call(this, () => {
+      cy.captureScreenshot("stage-details-mobile");
+    });
+  });
+
+  it("job details mobile", function () {
+    cy.viewport(375, 812);
+    visitJobDetails.call(this, () => {
+      cy.captureScreenshot("job-details-mobile");
+    });
+  });
+
+  it("admin mobile", function () {
+    cy.viewport(375, 812);
+    cy.navigateAndVerify("/admin");
+    cy.captureScreenshot("admin-mobile");
   });
 });

@@ -326,6 +326,7 @@ defmodule ExGoCDWeb.Router do
     pipe_through :api
 
     resources "/pipelines", PipelineConfigController, except: [:new, :edit], param: "name"
+    resources "/pipeline_groups", PipelineGroupController, except: [:new, :edit], param: "name"
     resources "/templates", TemplateController, except: [:new, :edit], param: "name"
     resources "/environments", EnvironmentController, except: [:new, :edit], param: "name"
 
@@ -334,6 +335,12 @@ defmodule ExGoCDWeb.Router do
     post "/maintenance_mode/disable", MaintenanceModeController, :disable
 
     post "/backups", BackupController, :create
+    get "/backups/:id", BackupController, :show
+
+    # Backup config (GoCD parity: GET/POST/DELETE /api/config/backup)
+    get "/config/backup", BackupConfigController, :show
+    post "/config/backup", BackupConfigController, :create
+    delete "/config/backup", BackupConfigController, :delete
 
     resources "/elastic_agent_profiles", ElasticAgentProfileController, except: [:new, :edit]
     resources "/cluster_profiles", ClusterProfileController, except: [:new, :edit]

@@ -5,41 +5,20 @@ defmodule ExGoCDWeb.API.Admin.BackupController do
 
   @doc "POST /api/admin/backups — triggers a database backup"
   def create(conn, _params) do
-    # Async backup via Task
-    Task.start(fn ->
-      timestamp = Calendar.strftime(DateTime.utc_now(), "%Y%m%d_%H%M%S")
-      backup_dir = System.get_env("BACKUP_DIR") || "backups"
-      File.mkdir_p!(backup_dir)
-      backup_path = Path.join(backup_dir, "ex_gocd_backup_#{timestamp}.dump")
+    result = ExGoCD.Backup.create()
 
-      case System.cmd(
-             "pg_dump",
-             [
-               "-Fc",
-               "-f",
-               backup_path,
-               "-h",
-               db_host(),
-               "-U",
-               db_user(),
-               db_name()
-             ],
-             env: [{"PGPASSWORD", db_password()}],
-             stderr_to_stdout: true
-           ) do
-        {_, 0} ->
-          Logger.info("Backup created: #{backup_path}")
+    case result do
+      :ok ->
+        json(conn, %{message: "Backup initiated."})
 
-        {output, code} ->
-          Logger.error("Backup failed (code #{code}): #{output}")
-      end
-    end)
-
-    json(conn, %{message: "Backup initiated."})
+      {:error, :already_running} ->
+        conn |> put_status(:conflict) |> json(%{error: "A backup is already in progress."})
+    end
   end
 
-  defp db_host, do: Application.get_env(:ex_gocd, ExGoCD.Repo)[:hostname] || "localhost"
-  defp db_user, do: Application.get_env(:ex_gocd, ExGoCD.Repo)[:username] || "postgres"
-  defp db_password, do: Application.get_env(:ex_gocd, ExGoCD.Repo)[:password] || ""
-  defp db_name, do: Application.get_env(:ex_gocd, ExGoCD.Repo)[:database] || "ex_gocd_dev"
+  @doc "GET /api/admin/backups/:id — returns backup status"
+  def show(conn, _params) do
+    status = ExGoCD.Backup.status()
+    json(conn, status)
+  end
 end

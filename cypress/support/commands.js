@@ -250,12 +250,17 @@ Cypress.Commands.add("appScreenshot", (name) => {
 
 // --- Auth helpers ---
 
+/**
+ * Sign in as admin via the Quick Login demo page.
+ * NOTE: The demo login page will be removed in production
+ * once custom admin accounts are configured.
+ */
 Cypress.Commands.add("loginAsAdmin", () => {
   cy.session("admin", () => {
     cy.visit("/auth/login");
-    cy.get("#session_username").type("admin");
-    cy.get(".btn-login").click();
-    cy.url().should("eq", Cypress.config().baseUrl + "/");
+    // Quick-login: click the System Administrator chip
+    cy.get("button.user-chip.admin").click();
+    cy.url().should("not.include", "/auth/login");
   });
 });
 
@@ -296,6 +301,134 @@ Cypress.Commands.add("thePageDoesNotShow", (text) => {
 
 Cypress.Commands.add("theFlashSays", (text) => {
   cy.get(".alert-info").should("contain", text);
+});
+
+// ============================================================
+// Screenshot Discovery Commands
+//
+// Used by screenshot specs to discover data dynamically
+// instead of hardcoding pipeline/agent names.
+// ============================================================
+
+/**
+ * Discover the first pipeline name and its latest counter from the dashboard.
+ * Yields { name, counter } (counter may be null if no completed runs).
+ * Skips the test if no pipelines exist.
+ */
+Cypress.Commands.add("discoverFirstPipeline", () => {
+  cy.get("body").then(($body) => {
+    const nameEl = $body.find(".pipeline_name").first();
+    if (!nameEl.length) {
+      cy.log("** SKIP: no pipelines on dashboard");
+      cy.state("runnable").skip();
+      return;
+    }
+    const name = nameEl.text().trim();
+    const labelEl = $body.find(".pipeline_instance-label").first();
+    let counter = null;
+    if (labelEl.length) {
+      const match = labelEl.text().match(/(\d+)/);
+      if (match) counter = match[1];
+    }
+    cy.log(`Pipeline: ${name} counter=${counter || "?"}`);
+    cy.wrap({ name, counter }).as("pipeline");
+  });
+});
+
+/**
+ * Discover the first static agent's UUID and name from the agents page.
+ * Yields { uuid, name }. Skips the test if no agents exist.
+ */
+Cypress.Commands.add("discoverFirstAgent", () => {
+  cy.get("body").then(($body) => {
+    // Ensure STATIC tab is active
+    const staticTab = $body
+      .find("button")
+      .filter((_, el) => el.textContent.trim() === "STATIC");
+    if (staticTab.length && !staticTab.hasClass("active")) {
+      cy.get("button").contains("STATIC").click();
+      cy.get(".phx-connected", { timeout: 10000 });
+    }
+    const agentLink = $body.find("table tbody tr td a").first();
+    if (!agentLink.length) {
+      cy.log("** SKIP: no agents found");
+      cy.state("runnable").skip();
+      return;
+    }
+    const href = agentLink.attr("href");
+    const uuidMatch = href && href.match(/\/agents\/([^/]+)/);
+    if (!uuidMatch) {
+      cy.log("** SKIP: could not parse agent UUID");
+      cy.state("runnable").skip();
+      return;
+    }
+    const uuid = uuidMatch[1];
+    const name = agentLink.text().trim();
+    cy.log(`Agent: ${name} uuid=${uuid.substring(0, 8)}...`);
+    cy.wrap({ uuid, name }).as("agent");
+  });
+});
+
+/**
+ * Discover the first job name from a stage details page (call when already on one).
+ * Yields the job name string.
+ */
+Cypress.Commands.add("discoverFirstJobName", () => {
+  cy.get("body").then(($body) => {
+    const jobLink = $body.find("table tbody tr td a").first();
+    if (!jobLink.length) {
+      cy.log("** SKIP: no jobs in this stage");
+      cy.state("runnable").skip();
+      return;
+    }
+    cy.wrap(jobLink.text().trim()).as("jobName");
+  });
+});
+
+/**
+ * Verify an element exists on the page before taking a screenshot.
+ */
+Cypress.Commands.add("verifyElementExists", (selector) => {
+  cy.get(selector, { timeout: 10000 }).should("exist");
+});
+
+/**
+ * Navigate to a URL and wait for the page to be ready.
+ * For LiveView pages, waits for `.phx-connected`.
+ * For non-LiveView pages (e.g. Swagger), waits for `body` + optional selector.
+ */
+Cypress.Commands.add("navigateAndVerify", (url, selector) => {
+  cy.visit(url);
+  // Wait for body first, then try phx-connected (may not exist on non-LV pages)
+  cy.get("body", { timeout: 10000 }).should("exist").then(($body) => {
+    if ($body.find(".phx-connected").length) {
+      cy.get(".phx-connected", { timeout: 10000 }).should("exist");
+    }
+  });
+  if (selector) {
+    cy.get(selector, { timeout: 5000 }).should("exist");
+  }
+});
+
+/**
+ * Click a tab/button by its text label and wait for reconnect.
+ */
+Cypress.Commands.add("clickTab", (label) => {
+  cy.get("button").contains(label).click();
+  cy.get(".phx-connected", { timeout: 10000 });
+});
+
+/**
+ * Take a screenshot of the current page viewport.
+ */
+Cypress.Commands.add("captureScreenshot", (name) => {
+  const specName = Cypress.spec.name.replace(/\.cy\.(js|ts|jsx|tsx)$/, "");
+  const src = `cypress/screenshots/${specName}.cy.js/${name}.png`;
+  const dest = `docs/screenshots/${name}.png`;
+  cy.screenshot(name, { capture: "viewport" });
+  cy.task("copyScreenshot", { src, dest }, { log: false }).then((res) => {
+    if (res && res.error) throw new Error(res.error);
+  });
 });
 
 Cypress.Commands.add("theErrorSays", (text) => {

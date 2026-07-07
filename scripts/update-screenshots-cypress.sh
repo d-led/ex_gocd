@@ -26,7 +26,7 @@ if [ ! -d "node_modules" ]; then
 fi
 
 echo "Running screenshot spec..."
-npx cypress run --browser chrome --spec cypress/e2e/screenshot.cy.js || true
+npx cypress run --browser chrome --config '{"excludeSpecPattern":[]}' --spec cypress/e2e/screenshot.cy.js || true
 
 echo ""
 echo "=== Captured screenshots ==="

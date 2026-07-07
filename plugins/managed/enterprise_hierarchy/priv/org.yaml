@@ -1,0 +1,31 @@
+root:
+  id: "acme-corp"
+  name: "Acme Corp"
+  pipeline_groups: []
+  departments: []
+  children:
+    - id: engineering
+      name: "Engineering"
+      pipeline_groups: [frontend, backend, shared-libs]
+      departments: [eng, engineering, dev]
+      children:
+        - id: frontend-team
+          name: "Frontend Team"
+          pipeline_groups: [frontend, ui-components, design-system]
+          departments: [frontend, fe, ui]
+        - id: backend-team
+          name: "Backend Team"
+          pipeline_groups: [backend, api-gateway, auth-service]
+          departments: [backend, be, api]
+    - id: platform
+      name: "Platform Operations"
+      pipeline_groups: [infra, deploy, monitoring, k8s]
+      departments: [ops, platform, sre, devops]
+    - id: data
+      name: "Data & Analytics"
+      pipeline_groups: [data-pipeline, ml-models, etl-jobs]
+      departments: [data, analytics, ml, ds]
+    - id: security
+      name: "Security"
+      pipeline_groups: [security-scan, compliance, secrets]
+      departments: [security, sec, infosec]
