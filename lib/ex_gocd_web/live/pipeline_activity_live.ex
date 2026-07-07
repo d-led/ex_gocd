@@ -136,7 +136,13 @@ defmodule ExGoCDWeb.PipelineActivityLive do
   defp trigger_from_mod(_), do: "Triggered by SCM change"
 
   defp map_stage_instance(si) do
-    %{name: si.name, status: stage_status(si), counter: si.counter}
+    %{
+      name: si.name,
+      status: stage_status(si),
+      counter: si.counter,
+      scheduled_at: si.scheduled_at || si.created_time,
+      completed_at: si.completed_at
+    }
   end
 
   defp map_modifications(rev) do
@@ -321,9 +327,9 @@ defmodule ExGoCDWeb.PipelineActivityLive do
 
   defp format_duration_short(_), do: "—"
 
-  # ── Timeline/Gantt chart component ──────────────────────────────────────
+  # ── Timeline/Gantt chart ───────────────────────────────────────────────
 
-  defp timeline_chart(assigns) do
+  defp gantt_chart(assigns) do
     ~H"""
     <div>
       <h3 class="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
@@ -341,72 +347,104 @@ defmodule ExGoCDWeb.PipelineActivityLive do
         <span class="flex items-center gap-1">
           <span class="w-2.5 h-2.5 rounded bg-[#5bc0de]"></span> Building
         </span>
+        <span class="flex items-center gap-1">
+          <span class="w-2.5 h-2.5 rounded bg-gray-300"></span> Not Run
+        </span>
       </div>
 
       <%= if @runs == [] do %>
         <p class="text-gray-400 text-xs">No pipeline runs to display.</p>
       <% else %>
-        <% timestamps = Enum.map(@runs, & &1.last_run) |> Enum.reject(&is_nil/1) %>
-        <% min_ts = if timestamps != [], do: Enum.min(timestamps, DateTime), else: DateTime.utc_now() %>
-        <% max_ts = if timestamps != [], do: Enum.max(timestamps, DateTime), else: DateTime.utc_now() %>
-        <% span = max(max(DateTime.diff(max_ts, min_ts, :second), 1), 60) %>
+        <% {min_ts, _max_ts, span_sec} = gantt_time_window(@runs) %>
+        <% label_w = 64 %>
+        <% status_w = 52 %>
+        <% tick_count = 6 %>
 
         <div class="overflow-x-auto">
-          <div class="min-w-[600px]">
-            <%!-- Time axis header --%>
-            <div class="flex border-b border-gray-200 pb-2 mb-3 text-[9px] text-gray-400 font-mono">
-              <span class="w-16 shrink-0">#</span>
-              <span class="w-24 shrink-0 text-right">{Calendar.strftime(min_ts, "%H:%M")}</span>
-              <span class="flex-1 text-center">
-                {Calendar.strftime(DateTime.add(min_ts, div(span, 2), :second), "%H:%M")}
-              </span>
-              <span class="w-24 shrink-0 text-right">{Calendar.strftime(max_ts, "%H:%M")}</span>
+          <div class="min-w-[700px]">
+            <%!-- Time axis --%>
+            <div class="flex items-end border-b border-gray-300 pb-1.5 mb-1 text-[9px] text-gray-400 font-mono select-none">
+              <span class="shrink-0" style={"width:#{label_w}px"}></span>
+              <div class="flex-1 relative h-5">
+                <%= for i <- 0..(tick_count - 1) do %>
+                  <% pct = i / (tick_count - 1) * 100 %>
+                  <% tick_ts = DateTime.add(min_ts, round(span_sec * i / (tick_count - 1)), :second) %>
+                  <span class="absolute -translate-x-1/2" style={"left:#{Float.round(pct, 1)}%;top:0"}>
+                    {Calendar.strftime(tick_ts, "%H:%M")}
+                  </span>
+                  <span
+                    class="absolute top-4 w-px h-1.5 bg-gray-300"
+                    style={"left:#{Float.round(pct, 1)}%"}
+                  >
+                  </span>
+                <% end %>
+              </div>
+              <span class="shrink-0" style={"width:#{status_w}px"}></span>
             </div>
 
-            <div class="space-y-2">
-              <%= for run <- Enum.reverse(@runs) do %>
-                <% dur = timeline_run_duration(run) %>
-                <% left_pct =
-                  if span > 0,
-                    do:
-                      Float.round(
-                        max(DateTime.diff(run.last_run || min_ts, min_ts, :second), 0) / span * 100,
-                        1
-                      ),
-                    else: 0 %>
-                <% width_pct =
-                  if span > 0 and dur > 0, do: Float.round(dur / span * 100, 1), else: 0.5 %>
-
-                <div class="flex items-center gap-2 text-xs">
-                  <%!-- Counter label --%>
+            <%!-- Run rows --%>
+            <div class="flex flex-col gap-0.5">
+              <%= for run <- @runs |> Enum.reverse() do %>
+                <div class="flex items-center group hover:bg-gray-50 rounded-sm transition-colors">
+                  <%!-- Label --%>
                   <.link
                     navigate={~p"/pipelines/value_stream_map/#{@pipeline_name}/#{run.counter}"}
-                    class="w-16 shrink-0 font-mono font-extrabold text-gray-900 text-right hover:text-[#2d6ca2]"
+                    class="shrink-0 font-mono font-extrabold text-gray-900 text-right text-xs hover:text-[#2d6ca2] py-1 pr-2"
+                    style={"width:#{label_w}px"}
                   >
                     #{run.label}
                   </.link>
 
-                  <%!-- Gantt bar --%>
+                  <%!-- Gantt area --%>
                   <div class="flex-1 h-6 relative">
-                    <div
-                      class={"absolute top-0 h-full rounded-sm opacity-80 hover:opacity-100 transition-opacity cursor-pointer " <> timeline_bar_color(run.status)}
-                      style={"left:#{left_pct}%;width:#{max(width_pct, 1)}%"}
-                      title={"##{run.counter}: #{run.status} — #{timeline_run_duration(run)}s (triggered #{Calendar.strftime(run.last_run, "%Y-%m-%d %H:%M")})"}
-                    >
+                    <%!-- Grid line --%>
+                    <div class="absolute top-1/2 left-0 right-0 border-t border-gray-100 -mt-px">
                     </div>
+
+                    <%= for stage <- run.stages do %>
+                      <% st_start = stage[:scheduled_at] %>
+                      <% st_end = stage[:completed_at] %>
+                      <%= if st_start && st_end do %>
+                        <% left_pct =
+                          Float.round(
+                            max(DateTime.diff(st_start, min_ts, :second), 0) / span_sec * 100,
+                            1
+                          ) %>
+                        <% width_pct =
+                          max(
+                            Float.round(DateTime.diff(st_end, st_start, :second) / span_sec * 100, 1),
+                            0.3
+                          ) %>
+                        <% dur_sec = DateTime.diff(st_end, st_start, :second) %>
+                        <.link
+                          navigate={
+                          ~p"/pipelines/#{@pipeline_name}/#{run.counter}/#{stage.name}/#{stage.counter}"
+                          }
+                          class={"absolute top-0.5 h-5 rounded-sm opacity-85 hover:opacity-100 transition-opacity " <> gantt_bar_color(stage.status)}
+                          style={"left:#{left_pct}%;width:#{width_pct}%"}
+                          title={"#{stage.name} — #{stage.status} — #{format_duration_short(dur_sec)}"}
+                        >
+                          <span class="block text-[7px] text-white font-bold px-1 truncate leading-5 select-none">
+                            {stage.name}
+                          </span>
+                        </.link>
+                      <% end %>
+                    <% end %>
                   </div>
 
-                  <%!-- Duration + status label --%>
-                  <span class="w-24 shrink-0 text-right text-gray-500 tabular-nums">
-                    {format_duration_short(dur)}
-                  </span>
-                  <span class={[
-                    "w-14 shrink-0 text-center text-[9px] font-bold rounded px-1 py-0.5",
-                    run.status == "Passed" && "bg-green-100 text-green-700",
-                    run.status == "Failed" && "bg-red-100 text-red-700",
-                    run.status == "Building" && "bg-blue-100 text-blue-700",
-                    run.status not in ["Passed", "Failed", "Building"] && "bg-gray-100 text-gray-500"
-                  ]}>
+                  <%!-- Status badge --%>
+                  <span
+                    class={[
+                      "shrink-0 text-center text-[9px] font-bold rounded px-1 py-0.5 mx-1",
+                      "w-[#{status_w - 8}px]",
+                      run.status == "Passed" && "bg-green-100 text-green-700",
+                      run.status == "Failed" && "bg-red-100 text-red-700",
+                      run.status == "Building" && "bg-blue-100 text-blue-700",
+                      run.status not in ["Passed", "Failed", "Building"] &&
+                        "bg-gray-100 text-gray-500"
+                    ]}
+                    title={"#{run.status} — triggered #{Calendar.strftime(run.last_run, "%Y-%m-%d %H:%M")}"}
+                  >
                     {run.status}
                   </span>
                 </div>
@@ -419,20 +457,41 @@ defmodule ExGoCDWeb.PipelineActivityLive do
     """
   end
 
-  defp timeline_run_duration(run) do
-    if run[:last_run] do
-      # Approximate: use trigger time as start, and assume ~120s if no explicit duration
-      dur = if run[:duration], do: run[:duration], else: 120
-      dur
-    else
-      0
-    end
+  defp gantt_time_window(runs) do
+    stages = Enum.flat_map(runs, & &1.stages)
+
+    starts =
+      stages
+      |> Enum.map(& &1[:scheduled_at])
+      |> Enum.reject(&is_nil/1)
+
+    ends =
+      stages
+      |> Enum.map(& &1[:completed_at])
+      |> Enum.reject(&is_nil/1)
+
+    min_ts =
+      if starts != [],
+        do: Enum.min(starts, DateTime, fn -> DateTime.utc_now() end),
+        else: DateTime.utc_now()
+
+    max_ts =
+      if ends != [],
+        do: Enum.max(ends, DateTime, fn -> DateTime.utc_now() end),
+        else: DateTime.add(min_ts, 60, :second)
+
+    span = max(DateTime.diff(max_ts, min_ts, :second), 60)
+
+    # Pad 5% on each side so bars don't touch edges
+    pad = round(span * 0.05)
+    {DateTime.add(min_ts, -pad, :second), DateTime.add(max_ts, pad, :second), span + 2 * pad}
   end
 
-  defp timeline_bar_color("Passed"), do: "bg-[#5cb85c]"
-  defp timeline_bar_color("Failed"), do: "bg-[#d9534f]"
-  defp timeline_bar_color("Building"), do: "bg-[#5bc0de]"
-  defp timeline_bar_color(_), do: "bg-gray-400"
+  defp gantt_bar_color("Passed"), do: "bg-[#5cb85c]"
+  defp gantt_bar_color("Failed"), do: "bg-[#d9534f]"
+  defp gantt_bar_color("Building"), do: "bg-[#5bc0de]"
+  defp gantt_bar_color("Cancelled"), do: "bg-[#f0ad4e]"
+  defp gantt_bar_color(_), do: "bg-gray-300"
 
   @impl true
   def render(assigns) do
@@ -529,7 +588,7 @@ defmodule ExGoCDWeb.PipelineActivityLive do
 
       <%= if @active_tab == "timeline" do %>
         <div class="bg-white border border-gray-200 rounded shadow-sm p-6">
-          <.timeline_chart runs={@runs} pipeline_name={@pipeline.name} />
+          <.gantt_chart runs={@runs} pipeline_name={@pipeline.name} />
         </div>
       <% else %>
         <div class="activity-container flex flex-col gap-2">
