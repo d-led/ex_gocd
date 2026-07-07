@@ -82,6 +82,7 @@ defmodule ExGoCDWeb.PipelineActivityLive do
             from pi in ExGoCD.Pipelines.PipelineInstance,
               where: pi.pipeline_id == ^p.id,
               order_by: [desc: pi.counter],
+              limit: 20,
               preload: [stage_instances: :job_instances]
           )
           |> Enum.map(&map_pipeline_instance(&1, config_stage_names))
@@ -320,9 +321,16 @@ defmodule ExGoCDWeb.PipelineActivityLive do
   defp run_status_dot(_), do: "bg-gray-300"
 
   defp format_duration_short(seconds) when is_number(seconds) do
-    mins = div(round(seconds), 60)
-    secs = rem(round(seconds), 60)
-    if mins > 0, do: "#{mins}m #{secs}s", else: "#{secs}s"
+    total = round(seconds)
+    h = div(total, 3600)
+    m = div(rem(total, 3600), 60)
+    s = rem(total, 60)
+
+    cond do
+      h > 0 -> "#{h}h #{m}m"
+      m > 0 -> "#{m}m #{s}s"
+      true -> "#{s}s"
+    end
   end
 
   defp format_duration_short(_), do: "—"
@@ -642,7 +650,7 @@ defmodule ExGoCDWeb.PipelineActivityLive do
                     </.link>
                   <% end %>
                 </div>
-
+                
     <!-- Commit messages: every material, full text, no clipping -->
                 <%= if Enum.any?(run.modifications, & &1.comment) do %>
                   <div class="flex flex-col gap-0.5">
@@ -654,7 +662,7 @@ defmodule ExGoCDWeb.PipelineActivityLive do
                   </div>
                 <% end %>
               </div>
-
+              
     <!-- Stage pipeline: compact horizontal strip -->
               <div class="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 border-l border-gray-100">
                 <%= for {stage, idx} <- Enum.with_index(run.stages) do %>
