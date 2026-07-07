@@ -1,7 +1,5 @@
-# Build: docker build --build-arg VARIANT=full -t simple_org_chart .
-# Variants: git (default), full (git + svn + build-essential)
-
-# Stage 1: Compiler (official Elixir Alpine)
+# Phoenix-only plugin — no git/svn needed at runtime.
+# Stage 1: Compiler
 FROM --platform=$BUILDPLATFORM elixir:1.20.1-otp-29-alpine AS compiler
 
 RUN apk add --no-cache build-base git
@@ -20,18 +18,10 @@ COPY priv priv
 RUN mix compile && mix release --overwrite && \
     cp -r _build/prod/rel/simple_org_chart /app/release
 
-# Stage 2: Runner (Alpine — enterprise-ready, tiny, CVE-minimal)
+# Stage 2: Bare runtime — just the BEAM release
 FROM alpine:3.21 AS runner
 
-ARG VARIANT=git
-
-RUN apk add --no-cache \
-      git openssh-client curl ca-certificates
-
-RUN if [ "$VARIANT" = "full" ]; then \
-      apk add --no-cache \
-        subversion build-base mercurial bash; \
-    fi
+RUN apk add --no-cache ca-certificates
 
 WORKDIR /app
 COPY --from=compiler /app/release /app
