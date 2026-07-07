@@ -117,10 +117,11 @@ defmodule ExGoCDWeb.Router do
       live "/go/stage-duration/:pipeline_name", GanttLive, :index
     end
 
-    live_session :gocd_admin, on_mount: [
-      {ExGoCDWeb.LiveSession, :assign_current_user},
-      {ExGoCDWeb.LiveSession, :require_admin}
-    ] do
+    live_session :gocd_admin,
+      on_mount: [
+        {ExGoCDWeb.LiveSession, :assign_current_user},
+        {ExGoCDWeb.LiveSession, :require_admin}
+      ] do
       live "/agents", AgentsLive, :index
       live "/materials", MaterialsLive, :index
       live "/agents/:uuid/job_run_history", AgentJobHistoryLive, :index
