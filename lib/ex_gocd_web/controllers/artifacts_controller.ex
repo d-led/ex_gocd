@@ -169,50 +169,28 @@ defmodule ExGoCDWeb.ArtifactsController do
        ) do
     test_dir = Path.join(job_dir, "testoutput")
 
-    if File.dir?(test_dir) do
-      case File.ls(test_dir) do
-        {:ok, files} ->
-          if Enum.any?(files, &String.ends_with?(&1, ".xml")) do
-            case find_job_instance_id(
-                   pipeline_name,
-                   pipeline_counter,
-                   stage_name,
-                   stage_counter,
-                   job_name
-                 ) do
-              nil ->
-                :ok
+    if has_test_xml?(test_dir) do
+      ji_id =
+        ExGoCD.Pipelines.find_job_instance_id(
+          pipeline_name,
+          pipeline_counter,
+          stage_name,
+          stage_counter,
+          job_name
+        )
 
-              ji_id ->
-                ExGoCD.TestReport.parse_and_store(job_dir, ji_id)
-            end
-          end
-
-        {:error, _} ->
-          :ok
-      end
+      if ji_id, do: ExGoCD.TestReport.parse_and_store(job_dir, ji_id)
     end
 
     :ok
   end
 
-  defp find_job_instance_id(pipeline_name, pipeline_counter, stage_name, stage_counter, job_name) do
-    import Ecto.Query
-
-    query =
-      from(ji in ExGoCD.Pipelines.JobInstance,
-        join: si in assoc(ji, :stage_instance),
-        join: pi in assoc(si, :pipeline_instance),
-        join: p in assoc(pi, :pipeline),
-        where:
-          p.name == ^pipeline_name and pi.counter == ^pipeline_counter and
-            si.name == ^stage_name and si.counter == ^stage_counter and
-            ji.name == ^job_name,
-        select: ji.id,
-        limit: 1
-      )
-
-    ExGoCD.Repo.one(query)
+  defp has_test_xml?(test_dir) do
+    File.dir?(test_dir) &&
+      case File.ls(test_dir) do
+        {:ok, files} -> Enum.any?(files, &String.ends_with?(&1, ".xml"))
+        {:error, _} -> false
+      end
   end
 
   # GET /files/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/:job_name/*file_path

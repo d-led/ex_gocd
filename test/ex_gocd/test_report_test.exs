@@ -1,8 +1,8 @@
 defmodule ExGoCD.TestReportTest do
   use ExGoCD.DataCase, async: true
 
+  alias ExGoCD.Pipelines.{Job, JobInstance, Pipeline, PipelineInstance, Stage, StageInstance}
   alias ExGoCD.Repo
-  alias ExGoCD.Pipelines.{Pipeline, PipelineInstance, Stage, StageInstance, Job, JobInstance}
   alias ExGoCD.TestReport
 
   @junit_xml ~S"""

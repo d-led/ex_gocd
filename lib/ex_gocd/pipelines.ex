@@ -78,6 +78,27 @@ defmodule ExGoCD.Pipelines do
   end
 
   @doc """
+  Looks up a JobInstance ID by pipeline/stage/job names and counters.
+  Returns the job_instance id or nil.
+  """
+  def find_job_instance_id(pipeline_name, pipeline_counter, stage_name, stage_counter, job_name) do
+    query =
+      from(ji in JobInstance,
+        join: si in assoc(ji, :stage_instance),
+        join: pi in assoc(si, :pipeline_instance),
+        join: p in assoc(pi, :pipeline),
+        where:
+          p.name == ^pipeline_name and pi.counter == ^pipeline_counter and
+            si.name == ^stage_name and si.counter == ^stage_counter and
+            ji.name == ^job_name,
+        select: ji.id,
+        limit: 1
+      )
+
+    Repo.one(query)
+  end
+
+  @doc """
   Adds a comment to a pipeline instance.
   Stores the comment in the build_cause map under the "comment" key.
   """

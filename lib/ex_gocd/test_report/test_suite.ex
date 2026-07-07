@@ -5,7 +5,7 @@ defmodule ExGoCD.TestReport.TestSuite do
   use Ecto.Schema
   import Ecto.Changeset
 
-  alias ExGoCD.TestReport.{TestReport, TestCase}
+  alias ExGoCD.TestReport.{TestCase, TestReport}
 
   @type t :: %__MODULE__{
           id: integer() | nil,

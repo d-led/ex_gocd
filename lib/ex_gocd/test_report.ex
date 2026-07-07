@@ -17,7 +17,7 @@ defmodule ExGoCD.TestReport do
   import Ecto.Query
 
   alias ExGoCD.Repo
-  alias ExGoCD.TestReport.{TestReport, TestSuite, TestCase}
+  alias ExGoCD.TestReport.{TestCase, TestReport, TestSuite}
 
   @testoutput_dir "testoutput"
 
