@@ -101,7 +101,8 @@ defmodule ExGoCD.MixProject do
       {:open_api_spex, "~> 3.22"},
       {:libcluster, "~> 3.4"},
       {:horde, "~> 0.10"},
-      {:argon2_elixir, "~> 4.1"}
+      {:argon2_elixir, "~> 4.1"},
+      {:joken, "~> 2.6"}
     ]
   end
 

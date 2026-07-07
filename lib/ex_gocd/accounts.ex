@@ -190,24 +190,28 @@ defmodule ExGoCD.Accounts do
   Generates and saves a new personal access token for a user.
   """
   def create_user_token(user_id, description) when is_binary(description) do
-    # Generate 40-character secure random hex token
-    raw_token = :crypto.strong_rand_bytes(20) |> Base.encode16(case: :lower)
-    token_hash = :crypto.hash(:sha256, raw_token) |> Base.encode16(case: :lower)
+    user = get_user!(user_id)
 
-    attrs = %{
-      user_id: user_id,
-      description: description,
-      token_hash: token_hash,
-      revoked: false
-    }
+    case ExGoCD.JWT.generate(user) do
+      {:ok, token_string, jti} ->
+        attrs = %{
+          user_id: user_id,
+          description: description,
+          token_hash: jti,
+          revoked: false
+        }
 
-    case %PersonalAccessToken{} |> PersonalAccessToken.changeset(attrs) |> Repo.insert() do
-      {:ok, token} ->
-        token = Repo.preload(token, :user)
-        {:ok, %{token | token: raw_token}}
+        case %PersonalAccessToken{} |> PersonalAccessToken.changeset(attrs) |> Repo.insert() do
+          {:ok, token} ->
+            token = Repo.preload(token, :user)
+            {:ok, %{token | token: token_string}}
 
-      {:error, changeset} ->
-        {:error, changeset}
+          {:error, changeset} ->
+            {:error, changeset}
+        end
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -228,22 +232,36 @@ defmodule ExGoCD.Accounts do
   end
 
   @doc """
-  Verifies a raw token value, updating its `last_used_at` timestamp if valid.
+  Verifies a JWT access token, checking revocation status.
+
+  Returns `{:ok, user}` if the token is valid, signed, and not revoked.
+  Returns `{:error, :invalid_token}` if the JWT is invalid, expired, or revoked.
   """
   def verify_access_token(raw_token) when is_binary(raw_token) do
-    token_hash = :crypto.hash(:sha256, raw_token) |> Base.encode16(case: :lower)
+    with {:ok, claims} <- ExGoCD.JWT.verify(raw_token),
+         jti when is_binary(jti) <- Map.get(claims, "jti"),
+         token when not is_nil(token) <-
+           Repo.get_by(PersonalAccessToken, token_hash: jti) |> repo_preload_user() do
+      if token.revoked do
+        {:error, :revoked_token}
+      else
+        # Update last used timestamp
+        now = DateTime.utc_now() |> DateTime.truncate(:second)
+        {:ok, _} = token |> PersonalAccessToken.changeset(%{last_used_at: now}) |> Repo.update()
 
-    case Repo.get_by(PersonalAccessToken, token_hash: token_hash, revoked: false) do
+        {:ok, token.user}
+      end
+    else
       nil ->
         {:error, :invalid_token}
 
-      token ->
-        token = Repo.preload(token, :user)
-        now = DateTime.utc_now() |> DateTime.truncate(:second)
-        {:ok, _} = token |> PersonalAccessToken.changeset(%{last_used_at: now}) |> Repo.update()
-        {:ok, token.user}
+      {:error, _reason} ->
+        {:error, :invalid_token}
     end
   end
+
+  defp repo_preload_user(nil), do: nil
+  defp repo_preload_user(token), do: Repo.preload(token, :user)
 
   @doc """
   Verifies a username/password pair. Returns {:ok, user} or {:error, reason}.
