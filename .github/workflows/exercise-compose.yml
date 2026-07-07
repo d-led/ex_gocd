@@ -1,0 +1,19 @@
+name: Exercise Compose Examples
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  exercise:
+    name: Exercise all compose examples
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Exercise all examples
+        run: bash examples/exercise_all.sh
