@@ -350,7 +350,7 @@ run_exgocd_example \
 # ── Example 4: OAuth2-Proxy demo (self-contained) ──────────────────────
 # Self-contained stack: PostgreSQL + ExGoCD + oauth2-proxy + smtp4dev.
 # Tests proxy auth, auto-user-creation, user APIs, and email UI.
-OAUTH_EXERCISE="$SCRIPT_DIR/../oauth2-proxy/exercise.sh"
+OAUTH_EXERCISE="$SCRIPT_DIR/oauth2-proxy/exercise.sh"
 if [ -x "$OAUTH_EXERCISE" ]; then
   banner "Example 4: OAuth2-Proxy + User Auto-Creation Demo"
   if bash "$OAUTH_EXERCISE"; then

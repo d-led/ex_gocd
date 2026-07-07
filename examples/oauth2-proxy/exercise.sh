@@ -89,7 +89,8 @@ main() {
   # ── Start full stack ───────────────────────────────────────────────────
   banner "Start: PostgreSQL + ExGoCD + oauth2-proxy + smtp4dev"
   log "Bringing up all services..."
-  docker compose -f "$COMPOSE_FILE" -p "$PROJECT" up -d --build 2>&1 | sed 's/^/  /'
+  docker compose -f "$COMPOSE_FILE" -p "$PROJECT" build -q 2>&1
+  docker compose -f "$COMPOSE_FILE" -p "$PROJECT" up -d 2>&1
 
   # ── M1: Server healthy ─────────────────────────────────────────────────
   banner "Milestone 1: ExGoCD server healthy"
