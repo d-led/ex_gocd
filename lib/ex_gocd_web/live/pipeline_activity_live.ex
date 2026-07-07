@@ -403,7 +403,8 @@ defmodule ExGoCDWeb.PipelineActivityLive do
 
                     <%= for stage <- run.stages do %>
                       <% st_start = stage[:scheduled_at] %>
-                      <% st_end = stage[:completed_at] %>
+                      <% st_end =
+                        stage[:completed_at] || if stage.status == "Building", do: DateTime.utc_now() %>
                       <%= if st_start && st_end do %>
                         <% left_pct =
                           Float.round(
@@ -418,7 +419,7 @@ defmodule ExGoCDWeb.PipelineActivityLive do
                         <% dur_sec = DateTime.diff(st_end, st_start, :second) %>
                         <.link
                           navigate={
-                          ~p"/pipelines/#{@pipeline_name}/#{run.counter}/#{stage.name}/#{stage.counter}"
+                            ~p"/pipelines/#{@pipeline_name}/#{run.counter}/#{stage.name}/#{stage.counter}"
                           }
                           class={"absolute top-0.5 h-5 rounded-sm opacity-85 hover:opacity-100 transition-opacity " <> gantt_bar_color(stage.status)}
                           style={"left:#{left_pct}%;width:#{width_pct}%"}
@@ -459,6 +460,7 @@ defmodule ExGoCDWeb.PipelineActivityLive do
 
   defp gantt_time_window(runs) do
     stages = Enum.flat_map(runs, & &1.stages)
+    now = DateTime.utc_now()
 
     starts =
       stages
@@ -467,18 +469,20 @@ defmodule ExGoCDWeb.PipelineActivityLive do
 
     ends =
       stages
-      |> Enum.map(& &1[:completed_at])
+      |> Enum.map(fn s ->
+        s[:completed_at] || if s[:status] == "Building", do: now
+      end)
       |> Enum.reject(&is_nil/1)
 
     min_ts =
       if starts != [],
-        do: Enum.min(starts, DateTime, fn -> DateTime.utc_now() end),
-        else: DateTime.utc_now()
+        do: Enum.min(starts, DateTime, fn -> now end),
+        else: DateTime.add(now, -60, :second)
 
     max_ts =
       if ends != [],
-        do: Enum.max(ends, DateTime, fn -> DateTime.utc_now() end),
-        else: DateTime.add(min_ts, 60, :second)
+        do: Enum.max(ends, DateTime, fn -> now end),
+        else: now
 
     span = max(DateTime.diff(max_ts, min_ts, :second), 60)
 
@@ -638,7 +642,7 @@ defmodule ExGoCDWeb.PipelineActivityLive do
                     </.link>
                   <% end %>
                 </div>
-
+                
     <!-- Commit messages: every material, full text, no clipping -->
                 <%= if Enum.any?(run.modifications, & &1.comment) do %>
                   <div class="flex flex-col gap-0.5">
@@ -650,7 +654,7 @@ defmodule ExGoCDWeb.PipelineActivityLive do
                   </div>
                 <% end %>
               </div>
-
+              
     <!-- Stage pipeline: compact horizontal strip -->
               <div class="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 border-l border-gray-100">
                 <%= for {stage, idx} <- Enum.with_index(run.stages) do %>
