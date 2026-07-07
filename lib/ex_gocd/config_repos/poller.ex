@@ -11,6 +11,9 @@ defmodule ExGoCD.ConfigRepos.Poller do
 
   alias ExGoCD.ConfigRepos
 
+  alias ExGoCD.ConfigRepos.{ConfigRepoFile, TranslationEngine}
+  alias ExGoCD.Repo
+
   @default_interval_ms 60_000
 
   # -- Client API --
@@ -106,7 +109,21 @@ defmodule ExGoCD.ConfigRepos.Poller do
   end
 
   defp parse_repo(repo, dir) do
-    # Collect all .gocd.yaml, .gocd.json, pipeline*.yaml files
+    case repo.source_type do
+      "github_actions" ->
+        parse_external_ci(repo, dir, ".github/workflows/*.yml", "github_workflow")
+
+      "gitlab_ci" ->
+        parse_external_ci(repo, dir, ".gitlab-ci.yml", "gitlab_pipeline")
+
+      _ ->
+        parse_gocd_pipeline(repo, dir)
+    end
+  end
+
+  # --- GoCD pipeline format (existing) ---
+
+  defp parse_gocd_pipeline(repo, dir) do
     patterns =
       Application.get_env(:ex_gocd, :config_repo_patterns, [
         "*.gocd.yaml",
@@ -139,6 +156,103 @@ defmodule ExGoCD.ConfigRepos.Poller do
           :error
       end
     end
+  end
+
+  # --- External CI format (GitHub Actions / GitLab CI) ---
+
+  defp parse_external_ci(repo, dir, file_pattern, file_source_type) do
+    files = Path.wildcard(Path.join(dir, file_pattern))
+
+    if files == [] do
+      Logger.warning("[ConfigRepoPoller] No #{file_source_type} files found in #{dir}")
+      :ok
+    else
+      has_changes =
+        Enum.any?(files, fn full_path ->
+          rel_path = Path.relative_to(full_path, dir)
+          content = File.read!(full_path)
+          checksum = :crypto.hash(:sha256, content) |> Base.encode16(case: :lower)
+          upsert_file_record(repo, rel_path, file_source_type, checksum, content)
+        end)
+
+      if has_changes do
+        case TranslationEngine.translate_and_persist_all(repo.id) do
+          {:ok, count} ->
+            Logger.info(
+              "[ConfigRepoPoller] Translated #{count} pipelines from #{repo.source_type} repo #{repo.id}"
+            )
+
+            update_last_parsed(repo)
+            :ok
+
+          {:error, reason} ->
+            Logger.error("[ConfigRepoPoller] Translation failed for repo #{repo.id}: #{reason}")
+            :error
+        end
+      else
+        Logger.debug("[ConfigRepoPoller] No changes in #{repo.source_type} repo #{repo.id}")
+        :ok
+      end
+    end
+  end
+
+  defp upsert_file_record(repo, rel_path, source_type, checksum, content) do
+    import Ecto.Query
+
+    existing =
+      Repo.one(
+        from f in ConfigRepoFile,
+          where: f.config_repo_id == ^repo.id and f.path == ^rel_path
+      )
+
+    if existing && existing.checksum == checksum do
+      # No change — just touch last_seen_at
+      Repo.update_all(
+        from(f in ConfigRepoFile, where: f.id == ^existing.id),
+        set: [last_seen_at: DateTime.utc_now() |> DateTime.truncate(:second)]
+      )
+
+      false
+    else
+      # New or changed
+      if existing do
+        existing
+        |> ConfigRepoFile.changeset(%{
+          checksum: checksum,
+          raw_content: content,
+          status: "modified",
+          last_seen_at: DateTime.utc_now() |> DateTime.truncate(:second),
+          parsed_at: DateTime.utc_now() |> DateTime.truncate(:second)
+        })
+        |> Repo.update!()
+
+        Logger.info("[ConfigRepoPoller] Updated #{rel_path} in repo #{repo.id}")
+      else
+        %ConfigRepoFile{}
+        |> ConfigRepoFile.changeset(%{
+          config_repo_id: repo.id,
+          path: rel_path,
+          source_type: source_type,
+          checksum: checksum,
+          raw_content: content,
+          status: "active",
+          last_seen_at: DateTime.utc_now() |> DateTime.truncate(:second),
+          parsed_at: DateTime.utc_now() |> DateTime.truncate(:second)
+        })
+        |> Repo.insert!()
+
+        Logger.info("[ConfigRepoPoller] Discovered #{rel_path} in repo #{repo.id}")
+      end
+
+      true
+    end
+  end
+
+  defp update_last_parsed(repo) do
+    ConfigRepos.update_config_repo(repo, %{
+      last_parsed_at: DateTime.utc_now() |> DateTime.truncate(:second),
+      error_message: nil
+    })
   end
 
   defp repo_dir(repo) do

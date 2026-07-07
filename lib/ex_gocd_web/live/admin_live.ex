@@ -226,7 +226,7 @@ defmodule ExGoCDWeb.AdminLive do
             <i class="fa-solid fa-circle-question"></i>
           </a>
         </div>
-
+        
     <!-- Page Header Actions (Dynamic based on Tab) -->
         <div class="flex flex-wrap items-center gap-4">
           <%= if @tab == "pipelines" do %>
@@ -261,7 +261,7 @@ defmodule ExGoCDWeb.AdminLive do
           <% end %>
         </div>
       </div>
-
+      
     <!-- Sub-Tab Navigation Bar -->
       <div class="bg-white border-b border-[#e9edef] px-6 py-2.5 flex flex-wrap gap-6 text-sm font-semibold shadow-sm">
         <.sub_tab_link active={@tab == "overview"} href="/admin/overview">Overview</.sub_tab_link>
@@ -288,7 +288,7 @@ defmodule ExGoCDWeb.AdminLive do
           🔗 Clustering
         </.sub_tab_link>
       </div>
-
+      
     <!-- Main Layout Body (Centered Content) -->
       <div class="max-w-[1400px] mx-auto px-6 py-6">
         <%= if @flash_info do %>
@@ -472,7 +472,7 @@ defmodule ExGoCDWeb.AdminLive do
             </div>
           </div>
         </div>
-
+        
     <!-- Quick Actions -->
         <div class="bg-white rounded border border-[#d6e0e2] p-5 shadow-sm">
           <h3 class="text-sm font-bold border-b border-[#e9edef] pb-3 flex items-center gap-2 text-slate-700">
@@ -575,7 +575,7 @@ defmodule ExGoCDWeb.AdminLive do
           </div>
         </form>
       <% end %>
-
+      
     <!-- Pipeline Group Cards -->
       <div class="space-y-6">
         <%= for group <- @filtered_groups do %>
@@ -2137,7 +2137,7 @@ defmodule ExGoCDWeb.AdminLive do
           </div>
         </form>
       </div>
-
+      
     <!-- Results Table -->
       <div class="bg-white rounded border border-[#d6e0e2] overflow-hidden shadow-sm">
         <div class="overflow-x-auto">
@@ -2274,7 +2274,7 @@ defmodule ExGoCDWeb.AdminLive do
             <% end %>
           </div>
         </div>
-
+        
     <!-- Cluster Events -->
         <div>
           <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
@@ -2304,7 +2304,7 @@ defmodule ExGoCDWeb.AdminLive do
             <% end %>
           </div>
         </div>
-
+        
     <!-- Plugin UIs -->
         <div>
           <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Plugin UIs</h4>
@@ -2323,7 +2323,7 @@ defmodule ExGoCDWeb.AdminLive do
             <% end %>
           </div>
         </div>
-
+        
     <!-- Singleton Locations -->
         <div>
           <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">

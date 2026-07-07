@@ -85,8 +85,17 @@ defmodule ExGoCD.ElasticAgentProfiles do
   end
 
   @doc """
-  Auto-seeds a default Docker elastic agent profile if none exists.
-  Uses local Docker socket. Idempotent.
+  Auto-seeds Docker elastic agent profiles if none exist. Idempotent.
+
+  Seeds four profiles, each mapping different resource sets to the right image:
+
+  | Profile              | Resources                  | Image                                    | Size   |
+  |----------------------|----------------------------|------------------------------------------|--------|
+  | docker-no-resources  | (none — default)           | ghcr.io/d-led/ex_gocd-agent:latest       | ~55MB  |
+  | docker-default       | java, gradle, git, docker, | gocd/gocd-agent-docker-24.5.0            | ~200MB |
+  |                      | python, node, ruby         |                                          |        |
+  | docker-rust-elixir   | rust, cargo, elixir        | ghcr.io/d-led/ex_gocd-agent:rust-elixir  | ~788MB |
+  | docker-golang        | go, golang                 | ghcr.io/d-led/ex_gocd-agent:golang       | ~487MB |
 
   Returns :ok (seeded or already exists).
   """
@@ -101,31 +110,90 @@ defmodule ExGoCD.ElasticAgentProfiles do
     if existing do
       :ok
     else
+      min_image = "ghcr.io/d-led/ex_gocd-agent:latest"
+      java_image = "gocd/gocd-agent-docker-24.5.0"
+      rust_elixir_image = "ghcr.io/d-led/ex_gocd-agent:rust-elixir"
+      golang_image = "ghcr.io/d-led/ex_gocd-agent:golang"
+
+      # Profile 1: No resources — lightweight, no Java needed
+      %ElasticAgentProfile{}
+      |> ElasticAgentProfile.changeset(%{
+        name: "docker-no-resources",
+        plugin_id: "cd.go.contrib.elastic-agent.docker",
+        cluster_profile_id: "docker-local",
+        properties: %{
+          "Image" => min_image,
+          "MaxMemory" => "512m",
+          "MaxCPU" => "1.0",
+          "MinAgents" => 0
+        }
+      })
+      |> Repo.insert()
+
+      # Profile 2: Java/Gradle — needs JVM, handles most common tools
       %ElasticAgentProfile{}
       |> ElasticAgentProfile.changeset(%{
         name: "docker-default",
         plugin_id: "cd.go.contrib.elastic-agent.docker",
         cluster_profile_id: "docker-local",
         properties: %{
-          "Image" => "gocd/gocd-agent-docker-24.5.0",
+          "Image" => java_image,
           "MaxMemory" => "2g",
           "MaxCPU" => "2.0",
           "ResourceImages" => %{
-            "java" => "gocd/gocd-agent-docker-24.5.0",
-            "gradle" => "gocd/gocd-agent-docker-24.5.0",
-            "python" => "gocd/gocd-agent-docker-24.5.0",
-            "node" => "gocd/gocd-agent-docker-24.5.0",
-            "ruby" => "gocd/gocd-agent-docker-24.5.0",
-            "docker" => "gocd/gocd-agent-docker-24.5.0"
+            "java" => java_image,
+            "gradle" => java_image,
+            "git" => java_image,
+            "docker" => java_image,
+            "python" => java_image,
+            "node" => java_image,
+            "ruby" => java_image
           },
           "MinAgents" => 0
         }
       })
       |> Repo.insert()
-      |> case do
-        {:ok, _} -> :ok
-        {:error, _} -> :ok
-      end
+
+      # Profile 3: Rust + Elixir — includes Rust, Cargo, Elixir, Erlang, build tools
+      %ElasticAgentProfile{}
+      |> ElasticAgentProfile.changeset(%{
+        name: "docker-rust-elixir",
+        plugin_id: "cd.go.contrib.elastic-agent.docker",
+        cluster_profile_id: "docker-local",
+        properties: %{
+          "Image" => rust_elixir_image,
+          "MaxMemory" => "2g",
+          "MaxCPU" => "2.0",
+          "ResourceImages" => %{
+            "rust" => rust_elixir_image,
+            "cargo" => rust_elixir_image,
+            "elixir" => rust_elixir_image
+          },
+          "MinAgents" => 0
+        }
+      })
+      |> Repo.insert()
+
+      # Profile 4: Go — lightweight Go compiler + build-base for CGO
+      %ElasticAgentProfile{}
+      |> ElasticAgentProfile.changeset(%{
+        name: "docker-golang",
+        plugin_id: "cd.go.contrib.elastic-agent.docker",
+        cluster_profile_id: "docker-local",
+        properties: %{
+          "Image" => golang_image,
+          "MaxMemory" => "2g",
+          "MaxCPU" => "2.0",
+          "ResourceImages" => %{
+            "go" => golang_image,
+            "golang" => golang_image
+          },
+          "MinAgents" => 0
+        }
+      })
+      |> Repo.insert()
+
+      :ok
     end
   end
 end

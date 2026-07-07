@@ -58,13 +58,21 @@ defmodule ExGoCD.ConfigRepos do
   end
 
   @doc """
-  Triggers a refresh of a config repo via git clone/pull.
-  Currently requires explicit content; use refresh_config_repo_with_content/2.
+  Triggers a refresh of a config repo via the Poller (git clone/pull + parse).
+  The Poller handles gocd_pipeline, github_actions, and gitlab_ci source types.
   """
-  @spec refresh_config_repo(ConfigRepo.t()) :: {:ok, integer()} | {:error, String.t()}
-  def refresh_config_repo(_config_repo) do
-    {:error,
-     "direct git clone not yet implemented — use refresh_config_repo_with_content/2 to pass file contents"}
+  @spec refresh_config_repo(ConfigRepo.t()) :: {:ok, ConfigRepo.t()} | {:error, String.t()}
+  def refresh_config_repo(config_repo) do
+    # Delegate to the Poller process — it handles cloning, pulling, parsing.
+    # If the Poller is not running (e.g. tests), return a clear message.
+    case Process.whereis(ExGoCD.ConfigRepos.Poller) do
+      nil ->
+        {:error, "Poller not running — config repo sync unavailable"}
+
+      _pid ->
+        ExGoCD.ConfigRepos.Poller.poll_now()
+        {:ok, config_repo}
+    end
   end
 
   @doc """
