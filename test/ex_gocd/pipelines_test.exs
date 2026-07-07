@@ -952,4 +952,103 @@ defmodule ExGoCD.PipelinesTest do
       assert rerun_si2.counter == 2
     end
   end
+
+  describe "reconcile_stale_stages/0" do
+    test "transitions stage to Completed when all jobs are Completed but stage is still Building" do
+      {pipeline, _stage, _jobs} = insert_pipeline_with_jobs("reconcile-test", 2)
+
+      {:ok, instance} = Pipelines.trigger_pipeline(pipeline.name)
+
+      [stage] =
+        from(s in StageInstance, where: s.pipeline_instance_id == ^instance.id) |> Repo.all()
+
+      jobs = Repo.all(from j in JobInstance, where: j.stage_instance_id == ^stage.id)
+
+      # Simulate: jobs finished but stage transition missed (server crash, lost PubSub, etc.)
+      for j <- jobs do
+        {:ok, _} =
+          j
+          |> JobInstance.changeset(%{
+            state: "Completed",
+            result: "Passed",
+            completed_at: DateTime.utc_now()
+          })
+          |> Repo.update()
+      end
+
+      # Stage should still be Building — the bug we're fixing
+      stage = Repo.reload!(stage)
+      assert stage.state == "Building"
+
+      # Reconcile should fix it
+      count = Pipelines.reconcile_stale_stages()
+      assert count == 1
+
+      stage = Repo.reload!(stage)
+      assert stage.state == "Completed"
+      assert stage.result == "Passed"
+    end
+
+    test "does not touch stages with in-flight jobs (not all Completed)" do
+      {pipeline, _stage, _jobs} = insert_pipeline_with_jobs("reconcile-inflight", 2)
+
+      {:ok, instance} = Pipelines.trigger_pipeline(pipeline.name)
+
+      [stage] =
+        from(s in StageInstance, where: s.pipeline_instance_id == ^instance.id) |> Repo.all()
+
+      jobs = Repo.all(from j in JobInstance, where: j.stage_instance_id == ^stage.id)
+
+      # Mark only first job Completed, second stays Scheduled
+      [first | _rest] = jobs
+
+      {:ok, _} =
+        first
+        |> JobInstance.changeset(%{
+          state: "Completed",
+          result: "Passed",
+          completed_at: DateTime.utc_now()
+        })
+        |> Repo.update()
+
+      # Reconcile should NOT touch this stage — one job still in flight
+      count = Pipelines.reconcile_stale_stages()
+      assert count == 0
+
+      stage = Repo.reload!(stage)
+      assert stage.state == "Building"
+    end
+
+    test "reconciles stage result as Failed when any job failed" do
+      {pipeline, _stage, _jobs} = insert_pipeline_with_jobs("reconcile-fail", 1)
+
+      {:ok, instance} = Pipelines.trigger_pipeline(pipeline.name)
+
+      [stage] =
+        from(s in StageInstance, where: s.pipeline_instance_id == ^instance.id) |> Repo.all()
+
+      [job] = Repo.all(from j in JobInstance, where: j.stage_instance_id == ^stage.id)
+
+      {:ok, _} =
+        job
+        |> JobInstance.changeset(%{
+          state: "Completed",
+          result: "Failed",
+          completed_at: DateTime.utc_now()
+        })
+        |> Repo.update()
+
+      count = Pipelines.reconcile_stale_stages()
+      assert count == 1
+
+      stage = Repo.reload!(stage)
+      assert stage.state == "Completed"
+      assert stage.result == "Failed"
+    end
+
+    test "returns 0 when no stale stages exist" do
+      count = Pipelines.reconcile_stale_stages()
+      assert count == 0
+    end
+  end
 end

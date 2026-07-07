@@ -1649,6 +1649,61 @@ defmodule ExGoCD.Pipelines do
   defp to_utc_datetime(_), do: nil
 
   @doc """
+  Reconciles stale stage instances whose jobs have all completed but the stage
+  was never transitioned to Completed (missed PubSub, process crash, server restart).
+
+  Safe: only touches stages where every single job is already Completed —
+  no in-flight jobs are ever affected. Returns count of stages fixed.
+  """
+  @spec reconcile_stale_stages() :: non_neg_integer()
+  def reconcile_stale_stages do
+    stuck =
+      from(s in StageInstance, where: s.state in ["Building", "Awaiting"])
+      |> Repo.all()
+      |> Repo.preload(:job_instances)
+
+    now = DateTime.utc_now()
+
+    count =
+      Enum.reduce(stuck, 0, fn stage, acc ->
+        jobs = stage.job_instances || []
+
+        if jobs != [] and Enum.all?(jobs, &(&1.state == "Completed")) do
+          # All jobs completed — stage transition was simply missed.
+          stage_result =
+            if Enum.any?(jobs, &(&1.result in ["Failed", "Cancelled"])),
+              do: "Failed",
+              else: "Passed"
+
+          stage
+          |> StageInstance.changeset(%{
+            state: "Completed",
+            result: stage_result,
+            completed_at: now,
+            last_transitioned_time: now
+          })
+          |> Repo.update()
+          |> case do
+            {:ok, _} -> acc + 1
+            _ -> acc
+          end
+        else
+          acc
+        end
+      end)
+
+    if count > 0 do
+      Logger.info(
+        "[Pipelines] Reconciled #{count} stale stage(s) — jobs were done, stages now Completed"
+      )
+
+      Phoenix.PubSub.broadcast(ExGoCD.PubSub, "pipelines:updates", :pipelines_updated)
+    end
+
+    count
+  end
+
+  @doc """
   Determines the status of a pipeline instance based on its stage instances.
   """
   def pipeline_instance_status(instance) do

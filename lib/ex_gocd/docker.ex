@@ -84,7 +84,7 @@ defmodule ExGoCD.Docker do
       {:ok, %{status: 204}} ->
         :ok
 
-      {:ok, %{status: 304} = resp} ->
+      {:ok, %{status: 304} = _resp} ->
         Logger.debug("[Docker] Container #{String.slice(container_id, 0, 12)} already started")
         :ok
 
@@ -105,7 +105,7 @@ defmodule ExGoCD.Docker do
       {:ok, %{status: 204}} ->
         :ok
 
-      {:ok, %{status: 304} = resp} ->
+      {:ok, %{status: 304} = _resp} ->
         Logger.debug("[Docker] Container #{String.slice(container_id, 0, 12)} already stopped")
         :ok
 

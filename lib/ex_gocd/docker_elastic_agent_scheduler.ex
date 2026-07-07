@@ -24,7 +24,6 @@ defmodule ExGoCD.DockerElasticAgentScheduler do
   alias ExGoCD.Docker
   alias ExGoCD.ElasticAgentProfiles
   alias ExGoCD.ElasticAgentProfiles.ElasticAgentProfile
-  alias ExGoCD.Scheduler
 
   @tick_ms 30_000
   @idle_timeout_seconds 300
@@ -114,22 +113,23 @@ defmodule ExGoCD.DockerElasticAgentScheduler do
       state
     else
       pending_jobs = get_pending_jobs()
+      Enum.reduce(pending_jobs, state, &maybe_scale_for_job(&2, &1, profiles))
+    end
+  end
 
-      Enum.reduce(pending_jobs, state, fn job, acc ->
-        if needs_docker_agent?(job) do
-          acc
-          |> maybe_create_container(job, profiles)
-          |> tap(fn
-            %{containers: cs} when map_size(cs) > map_size(acc.containers) ->
-              log_event(acc, :info, "Created container for job #{job_name(job)}")
+  defp maybe_scale_for_job(acc, job, profiles) do
+    if needs_docker_agent?(job) do
+      acc
+      |> maybe_create_container(job, profiles)
+      |> tap(fn
+        %{containers: cs} when map_size(cs) > map_size(acc.containers) ->
+          log_event(acc, :info, "Created container for job #{job_name(job)}")
 
-            _ ->
-              :ok
-          end)
-        else
-          acc
-        end
+        _ ->
+          :ok
       end)
+    else
+      acc
     end
   end
 
@@ -263,7 +263,8 @@ defmodule ExGoCD.DockerElasticAgentScheduler do
 
   defp find_matching_profile(resources, profiles) do
     if resources == [] do
-      List.first(profiles)
+      # For no-resource jobs, prefer the explicitly-named no-resources profile
+      Enum.find(profiles, &(&1.name == "docker-no-resources")) || List.first(profiles)
     else
       # Prefer profiles whose ResourceImages or resources match the job
       Enum.find(profiles, fn p ->
@@ -368,7 +369,7 @@ defmodule ExGoCD.DockerElasticAgentScheduler do
   end
 
   defp get_pending_jobs do
-    case Scheduler.get_queue_state() do
+    case ExGoCD.Scheduler.get_queue_state() do
       %{in_memory_jobs: jobs} -> jobs
       _ -> []
     end

@@ -56,7 +56,8 @@ defmodule ExGoCD.Application do
                  ExGoCD.Monitors.DiskSpace,
                  ExGoCD.ElasticAgentScheduler,
                  ExGoCD.DockerElasticAgentScheduler,
-                 ExGoCD.Backup
+                 ExGoCD.Backup,
+                 ExGoCD.StartupReaper
                ] do
              Horde.DynamicSupervisor.start_child(ExGoCD.HordeSupervisor, {mod, []})
            end
