@@ -586,18 +586,34 @@ defmodule ExGoCDWeb.JobDetailsLive do
   def format_size(bytes) when bytes < 1024 * 1024, do: "#{Float.round(bytes / 1024, 1)} KB"
   def format_size(bytes), do: "#{Float.round(bytes / (1024 * 1024), 1)} MB"
 
+  # TODO: Replace with DB-backed TestReport.get_by_job_instance/1 when Tests tab is LiveView-native.
+  # Currently returns false to avoid crash — test reports are stored in DB, not filesystem.
   def has_test_report?(pipeline_name, pipeline_counter, stage_name, stage_counter, job_name) do
-    job_dir =
-      Path.join([
-        artifacts_dir(),
-        pipeline_name,
-        to_string(pipeline_counter),
-        stage_name,
-        to_string(stage_counter),
-        job_name
-      ])
+    # Look up job_instance_id from pipeline params, then check DB
+    job_instance_id =
+      get_job_instance_id(pipeline_name, pipeline_counter, stage_name, stage_counter, job_name)
 
-    ExGoCD.TestReport.exists?(job_dir)
+    case job_instance_id do
+      nil -> false
+      id -> ExGoCD.TestReport.exists?(id)
+    end
+  end
+
+  defp get_job_instance_id(pipeline_name, pipeline_counter, stage_name, stage_counter, job_name) do
+    query =
+      from(ji in ExGoCD.Pipelines.JobInstance,
+        join: si in assoc(ji, :stage_instance),
+        join: pi in assoc(si, :pipeline_instance),
+        join: p in assoc(pi, :pipeline),
+        where:
+          p.name == ^pipeline_name and pi.counter == ^pipeline_counter and
+            si.name == ^stage_name and si.counter == ^stage_counter and
+            ji.name == ^job_name,
+        select: ji.id,
+        limit: 1
+      )
+
+    Repo.one(query)
   end
 
   def test_report_url(pipeline_name, pipeline_counter, stage_name, stage_counter, job_name) do

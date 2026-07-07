@@ -35,7 +35,11 @@ defmodule ExGoCD.TestReport do
     if Enum.empty?(xml_files) do
       {:error, :no_test_files}
     else
-      suites = Enum.map(xml_files, &parse_xml_file/1)
+      suites =
+        xml_files
+        |> Enum.map(&parse_xml_file/1)
+        |> List.flatten()
+        |> Enum.reject(&(&1.cases == []))
 
       case suites do
         [] ->
@@ -129,7 +133,9 @@ defmodule ExGoCD.TestReport do
         end
       end
 
-      Logger.info("Test report stored: #{merged.total_tests} tests in #{length(merged.suites)} suites")
+      Logger.info(
+        "Test report stored: #{merged.total_tests} tests in #{length(merged.suites)} suites"
+      )
 
       Repo.one!(
         from(tr in TestReport,
@@ -193,20 +199,14 @@ defmodule ExGoCD.TestReport do
   end
 
   # Detect XML format by root element tag
-  defp detect_format(
-         {:xmlElement, :testsuite, :testsuite, _, _, _, _, _, _, _, _, _}
-       ),
-       do: :junit
+  defp detect_format({:xmlElement, :testsuite, :testsuite, _, _, _, _, _, _, _, _, _}),
+    do: :junit
 
-  defp detect_format(
-         {:xmlElement, :"test-results", :"test-results", _, _, _, _, _, _, _, _, _}
-       ),
-       do: :nunit
+  defp detect_format({:xmlElement, :"test-results", :"test-results", _, _, _, _, _, _, _, _, _}),
+    do: :nunit
 
-  defp detect_format(
-         {:xmlElement, :assemblies, :assemblies, _, _, _, _, _, _, _, _, _}
-       ),
-       do: :xunit
+  defp detect_format({:xmlElement, :assemblies, :assemblies, _, _, _, _, _, _, _, _, _}),
+    do: :xunit
 
   defp detect_format(_), do: :unknown
 
@@ -257,7 +257,8 @@ defmodule ExGoCD.TestReport do
   # ══════════════════════════════════════════════════════════════════
 
   defp extract_nunit_suites(
-         {:xmlElement, :"test-results", :"test-results", _, _, _, _, root_attrs, children, _, _, _}
+         {:xmlElement, :"test-results", :"test-results", _, _, _, _, root_attrs, children, _, _,
+          _}
        ) do
     total = get_xml_attr(root_attrs, :total, ~c"0") |> List.to_string() |> parse_int()
     failures = get_xml_attr(root_attrs, :failures, ~c"0") |> List.to_string() |> parse_int()
@@ -269,7 +270,7 @@ defmodule ExGoCD.TestReport do
 
     # If no child test-suites found, treat the root as a single suite
     if suites == [] do
-      cases = extract_nunit_testcases(children, [])
+      cases = extract_nunit_testcases_from_suite(children)
 
       [
         %{
@@ -290,21 +291,20 @@ defmodule ExGoCD.TestReport do
   defp extract_nunit_suite_children([], acc), do: acc
 
   defp extract_nunit_suite_children(
-         [{:xmlElement, :"test-suite", :"test-suite", _, _, _, _, attrs, children, _, _, _} | rest],
+         [
+           {:xmlElement, :"test-suite", :"test-suite", _, _, _, _, attrs, children, _, _, _}
+           | rest
+         ],
          acc
        ) do
     suite = %{
       name: get_xml_attr(attrs, :name, ~c"unknown") |> List.to_string(),
-      tests:
-        get_xml_attr(attrs, :total, ~c"0") |> List.to_string() |> parse_int(),
-      failures:
-        get_xml_attr(attrs, :failures, ~c"0") |> List.to_string() |> parse_int(),
-      errors:
-        get_xml_attr(attrs, :errors, ~c"0") |> List.to_string() |> parse_int(),
-      skipped:
-        get_xml_attr(attrs, :skipped, ~c"0") |> List.to_string() |> parse_int(),
+      tests: get_xml_attr(attrs, :total, ~c"0") |> List.to_string() |> parse_int(),
+      failures: get_xml_attr(attrs, :failures, ~c"0") |> List.to_string() |> parse_int(),
+      errors: get_xml_attr(attrs, :errors, ~c"0") |> List.to_string() |> parse_int(),
+      skipped: get_xml_attr(attrs, :skipped, ~c"0") |> List.to_string() |> parse_int(),
       time: get_xml_attr(attrs, :time, ~c"0") |> List.to_string() |> parse_float(),
-      cases: extract_nunit_testcases(children, [])
+      cases: extract_nunit_testcases_from_suite(children)
     }
 
     extract_nunit_suite_children(rest, [suite | acc])
@@ -313,16 +313,32 @@ defmodule ExGoCD.TestReport do
   defp extract_nunit_suite_children([_other | rest], acc),
     do: extract_nunit_suite_children(rest, acc)
 
+  # NUnit wraps test cases in <results> inside <test-suite>
+  defp extract_nunit_testcases_from_suite(children) do
+    results_children =
+      Enum.find_value(children, fn
+        {:xmlElement, :results, :results, _, _, _, _, _, results_children, _, _, _} ->
+          results_children
+
+        _ ->
+          nil
+      end) || children
+
+    extract_nunit_testcases(results_children, [])
+  end
+
   defp extract_nunit_testcases([], acc), do: Enum.reverse(acc)
 
   defp extract_nunit_testcases(
-         [{:xmlElement, :"test-case", :"test-case", _, _, _, _, attrs, tc_children, _, _, _} | rest],
+         [
+           {:xmlElement, :"test-case", :"test-case", _, _, _, _, attrs, tc_children, _, _, _}
+           | rest
+         ],
          acc
        ) do
     tc = %{
       name: get_xml_attr(attrs, :name, ~c"unknown") |> List.to_string(),
-      classname:
-        get_xml_attr(attrs, :description, ~c"") |> List.to_string(),
+      classname: get_xml_attr(attrs, :description, ~c"") |> List.to_string(),
       time: get_xml_attr(attrs, :time, ~c"0") |> List.to_string() |> parse_float(),
       result: case_result(tc_children, :nunit),
       message: extract_message(tc_children),
@@ -415,8 +431,7 @@ defmodule ExGoCD.TestReport do
        ) do
     tc = %{
       name: get_xml_attr(attrs, :name, ~c"unknown") |> List.to_string(),
-      classname:
-        get_xml_attr(attrs, :type, ~c"") |> List.to_string(),
+      classname: get_xml_attr(attrs, :type, ~c"") |> List.to_string(),
       time: get_xml_attr(attrs, :time, ~c"0") |> List.to_string() |> parse_float(),
       result: case_result(tc_children, :xunit),
       message: extract_message(tc_children),
