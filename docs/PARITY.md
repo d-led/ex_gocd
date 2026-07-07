@@ -1,8 +1,8 @@
 # ex_gocd — Unified Feature Parity Plan
 
 > Single source of truth. Supersedes all previous plan/roadmap/status documents.
-> Last audited: 2026-07-07. 900+ tests. 67 controllers. 21 LiveView pages. 20 GenServers. 40 migrations.
-> **2026-07-07 audit:** Auth route split (public vs admin), RBAC gaps (per-environment policies), UI missing links (dashboard cards, stage popup, menu cleanup), console echo granularity.
+> Last audited: 2026-07-08. 949 tests. 67 controllers. 21 LiveView pages. 20 GenServers. 42 migrations.
+> **2026-07-08 audit:** DB-backed test report storage (JUnit/NUnit/XUnit), `test_reports`/`test_suites`/`test_cases` tables. Tests tab still uses legacy iframe — LiveView-native rewrite deferred.
 
 ---
 
@@ -124,7 +124,7 @@ ex_gocd has achieved ~95% parity with GoCD. The remaining ~11 gaps are in 4 cate
 | Stats API | ✅ GET /api/stats | — | — |
 | Console Streaming | ✅ append API | ✅ JobDetailsLive console tab | ✅ pub_sub.ex |
 | Artifacts | ✅ upload/download/browse | ✅ JobDetailsLive artifacts tab | ✅ artifact_cleanup.ex |
-| Test Reports | ✅ JUnit XML → HTML | ✅ JobDetailsLive tests tab | ✅ test_report.ex |
+| Test Reports | ✅ JUnit/NUnit/XUnit → DB | ✅ JobDetailsLive tests tab (iframe — see G2) | ✅ test_report.ex (parser+DB store) |
 | Audit Log | — | ✅ AuditLogLive (search/filter/links) | ✅ audit_log.ex |
 | Scheduling Admin | — | ✅ AdminSchedulingLive | ✅ scheduling_checker.ex |
 | External CI Wizard | — | ✅ ExternalCIRepoWizardLive | ✅ config_repos/parser.ex |
@@ -204,7 +204,20 @@ ex_gocd has achieved ~95% parity with GoCD. The remaining ~11 gaps are in 4 cate
 | F1 | **Per-environment RBAC** | Role policies (`<allow action="view" type="environment">UAT</allow>`) control environment access | M | ❌ |
 | F2 | **Policy enforcement via Bodyguard** | `EnvironmentPolicy` only checks admin/dev/viewer roles — needs bodyguard hex package for proper policy evaluation | M | ❌ |
 
-### Remaining Gaps (10)
+### 🟡 Category G: Job Details Tabs — Tests, Artifacts & Custom Tabs (3)
+
+| # | Gap | GoCD Behavior | Effort | Status |
+|---|-----|---------------|--------|--------|
+| G1 | **Tests tab: LiveView-native rendering** | GoCD generates `testoutput/index.html` via XSLT → iframes it. We now parse JUnit/NUnit/XUnit into DB on upload (`parse_and_store/2`), but the Tests tab still uses an iframe pointing to old `index.html`. Should render pure LiveView Heex from Ecto data (summary cards, progress bar, test case tables). | M | ⚠️ DB-backed, UI deferred |
+| G2 | **Artifacts tab: HTML View link** | GoCD serves HTML artifacts inline. Our artifacts tab shows directory tree with Download links only — HTML files (.html/.htm) should have a "View" link that opens in a new tab (ArtifactsController already serves correct `text/html` Content-Type). | S | ❌ |
+| G3 | **Custom tabs from job config** | GoCD renders `<tabs><tab name="Cov" path="reports/coverage/index.html"/></tabs>` as iframe tabs in job details. Our `jobs.tabs` DB column exists but is never consumed by the LiveView. Should render custom tab buttons, each linking to `/files/.../{path}` in new tab (no iframe). | S | ❌ |
+
+### Remaining Gaps (13)
+
+#### Already Done (this session)
+1. ✅ **DB-backed test reports** — `test_reports`/`test_suites`/`test_cases` tables, Ecto schemas, JUnit+NUnit+XUnit parsers via `:xmerl`, `parse_and_store/2` storing on upload, `exists?/1` and `get_by_job_instance/1` from DB. Tests: 8 passing with all 3 formats.
+
+#### Remaining
 6. A5: Backup config API
 7. A6: Backup status tracking
 8. A4: Pipeline groups admin API
@@ -217,14 +230,17 @@ ex_gocd has achieved ~95% parity with GoCD. The remaining ~11 gaps are in 4 cate
 13. D1: Artifact caching Phase 1
 14. E2: Stage overview popup
 15. F1+F2: RBAC with Bodyguard for per-environment policies
+16. **G1: Tests tab LiveView-native** — replace iframe with pure Heex rendering from Ecto
 
 ### Phase 4: Stretch (L-XL)
-16. D2: Docker elastic agent path
-17. E1, E3, E4, E7: Dashboard missing links
+17. D2: Docker elastic agent path
+18. E1, E3, E4, E7: Dashboard missing links
 
 ### Phase 5: Polish (S)
-18. E5: Console env-var echo fix
-19. E6: Nav menu cleanup
+19. E5: Console env-var echo fix
+20. E6: Nav menu cleanup
+21. **G2: Artifacts tab HTML View link**
+22. **G3: Custom tabs from job config**
 
 ---
 
@@ -247,7 +263,7 @@ ex_gocd has achieved ~95% parity with GoCD. The remaining ~11 gaps are in 4 cate
 | `mix format --check-formatted` | ✅ |
 | `mix sobelow` | ✅ 0 findings |
 | `mix credo --strict` | ✅ |
-| `mix test` | ✅ 890 passed |
+| `mix test` | ✅ 949 passed |
 | `go vet ./...` | ✅ |
 | `go test ./...` | ✅ |
 | `golangci-lint run` | ✅ 0 issues |
