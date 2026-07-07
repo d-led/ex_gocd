@@ -534,7 +534,7 @@ defmodule ExGoCDWeb.AdminLive do
               <div>
                 <p class="text-xs font-bold text-slate-700">Reconcile Stale Stages</p>
                 <p class="text-[11px] text-slate-400 mt-0.5">
-                  Fix stages stuck in Building/Awaiting when all jobs are already done.
+                  Fix stages stuck in Building/Awaiting when all jobs are already done. Use if pipeline statuses don&apos;t look right.
                 </p>
               </div>
               <button
