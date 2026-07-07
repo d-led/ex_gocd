@@ -69,7 +69,18 @@ defmodule ExGoCDWeb.ArtifactsController do
          :ok <- check_file_not_exists(target_path, file_path) do
       upload = conn.params["file"] || conn.params["zipfile"]
       checksum_upload = conn.params["file_checksum"]
-      handle_upload(conn, upload, checksum_upload, target_path, job_dir)
+      conn = handle_upload(conn, upload, checksum_upload, target_path, job_dir)
+
+      maybe_generate_test_report(
+        job_dir,
+        pipeline_name,
+        pipeline_counter_str,
+        stage_name,
+        stage_counter_str,
+        job_name
+      )
+
+      conn
     else
       {:error, status, message} ->
         conn |> put_status(status) |> text(message)
@@ -112,7 +123,6 @@ defmodule ExGoCDWeb.ArtifactsController do
         :ok ->
           maybe_save_checksum(job_dir, checksum_upload)
           compute_and_save_checksums(target_path, job_dir)
-          maybe_generate_test_report(job_dir)
           ExGoCD.ArtifactCleanup.cleanup_if_needed()
           conn |> put_status(201) |> text("File was created successfully")
 
@@ -131,7 +141,6 @@ defmodule ExGoCDWeb.ArtifactsController do
         {:ok, _} ->
           maybe_save_checksum(job_dir, checksum_upload)
           compute_and_save_checksum(target_path, job_dir)
-          maybe_generate_test_report(job_dir)
           ExGoCD.ArtifactCleanup.cleanup_if_needed()
           conn |> put_status(201) |> text("File was created successfully")
 
@@ -148,15 +157,35 @@ defmodule ExGoCDWeb.ArtifactsController do
 
   defp maybe_save_checksum(_job_dir, _), do: :ok
 
-  # Trigger test report generation if testoutput/ exists with XML files
-  defp maybe_generate_test_report(job_dir) do
+  # Trigger test report generation if testoutput/ exists with XML files.
+  # Parses XML into DB via TestReport.parse_and_store/2 so results survive artifact cleanup.
+  defp maybe_generate_test_report(
+         job_dir,
+         pipeline_name,
+         pipeline_counter,
+         stage_name,
+         stage_counter,
+         job_name
+       ) do
     test_dir = Path.join(job_dir, "testoutput")
 
     if File.dir?(test_dir) do
       case File.ls(test_dir) do
         {:ok, files} ->
           if Enum.any?(files, &String.ends_with?(&1, ".xml")) do
-            ExGoCD.TestReport.generate(job_dir)
+            case find_job_instance_id(
+                   pipeline_name,
+                   pipeline_counter,
+                   stage_name,
+                   stage_counter,
+                   job_name
+                 ) do
+              nil ->
+                :ok
+
+              ji_id ->
+                ExGoCD.TestReport.parse_and_store(job_dir, ji_id)
+            end
           end
 
         {:error, _} ->
@@ -165,6 +194,25 @@ defmodule ExGoCDWeb.ArtifactsController do
     end
 
     :ok
+  end
+
+  defp find_job_instance_id(pipeline_name, pipeline_counter, stage_name, stage_counter, job_name) do
+    import Ecto.Query
+
+    query =
+      from(ji in ExGoCD.Pipelines.JobInstance,
+        join: si in assoc(ji, :stage_instance),
+        join: pi in assoc(si, :pipeline_instance),
+        join: p in assoc(pi, :pipeline),
+        where:
+          p.name == ^pipeline_name and pi.counter == ^pipeline_counter and
+            si.name == ^stage_name and si.counter == ^stage_counter and
+            ji.name == ^job_name,
+        select: ji.id,
+        limit: 1
+      )
+
+    ExGoCD.Repo.one(query)
   end
 
   # GET /files/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/:job_name/*file_path

@@ -1,55 +1,152 @@
 defmodule ExGoCD.TestReport do
   @moduledoc """
-  Generates HTML test reports from JUnit XML files uploaded as job artifacts.
+  Parses test result XML files (JUnit, NUnit, XUnit) uploaded as test artifacts
+  and persists results to the database.
 
-  Mirrors GoCD's UnitTestReportGenerator: merges JUnit XML files from testoutput/
-  into a single index.html rendered via an EEx template.
+  Mirrors GoCD's UnitTestReportGenerator: merges test XML files from testoutput/
+  into a structured report. Unlike GoCD (which writes an index.html file artifact),
+  results are stored in DB so they survive artifact cleanup and enable trend queries.
+
+  GoCD reference:
+    config/config-api/.../TestArtifactConfig.java — type="test", dest defaults to "testoutput"
+    domain/.../UnitTestReportGenerator.java — merges XML, generates XSLT HTML
   """
 
   require Logger
 
+  import Ecto.Query
+
+  alias ExGoCD.Repo
+  alias ExGoCD.TestReport.{TestReport, TestSuite, TestCase}
+
   @testoutput_dir "testoutput"
-  @report_file "index.html"
 
   @doc """
-  Generates a test report for the given job artifact directory.
-  Returns `{:ok, html_path}` on success, or `{:error, reason}`.
+  Parses test XML files from the job artifact directory and stores results in the database.
+  Returns `{:ok, report}` on success, or `{:error, reason}`.
+  Replaces any existing report for the same job instance (re-parse on re-upload).
   """
-  def generate(job_artifact_dir) do
+  @spec parse_and_store(String.t(), integer()) :: {:ok, TestReport.t()} | {:error, atom()}
+  def parse_and_store(job_artifact_dir, job_instance_id) do
     test_dir = Path.join(job_artifact_dir, @testoutput_dir)
 
-    unless File.dir?(test_dir) do
-      {:ok, File.mkdir_p!(test_dir)}
-    end
-
-    xml_files = find_junit_xml(test_dir)
+    xml_files = find_test_xml(test_dir)
 
     if Enum.empty?(xml_files) do
       {:error, :no_test_files}
     else
-      case merge_and_transform(xml_files, test_dir) do
-        {:ok, html_path} ->
-          Logger.info("Test report generated: #{html_path} (#{length(xml_files)} test files)")
-          {:ok, html_path}
+      suites = Enum.map(xml_files, &parse_xml_file/1)
 
-        {:error, reason} ->
-          Logger.error("Test report generation failed: #{inspect(reason)}")
-          {:error, reason}
+      case suites do
+        [] ->
+          {:error, :no_valid_test_files}
+
+        all_suites ->
+          merged = merge_suites(all_suites)
+          store_report(merged, job_instance_id)
       end
     end
   end
 
   @doc """
-  Checks if a test report index.html exists for the given job artifact directory.
+  Checks if a test report exists in the database for the given job instance.
   """
-  def exists?(job_artifact_dir) do
-    test_dir = Path.join(job_artifact_dir, @testoutput_dir)
-    File.exists?(Path.join(test_dir, @report_file))
+  @spec exists?(integer()) :: boolean()
+  def exists?(job_instance_id) do
+    Repo.exists?(
+      from(tr in TestReport,
+        where: tr.job_instance_id == ^job_instance_id
+      )
+    )
   end
 
-  # ── Private ──────────────────────────────────────────────────────────
+  @doc """
+  Loads a test report with preloaded suites and cases for a job instance.
+  Returns nil if no report exists.
+  """
+  @spec get_by_job_instance(integer()) :: TestReport.t() | nil
+  def get_by_job_instance(job_instance_id) do
+    Repo.one(
+      from(tr in TestReport,
+        where: tr.job_instance_id == ^job_instance_id,
+        preload: [
+          suites: ^from(ts in TestSuite, order_by: ts.name, preload: [:cases])
+        ]
+      )
+    )
+  end
 
-  defp find_junit_xml(test_dir) do
+  # ── Private: Store ───────────────────────────────────────────────────
+
+  defp store_report(merged, job_instance_id) do
+    # Upsert: delete existing report for this job instance, then insert fresh
+    Repo.transaction(fn ->
+      from(tr in TestReport, where: tr.job_instance_id == ^job_instance_id)
+      |> Repo.delete_all()
+
+      {:ok, report} =
+        %TestReport{}
+        |> TestReport.changeset(%{
+          job_instance_id: job_instance_id,
+          total_tests: merged.total_tests,
+          total_failures: merged.total_failures,
+          total_errors: merged.total_errors,
+          total_skipped: merged.total_skipped,
+          total_time: merged.total_time,
+          passed: merged.passed,
+          failed: merged.failed,
+          errored: merged.errored,
+          skipped: merged.skipped
+        })
+        |> Repo.insert()
+
+      for suite_map <- merged.suites do
+        {:ok, suite} =
+          %TestSuite{}
+          |> TestSuite.changeset(%{
+            test_report_id: report.id,
+            name: suite_map.name,
+            tests: suite_map.tests,
+            failures: suite_map.failures,
+            errors: suite_map.errors,
+            skipped: suite_map.skipped,
+            time: suite_map.time
+          })
+          |> Repo.insert()
+
+        for case_map <- suite_map.cases do
+          %TestCase{}
+          |> TestCase.changeset(%{
+            test_suite_id: suite.id,
+            name: case_map.name,
+            classname: case_map.classname,
+            time: case_map.time,
+            result: case_map.result,
+            message: case_map.message,
+            failure_type: case_map.type
+          })
+          |> Repo.insert!()
+        end
+      end
+
+      Logger.info("Test report stored: #{merged.total_tests} tests in #{length(merged.suites)} suites")
+
+      Repo.one!(
+        from(tr in TestReport,
+          where: tr.id == ^report.id,
+          preload: [suites: ^from(ts in TestSuite, order_by: ts.name, preload: [:cases])]
+        )
+      )
+    end)
+    |> case do
+      {:ok, report} -> {:ok, report}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  # ── Private: File discovery ──────────────────────────────────────────
+
+  defp find_test_xml(test_dir) do
     case File.ls(test_dir) do
       {:ok, files} ->
         files
@@ -62,63 +159,32 @@ defmodule ExGoCD.TestReport do
     end
   end
 
-  defp merge_and_transform(xml_files, output_dir) do
-    suites = Enum.map(xml_files, &parse_junit_file/1)
+  # ── Private: XML parsing dispatch ────────────────────────────────────
 
-    case suites do
-      [] ->
-        {:error, :no_valid_test_files}
-
-      all_suites ->
-        merged = merge_suites(all_suites)
-        html = render_report(merged)
-        html_path = Path.join(output_dir, @report_file)
-
-        case File.write(html_path, html) do
-          :ok -> {:ok, html_path}
-          {:error, reason} -> {:error, reason}
-        end
-    end
-  end
-
-  # Parse a single JUnit XML file into a map of test suite data
-  defp parse_junit_file(file_path) do
+  defp parse_xml_file(file_path) do
     case File.read(file_path) do
       {:ok, xml} ->
         case parse_xml_safe(xml, file_path) do
-          {:ok, suite} ->
-            suite
-
-          :error ->
-            %{
-              name: Path.basename(file_path),
-              tests: 0,
-              failures: 0,
-              errors: 0,
-              skipped: 0,
-              time: 0,
-              cases: []
-            }
+          {:ok, suites} when is_list(suites) -> suites
+          {:ok, suite} -> [suite]
+          :error -> []
         end
 
       {:error, _} ->
-        %{
-          name: Path.basename(file_path),
-          tests: 0,
-          failures: 0,
-          errors: 0,
-          skipped: 0,
-          time: 0,
-          cases: []
-        }
+        []
     end
   end
 
-  # Parse XML using Erlang's built-in xmerl
   defp parse_xml_safe(xml, file_path) do
     try do
       {root, _rest} = :xmerl_scan.string(String.to_charlist(xml), quiet: true)
-      {:ok, extract_suite(root, Path.basename(file_path))}
+
+      case detect_format(root) do
+        :junit -> {:ok, extract_junit_suite(root, Path.basename(file_path))}
+        :nunit -> {:ok, extract_nunit_suites(root)}
+        :xunit -> {:ok, extract_xunit_suites(root)}
+        :unknown -> :error
+      end
     rescue
       _ -> :error
     catch
@@ -126,7 +192,29 @@ defmodule ExGoCD.TestReport do
     end
   end
 
-  defp extract_suite(
+  # Detect XML format by root element tag
+  defp detect_format(
+         {:xmlElement, :testsuite, :testsuite, _, _, _, _, _, _, _, _, _}
+       ),
+       do: :junit
+
+  defp detect_format(
+         {:xmlElement, :"test-results", :"test-results", _, _, _, _, _, _, _, _, _}
+       ),
+       do: :nunit
+
+  defp detect_format(
+         {:xmlElement, :assemblies, :assemblies, _, _, _, _, _, _, _, _, _}
+       ),
+       do: :xunit
+
+  defp detect_format(_), do: :unknown
+
+  # ══════════════════════════════════════════════════════════════════
+  # JUnit parser (<testsuite><testcase>)
+  # ══════════════════════════════════════════════════════════════════
+
+  defp extract_junit_suite(
          {:xmlElement, :testsuite, :testsuite, _, _, _, _, attrs, children, _, _, _},
          default_name
        ) do
@@ -153,7 +241,7 @@ defmodule ExGoCD.TestReport do
       name: get_xml_attr(attrs, :name, ~c"unknown") |> List.to_string(),
       classname: get_xml_attr(attrs, :classname, ~c"") |> List.to_string(),
       time: get_xml_attr(attrs, :time, ~c"0") |> List.to_string() |> parse_float(),
-      result: case_result(children),
+      result: case_result(children, :junit),
       message: extract_message(children),
       type: extract_failure_type(children)
     }
@@ -163,7 +251,189 @@ defmodule ExGoCD.TestReport do
 
   defp extract_testcases([_other | rest], acc), do: extract_testcases(rest, acc)
 
-  defp case_result(children) do
+  # ══════════════════════════════════════════════════════════════════
+  # NUnit parser (<test-results><test-suite><results><test-case>)
+  # GoCD reference: unittests.xsl handles 'test-results' root
+  # ══════════════════════════════════════════════════════════════════
+
+  defp extract_nunit_suites(
+         {:xmlElement, :"test-results", :"test-results", _, _, _, _, root_attrs, children, _, _, _}
+       ) do
+    total = get_xml_attr(root_attrs, :total, ~c"0") |> List.to_string() |> parse_int()
+    failures = get_xml_attr(root_attrs, :failures, ~c"0") |> List.to_string() |> parse_int()
+    errors = get_xml_attr(root_attrs, :errors, ~c"0") |> List.to_string() |> parse_int()
+    skipped = get_xml_attr(root_attrs, :skipped, ~c"0") |> List.to_string() |> parse_int()
+    time = get_xml_attr(root_attrs, :time, ~c"0") |> List.to_string() |> parse_float()
+
+    suites = extract_nunit_suite_children(children, [])
+
+    # If no child test-suites found, treat the root as a single suite
+    if suites == [] do
+      cases = extract_nunit_testcases(children, [])
+
+      [
+        %{
+          name: get_xml_attr(root_attrs, :name, ~c"Test Results") |> List.to_string(),
+          tests: total,
+          failures: failures,
+          errors: errors,
+          skipped: skipped,
+          time: time,
+          cases: cases
+        }
+      ]
+    else
+      suites
+    end
+  end
+
+  defp extract_nunit_suite_children([], acc), do: acc
+
+  defp extract_nunit_suite_children(
+         [{:xmlElement, :"test-suite", :"test-suite", _, _, _, _, attrs, children, _, _, _} | rest],
+         acc
+       ) do
+    suite = %{
+      name: get_xml_attr(attrs, :name, ~c"unknown") |> List.to_string(),
+      tests:
+        get_xml_attr(attrs, :total, ~c"0") |> List.to_string() |> parse_int(),
+      failures:
+        get_xml_attr(attrs, :failures, ~c"0") |> List.to_string() |> parse_int(),
+      errors:
+        get_xml_attr(attrs, :errors, ~c"0") |> List.to_string() |> parse_int(),
+      skipped:
+        get_xml_attr(attrs, :skipped, ~c"0") |> List.to_string() |> parse_int(),
+      time: get_xml_attr(attrs, :time, ~c"0") |> List.to_string() |> parse_float(),
+      cases: extract_nunit_testcases(children, [])
+    }
+
+    extract_nunit_suite_children(rest, [suite | acc])
+  end
+
+  defp extract_nunit_suite_children([_other | rest], acc),
+    do: extract_nunit_suite_children(rest, acc)
+
+  defp extract_nunit_testcases([], acc), do: Enum.reverse(acc)
+
+  defp extract_nunit_testcases(
+         [{:xmlElement, :"test-case", :"test-case", _, _, _, _, attrs, tc_children, _, _, _} | rest],
+         acc
+       ) do
+    tc = %{
+      name: get_xml_attr(attrs, :name, ~c"unknown") |> List.to_string(),
+      classname:
+        get_xml_attr(attrs, :description, ~c"") |> List.to_string(),
+      time: get_xml_attr(attrs, :time, ~c"0") |> List.to_string() |> parse_float(),
+      result: case_result(tc_children, :nunit),
+      message: extract_message(tc_children),
+      type: extract_failure_type(tc_children)
+    }
+
+    extract_nunit_testcases(rest, [tc | acc])
+  end
+
+  defp extract_nunit_testcases([_other | rest], acc),
+    do: extract_nunit_testcases(rest, acc)
+
+  # ══════════════════════════════════════════════════════════════════
+  # XUnit parser (<assemblies><assembly><collection><test>)
+  # ══════════════════════════════════════════════════════════════════
+
+  defp extract_xunit_suites(
+         {:xmlElement, :assemblies, :assemblies, _, _, _, _, _, children, _, _, _}
+       ) do
+    suites = extract_xunit_assemblies(children, [])
+
+    if suites == [] do
+      cases = extract_xunit_testcases(children, [])
+
+      [
+        %{
+          name: "Test Results",
+          tests: length(cases),
+          failures: Enum.count(cases, &(&1.result == "failed")),
+          errors: Enum.count(cases, &(&1.result == "error")),
+          skipped: Enum.count(cases, &(&1.result == "skipped")),
+          time: Enum.sum(Enum.map(cases, & &1.time)),
+          cases: cases
+        }
+      ]
+    else
+      suites
+    end
+  end
+
+  defp extract_xunit_assemblies([], acc), do: acc
+
+  defp extract_xunit_assemblies(
+         [{:xmlElement, :assembly, :assembly, _, _, _, _, attrs, children, _, _, _} | rest],
+         acc
+       ) do
+    assembly_name =
+      get_xml_attr(attrs, :name, ~c"unknown") |> List.to_string()
+
+    sub_suites = extract_xunit_collections(children, assembly_name, [])
+    extract_xunit_assemblies(rest, sub_suites ++ acc)
+  end
+
+  defp extract_xunit_assemblies([_other | rest], acc),
+    do: extract_xunit_assemblies(rest, acc)
+
+  defp extract_xunit_collections([], _assembly_name, acc), do: acc
+
+  defp extract_xunit_collections(
+         [{:xmlElement, :collection, :collection, _, _, _, _, attrs, children, _, _, _} | rest],
+         assembly_name,
+         acc
+       ) do
+    coll_name =
+      get_xml_attr(attrs, :name, ~c"unknown") |> List.to_string()
+
+    cases = extract_xunit_testcases(children, [])
+
+    suite = %{
+      name: "#{assembly_name}.#{coll_name}",
+      tests: length(cases),
+      failures: Enum.count(cases, &(&1.result == "failed")),
+      errors: Enum.count(cases, &(&1.result == "error")),
+      skipped: Enum.count(cases, &(&1.result == "skipped")),
+      time: Enum.sum(Enum.map(cases, & &1.time)),
+      cases: cases
+    }
+
+    extract_xunit_collections(rest, assembly_name, [suite | acc])
+  end
+
+  defp extract_xunit_collections([_other | rest], assembly_name, acc),
+    do: extract_xunit_collections(rest, assembly_name, acc)
+
+  defp extract_xunit_testcases([], acc), do: Enum.reverse(acc)
+
+  defp extract_xunit_testcases(
+         [{:xmlElement, :test, :test, _, _, _, _, attrs, tc_children, _, _, _} | rest],
+         acc
+       ) do
+    tc = %{
+      name: get_xml_attr(attrs, :name, ~c"unknown") |> List.to_string(),
+      classname:
+        get_xml_attr(attrs, :type, ~c"") |> List.to_string(),
+      time: get_xml_attr(attrs, :time, ~c"0") |> List.to_string() |> parse_float(),
+      result: case_result(tc_children, :xunit),
+      message: extract_message(tc_children),
+      type: extract_failure_type(tc_children)
+    }
+
+    extract_xunit_testcases(rest, [tc | acc])
+  end
+
+  defp extract_xunit_testcases([_other | rest], acc),
+    do: extract_xunit_testcases(rest, acc)
+
+  # ══════════════════════════════════════════════════════════════════
+  # Shared helpers
+  # ══════════════════════════════════════════════════════════════════
+
+  defp case_result(children, format) do
     has_tag = fn tag ->
       Enum.any?(children, fn
         {:xmlElement, ^tag, ^tag, _, _, _, _, _, _, _, _, _} -> true
@@ -171,8 +441,21 @@ defmodule ExGoCD.TestReport do
       end)
     end
 
+    # NUnit v2 uses success="False" attribute instead of child tags
+    nunit_failure? = fn ->
+      format == :nunit &&
+        Enum.any?(children, fn
+          {:xmlAttribute, :success, _, _, _, _, _, _, value, _} ->
+            List.to_string(value) in ~w(False false)
+
+          _ ->
+            false
+        end)
+    end
+
     cond do
       has_tag.(:failure) -> "failed"
+      nunit_failure?.() -> "failed"
       has_tag.(:error) -> "error"
       has_tag.(:skipped) -> "skipped"
       true -> "passed"
@@ -263,138 +546,5 @@ defmodule ExGoCD.TestReport do
       errored: Enum.count(all_cases, &(&1.result == "error")),
       skipped: Enum.count(all_cases, &(&1.result == "skipped"))
     }
-  end
-
-  # Render the merged results as HTML
-  defp render_report(report) do
-    pct = fn n, d ->
-      if d > 0, do: Float.round(n * 1.0 / d * 100.0, 1), else: 0.0
-    end
-
-    suite_rows =
-      Enum.map(report.suites, fn suite ->
-        header = """
-        <tr class="suite-header"><td colspan="4">#{escape_html(suite.name)} &mdash; #{suite.tests} tests</td></tr>
-        """
-
-        cases =
-          Enum.map(suite.cases, fn tc ->
-            result_class = "result-#{tc.result}"
-
-            """
-            <tr>
-              <td>#{escape_html(tc.name)}</td>
-              <td>#{escape_html(tc.classname)}</td>
-              <td class="#{result_class}">#{String.upcase(tc.result)}</td>
-              <td>#{Float.round(tc.time, 3)}s</td>
-            </tr>
-            """
-          end)
-
-        header <> Enum.join(cases)
-      end)
-
-    """
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Test Report</title>
-    <style>
-      * { box-sizing: border-box; margin: 0; padding: 0; }
-      body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f4f8f9; color: #333; padding: 24px; }
-      h1 { font-size: 20px; margin-bottom: 16px; color: #1a1a1a; }
-      .summary { display: flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
-      .summary-card { background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; padding: 16px 24px; text-align: center; min-width: 100px; }
-      .summary-card .count { font-size: 28px; font-weight: 700; }
-      .summary-card .label { font-size: 11px; text-transform: uppercase; color: #888; font-weight: 600; letter-spacing: 0.5px; margin-top: 4px; }
-      .summary-card.total .count { color: #2d6ca2; }
-      .summary-card.passed .count { color: #5cb85c; }
-      .summary-card.failed .count { color: #d9534f; }
-      .summary-card.errored .count { color: #f0ad4e; }
-      .summary-card.skipped .count { color: #999; }
-      .summary-card.time .count { font-size: 18px; color: #666; }
-      table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden; }
-      th { background: #f8f9fa; padding: 10px 14px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: #888; text-align: left; font-weight: 700; }
-      td { padding: 9px 14px; font-size: 13px; border-top: 1px solid #f0f0f0; font-family: 'SF Mono', 'Fira Code', monospace; }
-      tr:hover td { background: #f8fbff; }
-      .result-passed { color: #5cb85c; font-weight: 600; }
-      .result-failed { color: #d9534f; font-weight: 600; }
-      .result-error { color: #f0ad4e; font-weight: 600; }
-      .result-skipped { color: #999; }
-      .suite-header td { background: #f0f4f8; font-weight: 700; font-size: 12px; color: #555; text-transform: uppercase; letter-spacing: 0.3px; padding-top: 14px; border-top: 2px solid #e0e0e0; }
-      .progress-bar { height: 6px; background: #e9ecef; border-radius: 3px; overflow: hidden; margin-top: 16px; margin-bottom: 24px; }
-      .progress-bar .passed-fill { background: #5cb85c; }
-      .progress-bar .failed-fill { background: #d9534f; }
-      .progress-bar .errored-fill { background: #f0ad4e; }
-      .progress-bar .skipped-fill { background: #ccc; }
-      .progress-segments { display: flex; height: 100%; }
-      .progress-segments div { height: 100%; }
-    </style>
-    </head>
-    <body>
-    <h1>Test Report</h1>
-
-    <div class="summary">
-      <div class="summary-card total">
-        <div class="count">#{report.total_tests}</div>
-        <div class="label">Total</div>
-      </div>
-      <div class="summary-card passed">
-        <div class="count">#{report.passed}</div>
-        <div class="label">Passed</div>
-      </div>
-      <div class="summary-card failed">
-        <div class="count">#{report.failed}</div>
-        <div class="label">Failed</div>
-      </div>
-      <div class="summary-card errored">
-        <div class="count">#{report.errored}</div>
-        <div class="label">Errors</div>
-      </div>
-      <div class="summary-card skipped">
-        <div class="count">#{report.skipped}</div>
-        <div class="label">Skipped</div>
-      </div>
-      <div class="summary-card time">
-        <div class="count">#{Float.round(report.total_time, 2)}s</div>
-        <div class="label">Duration</div>
-      </div>
-    </div>
-
-    <div class="progress-bar">
-      <div class="progress-segments">
-        <div class="passed-fill" style="width: #{pct.(report.passed, report.total_tests)}%;"></div>
-        <div class="failed-fill" style="width: #{pct.(report.failed, report.total_tests)}%;"></div>
-        <div class="errored-fill" style="width: #{pct.(report.errored, report.total_tests)}%;"></div>
-        <div class="skipped-fill" style="width: #{pct.(report.skipped, report.total_tests)}%;"></div>
-      </div>
-    </div>
-
-    <table>
-      <thead>
-        <tr>
-          <th>Test Case</th>
-          <th>Class</th>
-          <th>Result</th>
-          <th>Time</th>
-        </tr>
-      </thead>
-      <tbody>
-    #{Enum.join(suite_rows)}
-      </tbody>
-    </table>
-    </body>
-    </html>
-    """
-  end
-
-  defp escape_html(text) when is_binary(text) do
-    text
-    |> String.replace("&", "&amp;")
-    |> String.replace("<", "&lt;")
-    |> String.replace(">", "&gt;")
-    |> String.replace("\"", "&quot;")
   end
 end

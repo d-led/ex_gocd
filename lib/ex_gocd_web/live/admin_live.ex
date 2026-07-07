@@ -529,6 +529,21 @@ defmodule ExGoCDWeb.AdminLive do
                 Cleanup Now
               </button>
             </div>
+
+            <div class="flex items-center justify-between border-t border-[#e9edef] pt-4">
+              <div>
+                <p class="text-xs font-bold text-slate-700">Reconcile Stale Stages</p>
+                <p class="text-[11px] text-slate-400 mt-0.5">
+                  Fix stages stuck in Building/Awaiting when all jobs are already done.
+                </p>
+              </div>
+              <button
+                phx-click="reconcile_stale_stages"
+                class="px-3 py-1.5 rounded text-xs font-semibold bg-amber-500 border border-amber-400 text-white hover:bg-amber-400 transition-all shadow-sm"
+              >
+                Reconcile Now
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -1564,6 +1579,15 @@ defmodule ExGoCDWeb.AdminLive do
     remote_ip = live_remote_ip(socket)
     Events.admin_cleanup_stuck_jobs(socket.assigns.current_user.username, count, remote_ip)
     {:noreply, socket |> put_flash(:info, "Cancelled #{count} stuck jobs.")}
+  end
+
+  @impl true
+  def handle_event("reconcile_stale_stages", _, socket) do
+    count = Pipelines.reconcile_stale_stages()
+
+    {:noreply,
+     socket
+     |> put_flash(:info, "Reconciled #{count} stale stage(s).")}
   end
 
   @impl true
