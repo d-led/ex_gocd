@@ -89,7 +89,8 @@ main() {
   banner "Start: PostgreSQL + ExGoCD + oauth2-proxy + smtp4dev"
   log "Bringing up all services..."
   docker compose -f "$COMPOSE_FILE" -p "$PROJECT" build -q > /dev/null 2>&1
-  docker compose -f "$COMPOSE_FILE" -p "$PROJECT" up -d --quiet-pull > /dev/null 2>&1
+  docker compose -f "$COMPOSE_FILE" -p "$PROJECT" pull -q > /dev/null 2>&1
+  docker compose -f "$COMPOSE_FILE" -p "$PROJECT" up -d --no-build > /dev/null 2>&1
 
   # ── M1: Server healthy ─────────────────────────────────────────────────
   banner "Milestone 1: ExGoCD server healthy"
