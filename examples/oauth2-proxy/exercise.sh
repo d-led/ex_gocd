@@ -35,6 +35,18 @@ passed=0
 failed=0
 
 # ---------------------------------------------------------------------------
+banner() {
+  local max=0
+  for arg in "$@"; do [ ${#arg} -gt $max ] && max=${#arg}; done
+  local width=$(( max + 4 ))
+  local bar; bar=$(printf '=%.0s' $(seq 1 "$width"))
+  echo ""
+  echo "+${bar}+"
+  for arg in "$@"; do printf '|  %-*s  |\n' "$max" "$arg"; done
+  echo "+${bar}+"
+  echo ""
+}
+
 log()  { echo -e "${GREEN}[INFO]${NC}  $(date '+%H:%M:%S') $*"; }
 warn() { echo -e "${YELLOW}[WARN]${NC}  $(date '+%H:%M:%S') $*"; }
 err()  { echo -e "${RED}[FAIL]${NC}  $(date '+%H:%M:%S') $*"; }
@@ -69,12 +81,7 @@ teardown() {
 
 # ---------------------------------------------------------------------------
 main() {
-  echo ""
-  echo "╔══════════════════════════════════════════════════════════════╗"
-  echo "║   OAuth2-Proxy + ExGoCD Demo (Self-Contained)                 ║"
-  echo "║   $(date)                                       ║"
-  echo "╚══════════════════════════════════════════════════════════════╝"
-  echo ""
+  banner "OAuth2-Proxy + ExGoCD Demo (Self-Contained)" "$(date)"
 
   for cmd in docker curl; do
     if ! command -v "$cmd" &>/dev/null; then
@@ -207,9 +214,7 @@ print('yes' if users else 'no')
 
 print_summary() {
   echo ""
-  echo "══════════════════════════════════════════════════════════════"
-  echo "  OAuth2-Proxy Demo: ${GREEN}${passed} passed${NC}, ${RED}${failed} failed${NC}"
-  echo "══════════════════════════════════════════════════════════════"
+  banner "OAuth2-Proxy Demo: ${GREEN}${passed} passed${NC}, ${RED}${failed} failed${NC}"
   echo ""
   [ "$failed" -gt 0 ] && exit 1
   exit 0

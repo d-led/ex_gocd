@@ -40,10 +40,15 @@ warn() { echo -e "${YELLOW}[WARN]${NC}  $(date '+%H:%M:%S') $*"; }
 err()  { echo -e "${RED}[FAIL]${NC}  $(date '+%H:%M:%S') $*"; }
 
 banner() {
+  local max=0
+  for arg in "$@"; do [ ${#arg} -gt $max ] && max=${#arg}; done
+  local width=$(( max + 4 ))
+  local bar; bar=$(printf '=%.0s' $(seq 1 "$width"))
   echo ""
-  echo "=============================================="
-  echo "  $*"
-  echo "=============================================="
+  echo "+${bar}+"
+  for arg in "$@"; do printf '|  %-*s  |\n' "$max" "$arg"; done
+  echo "+${bar}+"
+  echo ""
 }
 
 # Poll a URL until it returns HTTP 200 (or timeout).
@@ -363,9 +368,7 @@ if [ -x "$OAUTH_EXERCISE" ]; then
 fi
 # ── Summary ──────────────────────────────────────────────────────────────
 echo ""
-echo "══════════════════════════════════════════════════════════════"
-echo "  RESULTS: ${GREEN}${passed} passed${NC}, ${RED}${failed} failed${NC}"
-echo "══════════════════════════════════════════════════════════════"
+banner "RESULTS: ${GREEN}${passed} passed${NC}, ${RED}${failed} failed${NC}"
 echo ""
 
 if [ "$failed" -gt 0 ]; then
