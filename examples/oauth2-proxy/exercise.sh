@@ -51,13 +51,6 @@ log()  { echo -e "${GREEN}[INFO]${NC}  $(date '+%H:%M:%S') $*"; }
 warn() { echo -e "${YELLOW}[WARN]${NC}  $(date '+%H:%M:%S') $*"; }
 err()  { echo -e "${RED}[FAIL]${NC}  $(date '+%H:%M:%S') $*"; }
 
-banner() {
-  echo ""
-  echo "=============================================="
-  echo "  $*"
-  echo "=============================================="
-}
-
 wait_for_http() {
   local url="$1" timeout="$2" desc="$3" elapsed=0
   log "Waiting for $desc at $url (timeout ${timeout}s)..."
@@ -74,9 +67,8 @@ wait_for_http() {
 }
 
 teardown() {
-  banner "Teardown"
-  log "Stopping all services..."
-  docker compose -f "$COMPOSE_FILE" -p "$PROJECT" down -v 2>&1 | sed 's/^/  /'
+  log "Tearing down all services..."
+  docker compose -f "$COMPOSE_FILE" -p "$PROJECT" down -v > /dev/null 2>&1
 }
 
 # ---------------------------------------------------------------------------
@@ -96,8 +88,8 @@ main() {
   # ── Start full stack ───────────────────────────────────────────────────
   banner "Start: PostgreSQL + ExGoCD + oauth2-proxy + smtp4dev"
   log "Bringing up all services..."
-  docker compose -f "$COMPOSE_FILE" -p "$PROJECT" build -q > /dev/null
-  docker compose -f "$COMPOSE_FILE" -p "$PROJECT" up -d > /dev/null
+  docker compose -f "$COMPOSE_FILE" -p "$PROJECT" build -q > /dev/null 2>&1
+  docker compose -f "$COMPOSE_FILE" -p "$PROJECT" up -d --quiet-pull > /dev/null 2>&1
 
   # ── M1: Server healthy ─────────────────────────────────────────────────
   banner "Milestone 1: ExGoCD server healthy"
@@ -214,7 +206,7 @@ print('yes' if users else 'no')
 
 print_summary() {
   echo ""
-  banner "OAuth2-Proxy Demo: ${GREEN}${passed} passed${NC}, ${RED}${failed} failed${NC}"
+  banner "OAuth2-Proxy Demo: ${GREEN}${passed} passed${NC}, ${failed} failed"
   echo ""
   [ "$failed" -gt 0 ] && exit 1
   exit 0

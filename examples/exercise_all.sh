@@ -85,13 +85,13 @@ run_exgocd_example() {
 
   # ── Start ──────────────────────────────────────────────────────────────
   log "Starting $project..."
-  docker compose -f "$compose_file" -p "$project" build -q > /dev/null
-  docker compose -f "$compose_file" -p "$project" up -d > /dev/null
+  docker compose -f "$compose_file" -p "$project" build -q > /dev/null 2>&1
+  docker compose -f "$compose_file" -p "$project" up -d --quiet-pull > /dev/null 2>&1
 
   # ── Milestone 1: Server healthy ────────────────────────────────────────
   if ! wait_for_http "${server_url}/api/version" $TIMEOUT_SERVER "ex_gocd server"; then
     failed=$((failed + 1))
-    docker compose -f "$compose_file" -p "$project" down -v 2>/dev/null || true
+    docker compose -f "$compose_file" -p "$project" down -v > /dev/null 2>&1 || true
     return 1
   fi
 
@@ -124,7 +124,7 @@ run_exgocd_example() {
     log "Debug: agent list"
     curl -sf "${server_url}/api/agents" 2>/dev/null | python3 -m json.tool 2>/dev/null || true
     failed=$((failed + 1))
-    docker compose -f "$compose_file" -p "$project" down -v 2>/dev/null || true
+    docker compose -f "$compose_file" -p "$project" down -v > /dev/null 2>&1 || true
     return 1
   fi
 
@@ -132,7 +132,7 @@ run_exgocd_example() {
   # Skip job scheduling when resource is "skip" (e.g., for Java agent)
   if [ "$resource" = "skip" ]; then
     log "Skipping job execution (agent protocol compatibility only)."
-    docker compose -f "$compose_file" -p "$project" down -v 2>&1 | sed 's/^/  /'
+    docker compose -f "$compose_file" -p "$project" down -v > /dev/null 2>&1
     echo -e "${GREEN}[PASS]${NC} $label — agent registered & idle"
     passed=$((passed + 1))
     return 0
@@ -206,7 +206,7 @@ run_exgocd_example() {
 
   # ── Teardown ────────────────────────────────────────────────────────────
   log "Tearing down $project..."
-  docker compose -f "$compose_file" -p "$project" down -v 2>&1 | sed 's/^/  /'
+  docker compose -f "$compose_file" -p "$project" down -v > /dev/null 2>&1
 
   if [ "$job_done" = true ]; then
     echo -e "${GREEN}[PASS]${NC} $label"
@@ -236,7 +236,7 @@ run_gocd_example() {
     warn "GoCD server not healthy yet, checking with curl for debug..."
     curl -sv "${server_url}/go/api/support" 2>&1 | head -20 || true
     failed=$((failed + 1))
-    docker compose -f "$compose_file" -p "$project" down -v 2>/dev/null || true
+    docker compose -f "$compose_file" -p "$project" down -v > /dev/null 2>&1 || true
     return 1
   fi
 
@@ -246,15 +246,15 @@ run_gocd_example() {
   if [ -z "$auto_key" ]; then
     err "Could not read agent auto-register key from GoCD server config"
     failed=$((failed + 1))
-    docker compose -f "$compose_file" -p "$project" down -v 2>/dev/null || true
+    docker compose -f "$compose_file" -p "$project" down -v > /dev/null 2>&1 || true
     return 1
   fi
   log "GoCD auto-register key: $auto_key"
 
   # ── Start agent with correct key ───────────────────────────────────────
   log "Starting ex_gocd agent with correct key..."
-  AGENT_AUTO_REGISTER_KEY="$auto_key" docker compose -f "$compose_file" -p "$project" --profile agent build -q ex-gocd-agent > /dev/null
-  AGENT_AUTO_REGISTER_KEY="$auto_key" docker compose -f "$compose_file" -p "$project" --profile agent up -d ex-gocd-agent > /dev/null
+  AGENT_AUTO_REGISTER_KEY="$auto_key" docker compose -f "$compose_file" -p "$project" --profile agent build -q ex-gocd-agent > /dev/null 2>&1
+  AGENT_AUTO_REGISTER_KEY="$auto_key" docker compose -f "$compose_file" -p "$project" --profile agent up -d --quiet-pull ex-gocd-agent > /dev/null 2>&1
 
   # ── Milestone 2: Agent visible & idle ──────────────────────────────────
   log "Waiting for agent to register and become idle..."
@@ -295,13 +295,13 @@ print(sum(1 for a in agents if a.get('agent_state')=='Idle'))
     log "Debug: GoCD agent list"
     curl -sf "${server_url}/go/api/agents" -H "Accept: application/vnd.go.cd.v7+json" 2>/dev/null | python3 -m json.tool 2>/dev/null || true
     failed=$((failed + 1))
-    docker compose -f "$compose_file" -p "$project" down -v 2>/dev/null || true
+    docker compose -f "$compose_file" -p "$project" down -v > /dev/null 2>&1 || true
     return 1
   fi
 
   # ── Teardown ────────────────────────────────────────────────────────────
   log "Tearing down $project..."
-  docker compose -f "$compose_file" -p "$project" --profile agent down -v 2>&1 | sed 's/^/  /'
+  docker compose -f "$compose_file" -p "$project" --profile agent down -v > /dev/null 2>&1
 
   echo -e "${GREEN}[PASS]${NC} $label — agent registered with official GoCD server"
   passed=$((passed + 1))
@@ -311,12 +311,7 @@ print(sum(1 for a in agents if a.get('agent_state')=='Idle'))
 # Main
 # ---------------------------------------------------------------------------
 
-echo ""
-echo "╔══════════════════════════════════════════════════════════════╗"
-echo "║   ex_gocd Example Compose Exerciser                           ║"
-echo "║   $(date)                                       ║"
-echo "╚══════════════════════════════════════════════════════════════╝"
-echo ""
+banner "ex_gocd Example Compose Exerciser" "$(date)"
 
 # Check prerequisites
 for cmd in docker curl python3 psql; do
@@ -368,7 +363,7 @@ if [ -x "$OAUTH_EXERCISE" ]; then
 fi
 # ── Summary ──────────────────────────────────────────────────────────────
 echo ""
-banner "RESULTS: ${GREEN}${passed} passed${NC}, ${RED}${failed} failed${NC}"
+banner "RESULTS: ${GREEN}${passed} passed${NC}, ${failed} failed"
 echo ""
 
 if [ "$failed" -gt 0 ]; then
