@@ -290,7 +290,13 @@ defmodule ExGoCD.ArtifactCleanup do
   defp env_num(key, default) do
     case System.get_env(key) do
       nil ->
-        Application.get_env(:ex_gocd, String.to_atom(String.downcase(key)), default)
+        key
+        |> String.downcase()
+        |> safe_to_existing_atom()
+        |> case do
+          {:ok, atom} -> Application.get_env(:ex_gocd, atom, default)
+          :error -> default
+        end
 
       val ->
         case Float.parse(val) do
@@ -303,13 +309,27 @@ defmodule ExGoCD.ArtifactCleanup do
   defp env_int(key, default) do
     case System.get_env(key) do
       nil ->
-        Application.get_env(:ex_gocd, String.to_atom(String.downcase(key)), default)
+        key
+        |> String.downcase()
+        |> safe_to_existing_atom()
+        |> case do
+          {:ok, atom} -> Application.get_env(:ex_gocd, atom, default)
+          :error -> default
+        end
 
       val ->
         case Integer.parse(val) do
           {n, _} -> n
           :error -> default
         end
+    end
+  end
+
+  defp safe_to_existing_atom(str) do
+    try do
+      {:ok, String.to_existing_atom(str)}
+    rescue
+      ArgumentError -> :error
     end
   end
 

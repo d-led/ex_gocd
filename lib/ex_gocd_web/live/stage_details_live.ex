@@ -175,6 +175,9 @@ defmodule ExGoCDWeb.StageDetailsLive do
         agent_hostname: (agent && agent.hostname) || ji.agent_uuid,
         agent_type: agent_type(agent),
         duration: job_duration(ji),
+        scheduled_at: ji.scheduled_at,
+        assigned_at: ji.assigned_at,
+        completed_at: ji.completed_at,
         build_id: ji.id
       }
     end)
@@ -305,6 +308,202 @@ defmodule ExGoCDWeb.StageDetailsLive do
   defp kind_color("regular"), do: "bg-gray-100 text-gray-600"
   defp kind_color(_), do: "bg-gray-100 text-gray-400"
 
+  # ── Job Gantt chart ────────────────────────────────────────────────────
+
+  defp job_gantt(assigns) do
+    ~H"""
+    <div>
+      <h3 class="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
+        <i class="fa-solid fa-chart-gantt text-[#2d6ca2]"></i> Job Timeline
+      </h3>
+
+      <div class="flex items-center gap-4 mb-5 text-[10px] text-gray-500">
+        <span class="flex items-center gap-1">
+          <span class="w-2.5 h-2.5 rounded bg-gray-300"></span> Waiting
+        </span>
+        <span class="flex items-center gap-1">
+          <span class="w-2.5 h-2.5 rounded bg-[#5cb85c]"></span> Passed
+        </span>
+        <span class="flex items-center gap-1">
+          <span class="w-2.5 h-2.5 rounded bg-[#d9534f]"></span> Failed
+        </span>
+        <span class="flex items-center gap-1">
+          <span class="w-2.5 h-2.5 rounded bg-[#5bc0de]"></span> Building
+        </span>
+      </div>
+
+      <%= if @jobs == [] do %>
+        <p class="text-gray-400 text-xs">No jobs to display.</p>
+      <% else %>
+        <% {min_ts, _max_ts, span_sec} = job_gantt_window(@jobs) %>
+        <% label_w = 72 %>
+        <% dur_w = 64 %>
+        <% tick_count = 6 %>
+
+        <div class="overflow-x-auto">
+          <div class="min-w-[650px]">
+            <%!-- Time axis --%>
+            <div class="flex items-end border-b border-gray-300 pb-1.5 mb-1 text-[9px] text-gray-400 font-mono select-none">
+              <span class="shrink-0" style={"width:#{label_w}px"}></span>
+              <div class="flex-1 relative h-5">
+                <%= for i <- 0..(tick_count - 1) do %>
+                  <% pct = i / (tick_count - 1) * 100 %>
+                  <% tick_ts = DateTime.add(min_ts, round(span_sec * i / (tick_count - 1)), :second) %>
+                  <span class="absolute -translate-x-1/2" style={"left:#{Float.round(pct, 1)}%;top:0"}>
+                    {Calendar.strftime(tick_ts, "%H:%M:%S")}
+                  </span>
+                  <span
+                    class="absolute top-4 w-px h-1.5 bg-gray-300"
+                    style={"left:#{Float.round(pct, 1)}%"}
+                  >
+                  </span>
+                <% end %>
+              </div>
+              <span class="shrink-0" style={"width:#{dur_w}px"}></span>
+            </div>
+
+            <%!-- Job rows --%>
+            <div class="flex flex-col gap-0.5">
+              <%= for job <- @jobs do %>
+                <% sched = job[:scheduled_at] %>
+                <% assigned = job[:assigned_at] %>
+                <% completed = job[:completed_at] %>
+                <div class="flex items-center group hover:bg-gray-50 rounded-sm transition-colors">
+                  <%!-- Label --%>
+                  <.link
+                    navigate={
+                      ~p"/go/tab/build/detail/#{@pipeline_name}/#{@pipeline_counter}/#{@stage_name}/#{@stage_counter}/#{job.name}"
+                    }
+                    class="shrink-0 font-mono font-extrabold text-gray-900 text-xs hover:text-[#2d6ca2] py-1 pr-2 truncate"
+                    style={"width:#{label_w}px"}
+                    title={job.name}
+                  >
+                    {job.name}
+                  </.link>
+
+                  <%!-- Gantt area --%>
+                  <div class="flex-1 h-6 relative">
+                    <div class="absolute top-1/2 left-0 right-0 border-t border-gray-100 -mt-px">
+                    </div>
+
+                    <%!-- Wait bar: scheduled → assigned (or now if building) --%>
+                    <%= if sched do %>
+                      <% wait_end = assigned || completed || DateTime.utc_now() %>
+                      <% w_left =
+                        Float.round(max(DateTime.diff(sched, min_ts, :second), 0) / span_sec * 100, 1) %>
+                      <% w_width =
+                        max(
+                          Float.round(DateTime.diff(wait_end, sched, :second) / span_sec * 100, 1),
+                          0.3
+                        ) %>
+                      <div
+                        class="absolute top-1.5 h-3 rounded-sm bg-gray-300 opacity-70"
+                        style={"left:#{w_left}%;width:#{w_width}%"}
+                        title={"Waiting: #{format_duration(DateTime.diff(wait_end, sched, :second))}"}
+                      >
+                      </div>
+                    <% end %>
+
+                    <%!-- Build bar: assigned → completed --%>
+                    <%= if assigned && completed do %>
+                      <% b_left =
+                        Float.round(
+                          max(DateTime.diff(assigned, min_ts, :second), 0) / span_sec * 100,
+                          1
+                        ) %>
+                      <% b_width =
+                        max(
+                          Float.round(
+                            DateTime.diff(completed, assigned, :second) / span_sec * 100,
+                            1
+                          ),
+                          0.3
+                        ) %>
+                      <div
+                        class={"absolute top-1.5 h-3 rounded-sm opacity-85 " <> job_bar_color(job.result)}
+                        style={"left:#{b_left}%;width:#{b_width}%"}
+                        title={"#{job.name}: #{job.result} — #{format_duration(DateTime.diff(completed, assigned, :second))}"}
+                      >
+                      </div>
+                    <% end %>
+
+                    <%!-- Building: assigned → now --%>
+                    <%= if assigned && !completed && job.state == "Building" do %>
+                      <% b_left =
+                        Float.round(
+                          max(DateTime.diff(assigned, min_ts, :second), 0) / span_sec * 100,
+                          1
+                        ) %>
+                      <% b_width =
+                        max(
+                          Float.round(
+                            DateTime.diff(DateTime.utc_now(), assigned, :second) / span_sec * 100,
+                            1
+                          ),
+                          0.3
+                        ) %>
+                      <div
+                        class="absolute top-1.5 h-3 rounded-sm opacity-85 bg-[#5bc0de] animate-pulse"
+                        style={"left:#{b_left}%;width:#{b_width}%"}
+                        title={"#{job.name}: Building... — #{format_duration(DateTime.diff(DateTime.utc_now(), assigned, :second))}"}
+                      >
+                      </div>
+                    <% end %>
+                  </div>
+
+                  <%!-- Duration --%>
+                  <span
+                    class="shrink-0 text-right text-[10px] text-gray-500 tabular-nums font-mono"
+                    style={"width:#{dur_w}px"}
+                  >
+                    {format_duration(job.duration)}
+                  </span>
+                </div>
+              <% end %>
+            </div>
+          </div>
+        </div>
+      <% end %>
+    </div>
+    """
+  end
+
+  defp job_gantt_window(jobs) do
+    now = DateTime.utc_now()
+
+    starts =
+      jobs
+      |> Enum.map(& &1[:scheduled_at])
+      |> Enum.reject(&is_nil/1)
+
+    ends =
+      jobs
+      |> Enum.map(fn j ->
+        j[:completed_at] || if j[:state] == "Building", do: now
+      end)
+      |> Enum.reject(&is_nil/1)
+
+    min_ts =
+      if starts != [],
+        do: Enum.min(starts, DateTime, fn -> now end),
+        else: DateTime.add(now, -60, :second)
+
+    max_ts =
+      if ends != [],
+        do: Enum.max(ends, DateTime, fn -> now end),
+        else: now
+
+    span = max(DateTime.diff(max_ts, min_ts, :second), 30)
+
+    pad = round(span * 0.05)
+    {DateTime.add(min_ts, -pad, :second), DateTime.add(max_ts, pad, :second), span + 2 * pad}
+  end
+
+  defp job_bar_color("Passed"), do: "bg-[#5cb85c]"
+  defp job_bar_color("Failed"), do: "bg-[#d9534f]"
+  defp job_bar_color("Cancelled"), do: "bg-[#f0ad4e]"
+  defp job_bar_color(_), do: "bg-gray-400"
+
   @impl true
   def render(assigns) do
     ~H"""
@@ -387,6 +586,13 @@ defmodule ExGoCDWeb.StageDetailsLive do
               class={"px-4 py-3 text-xs font-bold font-mono tracking-wide border-b-2 " <> if @active_tab == "jobs", do: "border-[#2d6ca2] text-[#2d6ca2]", else: "border-transparent text-gray-500 hover:text-gray-700"}
             >
               Jobs
+            </button>
+            <button
+              phx-click="select_tab"
+              phx-value-tab="timeline"
+              class={"px-4 py-3 text-xs font-bold font-mono tracking-wide border-b-2 " <> if @active_tab == "timeline", do: "border-[#2d6ca2] text-[#2d6ca2]", else: "border-transparent text-gray-500 hover:text-gray-700"}
+            >
+              <i class="fa-solid fa-chart-gantt mr-1.5"></i> Timeline
             </button>
             <button
               phx-click="select_tab"
@@ -515,6 +721,14 @@ defmodule ExGoCDWeb.StageDetailsLive do
                     </tbody>
                   </table>
                 </div>
+              <% "timeline" -> %>
+                <.job_gantt
+                  jobs={@stage.jobs}
+                  pipeline_name={@pipeline_name}
+                  pipeline_counter={@pipeline_counter}
+                  stage_name={@stage_name}
+                  stage_counter={@stage_counter}
+                />
               <% "console" -> %>
                 <div class="bg-gray-900 rounded p-6 font-mono text-gray-300 text-xs overflow-y-auto max-h-[400px] leading-relaxed shadow-inner">
                   <div class="text-yellow-500">
