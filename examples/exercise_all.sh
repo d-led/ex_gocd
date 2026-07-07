@@ -80,7 +80,8 @@ run_exgocd_example() {
 
   # ── Start ──────────────────────────────────────────────────────────────
   log "Starting $project..."
-  docker compose -f "$compose_file" -p "$project" up -d --build 2>&1 | sed 's/^/  /'
+  docker compose -f "$compose_file" -p "$project" build -q 2>&1
+  docker compose -f "$compose_file" -p "$project" up -d 2>&1
 
   # ── Milestone 1: Server healthy ────────────────────────────────────────
   if ! wait_for_http "${server_url}/api/version" $TIMEOUT_SERVER "ex_gocd server"; then
@@ -222,7 +223,8 @@ run_gocd_example() {
 
   # ── Start GoCD server only (agent uses profile, started later) ─────────
   log "Starting $project (GoCD server takes ~2-3 min to start)..."
-  docker compose -f "$compose_file" -p "$project" up -d --build go-server 2>&1 | sed 's/^/  /'
+  docker compose -f "$compose_file" -p "$project" build -q go-server 2>&1
+  docker compose -f "$compose_file" -p "$project" up -d go-server 2>&1
 
   # ── Milestone 1: GoCD server healthy ───────────────────────────────────
   if ! wait_for_http "${server_url}/go/api/support" $TIMEOUT_SERVER "GoCD server"; then
@@ -246,7 +248,8 @@ run_gocd_example() {
 
   # ── Start agent with correct key ───────────────────────────────────────
   log "Starting ex_gocd agent with correct key..."
-  AGENT_AUTO_REGISTER_KEY="$auto_key" docker compose -f "$compose_file" -p "$project" --profile agent up -d --build ex-gocd-agent 2>&1 | sed 's/^/  /'
+  AGENT_AUTO_REGISTER_KEY="$auto_key" docker compose -f "$compose_file" -p "$project" --profile agent build -q ex-gocd-agent 2>&1
+  AGENT_AUTO_REGISTER_KEY="$auto_key" docker compose -f "$compose_file" -p "$project" --profile agent up -d ex-gocd-agent 2>&1
 
   # ── Milestone 2: Agent visible & idle ──────────────────────────────────
   log "Waiting for agent to register and become idle..."
@@ -357,8 +360,6 @@ if [ -x "$OAUTH_EXERCISE" ]; then
     echo -e "${RED}[FAIL]${NC} Example 4: OAuth2-Proxy demo"
     failed=$((failed + 1))
   fi
-else
-  warn "OAuth2-Proxy exercise script not executable: $OAUTH_EXERCISE"
 fi
 # ── Summary ──────────────────────────────────────────────────────────────
 echo ""
