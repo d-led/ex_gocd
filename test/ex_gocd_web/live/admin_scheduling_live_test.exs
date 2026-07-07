@@ -209,7 +209,7 @@ defmodule ExGoCDWeb.AdminSchedulingLiveTest do
   describe "admin access control" do
     test "redirects non-admin users", %{conn: conn} do
       conn = log_in_as(conn, "viewer")
-      {:error, {:redirect, %{to: "/"}}} = live(conn, ~p"/admin/scheduling")
+      {:error, {:redirect, %{to: "/auth/login"}}} = live(conn, ~p"/admin/scheduling")
     end
   end
 end

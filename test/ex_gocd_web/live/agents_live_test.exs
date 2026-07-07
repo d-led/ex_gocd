@@ -121,10 +121,7 @@ defmodule ExGoCDWeb.AgentsLiveTest do
 
       conn = Plug.Test.init_test_session(conn, %{})
 
-      {:ok, view, _html} = live(conn, ~p"/agents")
-
-      # Non-admin shouldn't see the CLEAN DISABLED button
-      refute render(view) =~ "CLEAN DISABLED"
+      {:error, {:redirect, %{to: "/auth/login"}}} = live(conn, ~p"/agents")
     end
   end
 
