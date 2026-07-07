@@ -24,6 +24,7 @@ defmodule ExGoCDWeb.AnalyticsLive do
      |> assign(:snapshot_trends, [])
      |> assign(:latest_snapshot, nil)
      |> assign(:vsm_data, [])
+     |> assign(:vsm_workflow, nil)
      |> load_global()}
   end
 
@@ -83,8 +84,13 @@ defmodule ExGoCDWeb.AnalyticsLive do
     |> assign(:latest_snapshot, Analytics.latest_agent_snapshot())
   end
 
-  defp load_vsm(socket, nil), do: assign(socket, :vsm_data, [])
-  defp load_vsm(socket, name), do: assign(socket, :vsm_data, Analytics.vsm_trends(name, 30))
+  defp load_vsm(socket, nil), do: socket |> assign(:vsm_data, []) |> assign(:vsm_workflow, nil)
+
+  defp load_vsm(socket, name) do
+    socket
+    |> assign(:vsm_data, Analytics.vsm_trends(name, 30))
+    |> assign(:vsm_workflow, Analytics.vsm_workflow_trends(name, nil, 10))
+  end
 
   # ---------------------------------------------------------------------------
   # Function Components
@@ -609,9 +615,8 @@ defmodule ExGoCDWeb.AnalyticsLive do
             <thead class="bg-gray-50 text-gray-600 sticky top-0">
               <tr>
                 <th class="text-left px-4 py-2 font-medium">Run #</th>
-                <th class="text-right px-4 py-2 font-medium">Duration</th>
                 <th class="text-right px-4 py-2 font-medium">Stages</th>
-                <th class="text-left px-4 py-2 font-medium">Stage Breakdown</th>
+                <th class="text-left px-4 py-2 font-medium">Stage Duration</th>
               </tr>
             </thead>
             <tbody>
@@ -620,22 +625,34 @@ defmodule ExGoCDWeb.AnalyticsLive do
                   <td class="px-4 py-2 font-medium tabular-nums">
                     {run.counter} <span class="text-xs text-gray-400 ml-1">{run.label}</span>
                   </td>
-                  <td class="px-4 py-2 text-right tabular-nums">{fmt_sec(run.total_duration_sec)}</td>
                   <td class="px-4 py-2 text-right tabular-nums">{run.stage_count}</td>
                   <td class="px-4 py-2">
-                    <div class="flex flex-wrap gap-1">
-                      <%= for stage <- run.stages do %>
-                        <span
-                          class={[
-                            "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium",
-                            status_bg(stage.result),
-                            status_color(stage.result)
-                          ]}
-                          title={"#{stage.name}: #{fmt_sec(stage.duration_sec)}"}
-                        >
-                          {stage.name} {fmt_sec(stage.duration_sec)}
-                        </span>
-                      <% end %>
+                    <div class="flex items-center gap-1.5">
+                      <div
+                        class="flex-1 h-4 bg-gray-100 rounded overflow-hidden flex min-w-[120px]"
+                        title={
+                          Enum.map_join(run.stages, " · ", &"#{&1.name}: #{fmt_sec(&1.duration_sec)}")
+                        }
+                      >
+                        <% max_dur =
+                          run.stages |> Enum.map(& &1.duration_sec) |> Enum.max(fn -> 1 end) %>
+                        <%= for stage <- run.stages do %>
+                          <% pct = if max_dur > 0, do: stage.duration_sec / max_dur * 100, else: 0 %>
+                          <div
+                            class={[
+                              "h-full flex items-center justify-center text-[9px] font-bold text-white overflow-hidden whitespace-nowrap px-1",
+                              result_bar_bg(stage.result)
+                            ]}
+                            style={"flex:#{round(pct)} 1 0%;min-width:#{max(round(pct), 3)}%"}
+                            title={"#{stage.name}: #{fmt_sec(stage.duration_sec)}"}
+                          >
+                            {stage.name}
+                          </div>
+                        <% end %>
+                      </div>
+                      <span class="text-[10px] text-gray-400 whitespace-nowrap">
+                        {fmt_sec(run.total_duration_sec)}
+                      </span>
                     </div>
                   </td>
                 </tr>
@@ -647,7 +664,131 @@ defmodule ExGoCDWeb.AnalyticsLive do
     </div>
 
     <.vsm_chart data={@data} pipeline_name={@pipeline_name} />
+
+    <.vsm_workflow_gantt
+      :if={@vsm_workflow != nil}
+      workflow={@vsm_workflow}
+      pipeline_name={@pipeline_name}
+    />
     """
+  end
+
+  defp vsm_workflow_gantt(assigns) do
+    ~H"""
+    <div class="mt-6 bg-white rounded-lg border border-gray-200 shadow-sm p-4 sm:p-6">
+      <h3 class="text-sm font-bold text-gray-800 mb-2 flex items-center gap-2">
+        <i class="fa-solid fa-diagram-project text-[#2d6ca2]"></i>
+        VSM Workflow Trends
+        <span :if={@workflow} class="text-xs font-normal text-gray-400">
+          ({length(@workflow.workflows)} recent workflows)
+        </span>
+      </h3>
+      <%= if @workflow && @workflow.workflows != [] do %>
+        <p class="text-xs text-gray-400 mb-4">
+          Pipelines in workflow: {@workflow.pipelines |> Enum.join(" → ")}
+        </p>
+        <div :for={wf <- @workflow.workflows} class="mb-4 last:mb-0">
+          <div class="flex items-center gap-3 text-xs mb-1.5">
+            <span class="font-mono font-bold text-gray-800">
+              ##{wf.source_counter}
+            </span>
+            <span class="text-gray-400">
+              {Calendar.strftime(wf.start_time, "%Y-%m-%d %H:%M")} · {fmt_sec(wf.total_duration_sec)}
+            </span>
+          </div>
+          <div class="overflow-x-auto">
+            {vsm_workflow_gantt_svg(wf)}
+          </div>
+        </div>
+      <% else %>
+        <p class="text-xs text-gray-400 p-4 text-center">
+          No VSM workflow data available. This pipeline may not have downstream dependencies configured.
+        </p>
+      <% end %>
+    </div>
+    """
+  end
+
+  defp vsm_workflow_gantt_svg(wf) do
+    # Build a stage-level Gantt: for each pipeline instance, draw wait + build bars per stage
+    chart_w = 600
+    label_w = 100
+    row_h = 22
+    bar_h = 16
+
+    instances = wf.instances
+    total_dur = max(wf.total_duration_sec, 1)
+    n = length(instances)
+    svg_h = n * row_h + 30
+    svg_w = chart_w + label_w
+
+    now_x = fn time ->
+      label_w + round(DateTime.diff(time, wf.start_time, :second) / total_dur * chart_w)
+    end
+
+    rows =
+      instances
+      |> Enum.with_index()
+      |> Enum.map(fn {inst, i} ->
+        y = 20 + i * row_h
+        first_stage = inst.stages |> List.first()
+        last_stage = inst.stages |> List.last()
+
+        inst_start =
+          if first_stage && first_stage.scheduled_at,
+            do: now_x.(first_stage.scheduled_at),
+            else: label_w
+
+        inst_end =
+          if last_stage && last_stage.completed_at,
+            do: now_x.(last_stage.completed_at),
+            else: label_w + 2
+
+        _bar_w = max(inst_end - inst_start, 2)
+
+        label =
+          ~s'<text x="#{label_w - 4}" y="#{y + bar_h / 2 + 3}" font-size="10" fill="#374151" text-anchor="end" font-family="monospace" dominant-baseline="middle">#{inst.pipeline_name}</text>'
+
+        # Stage bars: wait (gray) + build (colored) per stage
+        stage_bars =
+          inst.stages
+          |> Enum.map(fn s ->
+            stage_start = (s.scheduled_at && now_x.(s.scheduled_at)) || inst_start
+            wait_end = stage_start + round(s.wait_time_sec / total_dur * chart_w)
+            build_end = (s.completed_at && now_x.(s.completed_at)) || stage_start + 2
+            color = if s.result == "Failed", do: "#ef4444", else: "#22c55e"
+
+            [
+              # Wait bar
+              ~s'<rect x="#{stage_start}" y="#{y + 2}" width="#{max(wait_end - stage_start, 0)}" height="#{bar_h - 4}" rx="2" fill="#e5e7eb"><title>#{s.name}: wait #{s.wait_time_sec}s</title></rect>',
+              # Build bar
+              ~s'<rect x="#{wait_end}" y="#{y + 2}" width="#{max(build_end - wait_end, 2)}" height="#{bar_h - 4}" rx="2" fill="#{color}" opacity="0.85"><title>#{s.name}: build #{s.build_time_sec}s (#{s.result})</title></rect>'
+            ]
+          end)
+          |> List.flatten()
+
+        [label | stage_bars]
+      end)
+      |> List.flatten()
+
+    # Time ticks
+    ticks =
+      for i <- 0..5 do
+        x = label_w + round(i * chart_w / 5)
+        tick_sec = round(i * total_dur / 5)
+
+        ~s'<text x="#{x}" y="12" font-size="8" fill="#9ca3af" text-anchor="middle" font-family="monospace">#{fmt_sec(tick_sec)}</text>'
+      end
+
+    svg = [
+      ~s'<svg viewBox="0 0 #{svg_w} #{svg_h}" width="100%" style="max-height:#{svg_h}px" xmlns="http://www.w3.org/2000/svg">',
+      ticks,
+      ~s'<line x1="#{label_w}" y1="0" x2="#{label_w}" y2="#{svg_h}" stroke="#e5e7eb" stroke-width="1"/>',
+      rows,
+      "</svg>"
+    ]
+
+    {:safe, Enum.join(svg, "\n")}
   end
 
   defp vsm_chart(assigns) do
@@ -692,7 +833,7 @@ defmodule ExGoCDWeb.AnalyticsLive do
 
   # Helpers
   def fmt_sec(nil), do: "—"
-  def fmt_sec(sec) when sec < 60, do: "#{Float.round(sec, 1)}s"
+  def fmt_sec(sec) when sec < 60, do: "#{Float.round(sec / 1, 1)}s"
   def fmt_sec(sec) when sec < 3600, do: "#{Float.round(sec / 60, 1)}m"
   def fmt_sec(sec), do: "#{Float.round(sec / 3600, 1)}h"
   def fmt_pct(nil), do: "—"
@@ -705,6 +846,10 @@ defmodule ExGoCDWeb.AnalyticsLive do
   def status_bg("Failed"), do: "bg-red-100"
   def status_bg("Building"), do: "bg-yellow-100"
   def status_bg(_), do: "bg-gray-100"
+  def result_bar_bg("Passed"), do: "bg-green-500"
+  def result_bar_bg("Failed"), do: "bg-red-500"
+  def result_bar_bg("Building"), do: "bg-blue-500"
+  def result_bar_bg(_), do: "bg-gray-400"
   def wait_color(nil), do: "text-gray-700"
   def wait_color(sec) when sec > 120, do: "text-red-600"
   def wait_color(_), do: "text-gray-700"

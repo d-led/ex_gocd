@@ -81,6 +81,8 @@ defmodule ExGoCD.Application do
         # Per-node artifact cleanup (must run on every node with a disk cache,
         # NOT as a Horde singleton — each node has its own artifact storage)
         ExGoCD.ArtifactCleanup,
+        # Per-node artifact zip cache (read-path optimization, must run on every node)
+        ExGoCD.ArtifactCache,
         ExGoCDWeb.Endpoint
       ] ++ cluster_children
 

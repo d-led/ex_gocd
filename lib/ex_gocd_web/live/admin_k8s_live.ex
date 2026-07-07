@@ -233,6 +233,24 @@ defmodule ExGoCDWeb.AdminK8sLive do
     end
   end
 
+  def handle_event("redetect_k3s", _params, socket) do
+    case ClusterProfiles.auto_detect_k3s() do
+      {:ok, _profile} ->
+        profiles = ClusterProfiles.list_profiles()
+
+        {:noreply,
+         socket
+         |> assign(cluster_profiles: profiles, k3s_status: :ok)
+         |> start_async(:check_all_connections, fn ->
+           Map.new(profiles, fn p -> {p.id, ClusterProfiles.check_connection(p)} end)
+         end)
+         |> put_flash(:info, "k3s config re-detected and updated.")}
+
+      {:error, reason} ->
+        {:noreply, socket |> put_flash(:error, "Re-detect failed: #{reason}")}
+    end
+  end
+
   # ── Elastic Agent Profile actions ─────────────────────────────────────────
 
   @impl true

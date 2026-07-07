@@ -40,7 +40,7 @@
     <% "agents" -> %>
       <.agents_tab stats={@agent_stats} />
     <% "vsm" -> %>
-      <.vsm_tab data={@vsm_data} pipeline_name={@selected_pipeline} />
+      <.vsm_tab data={@vsm_data} pipeline_name={@selected_pipeline} vsm_workflow={@vsm_workflow} />
     <% _ -> %>
       <p class="text-gray-500">Select a tab above.</p>
   <% end %>

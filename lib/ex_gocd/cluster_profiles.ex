@@ -91,13 +91,18 @@ defmodule ExGoCD.ClusterProfiles do
   Returns `:ok` on success, `{:error, reason}` on failure
   (reason is a human-readable string), or `{:error, :incomplete}`
   when the profile is missing required fields.
+
+  Tries kubeconfig_yaml first, falls back to individual fields if it fails.
   """
   @spec check_connection(ClusterProfile.t()) :: :ok | {:error, String.t() | :incomplete}
   def check_connection(%ClusterProfile{} = profile) do
     kubeconfig = ClusterProfile.kubeconfig_yaml(profile)
 
     if kubeconfig && kubeconfig != "" do
-      ping_via_kubeconfig(kubeconfig, profile)
+      case ping_via_kubeconfig(kubeconfig, profile) do
+        :ok -> :ok
+        {:error, _} -> ping_via_fields(profile)
+      end
     else
       ping_via_fields(profile)
     end
@@ -145,5 +150,61 @@ defmodule ExGoCD.ClusterProfiles do
     check_connection(profile)
   rescue
     e -> {:error, "Internal: #{Exception.message(e)}"}
+  end
+
+  @doc """
+  Auto-detects k3s config from the local docker container and updates
+  the "k3s-local" cluster profile with the full kubeconfig YAML.
+
+  Returns `{:ok, profile}` on success, `{:error, reason}` on failure.
+  """
+  @spec auto_detect_k3s() :: {:ok, ClusterProfile.t()} | {:error, String.t()}
+  def auto_detect_k3s do
+    kubeconfig_yaml = read_k3s_kubeconfig()
+
+    if kubeconfig_yaml == "" do
+      {:error, "Could not read k3s kubeconfig — is the k3s container running?"}
+    else
+      case K8s.from_kubeconfig(kubeconfig_yaml) do
+        {:ok, _conn} ->
+          upsert_k3s_profile(kubeconfig_yaml)
+
+        {:error, reason} ->
+          {:error, "Invalid k3s kubeconfig: #{inspect(reason)}"}
+      end
+    end
+  end
+
+  defp read_k3s_kubeconfig do
+    case System.cmd("docker", ["exec", "k3s", "cat", "/etc/rancher/k3s/k3s.yaml"],
+           stderr_to_stdout: true
+         ) do
+      {yaml, 0} -> String.trim(yaml)
+      _ -> ""
+    end
+  rescue
+    _ -> ""
+  end
+
+  defp upsert_k3s_profile(kubeconfig_yaml) do
+    case Repo.get_by(ClusterProfile, name: "k3s-local") do
+      nil ->
+        # Create new
+        %ClusterProfile{}
+        |> ClusterProfile.changeset(%{
+          name: "k3s-local",
+          plugin_id: "ex_gocd.elasticagent.kubernetes",
+          properties: %{"kubeconfig_yaml" => kubeconfig_yaml}
+        })
+        |> Repo.insert()
+
+      profile ->
+        # Update existing: add/update kubeconfig_yaml while preserving other props
+        new_props = Map.put(profile.properties, "kubeconfig_yaml", kubeconfig_yaml)
+
+        profile
+        |> ClusterProfile.changeset(%{properties: new_props})
+        |> Repo.update()
+    end
   end
 end

@@ -409,6 +409,12 @@ defmodule ExGoCDWeb.StageDetailsLive do
             >
               Trends
             </button>
+            <.link
+              navigate={~p"/stage-duration/#{@pipeline_name}"}
+              class="px-4 py-3 text-xs font-bold font-mono tracking-wide border-b-2 border-transparent text-gray-500 hover:text-gray-700"
+            >
+              <i class="fa-solid fa-chart-line mr-1.5"></i> Graphs
+            </.link>
           </nav>
 
           <div class="p-6">

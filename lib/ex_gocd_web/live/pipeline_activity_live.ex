@@ -383,7 +383,7 @@ defmodule ExGoCDWeb.PipelineActivityLive do
                     navigate={~p"/pipelines/value_stream_map/#{@pipeline_name}/#{run.counter}"}
                     class="w-16 shrink-0 font-mono font-extrabold text-gray-900 text-right hover:text-[#2d6ca2]"
                   >
-                    ##{run.label}
+                    #{run.label}
                   </.link>
 
                   <%!-- Gantt bar --%>
@@ -503,7 +503,7 @@ defmodule ExGoCDWeb.PipelineActivityLive do
         </div>
       <% end %>
 
-      <%!-- Tab bar: List | Timeline --%>
+      <%!-- Tab bar: List | Timeline | Stage Duration --%>
       <nav class="flex border-b border-gray-200 mb-4" aria-label="View tabs">
         <button
           phx-click="select_tab"
@@ -519,6 +519,12 @@ defmodule ExGoCDWeb.PipelineActivityLive do
         >
           <i class="fa-solid fa-chart-gantt mr-1.5"></i> Timeline
         </button>
+        <.link
+          navigate={~p"/stage-duration/#{@pipeline.name}"}
+          class="px-4 py-2.5 text-xs font-bold font-mono tracking-wide border-b-2 border-transparent text-gray-500 hover:text-gray-700"
+        >
+          <i class="fa-solid fa-chart-line mr-1.5"></i> Stage Duration
+        </.link>
       </nav>
 
       <%= if @active_tab == "timeline" do %>

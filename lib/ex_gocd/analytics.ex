@@ -534,4 +534,228 @@ defmodule ExGoCD.Analytics do
     |> Enum.map(fn name -> {name, workflow_chain(name)} end)
     |> Map.new()
   end
+
+  # -- VSM Workflow Trends (Gantt parity with GoCD Analytics Plugin) --
+
+  @doc """
+  VSM workflow trends for a source pipeline and optional destination pipeline.
+
+  Returns workflow runs with pipeline instances grouped by workflow.
+  Each workflow = one source pipeline run + all downstream pipeline runs
+  triggered by it (via dependency materials).
+
+  ## Examples
+
+      iex> vsm_workflow_trends("upstream-lib")
+      %{
+        pipelines: ["upstream-lib", "component-a", "component-b", ...],
+        workflows: [...]
+      }
+  """
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
+  def vsm_workflow_trends(source_pipeline, destination_pipeline \\ nil, limit \\ 10) do
+    # Get all pipelines in the VSM path (source → downstream chain)
+    all_downstream = downstream_chain(source_pipeline)
+
+    # If destination specified, only include pipelines up to the destination
+    pipelines_in_workflow =
+      cond do
+        destination_pipeline && destination_pipeline in all_downstream ->
+          [source_pipeline | take_until(all_downstream, destination_pipeline)]
+
+        all_downstream != [] ->
+          [source_pipeline | all_downstream]
+
+        true ->
+          # No downstream deps — just show the source pipeline
+          [source_pipeline]
+      end
+
+    # Get source pipeline instances
+    source_instances = fetch_instances_for_pipelines([source_pipeline], limit)
+
+    # If we have more than just the source, also fetch downstream instances
+    downstream_instances =
+      if length(pipelines_in_workflow) > 1 do
+        fetch_instances_for_pipelines(tl(pipelines_in_workflow), limit * 2)
+      else
+        []
+      end
+
+    # Group into workflows: for each source run, find downstream runs
+    # that were triggered around the same time window
+    workflows =
+      source_instances
+      |> Enum.sort_by(& &1.inserted_at, {:desc, DateTime})
+      |> Enum.map(fn source ->
+        # Find downstream instances triggered after source but before next source
+        next_source =
+          Enum.find(source_instances, fn si ->
+            DateTime.compare(si.inserted_at, source.inserted_at) == :gt
+          end)
+
+        window_end = next_source && next_source.inserted_at
+
+        related =
+          downstream_instances
+          |> Enum.filter(fn di ->
+            # downstream instance should be triggered after source
+            gt = DateTime.compare(di.inserted_at, source.inserted_at) != :lt
+
+            # and before the next source run
+            in_window =
+              if window_end,
+                do: DateTime.compare(di.inserted_at, window_end) == :lt,
+                else: true
+
+            gt && in_window
+          end)
+          |> Enum.sort_by(& &1.inserted_at, DateTime)
+
+        workflow_instances = [source | related]
+        start_time = source.inserted_at
+
+        end_time =
+          related
+          |> Enum.map(& &1.updated_at)
+          |> Enum.reject(&is_nil/1)
+          |> Enum.max(DateTime, fn -> start_time end)
+
+        %{
+          workflow_id: "wf-#{source.counter}",
+          source_counter: source.counter,
+          start_time: start_time,
+          end_time: end_time,
+          total_duration_sec: DateTime.diff(end_time, start_time),
+          instances:
+            Enum.map(workflow_instances, fn pi ->
+              stages =
+                (pi.stage_instances || [])
+                |> Enum.map(fn si ->
+                  completed_dt = to_dt(si.completed_at)
+                  scheduled_dt = to_dt(si.scheduled_at)
+
+                  wait_sec =
+                    if scheduled_dt do
+                      si_inserted = to_dt(si.inserted_at)
+                      si_inserted && DateTime.diff(scheduled_dt, si_inserted)
+                    end
+
+                  build_sec =
+                    if completed_dt && scheduled_dt do
+                      DateTime.diff(completed_dt, scheduled_dt)
+                    end
+
+                  %{
+                    name: si.name,
+                    result: si.result,
+                    state: si.state,
+                    scheduled_at: scheduled_dt,
+                    completed_at: completed_dt,
+                    wait_time_sec: wait_sec || 0,
+                    build_time_sec: build_sec || 0
+                  }
+                end)
+
+              %{
+                pipeline_name: pi.pipeline_name,
+                counter: pi.counter,
+                result: run_result(stages),
+                total_time_sec:
+                  if(stages != [],
+                    do: stages |> Enum.map(& &1.build_time_sec) |> Enum.sum(),
+                    else: 0
+                  ),
+                stages: stages
+              }
+            end)
+        }
+      end)
+
+    %{
+      pipelines: pipelines_in_workflow,
+      workflows: workflows
+    }
+  end
+
+  @doc """
+  Workflow time distribution (stage-level Gantt) for a specific source pipeline run.
+
+  Returns all stages across the VSM pipelines with wait_time and build_time,
+  aligned to the same time axis. This is the "Gantt chart" view.
+
+  ## Examples
+
+      iex> vsm_workflow_time_distribution("upstream-lib", 6)
+      %{pipelines: [...], stages: [...], start_time: ..., end_time: ...}
+  """
+  def vsm_workflow_time_distribution(source_pipeline, source_counter, destination_pipeline \\ nil) do
+    trends = vsm_workflow_trends(source_pipeline, destination_pipeline, 5)
+
+    workflow =
+      Enum.find(trends.workflows, &(&1.source_counter == source_counter))
+
+    if workflow do
+      # Flatten all stages across all pipeline instances into one timeline
+      all_stages =
+        workflow.instances
+        |> Enum.with_index()
+        |> Enum.flat_map(fn {inst, _pipeline_idx} ->
+          (inst.stages || [])
+          |> Enum.map(fn s ->
+            Map.put(s, :pipeline_name, inst.pipeline_name)
+            |> Map.put(:pipeline_counter, inst.counter)
+            |> Map.put(:result, s.result)
+          end)
+        end)
+
+      %{
+        pipelines: trends.pipelines,
+        source_counter: source_counter,
+        start_time: workflow.start_time,
+        end_time: workflow.end_time,
+        total_duration_sec: workflow.total_duration_sec,
+        stages: all_stages
+      }
+    else
+      nil
+    end
+  end
+
+  # Helper: take elements from a list until (and including) a target
+  defp take_until([h | _], target) when h == target, do: [h]
+  defp take_until([h | t], target), do: [h | take_until(t, target)]
+  defp take_until([], _), do: []
+
+  # Helper: fetch pipeline instances with stages for a list of pipeline names
+  defp fetch_instances_for_pipelines(names, limit) do
+    Repo.all(
+      from pi in PipelineInstance,
+        join: p in Pipeline,
+        on: pi.pipeline_id == p.id,
+        where: p.name in ^names,
+        order_by: [desc: pi.inserted_at],
+        limit: ^limit,
+        preload: [:stage_instances, :pipeline]
+    )
+    |> Enum.map(fn pi ->
+      %{
+        id: pi.id,
+        counter: pi.counter,
+        pipeline_name: pi.pipeline.name,
+        inserted_at: pi.inserted_at,
+        updated_at: pi.updated_at,
+        stage_instances: pi.stage_instances
+      }
+    end)
+  end
+
+  defp run_result(stages) do
+    cond do
+      stages == [] -> "Unknown"
+      Enum.any?(stages, &(&1.result == "Failed")) -> "Failed"
+      Enum.all?(stages, &(&1.result == "Passed")) -> "Passed"
+      true -> "Building"
+    end
+  end
 end

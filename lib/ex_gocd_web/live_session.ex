@@ -15,7 +15,15 @@ defmodule ExGoCDWeb.LiveSession do
   alias ExGoCD.Accounts
   alias ExGoCD.Accounts.User
 
-  @doc "Assigns current_user, is_user_admin, and open_mode from session."
+  @doc """
+  on_mount hooks for the GoCD live_session.
+
+  ## `:assign_current_user`
+  Assigns current_user, is_user_admin, and open_mode from session.
+
+  ## `:require_admin`
+  Requires admin role. Redirects to login if not admin and not in open mode.
+  """
   def on_mount(:assign_current_user, _params, session, socket) do
     user = Accounts.get_current_user(session)
 
@@ -35,5 +43,13 @@ defmodule ExGoCDWeb.LiveSession do
      |> assign_new(:current_user, fn -> user end)
      |> assign(:is_user_admin, is_user_admin)
      |> assign(:open_mode, open_mode)}
+  end
+
+  def on_mount(:require_admin, _params, _session, socket) do
+    if socket.assigns[:is_user_admin] do
+      {:cont, socket}
+    else
+      {:halt, Phoenix.LiveView.redirect(socket, to: "/auth/login")}
+    end
   end
 end

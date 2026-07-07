@@ -237,4 +237,143 @@ defmodule ExGoCD.AnalyticsTest do
       assert is_nil(result.avg_build_time_sec)
     end
   end
+
+  # ── VSM Workflow Trends & Time Distribution ──────────────────────
+
+  describe "vsm_workflow_trends/3" do
+    test "returns pipelines list with source pipeline" do
+      {pipeline, _, _} = insert_pipeline_with_jobs("vsm-wf-source", 1)
+      _pi = insert_pipeline_instance_by_name("vsm-wf-source", 1, @now)
+
+      result = Analytics.vsm_workflow_trends("vsm-wf-source")
+
+      assert result.pipelines == ["vsm-wf-source"]
+    end
+
+    test "returns workflows grouped by source pipeline runs" do
+      {pipeline, _, _} = insert_pipeline_with_jobs("vsm-wf-trends", 1)
+
+      t1 = @now
+      t2 = DateTime.add(@now, 600, :second)
+
+      pi1 = insert_pipeline_instance_by_name("vsm-wf-trends", 1, t1)
+      si1 = insert_stage_instance(pi1.id, "build", created_time: t1)
+      insert_job_instance(si1.id, "compile", t1, DateTime.add(t1, 60, :second))
+
+      pi2 = insert_pipeline_instance_by_name("vsm-wf-trends", 2, t2)
+      si2 = insert_stage_instance(pi2.id, "build", created_time: t2)
+      insert_job_instance(si2.id, "compile", t2, DateTime.add(t2, 60, :second))
+
+      result = Analytics.vsm_workflow_trends("vsm-wf-trends", nil, 10)
+
+      assert length(result.workflows) == 2
+      wf1 = Enum.find(result.workflows, &(&1.source_counter == 1))
+      wf2 = Enum.find(result.workflows, &(&1.source_counter == 2))
+      assert wf1 != nil
+      assert wf2 != nil
+      assert length(wf1.instances) == 1
+      assert length(wf2.instances) == 1
+    end
+
+    test "each workflow instance has pipeline_name, counter, and stages" do
+      {pipeline, _, _} = insert_pipeline_with_jobs("vsm-wf-instance", 1)
+
+      pi = insert_pipeline_instance_by_name("vsm-wf-instance", 1, @now)
+      si = insert_stage_instance(pi.id, "build", created_time: @now)
+      insert_job_instance(si.id, "compile", @now, DateTime.add(@now, 120, :second))
+
+      result = Analytics.vsm_workflow_trends("vsm-wf-instance", nil, 10)
+      wf = hd(result.workflows)
+      inst = hd(wf.instances)
+
+      assert inst.pipeline_name == "vsm-wf-instance"
+      assert inst.counter == 1
+      assert inst.stages != []
+      stage = hd(inst.stages)
+      assert stage.name == "build"
+      assert stage.result != nil
+    end
+
+    test "returns empty workflows for pipeline with no runs" do
+      result = Analytics.vsm_workflow_trends("no-such-pipeline-vsm", nil, 10)
+      assert result.pipelines == ["no-such-pipeline-vsm"]
+      assert result.workflows == []
+    end
+
+    test "workflow start and end times are set correctly" do
+      {pipeline, _, _} = insert_pipeline_with_jobs("vsm-wf-times", 1)
+
+      t = @now
+      pi = insert_pipeline_instance_by_name("vsm-wf-times", 1, t)
+      si = insert_stage_instance(pi.id, "build", created_time: t)
+      insert_job_instance(si.id, "compile", t, DateTime.add(t, 60, :second))
+
+      result = Analytics.vsm_workflow_trends("vsm-wf-times", nil, 10)
+      wf = hd(result.workflows)
+
+      assert wf.start_time != nil
+      assert wf.end_time != nil
+      assert wf.total_duration_sec >= 0
+    end
+
+    test "workflows are sorted by counter descending (newest first)" do
+      {pipeline, _, _} = insert_pipeline_with_jobs("vsm-wf-sorted", 1)
+
+      t1 = @now
+      t2 = DateTime.add(@now, 600, :second)
+
+      pi1 = insert_pipeline_instance_by_name("vsm-wf-sorted", 1, t1)
+      si1 = insert_stage_instance(pi1.id, "build", created_time: t1)
+      insert_job_instance(si1.id, "compile", t1, DateTime.add(t1, 30, :second))
+
+      pi2 = insert_pipeline_instance_by_name("vsm-wf-sorted", 2, t2)
+      si2 = insert_stage_instance(pi2.id, "build", created_time: t2)
+      insert_job_instance(si2.id, "compile", t2, DateTime.add(t2, 30, :second))
+
+      result = Analytics.vsm_workflow_trends("vsm-wf-sorted", nil, 10)
+
+      counters = Enum.map(result.workflows, & &1.source_counter)
+      assert counters == [2, 1]
+    end
+  end
+
+  describe "vsm_workflow_time_distribution/3" do
+    test "returns nil when workflow not found" do
+      result = Analytics.vsm_workflow_time_distribution("nonexistent", 999)
+      assert is_nil(result)
+    end
+
+    test "returns stages for a specific workflow counter" do
+      {_pipeline, _, _} = insert_pipeline_with_jobs("vsm-wfd-pipe", 1)
+
+      pi = insert_pipeline_instance_by_name("vsm-wfd-pipe", 3, @now)
+      si = insert_stage_instance(pi.id, "build", created_time: @now)
+      insert_job_instance(si.id, "compile", @now, DateTime.add(@now, 90, :second))
+
+      result = Analytics.vsm_workflow_time_distribution("vsm-wfd-pipe", 3)
+
+      assert result != nil
+      assert result.source_counter == 3
+      assert result.pipelines == ["vsm-wfd-pipe"]
+      assert result.stages != []
+      stage = hd(result.stages)
+      assert stage.pipeline_name == "vsm-wfd-pipe"
+    end
+
+    test "stages include build_time_sec and wait_time_sec" do
+      {_pipeline, _, _} = insert_pipeline_with_jobs("vsm-wfd-times", 1)
+
+      pi = insert_pipeline_instance_by_name("vsm-wfd-times", 1, @now)
+      si = insert_stage_instance(pi.id, "test-stage", created_time: @now)
+      insert_job_instance(si.id, "run", @now, DateTime.add(@now, 45, :second))
+
+      result = Analytics.vsm_workflow_time_distribution("vsm-wfd-times", 1)
+
+      assert result != nil
+      stage = hd(result.stages)
+      assert stage.build_time_sec != nil
+      assert stage.wait_time_sec != nil
+      assert stage.name == "test-stage"
+    end
+  end
 end

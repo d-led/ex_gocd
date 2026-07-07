@@ -67,13 +67,9 @@ defmodule ExGoCDWeb.Router do
     # CCTray XML feed for CI monitoring tools
     get "/go/cctray.xml", CCTrayController, :index
 
-    live_session :gocd, on_mount: [{ExGoCDWeb.LiveSession, :assign_current_user}] do
+    live_session :gocd_public, on_mount: [{ExGoCDWeb.LiveSession, :assign_current_user}] do
       live "/", DashboardLive, :index
       live "/pipelines", DashboardLive, :index
-      live "/agents", AgentsLive, :index
-      live "/materials", MaterialsLive, :index
-      live "/agents/:uuid/job_run_history", AgentJobHistoryLive, :index
-      live "/agents/:uuid/job_run_history/:build_id", AgentJobRunDetailLive, :show
 
       live "/pipelines/value_stream_map/:pipeline_name/:pipeline_counter",
            ValueStreamMapLive,
@@ -116,6 +112,24 @@ defmodule ExGoCDWeb.Router do
            JobDetailsLive,
            :show
 
+      # Stage duration charts (per-pipeline) — public
+      live "/stage-duration/:pipeline_name", GanttLive, :index
+      live "/go/stage-duration/:pipeline_name", GanttLive, :index
+    end
+
+    live_session :gocd_admin, on_mount: [
+      {ExGoCDWeb.LiveSession, :assign_current_user},
+      {ExGoCDWeb.LiveSession, :require_admin}
+    ] do
+      live "/agents", AgentsLive, :index
+      live "/materials", MaterialsLive, :index
+      live "/agents/:uuid/job_run_history", AgentJobHistoryLive, :index
+      live "/agents/:uuid/job_run_history/:build_id", AgentJobRunDetailLive, :show
+
+      # Analytics routes (built-in, no external tools required)
+      live "/analytics", AnalyticsLive, :index
+      live "/analytics/:tab", AnalyticsLive, :index
+
       # Admin Panel routes
       live "/admin/scheduling", AdminSchedulingLive, :index
       live "/go/admin/scheduling", AdminSchedulingLive, :index
@@ -125,14 +139,6 @@ defmodule ExGoCDWeb.Router do
       live "/admin/:tab", AdminLive, :index
       live "/go/admin", AdminLive, :index
       live "/go/admin/:tab", AdminLive, :index
-
-      # Analytics routes (built-in, no external tools required)
-      live "/analytics", AnalyticsLive, :index
-      live "/analytics/:tab", AnalyticsLive, :index
-
-      # Gantt chart
-      live "/gantt", GanttLive, :index
-      live "/go/gantt", GanttLive, :index
 
       # Multi-segment admin paths for GoCD compatibility
       live "/admin/package_repositories/new", AdminLive, :index

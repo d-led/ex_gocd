@@ -148,13 +148,22 @@ defmodule ExGoCD.K8s do
   def format_error(%{reason: :econnrefused}), do: "Connection refused — cluster running?"
   def format_error(%{reason: :ssl_error}), do: "TLS error — check CA certificate"
   def format_error(%{reason: :not_found}), do: "Connected — namespace not found"
+  def format_error(%{reason: :closed}), do: "Socket closed — cluster unreachable?"
 
   # HTTP response with status code embedded (k8s client wraps these)
   def format_error(%{status: 401}), do: "Unauthorized — verify bearer token"
   def format_error(%{status: 403}), do: "Forbidden — insufficient RBAC permissions"
   def format_error(%{status: code}) when is_integer(code), do: "HTTP #{code}"
 
-  def format_error(%{message: msg}) when is_binary(msg), do: msg
+  def format_error(%{message: msg}) when is_binary(msg) do
+    cond do
+      String.contains?(msg, "closed") -> "Connection closed — cluster unreachable?"
+      String.contains?(msg, "refused") -> "Connection refused — cluster running?"
+      String.contains?(msg, "timeout") -> "Connection timed out — unreachable"
+      true -> msg
+    end
+  end
+
   def format_error(other), do: "Error: #{inspect(other)}"
 
   @doc """
