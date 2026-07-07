@@ -630,6 +630,43 @@ defmodule ExGoCDWeb.DashboardLive do
     <div class="dashboard-group" role="region" aria-label={"Pipeline group: #{@name}"}>
       <div class="dashboard-group_title">
         <div class="dashboard-group_name">{@name}</div>
+        <div class="flex items-center gap-2 ml-auto">
+          <.link
+            navigate="/admin/pipelines"
+            class="text-xs text-gray-400 hover:text-gray-600"
+            title="Edit pipeline group"
+          >
+            <i class="fa fa-cog"></i>
+          </.link>
+          <div
+            class="relative"
+            phx-click-away={JS.remove_class("hidden", to: "#new-pipeline-menu-#{@name}")}
+          >
+            <button
+              class="text-[10px] text-[#2d6ca2] hover:underline font-bold uppercase tracking-wider"
+              phx-click={JS.toggle_class("hidden", to: "#new-pipeline-menu-#{@name}")}
+            >
+              <i class="fa fa-plus mr-1"></i> New Pipeline
+            </button>
+            <div
+              id={"new-pipeline-menu-#{@name}"}
+              class="hidden absolute right-0 mt-1 bg-white border border-gray-200 rounded shadow-lg z-50 w-48"
+            >
+              <.link
+                navigate="/admin/pipelines/new?group=#{@name}"
+                class="block px-4 py-2 text-xs text-gray-700 hover:bg-gray-50"
+              >
+                <i class="fa fa-magic mr-2"></i> Use Pipeline Wizard
+              </.link>
+              <.link
+                navigate="/admin/config_repos/new"
+                class="block px-4 py-2 text-xs text-gray-700 hover:bg-gray-50"
+              >
+                <i class="fa fa-code mr-2"></i> Use Pipelines as Code
+              </.link>
+            </div>
+          </div>
+        </div>
       </div>
       <ul class="dashboard-group_items">
         <%= for pipeline <- @pipelines do %>
