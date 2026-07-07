@@ -636,7 +636,12 @@ func (a *Agent) runOneCommand(ctx context.Context, build *protocol.Build, cmd *p
 	cleanedPath := filepath.Clean(path)
 	resolvedPath, err := exec.LookPath(cleanedPath)
 	if err != nil {
-		resolvedPath = cleanedPath
+		// Relative path not found in PATH — resolve against working directory
+		if !filepath.IsAbs(cleanedPath) {
+			resolvedPath = filepath.Join(absDir, cleanedPath)
+		} else {
+			resolvedPath = cleanedPath
+		}
 	}
 
 	cmdSpan.SetAttributes(
