@@ -6,12 +6,23 @@ defmodule ExGoCD.ElasticSchedulerHelpers do
   alias ExGoCD.Agents
   alias ExGoCD.Scheduler
 
-  @doc "Returns pending in-memory jobs from the Scheduler queue."
+  @doc """
+  Returns all pending jobs that need an elastic agent:
+  - In-memory queue jobs (from schedule_job button, etc.)
+  - DB-scheduled JobInstances with state "Scheduled" that have no matching static agent
+  """
   def get_pending_jobs do
-    case Scheduler.get_queue_state() do
-      %{in_memory_jobs: jobs} -> jobs
-      _ -> []
-    end
+    memory_jobs =
+      case Scheduler.get_queue_state() do
+        %{in_memory_jobs: jobs} -> jobs
+        _ -> []
+      end
+
+    db_jobs = Scheduler.load_db_job_plans()
+
+    # Only return jobs that have NO matching static agent
+    (memory_jobs ++ db_jobs)
+    |> Enum.filter(&needs_elastic_agent?/1)
   rescue
     _ -> []
   end

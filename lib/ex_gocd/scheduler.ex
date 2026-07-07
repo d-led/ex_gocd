@@ -550,7 +550,12 @@ defmodule ExGoCD.Scheduler do
   end
 
   # Load scheduled JobInstances from database, preloading staging & pipeline details
-  defp load_db_job_plans do
+  @doc """
+  Returns all DB-scheduled job plans (JobInstance rows with state "Scheduled")
+  as a list of job spec maps. Used by elastic agent schedulers to discover
+  jobs that need an agent to be provisioned.
+  """
+  def load_db_job_plans do
     safe_db(
       fn ->
         JobInstance
