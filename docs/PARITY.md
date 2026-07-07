@@ -195,7 +195,7 @@ ex_gocd has achieved ~95% parity with GoCD. The remaining ~11 gaps are in 4 cate
 | E4 | **Dashboard: New Pipeline dropdown** | "Use Pipeline Wizard" / "Use Pipelines as Code" on group heading | S | ❌ |
 | E5 | **Job console: env-var echo too granular** | GoCD folds system bits into fewer commands; we echo each var into its own foldable block | S | ❌ |
 | E6 | **Nav menu wildness** | "Sharing with Agent" button appearing incorrectly; partial sidebar "A..." | S | ❌ |
-| E7 | **Stage details: missing links** | Stage Overview links to job details, config diff, pipeline compare | S | ❌ |
+| E7 | **Stage details: missing links** | Stage Overview links to job details, config diff, pipeline compare | S | ✅ |
 
 ### 🟡 Category F: RBAC & Policy Enforcement (2)
 
@@ -209,13 +209,55 @@ ex_gocd has achieved ~95% parity with GoCD. The remaining ~11 gaps are in 4 cate
 | # | Gap | GoCD Behavior | Effort | Status |
 |---|-----|---------------|--------|--------|
 | G1 | **Tests tab: LiveView-native rendering** | GoCD generates `testoutput/index.html` via XSLT → iframes it. We now parse JUnit/NUnit/XUnit into DB on upload (`parse_and_store/2`), but the Tests tab still uses an iframe pointing to old `index.html`. Should render pure LiveView Heex from Ecto data (summary cards, progress bar, test case tables). | M | ⚠️ DB-backed, UI deferred |
-| G2 | **Artifacts tab: HTML View link** | GoCD serves HTML artifacts inline. Our artifacts tab shows directory tree with Download links only — HTML files (.html/.htm) should have a "View" link that opens in a new tab (ArtifactsController already serves correct `text/html` Content-Type). | S | ❌ |
-| G3 | **Custom tabs from job config** | GoCD renders `<tabs><tab name="Cov" path="reports/coverage/index.html"/></tabs>` as iframe tabs in job details. Our `jobs.tabs` DB column exists but is never consumed by the LiveView. Should render custom tab buttons, each linking to `/files/.../{path}` in new tab (no iframe). | S | ❌ |
+| G2 | **Artifacts tab: HTML View link** | GoCD serves HTML artifacts inline. Our artifacts tab shows directory tree with Download links only — HTML files (.html/.htm) should have a "View" link that opens in a new tab (ArtifactsController already serves correct `text/html` Content-Type). | S | ✅ |
+| G3 | **Custom tabs from job config** | GoCD renders `<tabs><tab name="Cov" path="reports/coverage/index.html"/></tabs>` as iframe tabs in job details. Our `jobs.tabs` DB column exists but is never consumed by the LiveView. Should render custom tab buttons, each linking to `/files/.../{path}` in new tab (no iframe). | S | ✅ |
 
-### Remaining Gaps (13)
+### 🟡 Cross-Linking Audit (2026-07-08)
 
-#### Already Done (this session)
-1. ✅ **DB-backed test reports** — `test_reports`/`test_suites`/`test_cases` tables, Ecto schemas, JUnit+NUnit+XUnit parsers via `:xmerl`, `parse_and_store/2` storing on upload, `exists?/1` and `get_by_job_instance/1` from DB. Tests: 8 passing with all 3 formats.
+| Page | Link | Status |
+|------|------|--------|
+| Dashboard | Pipeline name → Activity | ✅ |
+| Dashboard | Stage pills → Stage Details | ✅ |
+| Dashboard | VSM link per instance | ✅ |
+| Dashboard | Compare link | ✅ |
+| Dashboard | History link | ✅ |
+| Dashboard | Changes dropdown (material revisions) | ❌ (E1) |
+| Dashboard | Stage overview popup | ❌ (E2) |
+| Pipeline Activity | VSM per instance | ✅ |
+| Pipeline Activity | Material revision → material VSM | ✅ |
+| Pipeline Activity | Config diff (⚙) per instance | ✅ |
+| Pipeline Activity | Stage name → Stage Details | ✅ |
+| Pipeline Activity | Stage Duration tab | ✅ |
+| Stage Details | Breadcrumb: pipeline → Activity | ✅ |
+| Stage Details | Breadcrumb: counter → VSM | ✅ |
+| Stage Details | Job name → Job Details | ✅ |
+| Stage Details | Agent name → Agent History | ✅ |
+| Stage Details | Config Diff link | ✅ |
+| Stage Details | Pipeline Compare link | ✅ |
+| Stage Details | Graphs → Stage Duration chart | ✅ |
+| Stage Duration | Dot → Stage Details (clickable) | ✅ |
+| Stage Duration | Human-readable axis (m/h/s) | ✅ |
+| VSM | Pipeline node → search | ✅ |
+| VSM | Material revision → material VSM | ✅ |
+| VSM | Stage result → Stage Details | ✅ |
+| Job Details | Console, Tests, Artifacts, Materials, Env tabs | ✅ |
+| Job Details | Custom tabs from job config | ✅ |
+| Job Details | HTML View link in artifacts | ✅ |
+| Agents | Job name → Job Details | ✅ |
+| Admin Scheduling | Job name → Job Details | ✅ |
+
+### Remaining Gaps (10)
+
+#### Already Done (this session, 2026-07-08)
+1. ✅ XML import/export for `<artifacts>` (type=build|test) and `<tabs>`
+2. ✅ YAML config repo parser: normalize artifacts + tabs
+3. ✅ Scheduler: `uploadTestArtifact` for type=test
+4. ✅ Stage duration chart: human-readable axis + clickable dots
+5. ✅ E7: Stage details Config Diff + Compare links
+6. ✅ DB-backed test reports (JUnit/NUnit/XUnit)
+7. ✅ G2: Artifacts HTML View link
+8. ✅ G3: Custom tabs from job config
+9. ✅ Seeds: ex_gocd dogfood with test artifacts + tabs
 
 #### Remaining
 6. A5: Backup config API
@@ -234,13 +276,11 @@ ex_gocd has achieved ~95% parity with GoCD. The remaining ~11 gaps are in 4 cate
 
 ### Phase 4: Stretch (L-XL)
 17. D2: Docker elastic agent path
-18. E1, E3, E4, E7: Dashboard missing links
+18. E1, E3, E4: Dashboard missing links
 
 ### Phase 5: Polish (S)
 19. E5: Console env-var echo fix
 20. E6: Nav menu cleanup
-21. **G2: Artifacts tab HTML View link**
-22. **G3: Custom tabs from job config**
 
 ---
 

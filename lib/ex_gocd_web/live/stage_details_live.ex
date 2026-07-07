@@ -537,6 +537,22 @@ defmodule ExGoCDWeb.StageDetailsLive do
               {@stage_name}
               <span class="text-sm font-semibold text-gray-500">Run Details</span>
             </h1>
+            <div class="flex items-center gap-3 ml-2">
+              <.link
+                navigate={
+                  ~p"/compare/#{@pipeline_name}/#{max(@pipeline_counter - 1, 1)}/with/#{@pipeline_counter}"
+                }
+                class="text-[10px] font-bold font-mono text-[#2d6ca2] hover:underline uppercase tracking-wider"
+              >
+                <i class="fa fa-exchange mr-1"></i> Compare
+              </.link>
+              <.link
+                navigate={~p"/pipelines/#{@pipeline_name}/#{@pipeline_counter}/config_diff"}
+                class="text-[10px] font-bold font-mono text-[#2d6ca2] hover:underline uppercase tracking-wider"
+              >
+                <i class="fa fa-code-fork mr-1"></i> Config Diff
+              </.link>
+            </div>
           </div>
           <%= if @stage.state == "Awaiting" do %>
             <button
