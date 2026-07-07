@@ -53,26 +53,30 @@ jobs:
     steps:
       - name: Determine plugins to build
         id: filter
+        env:
+          INPUT: ${{ github.event.inputs.plugin || 'all' }}
+          INPUT_VARIANT: ${{ github.event.inputs.variant || 'both' }}
+          INPUT_PUSH: ${{ github.event.inputs.push || 'false' }}
         run: |
-          INPUT="${{ github.event.inputs.plugin }}"
-          INPUT_VARIANT="${{ github.event.inputs.variant }}"
           MATRIX="${{ matrix.plugin }}"
           MATRIX_VARIANT="${{ matrix.variant }}"
-          if [ "$INPUT_VARIANT" = "both" ] || [ "$INPUT_VARIANT" = "" ] || [ "$INPUT_VARIANT" = "$MATRIX_VARIANT" ]; then
-            MATCH_VARIANT=true
-          else
-            MATCH_VARIANT=false
+
+          VARIANT_MATCH=false
+          if [ "$INPUT_VARIANT" = "both" ] || [ "$INPUT_VARIANT" = "$MATRIX_VARIANT" ]; then
+            VARIANT_MATCH=true
           fi
-          if [ "$INPUT" = "all" ] || [ "$INPUT" = "" ] || [ "$INPUT" = "$MATRIX" ]; then
-            MATCH_PLUGIN=true
-          else
-            MATCH_PLUGIN=false
+
+          PLUGIN_MATCH=false
+          if [ "$INPUT" = "all" ] || [ "$INPUT" = "$MATRIX" ]; then
+            PLUGIN_MATCH=true
           fi
-          if [ "$MATCH_PLUGIN" = "true" ] && [ "$MATCH_VARIANT" = "true" ]; then
+
+          if [ "$PLUGIN_MATCH" = "true" ] && [ "$VARIANT_MATCH" = "true" ]; then
             echo "build=true" >> $GITHUB_OUTPUT
+            echo "should_push=${INPUT_PUSH}" >> $GITHUB_OUTPUT
           else
             echo "build=false" >> $GITHUB_OUTPUT
-          fi
+            echo "should_push=false" >> $GITHUB_OUTPUT
           fi
 
       - uses: actions/checkout@v4
@@ -83,7 +87,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to ghcr.io
-        if: steps.filter.outputs.build == 'true' && (github.event.inputs.push == 'true' || github.event_name == 'push')
+        if: steps.filter.outputs.should_push == 'true'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -96,8 +100,8 @@ jobs:
         with:
           context: plugins/managed/${{ matrix.plugin }}
           build-args: VARIANT=${{ matrix.variant }}
-          load: ${{ github.event.inputs.push != 'true' }}
-          push: ${{ github.event.inputs.push == 'true' || github.event_name == 'push' }}
+          load: ${{ steps.filter.outputs.should_push != 'true' }}
+          push: ${{ steps.filter.outputs.should_push == 'true' }}
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-plugin-${{ matrix.plugin }}:${{ matrix.variant }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
