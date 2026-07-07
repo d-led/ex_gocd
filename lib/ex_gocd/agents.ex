@@ -67,17 +67,11 @@ defmodule ExGoCD.Agents do
   end
 
   defp init_reg_log do
-    case :ets.info(@reg_log_table) do
-      :undefined ->
-        try do
-          :ets.new(@reg_log_table, [:named_table, :public, :set])
-        catch
-          :error, :table_already_exists -> :ok
-        end
-
-      _ ->
-        :ok
-    end
+    :ets.new(@reg_log_table, [:named_table, :public, :set])
+  rescue
+    ArgumentError ->
+      Logger.debug("[Agents] Registration log ETS table already exists — ok on concurrent init")
+      :ok
   end
 
   @doc """
