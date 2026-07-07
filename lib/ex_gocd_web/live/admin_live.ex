@@ -532,7 +532,7 @@ defmodule ExGoCDWeb.AdminLive do
 
             <div class="flex items-center justify-between border-t border-[#e9edef] pt-4">
               <div>
-                <p class="text-xs font-bold text-slate-700">Reconcile Stale Stages</p>
+                <p class="text-xs font-bold text-slate-700">Fix pipeline statuses</p>
                 <p class="text-[11px] text-slate-400 mt-0.5">
                   Fix stages stuck in Building/Awaiting when all jobs are already done. Use if pipeline statuses don&apos;t look right.
                 </p>
@@ -541,7 +541,7 @@ defmodule ExGoCDWeb.AdminLive do
                 phx-click="reconcile_stale_stages"
                 class="px-3 py-1.5 rounded text-xs font-semibold bg-amber-500 border border-amber-400 text-white hover:bg-amber-400 transition-all shadow-sm"
               >
-                Reconcile Now
+                Fix Now
               </button>
             </div>
           </div>
@@ -1587,7 +1587,7 @@ defmodule ExGoCDWeb.AdminLive do
 
     {:noreply,
      socket
-     |> put_flash(:info, "Reconciled #{count} stale stage(s).")}
+     |> put_flash(:info, "Fixed #{count} stale stage(s).")}
   end
 
   @impl true
