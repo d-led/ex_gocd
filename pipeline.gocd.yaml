@@ -32,7 +32,37 @@ pipelines:
                 - exec:
                     command: elixir
                     arguments: [--version]
-  # ── CI pipeline (runs on ci-agent with elixir+postgres) ────────────────
+  # ── Main CI pipeline (runs on every commit, triggers quality gate) ───
+  ex_gocd:
+    group: default
+    materials:
+      main_repo:
+        git: https://github.com/d-led/ex_gocd.git
+        branch: master
+    stages:
+      - ci:
+          environment_variables:
+            MIX_ENV: test
+          jobs:
+            quality:
+              resources: [elixir]
+              tasks:
+                - exec:
+                    command: mix
+                    arguments: [deps.get]
+                - exec:
+                    command: bash
+                    arguments: [scripts/quality-gate.sh]
+            test:
+              resources: [elixir, postgres]
+              tasks:
+                - exec:
+                    command: mix
+                    arguments: [deps.get]
+                - exec:
+                    command: mix
+                    arguments: [test]
+  # ── CI pipeline (manual trigger, depends on upstream-lib) ────────────
   ex_gocd_ci:
     group: dogfood
     stages:
