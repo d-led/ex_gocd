@@ -544,20 +544,98 @@ func (a *Agent) executeCommandTree(ctx context.Context, build *protocol.Build, c
 	return a.runOneCommandWithFold(ctx, build, cmd, env)
 }
 
-// foldLabel builds a short label for a build command (e.g. "git", "mix")
+// foldLabel builds a short, safe label for a build command including key arguments.
+// Mirrors GoCD's approach: masks secure env var values and URL passwords.
+// Truncates to ~100 chars for safe console output.
 func (a *Agent) foldLabel(cmd *protocol.BuildCommand) string {
-	if cmd.Command == "" {
-		return cmd.Name
+	base := cmd.Command
+	if base == "" {
+		base = cmd.Name
 	}
-	return cmd.Command
+
+	// env (echo) with many lines: show summary instead of dumping all vars
+	if cmd.Name == "env" && cmd.Command == "echo" && len(cmd.Args) == 1 {
+		lines := strings.Split(cmd.Args[0], "\n")
+		if len(lines) > 1 {
+			return fmt.Sprintf("echo (%d env vars)", len(lines))
+		}
+		return truncate("echo "+cmd.Args[0], 120)
+	}
+
+	// export: show NAME=VALUE, masking secure values
+	if cmd.Name == "export" && len(cmd.Args) >= 1 {
+		secure := isSecure(cmd.Attributes)
+		varName := cmd.Args[0]
+		if secure || len(cmd.Args) < 2 {
+			return "export " + varName + "=********"
+		}
+		return truncate("export "+varName+"="+cmd.Args[1], 120)
+	}
+
+	// Default: command + args, with URL password masking
+	if len(cmd.Args) == 0 {
+		return base
+	}
+	return truncate(buildLabelWithMaskedArgs(base, cmd.Args), 120)
+}
+
+// isSecure checks if the command has a "secure" attribute set to true.
+func isSecure(attrs map[string]interface{}) bool {
+	if attrs == nil {
+		return false
+	}
+	if v, ok := attrs["secure"]; ok {
+		switch val := v.(type) {
+		case bool:
+			return val
+		case string:
+			return val == "true"
+		}
+	}
+	return false
+}
+
+// buildLabelWithMaskedArgs joins command + args, masking passwords in URL-like args.
+func buildLabelWithMaskedArgs(cmd string, args []string) string {
+	var b strings.Builder
+	b.WriteString(cmd)
+	for _, arg := range args {
+		b.WriteByte(' ')
+		b.WriteString(maskPasswordInArg(arg))
+		if b.Len() > 100 {
+			return truncate(b.String(), 117) + "..."
+		}
+	}
+	return b.String()
+}
+
+// maskPasswordInArg replaces password-like patterns in arg with ******.
+// Handles: https://user:pass@host, git@host (keeps), token-like strings in URLs.
+func maskPasswordInArg(arg string) string {
+	// Only mask URLs with userinfo (user:password@)
+	if idx := strings.Index(arg, "://"); idx > 0 {
+		rest := arg[idx+3:]
+		if atIdx := strings.Index(rest, "@"); atIdx > 0 {
+			userInfo := rest[:atIdx]
+			hostAndPath := rest[atIdx:]
+			if colonIdx := strings.Index(userInfo, ":"); colonIdx > 0 {
+				return arg[:idx+3] + userInfo[:colonIdx] + ":******" + hostAndPath
+			}
+		}
+	}
+	return arg
+}
+
+func truncate(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen]
 }
 
 // runOneCommandWithFold emits ##[fold] / ##[endfold] markers around a command's output.
-// Exports are passthrough — they have no visible output.
+// Exports get fold markers too so the UI can show each variable name.
 func (a *Agent) runOneCommandWithFold(ctx context.Context, build *protocol.Build, cmd *protocol.BuildCommand, env map[string]string) error {
-	if cmd.Name == "export" {
-		return a.runOneCommand(ctx, build, cmd, env)
-	}
 	if build.ConsoleUrl != "" {
 		label := a.foldLabel(cmd)
 		_ = a.postConsole(build.ConsoleUrl, time.Now().Format("15:04:05.000")+" ##[fold]"+label+"\n")
