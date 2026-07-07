@@ -5,24 +5,29 @@
 ## Critical Requirements
 
 ### Protocol Compatibility
+
 This server MUST be **100% compatible** with original GoCD:
+
 - **Agent Protocol**: WebSocket at `/agent-websocket` with custom message protocol
 - **Agent Registration**: Form-based POST to `/admin/agent` (NOT `/api/agents`)
 - **REST API**: Match [api.go.cd](../api.go.cd) spec exactly (versioned endpoints)
 
 **Validation**: Both original GoCD agents AND our Go agent must work with this server.
 
-**Compatibility**: The REST API, usage (URLs, headers), and agent protocols (registration + WebSocket) MUST stay compatible with GoCD. See [docs/rewrite.md](docs/rewrite.md) and [api.go.cd](../api.go.cd).
+**Compatibility**: The REST API, usage (URLs, headers), and agent protocols (registration + WebSocket) MUST stay compatible with GoCD. See [docs/PARITY.md](docs/PARITY.md) and [api.go.cd](../api.go.cd).
 
 ### Domain Fidelity
+
 Use **exact** GoCD terminology and data model:
+
 - Pipeline → Stage → Job → Task hierarchy
 - Materials, Artifacts, Agents, Resources, Environments
-- See [docs/rewrite.md](docs/rewrite.md) for complete domain model
+- See [docs/PARITY.md](docs/PARITY.md) for complete domain model, feature parity, and roadmap
 
 ## Getting Started
 
 ### Setup
+
 ```bash
 # Install dependencies
 mix setup
@@ -52,6 +57,7 @@ process-compose up
 ```
 
 This starts `mix phx.server` on port 4000, plus two Go agents:
+
 - **CI agent** — resources `elixir,postgres`, picks up build/test jobs
 - **Docker agent** — resource `docker`, auto-detects Docker socket (Docker Desktop, Colima, etc.)
 
@@ -71,6 +77,7 @@ mix phx.server
 ```
 
 **Demo / development:**
+
 - **Shared cookie**: In dev, the server returns a fixed token (`ex-gocd-demo-cookie`) so agent and server always match. The start script sets `EX_GOCD_DEMO_COOKIE` for the agent. For docker-compose, set the same `EX_GOCD_DEMO_COOKIE` on both server and agent services.
 - **Auto-enable**: Newly registered agents are enabled by default in dev. Set `EX_GOCD_AUTO_ENABLE_AGENTS=0` to disable. In production, set `EX_GOCD_AUTO_ENABLE_AGENTS=true` to auto-enable.
 
@@ -83,16 +90,16 @@ docker compose up -d          # postgres + observability stack
 docker compose up -d postgres # postgres only (for CI runner)
 ```
 
-| Service | URL | Config |
-|---|---|---|
-| **ex_gocd app** | [localhost:4000](http://localhost:4000) | `config/dev.exs` |
-| **Adminer** (DB browser) | [localhost:8092](http://localhost:8092/?pgsql=postgres&username=postgres&db=postgres&ns=public) | — |
-| **Grafana** (dashboards) | [localhost:3000](http://localhost:3000) | `grafana/grafana.ini`, `grafana/provisioning/` |
-| **Jaeger** (traces) | [localhost:16686](http://localhost:16686/search) | all-in-one, ephemeral |
-| **OTel Collector** | `localhost:4318` (HTTP), `localhost:4317` (gRPC) | `otel/collector-config.yml` |
-| **Grafana Renderer** | `localhost:3081` (internal) | — |
-| **Postgres** | `localhost:5432` (`postgres:postgres`) | `docker-compose.yml` env vars |
-| **smtp4dev** (email testing) | [localhost:8025](http://localhost:8025) | SMTP on `:2525`, no auth |
+| Service                      | URL                                                                                             | Config                                         |
+| ---------------------------- | ----------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| **ex_gocd app**              | [localhost:4000](http://localhost:4000)                                                         | `config/dev.exs`                               |
+| **Adminer** (DB browser)     | [localhost:8092](http://localhost:8092/?pgsql=postgres&username=postgres&db=postgres&ns=public) | —                                              |
+| **Grafana** (dashboards)     | [localhost:3000](http://localhost:3000)                                                         | `grafana/grafana.ini`, `grafana/provisioning/` |
+| **Jaeger** (traces)          | [localhost:16686](http://localhost:16686/search)                                                | all-in-one, ephemeral                          |
+| **OTel Collector**           | `localhost:4318` (HTTP), `localhost:4317` (gRPC)                                                | `otel/collector-config.yml`                    |
+| **Grafana Renderer**         | `localhost:3081` (internal)                                                                     | —                                              |
+| **Postgres**                 | `localhost:5432` (`postgres:postgres`)                                                          | `docker-compose.yml` env vars                  |
+| **smtp4dev** (email testing) | [localhost:8025](http://localhost:8025)                                                         | SMTP on `:2525`, no auth                       |
 
 Pre-configured dashboard: `grafana/provisioning/dashboards/ci-observability/pipeline-observability.json`
 
@@ -106,10 +113,9 @@ Built-in observability with **zero external tools required**:
 
 ## Documentation
 
-- [Architecture & Parity](docs/architecture_and_parity.md) — stack, cluster topology, plugin system, feature parity
+- [Unified Parity Plan](docs/PARITY.md) — single source of truth: architecture, domain model, feature parity, roadmap, quality
 - [Plugin Authoring Guide](docs/plugin_authoring.md) — how to write plugins
-- [Comprehensive Parity Plan](docs/comprehensive_parity_plan.md) — detailed audited parity report
-- [Development Status](docs/status.md)
+- [Module Mapping](docs/module_mapping.md) — Elixir ↔ GoCD Java file mapping
 - [Agent Implementation](agent/README.md)
 
 ## Technical Architecture
@@ -126,8 +132,8 @@ Built-in observability with **zero external tools required**:
 
 ## Learn More
 
-* Official website: https://www.phoenixframework.org/
-* Guides: https://hexdocs.pm/phoenix/overview.html
-* Docs: https://hexdocs.pm/phoenix
-* Forum: https://elixirforum.com/c/phoenix-forum
-* Source: https://github.com/phoenixframework/phoenix
+- Official website: https://www.phoenixframework.org/
+- Guides: https://hexdocs.pm/phoenix/overview.html
+- Docs: https://hexdocs.pm/phoenix
+- Forum: https://elixirforum.com/c/phoenix-forum
+- Source: https://github.com/phoenixframework/phoenix
