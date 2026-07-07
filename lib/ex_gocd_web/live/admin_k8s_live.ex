@@ -489,7 +489,7 @@ defmodule ExGoCDWeb.AdminK8sLive do
             <div class="border rounded-lg p-4 hover:shadow-md transition-shadow">
               <div class="flex justify-between items-start mb-2">
                 <h3 class="font-semibold text-lg">{profile.name || "Unnamed"}</h3>
-                <span class="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">k8s-agent</span>
+                <span class="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">{plugin_label(profile.plugin_id)}</span>
               </div>
               <div class="text-sm text-gray-600 space-y-1">
                 <div>
@@ -1035,4 +1035,8 @@ defmodule ExGoCDWeb.AdminK8sLive do
     </span>\
     """)
   end
+
+  defp plugin_label("cd.go.contrib.elastic-agent.docker"), do: "docker-agent"
+  defp plugin_label("ex_gocd.elasticagent.kubernetes"), do: "k8s-agent"
+  defp plugin_label(unknown), do: String.slice(unknown, 0, 20)
 end
