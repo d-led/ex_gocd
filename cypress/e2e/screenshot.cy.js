@@ -27,9 +27,14 @@ describe("Auto screenshot", () => {
   // DASHBOARD
   // ═══════════════════════════════════════════════════════════════
 
-  it("dashboard", function () {
-    cy.navigateAndVerify("/pipelines", ".dashboard");
+  it("dashboard (by environment)", function () {
+    cy.navigateAndVerify("/pipelines?group_by=environment", ".dashboard");
     cy.captureScreenshot("dashboard");
+  });
+
+  it("dashboard (by pipeline group)", function () {
+    cy.navigateAndVerify("/pipelines?group_by=pipeline_group", ".dashboard");
+    cy.captureScreenshot("dashboard-pipeline-group");
   });
 
   // ═══════════════════════════════════════════════════════════════
@@ -390,16 +395,42 @@ describe("Auto screenshot", () => {
         this.skip();
         return;
       }
-      const url = `/go/pipelines/value_stream_map/${p.name}/${p.counter}`;
-      cy.request({ url, failOnStatusCode: false }).then((resp) => {
-        if (resp.status !== 200) {
-          cy.log(`** SKIP: VSM returned ${resp.status}`);
-          this.skip();
+
+      // Try to find a VSM with multiple cards — prefer upstream-lib if available
+      const vsmCandidates = [
+        { name: "upstream-lib", counter: 6 },
+        { name: "release-pipeline", counter: p.counter },
+        { name: p.name, counter: p.counter },
+      ];
+
+      function tryVsm(idx) {
+        if (idx >= vsmCandidates.length) {
+          cy.log("** SKIP: no VSM with multi-card data");
+          cy.state("runnable").skip();
           return;
         }
-        cy.navigateAndVerify(url);
-        cy.captureScreenshot("vsm");
-      });
+        const c = vsmCandidates[idx];
+        const url = `/go/pipelines/value_stream_map/${c.name}/${c.counter}`;
+        cy.request({ url, failOnStatusCode: false }).then((resp) => {
+          if (resp.status !== 200) {
+            tryVsm(idx + 1);
+            return;
+          }
+          // Check for at least 3 vsm-node cards in the response
+          const nodeCount = (resp.body.match(/vsm-node/g) || []).length;
+          if (nodeCount < 3) {
+            cy.log(`** VSM for ${c.name} has ${nodeCount} cards — trying next`);
+            tryVsm(idx + 1);
+            return;
+          }
+          cy.navigateAndVerify(url);
+          cy.get("#vsm-svg", { timeout: 10000 }).should("exist");
+          // Wait for arrow lines to render
+          cy.wait(500);
+          cy.captureScreenshot("vsm");
+        });
+      }
+      tryVsm(0);
     });
   });
 
@@ -480,7 +511,7 @@ describe("Auto screenshot", () => {
 
   it("dashboard mobile", function () {
     cy.viewport(375, 812);
-    cy.navigateAndVerify("/pipelines", ".dashboard");
+    cy.navigateAndVerify("/pipelines?group_by=environment", ".dashboard");
     cy.captureScreenshot("dashboard-mobile");
   });
 

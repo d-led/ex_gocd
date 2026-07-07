@@ -424,6 +424,7 @@ const VSMGraph = {
             "marker-end",
             isHighlight ? "url(#arrow-current)" : "url(#arrow)",
           );
+          vis.style.opacity = "1";
           vis.style.pointerEvents = "none";
           vis.style.transition = "opacity 0.2s";
           vis.dataset.sourceId = sourceId;
