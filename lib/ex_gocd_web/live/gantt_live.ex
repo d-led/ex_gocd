@@ -294,7 +294,7 @@ defmodule ExGoCDWeb.GanttLive do
       tooltip = format_duration(dur)
       link = "/pipelines/#{pipe_name}/#{counter}/#{stage_name}/#{stage_counter}"
 
-      ~s'<a href="#{link}" target="_blank">\n  <circle cx="#{px}" cy="#{py}" r="4" fill="#{color}" stroke="#fff" stroke-width="1" opacity="0.9" style="cursor:pointer">\n    <title>##{counter} #{stage_name}/#{stage_counter} — #{tooltip}</title>\n  </circle>\n</a>'
+      ~s'<a href="#{link}">\n  <circle cx="#{px}" cy="#{py}" r="4" fill="#{color}" stroke="#fff" stroke-width="1" opacity="0.9" style="cursor:pointer">\n    <title>##{counter} #{stage_name}/#{stage_counter} — #{tooltip}</title>\n  </circle>\n</a>'
     end)
     |> Enum.join("\n")
   end

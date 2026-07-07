@@ -540,7 +540,11 @@ func (a *Agent) executeCommandTree(ctx context.Context, build *protocol.Build, c
 		return fmt.Errorf("create working dir %s: %w", cmd.WorkingDir, err)
 	}
 
-	// Wrap leaf commands (except export) with ##[fold] markers for UI collapsible sections
+	// Wrap leaf commands (except export) with ##[fold] markers for UI collapsible sections.
+	// Export commands set env vars silently; the env/echo batch command already displays them.
+	if cmd.Name == "export" {
+		return a.runOneCommand(ctx, build, cmd, env)
+	}
 	return a.runOneCommandWithFold(ctx, build, cmd, env)
 }
 

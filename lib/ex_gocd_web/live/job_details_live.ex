@@ -582,7 +582,6 @@ defmodule ExGoCDWeb.JobDetailsLive do
       <%= if String.ends_with?(@name, ".html") or String.ends_with?(@name, ".htm") do %>
         <a
           href={"/files/#{@pipeline_name}/#{@pipeline_counter}/#{@stage_name}/#{@stage_counter}/#{@job_name}/#{@rel_path}"}
-          target="_blank"
           class="text-green-600 hover:underline font-bold"
         >
           <i class="fa fa-eye mr-1"></i> View
@@ -590,7 +589,6 @@ defmodule ExGoCDWeb.JobDetailsLive do
       <% end %>
       <a
         href={"/files/#{@pipeline_name}/#{@pipeline_counter}/#{@stage_name}/#{@stage_counter}/#{@job_name}/#{@rel_path}"}
-        target="_blank"
         class="text-[#2d6ca2] hover:underline font-bold"
       >
         <i class="fa fa-download mr-1"></i> Download

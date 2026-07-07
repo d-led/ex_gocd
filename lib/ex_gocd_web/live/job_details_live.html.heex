@@ -175,7 +175,6 @@
               href={
                 ~p"/files/#{@pipeline_name}/#{@pipeline_counter}/#{@stage_name}/#{@stage_counter}/#{@job_name}/cruise-output/console.log"
               }
-              target="_blank"
               class="text-[10px] text-[#2d6ca2] hover:underline font-bold uppercase tracking-wider"
             >
               Raw Output
@@ -258,7 +257,6 @@
                   href={
                     ~p"/files/#{@pipeline_name}/#{@pipeline_counter}/#{@stage_name}/#{@stage_counter}/#{@job_name}/cruise-output/console.log"
                   }
-                  target="_blank"
                   class="text-yellow-100 underline font-bold"
                 >
                   Download Full Log
@@ -587,7 +585,6 @@
             <span>Custom tab: <strong class="text-gray-700">{tab_name}</strong></span>
             <a
               href={"/files/#{@pipeline_name}/#{@pipeline_counter}/#{@stage_name}/#{@stage_counter}/#{@job_name}/#{tab_path}"}
-              target="_blank"
               class="text-[#2d6ca2] hover:underline font-bold text-xs mt-1"
             >
               <i class="fa fa-external-link mr-1"></i>
