@@ -40,9 +40,9 @@ echo "=== Link Checker (lychee) ==="
   "$BASE_URL/admin" \
   "$BASE_URL/analytics" \
   "$BASE_URL/materials" \
-  2>&1
+  2>&1 | sed 's/🚫 0 Errors/✅ 0 Errors/'
 
-if [ $? -eq 0 ]; then
+if [ ${PIPESTATUS[0]} -eq 0 ]; then
   echo "[PASS] Link checker — no broken internal links"
 else
   echo "[FAIL] Link checker — broken links found"

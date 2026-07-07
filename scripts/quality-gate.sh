@@ -220,7 +220,11 @@ echo "============================================"
 echo " Quality Gate Summary"
 echo "============================================"
 echo -e " ${GREEN}Passed:${NC} ${PASS}"
-echo -e " ${RED}Failed:${NC} ${FAIL}"
+if [ "$FAIL" -gt 0 ]; then
+  echo -e " ${RED}Failed:${NC} ${FAIL}"
+else
+  echo -e " ${GREEN}Failed:${NC} ${FAIL}"
+fi
 echo "============================================"
 
 if [ "$FAIL" -gt 0 ]; then
