@@ -344,26 +344,21 @@ run_exgocd_example \
   4003 5434 \
   "Example 3: ex_gocd server + official GoCD Java agent" \
   "skip"
-# ── Example 4: OAuth2-Proxy demo (dev server required) ──────────────────
-# This tests the oauth2-proxy auth proxy + auto-create users flow.
-# Requires the main dev server (port 4000) to be running with
-# EX_GOCD_AUTO_CREATE_USERS=true.
-banner "Example 4: OAuth2-Proxy + User Auto-Creation Demo"
+# ── Example 4: OAuth2-Proxy demo (self-contained) ──────────────────────
+# Self-contained stack: PostgreSQL + ExGoCD + oauth2-proxy + smtp4dev.
+# Tests proxy auth, auto-user-creation, user APIs, and email UI.
 OAUTH_EXERCISE="$SCRIPT_DIR/../oauth2-proxy/exercise.sh"
-if ! curl -sf -o /dev/null "http://localhost:4000/api/version" 2>/dev/null; then
-  warn "Dev server not running on port 4000 — skipping OAuth2-Proxy demo."
-  warn "Start it with: cd ex_gocd && EX_GOCD_AUTO_CREATE_USERS=true EX_GOCD_ADMIN_USERS=admin@exgocd.local mix phx.server"
-elif [ -x "$OAUTH_EXERCISE" ]; then
-  log "Dev server detected, running OAuth2-Proxy demo..."
+if [ -x "$OAUTH_EXERCISE" ]; then
+  banner "Example 4: OAuth2-Proxy + User Auto-Creation Demo"
   if bash "$OAUTH_EXERCISE"; then
-    log "OAuth2-Proxy demo: PASS"
+    echo -e "${GREEN}[PASS]${NC} Example 4: OAuth2-Proxy demo"
     passed=$((passed + 1))
   else
-    err "OAuth2-Proxy demo: FAIL"
+    echo -e "${RED}[FAIL]${NC} Example 4: OAuth2-Proxy demo"
     failed=$((failed + 1))
   fi
 else
-  warn "OAuth2-Proxy exercise script not found or not executable: $OAUTH_EXERCISE"
+  warn "OAuth2-Proxy exercise script not executable: $OAUTH_EXERCISE"
 fi
 # ── Summary ──────────────────────────────────────────────────────────────
 echo ""

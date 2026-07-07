@@ -1,0 +1,90 @@
+# Self-contained OAuth2-Proxy + ExGoCD demo
+#
+# Brings up a complete stack: PostgreSQL + ExGoCD server + oauth2-proxy.
+# oauth2-proxy authenticates users via htpasswd and forwards identity
+# headers to ExGoCD, which auto-creates users with EX_GOCD_AUTO_CREATE_USERS.
+#
+# Access:  http://localhost:4180  (through oauth2-proxy)
+# Direct:  http://localhost:4004  (bypass proxy, open mode)
+# Mail UI: http://localhost:8025  (smtp4dev web interface)
+#
+# Test users (htpasswd):
+#   admin@exgocd.local / admin123  → auto-created as admin
+#   dev@exgocd.local   / dev123    → auto-created as developer
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ex_gocd_prod
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  ex-gocd-server:
+    image: ghcr.io/d-led/ex_gocd:latest
+    build:
+      context: ../../..
+      dockerfile: Dockerfile
+    ports:
+      - '4004:4000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: >
+      sh -c "/app/bin/ex_gocd eval 'ExGoCD.Release.migrate()' && /app/bin/ex_gocd start"
+    environment:
+      DATABASE_URL: "ecto://postgres:postgres@postgres/ex_gocd_prod"
+      SECRET_KEY_BASE: "c9KxP2mQ7wR5nJ8zL3bF6cY1dH4gA0eT7uW2iO9pS5aD8fG3hJ6kM1nB4vC7xZqX9yV3tR8wU5sA2pL6mN0zQ7kJ4fG1dH8bC5eT3rW6iO9pS1aD4gF7"
+      PHX_HOST: "localhost"
+      PORT: "4000"
+      EX_GOCD_AUTO_ENABLE_AGENTS: "true"
+      EX_GOCD_AUTO_CREATE_USERS: "true"
+      EX_GOCD_ADMIN_USERS: "admin@exgocd.local"
+    volumes:
+      - exgocd_artifacts:/app/artifacts
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/api/version"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+
+  oauth2-proxy:
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.3
+    platform: linux/amd64
+    ports:
+      - '4180:4180'
+    depends_on:
+      ex-gocd-server:
+        condition: service_healthy
+    environment:
+      OAUTH2_PROXY_HTTP_ADDRESS: "0.0.0.0:4180"
+      OAUTH2_PROXY_UPSTREAMS: "http://ex-gocd-server:4000"
+      OAUTH2_PROXY_COOKIE_SECRET: "Z29vZC1zZWNyZXQtY29vaA=="
+      OAUTH2_PROXY_COOKIE_SECURE: "false"
+      OAUTH2_PROXY_COOKIE_DOMAINS: "localhost"
+      OAUTH2_PROXY_EMAIL_DOMAINS: "*"
+      OAUTH2_PROXY_PROVIDER: "google"
+      OAUTH2_PROXY_CLIENT_ID: "dummy"
+      OAUTH2_PROXY_CLIENT_SECRET: "dummy"
+      OAUTH2_PROXY_HTPASSWD_FILE: "/etc/oauth2-proxy/htpasswd.txt"
+      OAUTH2_PROXY_HTPASSWD_USER_GROUP: "admin@exgocd.local=admin;dev@exgocd.local=developer"
+      OAUTH2_PROXY_SET_XAUTHREQUEST: "true"
+      OAUTH2_PROXY_PASS_USER_HEADERS: "true"
+      OAUTH2_PROXY_PASS_ACCESS_TOKEN: "true"
+      OAUTH2_PROXY_SET_AUTHORIZATION_HEADER: "true"
+      OAUTH2_PROXY_REVERSE_PROXY: "true"
+      OAUTH2_PROXY_SKIP_AUTH_ROUTES: "GET=^/api/version|GET=^/api/agents|POST=^/api/agents/register|GET=^/health"
+    volumes:
+      - ../../oauth2-proxy/htpasswd.txt:/etc/oauth2-proxy/htpasswd.txt:ro
+
+volumes:
+  pgdata:
+  exgocd_artifacts:
