@@ -53,11 +53,11 @@ defmodule ExGoCDWeb.GanttLive do
       <% else %>
         <div class="bg-white border border-gray-200 rounded shadow-sm overflow-x-auto">
           <div style="min-width: 800px">
-            {{:safe, @gantt}}
+            {@gantt}
           </div>
         </div>
 
-        <div class="flex gap-6 mt-4 text-xs text-gray-500">
+        <div class="flex gap-6 mt-4 text-xs text-gray-500" data-test-id="gantt-legend">
           <div class="flex items-center gap-1.5">
             <span class="h-3 w-3 rounded-sm bg-green-500"></span> Passed
           </div>

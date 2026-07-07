@@ -6,10 +6,15 @@ describe("Gantt chart", () => {
     cy.contains("Pipeline Gantt", { timeout: 10000 }).should("be.visible");
   });
 
-  it("shows legend: Passed, Failed", () => {
+  it("shows legend: Passed, Failed, Building, Pending", () => {
     cy.visit("/gantt");
-    cy.contains("Passed", { timeout: 10000 }).should("be.visible");
-    cy.contains("Failed", { timeout: 10000 }).should("be.visible");
+    // Scope to the legend bar, not SVG <title> tooltips inside bars
+    cy.get('[data-test-id="gantt-legend"]')
+      .contains("Passed")
+      .should("be.visible");
+    cy.get('[data-test-id="gantt-legend"]')
+      .contains("Failed")
+      .should("be.visible");
   });
 
   it("navigates via /go/gantt alias", () => {

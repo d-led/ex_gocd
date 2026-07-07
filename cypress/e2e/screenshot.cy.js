@@ -446,6 +446,58 @@ describe("Auto screenshot", () => {
   });
 
   // ═══════════════════════════════════════════════════════════════
+  // GANTT CHART
+  // ═══════════════════════════════════════════════════════════════
+
+  /**
+   * Navigate to the Gantt page and verify it has pipeline data
+   * worth screenshotting (at least one pipeline with stage bars).
+   * Skips when no data or only single-stage pipelines.
+   */
+  function verifyGanttHasData() {
+    cy.navigateAndVerify("/gantt", '[data-test-id="gantt-page"]');
+
+    cy.get("body").then(($body) => {
+      // No runs at all
+      if ($body.text().includes("No pipeline runs yet")) {
+        cy.log("** SKIP: no pipeline runs for Gantt chart");
+        cy.state("runnable").skip();
+        return;
+      }
+
+      // Look for at least one pipeline label with a counter
+      // Pipeline labels look like "two-stage-demo #7" in the SVG
+      const svgText = $body.find("svg text").text();
+      const hasPipelineLabel = /[a-z].*#\d+/.test(svgText);
+      if (!hasPipelineLabel) {
+        cy.log("** SKIP: no pipeline labels found in Gantt SVG");
+        cy.state("runnable").skip();
+        return;
+      }
+
+      // Verify at least one pipeline has stage bars (colored rects)
+      const stageRects = $body.find(
+        "svg rect[fill='#22c55e'], svg rect[fill='#ef4444'], svg rect[fill='#3b82f6']",
+      );
+      if (!stageRects.length) {
+        cy.log("** SKIP: no stage bars (colored rects) in Gantt SVG");
+        cy.state("runnable").skip();
+        return;
+      }
+
+      const pipelineLabels = svgText.match(/[a-z].*#\d+/g) || [];
+      cy.log(
+        `Gantt: ${pipelineLabels.length} pipelines, ${stageRects.length} stage bars`,
+      );
+    });
+  }
+
+  it("gantt chart", function () {
+    verifyGanttHasData();
+    cy.captureScreenshot("gantt-chart");
+  });
+
+  // ═══════════════════════════════════════════════════════════════
   // MOBILE VIEWPORTS
   // ═══════════════════════════════════════════════════════════════
 
@@ -485,5 +537,11 @@ describe("Auto screenshot", () => {
     cy.viewport(375, 812);
     cy.navigateAndVerify("/admin");
     cy.captureScreenshot("admin-mobile");
+  });
+
+  it("gantt chart mobile", function () {
+    cy.viewport(375, 812);
+    verifyGanttHasData();
+    cy.captureScreenshot("gantt-chart-mobile");
   });
 });
