@@ -1,10 +1,8 @@
 # ex_gocd — Unified Feature Parity Plan
 
 > Single source of truth. Supersedes all previous plan/roadmap/status documents.
-> Last audited: 2026-07-06. 900+ tests. 67 controllers. 21 LiveView pages. 20 GenServers. 40 migrations.
-> **Phase 1 parity (2026-07-06):** Encryption API, kill_running_tasks, webhook endpoints (bitbucket/hg/other-scm), feed XML (stage/job/material/scheduled).
-> **Phase 2 parity (2026-07-06):** Packages CRUD API, Backup config API, Backup status tracking, Pipeline groups admin API.
-> **Enterprise Org Hierarchy plugin (2026-07-06):** Config-driven GenServer, YAML org.yaml with hot-reload (30s file watch), change detection & broadcasting. 4 departments, 13 pipeline groups, nested inheritance. 13 tests. Standalone OTP app at `plugins/managed/enterprise_hierarchy/`. Replaces static SimpleOrgChart.
+> Last audited: 2026-07-07. 900+ tests. 67 controllers. 21 LiveView pages. 20 GenServers. 40 migrations.
+> **2026-07-07 audit:** Auth route split (public vs admin), RBAC gaps (per-environment policies), UI missing links (dashboard cards, stage popup, menu cleanup), console echo granularity.
 
 ---
 
@@ -187,6 +185,25 @@ ex_gocd has achieved ~95% parity with GoCD. The remaining ~11 gaps are in 4 cate
 4. ✅ B2: Missing webhook endpoints — added 4 handlers to webhook_controller
 5. ✅ B3: Remaining feed XML — added 4 feed types to feeds_controller
 
+### 🟡 Category E: UI Missing Links & Screens (7)
+
+| # | Gap | GoCD Behavior | Effort | Status |
+|---|-----|---------------|--------|--------|
+| E1 | **Dashboard: Changes link on cards** | Dropdown showing material revisions/build cause per instance | S | ❌ |
+| E2 | **Dashboard: Stage overview popup** | Clicking stage pill shows popup with job details | M | ❌ |
+| E3 | **Dashboard: Group edit gear icon** | Edit pipeline group link on group heading (admin only) | S | ❌ |
+| E4 | **Dashboard: New Pipeline dropdown** | "Use Pipeline Wizard" / "Use Pipelines as Code" on group heading | S | ❌ |
+| E5 | **Job console: env-var echo too granular** | GoCD folds system bits into fewer commands; we echo each var into its own foldable block | S | ❌ |
+| E6 | **Nav menu wildness** | "Sharing with Agent" button appearing incorrectly; partial sidebar "A..." | S | ❌ |
+| E7 | **Stage details: missing links** | Stage Overview links to job details, config diff, pipeline compare | S | ❌ |
+
+### 🟡 Category F: RBAC & Policy Enforcement (2)
+
+| # | Gap | GoCD Behavior | Effort | Status |
+|---|-----|---------------|--------|--------|
+| F1 | **Per-environment RBAC** | Role policies (`<allow action="view" type="environment">UAT</allow>`) control environment access | M | ❌ |
+| F2 | **Policy enforcement via Bodyguard** | `EnvironmentPolicy` only checks admin/dev/viewer roles — needs bodyguard hex package for proper policy evaluation | M | ❌ |
+
 ### Remaining Gaps (10)
 6. A5: Backup config API
 7. A6: Backup status tracking
@@ -198,9 +215,16 @@ ex_gocd has achieved ~95% parity with GoCD. The remaining ~11 gaps are in 4 cate
 11. B4: Agent UI search/filter/sort
 12. A2: Agent health monitoring
 13. D1: Artifact caching Phase 1
+14. E2: Stage overview popup
+15. F1+F2: RBAC with Bodyguard for per-environment policies
 
 ### Phase 4: Stretch (L-XL)
-14. D2: Docker elastic agent path
+16. D2: Docker elastic agent path
+17. E1, E3, E4, E7: Dashboard missing links
+
+### Phase 5: Polish (S)
+18. E5: Console env-var echo fix
+19. E6: Nav menu cleanup
 
 ---
 
