@@ -194,15 +194,15 @@ ex_gocd has achieved ~95% parity with GoCD. The remaining ~11 gaps are in 4 cate
 | E3 | **Dashboard: Group edit gear icon** | Edit pipeline group link on group heading (admin only) | S | ✅ |
 | E4 | **Dashboard: New Pipeline dropdown** | "Use Pipeline Wizard" / "Use Pipelines as Code" on group heading | S | ✅ |
 | E5 | **Job console: env-var echo too granular** | GoCD folds system bits into fewer commands; we echo each var into its own foldable block | S | ✅ |
-| E6 | **Nav menu wildness** | "Sharing with Agent" button appearing incorrectly; partial sidebar "A..." | S | ❌ |
+| E6 | **Nav menu wildness** | "Sharing with Agent" button appearing incorrectly; partial sidebar "A..." | S | ✅ |
 | E7 | **Stage details: missing links** | Stage Overview links to job details, config diff, pipeline compare | S | ✅ |
 
 ### 🟡 Category F: RBAC & Policy Enforcement (2)
 
 | # | Gap | GoCD Behavior | Effort | Status |
 |---|-----|---------------|--------|--------|
-| F1 | **Per-environment RBAC** | Role policies (`<allow action="view" type="environment">UAT</allow>`) control environment access | M | ❌ |
-| F2 | **Policy enforcement via Bodyguard** | `EnvironmentPolicy` only checks admin/dev/viewer roles — needs bodyguard hex package for proper policy evaluation | M | ❌ |
+| F1 | **Per-environment RBAC** | Role policies (`<allow action="view" type="environment">UAT</allow>`) control environment access | M | ✅ |
+| F2 | **Policy enforcement via Bodyguard** | `EnvironmentPolicy` uses Bodyguard with per-environment role policies | M | ✅ |
 
 ### 🟡 Category G: Job Details Tabs — Tests, Artifacts & Custom Tabs (3)
 
@@ -246,7 +246,7 @@ ex_gocd has achieved ~95% parity with GoCD. The remaining ~11 gaps are in 4 cate
 | Agents | Job name → Job Details | ✅ |
 | Admin Scheduling | Job name → Job Details | ✅ |
 
-### Remaining Gaps (9)
+### Remaining Gaps (4)
 
 #### Done (2026-07-08 session)
 1-15. ✅ A1-A6, B1-B4, C1-C2, E1-E5, E7, G2-G3
@@ -255,8 +255,6 @@ ex_gocd has achieved ~95% parity with GoCD. The remaining ~11 gaps are in 4 cate
 - D1: Artifact caching Phase 1 (M)
 - D2: Docker elastic agent path (L)
 - E2: Dashboard Stage overview popup (M)
-- E6: Nav menu wildness (S)
-- F1+F2: RBAC with Bodyguard (M)
 - G1: Tests tab LiveView-native (M)
 
 ### Phase 3: Features (M-L)
