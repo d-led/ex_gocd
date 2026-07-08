@@ -947,54 +947,10 @@ defmodule ExGoCDWeb.AdminK8sLive do
   end
 
   defp normalize_agent_params(params) do
-    env_vars =
-      (params["env_vars_text"] || "")
-      |> String.split("\n", trim: true)
-      |> Enum.map(&String.trim/1)
-      |> Enum.reject(&(&1 == ""))
-      |> Enum.map(fn line ->
-        case String.split(line, "=", parts: 2) do
-          [k, v] -> %{"name" => String.trim(k), "value" => String.trim(v)}
-          _ -> nil
-        end
-      end)
-      |> Enum.reject(&is_nil/1)
-
-    node_selector =
-      (params["node_selector_text"] || "")
-      |> String.split("\n", trim: true)
-      |> Enum.map(&String.trim/1)
-      |> Enum.reject(&(&1 == ""))
-      |> Enum.reduce(%{}, fn line, acc ->
-        case String.split(line, "=", parts: 2) do
-          [k, v] -> Map.put(acc, String.trim(k), String.trim(v))
-          _ -> acc
-        end
-      end)
-
-    pod_annotations =
-      (params["pod_annotations_text"] || "")
-      |> String.split("\n", trim: true)
-      |> Enum.map(&String.trim/1)
-      |> Enum.reject(&(&1 == ""))
-      |> Enum.reduce(%{}, fn line, acc ->
-        case String.split(line, "=", parts: 2) do
-          [k, v] -> Map.put(acc, String.trim(k), String.trim(v))
-          _ -> acc
-        end
-      end)
-
-    resource_images =
-      (params["resource_images_text"] || "")
-      |> String.split("\n", trim: true)
-      |> Enum.map(&String.trim/1)
-      |> Enum.reject(&(&1 == ""))
-      |> Enum.reduce(%{}, fn line, acc ->
-        case String.split(line, "=", parts: 2) do
-          [k, v] -> Map.put(acc, String.trim(k), String.trim(v))
-          _ -> acc
-        end
-      end)
+    env_vars = parse_kv_list(params["env_vars_text"])
+    node_selector = parse_kv_lines(params["node_selector_text"])
+    pod_annotations = parse_kv_lines(params["pod_annotations_text"])
+    resource_images = parse_kv_lines(params["resource_images_text"])
 
     props = %{
       "Image" => Map.get(params, "image", "gocd/gocd-agent-docker-24.5.0"),
@@ -1017,6 +973,33 @@ defmodule ExGoCDWeb.AdminK8sLive do
       cluster_profile_id: Map.get(params, "cluster_profile_id"),
       properties: props
     }
+  end
+
+  defp parse_kv_list(text) do
+    (text || "")
+    |> String.split("\n", trim: true)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.reduce([], fn line, acc ->
+      case String.split(line, "=", parts: 2) do
+        [k, v] -> [%{"name" => String.trim(k), "value" => String.trim(v)} | acc]
+        _ -> acc
+      end
+    end)
+    |> Enum.reverse()
+  end
+
+  defp parse_kv_lines(text) do
+    (text || "")
+    |> String.split("\n", trim: true)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.reduce(%{}, fn line, acc ->
+      case String.split(line, "=", parts: 2) do
+        [k, v] -> Map.put(acc, String.trim(k), String.trim(v))
+        _ -> acc
+      end
+    end)
   end
 
   defp format_env_vars(env_vars) when is_list(env_vars) do
@@ -1075,7 +1058,7 @@ defmodule ExGoCDWeb.AdminK8sLive do
     html =
       "<span class=\"inline-flex items-center gap-1 text-xs text-red-700\" title=\"#{safe}\"><span class=\"w-2 h-2 bg-red-500 rounded-full\"></span>Failed — #{safe}</span>"
 
-    Phoenix.HTML.raw(html)
+    {:safe, html}
   end
 
   defp connection_status_badge(_) do

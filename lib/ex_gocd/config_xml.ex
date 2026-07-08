@@ -351,37 +351,7 @@ defmodule ExGoCD.ConfigXml do
     props =
       el
       |> find_elements(:property)
-      |> Enum.reduce(%{}, fn prop_el, acc ->
-        key_el = find_child(prop_el, :key)
-        value_el = find_child(prop_el, :value)
-
-        if key_el && value_el do
-          key = text_content(key_el) |> to_string()
-          value = text_content(value_el) |> to_string()
-
-          parsed_value =
-            cond do
-              String.starts_with?(value, "{") || String.starts_with?(value, "[") ->
-                case Jason.decode(value) do
-                  {:ok, decoded} -> decoded
-                  _ -> value
-                end
-
-              key in ["MaxCPU", "MinCPU", "MinAgents"] ->
-                case Integer.parse(value) do
-                  {n, _} -> n
-                  _ -> value
-                end
-
-              true ->
-                value
-            end
-
-          Map.put(acc, key, parsed_value)
-        else
-          acc
-        end
-      end)
+      |> Enum.reduce(%{}, &reduce_agent_property/2)
 
     %{
       name: attr(el, :name) |> to_string(),
@@ -389,6 +359,37 @@ defmodule ExGoCD.ConfigXml do
       cluster_profile_id: attr(el, :clusterProfileId) |> to_string(),
       properties: props
     }
+  end
+
+  defp reduce_agent_property(prop_el, acc) do
+    key_el = find_child(prop_el, :key)
+    value_el = find_child(prop_el, :value)
+
+    if key_el && value_el do
+      key = text_content(key_el) |> to_string()
+      value = text_content(value_el) |> to_string()
+      Map.put(acc, key, parse_property_value(key, value))
+    else
+      acc
+    end
+  end
+
+  defp parse_property_value(key, value) when key in ["MaxCPU", "MinCPU", "MinAgents"] do
+    case Integer.parse(value) do
+      {n, _} -> n
+      _ -> value
+    end
+  end
+
+  defp parse_property_value(_key, value) do
+    if String.starts_with?(value, "{") || String.starts_with?(value, "[") do
+      case Jason.decode(value) do
+        {:ok, decoded} -> decoded
+        _ -> value
+      end
+    else
+      value
+    end
   end
 
   defp parse_pipeline(el) do
@@ -814,21 +815,10 @@ defmodule ExGoCD.ConfigXml do
         Enum.map_join(profiles, "\n", fn p ->
           props = p.properties || %{}
 
-          # Serialize all properties as key/value pairs
-          # ResourceImages is rendered as JSON string
           kv_pairs =
             props
             |> Enum.reject(fn {_k, v} -> is_nil(v) || v == %{} || v == [] end)
-            |> Enum.map(fn {k, v} ->
-              value =
-                cond do
-                  is_map(v) -> Jason.encode!(v)
-                  is_list(v) -> Jason.encode!(v)
-                  true -> to_string(v)
-                end
-
-              tag3("property", %{}, tag3("key", %{}, esc(k)) <> tag3("value", %{}, esc(value)))
-            end)
+            |> Enum.map(fn {k, v} -> property_kv_xml(k, v) end)
             |> Enum.join("\n")
 
           tag3(
@@ -846,6 +836,14 @@ defmodule ExGoCD.ConfigXml do
     end
   rescue
     _ -> ""
+  end
+
+  defp property_kv_xml(k, v) when is_map(v), do: prop_xml(k, Jason.encode!(v))
+  defp property_kv_xml(k, v) when is_list(v), do: prop_xml(k, Jason.encode!(v))
+  defp property_kv_xml(k, v), do: prop_xml(k, to_string(v))
+
+  defp prop_xml(key, value) do
+    tag3("property", %{}, tag3("key", %{}, esc(key)) <> tag3("value", %{}, esc(value)))
   end
 
   defp render_cluster_profiles do

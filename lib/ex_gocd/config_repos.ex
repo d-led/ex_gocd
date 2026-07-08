@@ -101,7 +101,7 @@ defmodule ExGoCD.ConfigRepos do
 
   defp update_error(config_repo, reason) do
     config_repo
-    |> ConfigRepo.changeset(%{error_message: reason})
+    |> ConfigRepo.changeset(%{last_parsed_at: DateTime.utc_now(), error_message: reason})
     |> Repo.update()
   end
 end
