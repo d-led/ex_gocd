@@ -678,11 +678,11 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
 
       true ->
         %{
-          username: "exgocd-admin",
-          email: "admin@exgocd.local",
-          revision: "f0e1d2c3b4a5968776655443322110abcdef0123",
-          comment: "Initial commit for repository integration",
-          modified_time: ~U[2026-06-11 10:15:00Z]
+          username: "—",
+          email: "",
+          revision: "",
+          comment: "(awaiting first material poll)",
+          modified_time: DateTime.utc_now() |> DateTime.truncate(:second)
         }
     end
   end

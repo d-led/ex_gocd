@@ -21,25 +21,78 @@ defmodule ExGoCD.Materials.GitClient do
 
     @impl true
     def latest_revision(url, branch) do
-      # In a real environment, we run `git ls-remote` to get the HEAD revision of the branch,
-      # and if we need the full commit message/committer details, we fetch/clone and run `git log`.
-      # For simplicity and robust local execution:
-      # 1. git ls-remote <url> <branch> to find the commit SHA.
-      # 2. Return a valid modification map.
       case ExGoCD.Git.ls_remote(url, branch) do
         {:ok, sha} ->
-          {:ok,
-           %{
-             revision: sha,
-             committer_name: "SCM Poller",
-             committer_email: "poller@ex-gocd.local",
-             comment: "Revision #{String.slice(sha, 0, 8)}",
-             modified_time: DateTime.utc_now() |> DateTime.truncate(:second)
-           }}
+          # Shallow-clone to get real commit metadata.  git ls-remote only
+          # returns the SHA — we need author, email, message, and timestamp
+          # for a proper audit trail in the VSM and materials views.
+          case fetch_commit_details(url, branch, sha) do
+            {:ok, details} ->
+              {:ok, Map.put(details, :revision, sha)}
+
+            {:error, _reason} ->
+              # Clone failed — fall back to the SHA-only entry rather than
+              # blocking the pipeline trigger.
+              Logger.warning(
+                "SCM Poller: could not fetch commit details for #{url}@#{branch} (#{String.slice(sha, 0, 8)}), using revision-only entry"
+              )
+
+              {:ok,
+               %{
+                 revision: sha,
+                 committer_name: "git",
+                 committer_email: "",
+                 comment: String.slice(sha, 0, 8),
+                 modified_time: DateTime.utc_now() |> DateTime.truncate(:second)
+               }}
+          end
 
         {:error, reason} ->
           Logger.error("Failed to execute git ls-remote: #{inspect(reason)}")
           {:error, :git_command_failed}
+      end
+    end
+
+    # Shallow-clone the repo into a temp directory, extract commit metadata,
+    # then clean up.  depth=1 + single-branch keeps it fast.
+    defp fetch_commit_details(url, branch, sha) do
+      tmp = System.tmp_dir!()
+      dir = Path.join(tmp, "ex_gocd_git_#{:erlang.unique_integer([:positive])}")
+
+      try do
+        clone_args = [
+          "clone", "--depth", "1", "--single-branch",
+          "--branch", branch, url, dir
+        ]
+
+        case System.cmd("git", clone_args, stderr_to_stdout: true) do
+          {_, 0} ->
+            details = ExGoCD.Git.commit_details(dir, sha)
+
+            # Also get the committer timestamp
+            date =
+              case System.cmd("git", ["-C", dir, "log", "-1", "--format=%aI", sha]) do
+                {dt, 0} ->
+                  case DateTime.from_iso8601(String.trim(dt)) do
+                    {:ok, dt, _} -> dt
+                    _ -> DateTime.utc_now() |> DateTime.truncate(:second)
+                  end
+
+                _ ->
+                  DateTime.utc_now() |> DateTime.truncate(:second)
+              end
+
+            case details do
+              {:ok, map} -> {:ok, Map.put(map, :modified_time, date)}
+              {:error, _} -> {:error, :no_details}
+            end
+
+          {err, _} ->
+            Logger.debug("SCM Poller: shallow clone failed for #{url}: #{String.slice(err, 0, 200)}")
+            {:error, :clone_failed}
+        end
+      after
+        File.rm_rf(dir)
       end
     end
   end
