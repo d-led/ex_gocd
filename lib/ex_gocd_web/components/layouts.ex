@@ -368,8 +368,12 @@ defmodule ExGoCDWeb.Layouts do
     """
   end
 
-  @spec active_tab?(map(), :dashboard | :agents | :materials | :admin) :: boolean()
-  defp active_tab?(assigns, tab) do
+  @doc false
+  # Public so the HEEx template calls (e.g. active_tab?(assigns, :admin))
+  # are visible to the Erlang type checker, preventing false-positive
+  # "pattern can never match" warnings on branches like `:admin`.
+  @spec active_tab?(map(), :dashboard | :agents | :materials | :analytics | :admin) :: boolean()
+  def active_tab?(assigns, tab) do
     current_path = Map.get(assigns, :current_path, "")
 
     case tab do
@@ -393,7 +397,10 @@ defmodule ExGoCDWeb.Layouts do
     end
   end
 
-  defp active_sub_nav?(current_path, path) do
+  @doc false
+  # Public so the HEEx template compiler and Erlang type checker can
+  # trace calls made inside ~H sigils (e.g. active_sub_nav?(@current_path, "/admin")).
+  def active_sub_nav?(current_path, path) do
     norm_current = String.replace(current_path, ~r"^/go", "")
     norm_path = String.replace(path, ~r"^/go", "")
 

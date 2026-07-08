@@ -62,7 +62,16 @@ defmodule ExGoCD.ConfigRepos.Poller do
             parse_repo(repo, dir)
 
           :unchanged ->
-            :ok
+            # When multiple config repos share the same URL, the first one
+            # pulls all changes; subsequent repos see :unchanged and would
+            # never parse.  Parse anyway if this repo has never been
+            # parsed (last_parsed_at is nil).
+            if is_nil(repo.last_parsed_at) do
+              Logger.info("[ConfigRepoPoller] No git changes but repo #{repo.id} never parsed — forcing parse")
+              parse_repo(repo, dir)
+            else
+              :ok
+            end
 
           {:error, reason} ->
             Logger.error("[ConfigRepoPoller] Git pull failed for repo #{repo.id}: #{reason}")

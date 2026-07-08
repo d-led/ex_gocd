@@ -61,11 +61,15 @@ defmodule ExGoCDWeb.LowSpaceBanner do
     """
   end
 
-  defp format_bytes(nil), do: "unknown"
-  defp format_bytes(bytes) when bytes < 1_048_576, do: "#{div(bytes, 1024)} KB"
+  @doc false
+  # Public so the HEEx template compiler and Erlang type checker can see
+  # the calls inside ~H sigils.  Keeping it private would result in
+  # "unused function" warnings from beam_ssa_type.
+  def format_bytes(nil), do: "unknown"
+  def format_bytes(bytes) when bytes < 1_048_576, do: "#{div(bytes, 1024)} KB"
 
-  defp format_bytes(bytes) when bytes < 1_073_741_824,
+  def format_bytes(bytes) when bytes < 1_073_741_824,
     do: "#{Float.round(bytes / 1_048_576, 1)} MB"
 
-  defp format_bytes(bytes), do: "#{Float.round(bytes / 1_073_741_824, 1)} GB"
+  def format_bytes(bytes), do: "#{Float.round(bytes / 1_073_741_824, 1)} GB"
 end

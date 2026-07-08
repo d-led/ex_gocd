@@ -24,7 +24,7 @@ defmodule ExGoCD.VsmTracer do
   scheduler/agent spans under the HTTP trigger span in Jaeger.
   """
 
-  require OpenTelemetry.Tracer, as: Tracer
+  alias OpenTelemetry.Tracer, as: Tracer
 
   @typedoc "Common span attributes shared across all VSM spans"
   @type vsm_attrs :: %{
@@ -74,18 +74,24 @@ defmodule ExGoCD.VsmTracer do
   """
   @spec trace(String.t(), vsm_attrs(), (-> result)) :: result when result: term()
   def trace(span_name, attrs \\ %{}, fun) when is_function(fun, 0) do
-    start_opts = %{attributes: attrs}
+    # Call the Erlang :otel_tracer.with_span/4 directly, bypassing the
+    # Elixir macro whose expansion order varies across OTel versions.
+    # Signature: with_span(Tracer, SpanName, Opts, Fun)
+    tracer = :opentelemetry.get_application_tracer(:ex_gocd)
 
-    Tracer.with_span span_name, start_opts do
-      fun.()
-    end
+    :otel_tracer.with_span(
+      tracer,
+      span_name,
+      Map.new(%{attributes: attrs}),
+      fn _span_ctx -> fun.() end
+    )
   end
 
   @doc """
   Sets an attribute on the currently active span.  Safe no-op if no
   span is active (e.g. SDK disabled).
   """
-  @spec set_attr(atom(), term()) :: boolean()
+  @spec set_attr(attr_key(), term()) :: boolean()
   def set_attr(key, value) do
     Tracer.set_attribute(key, value)
   end

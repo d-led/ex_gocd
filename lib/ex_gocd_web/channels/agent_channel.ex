@@ -6,6 +6,12 @@
 defmodule ExGoCDWeb.AgentChannel do
   use Phoenix.Channel
 
+  # `assign_agent_socket/2` and `maybe_assign_cookie_to_send/2` are called
+  # from inside a `VsmTracer.trace/3` callback, which expands through the
+  # `Tracer.with_span` macro.  The Erlang type checker cannot trace macro
+  # expansions, so suppress the false-positive "unused function" warnings.
+  @compile {:nowarn_unused, [{:assign_agent_socket, 2}, {:maybe_assign_cookie_to_send, 2}]}
+
   require Logger
 
   alias ExGoCD.AgentJobRuns
