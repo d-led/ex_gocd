@@ -2658,7 +2658,7 @@ defmodule ExGoCD.Pipelines do
   # ── Template CRUD ─────────────────────────────────────────────────
 
   def list_templates do
-    Repo.all(Template) |> Repo.preload(:pipelines)
+    Repo.all(Template) |> Repo.preload(:stages)
   end
 
   def get_template_by_name(name) do

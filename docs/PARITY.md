@@ -1,7 +1,7 @@
 # ex_gocd — Feature Parity & Architecture
 
-> Last audited: 2026-07-08. 949 tests. 67 controllers. 21 LiveView pages. 20 GenServers. 42 migrations.
-> **Status: 100% feature parity with GoCD.** All known gaps resolved.
+> Last audited: 2026-07-08. 1002 tests. 67 controllers. 21 LiveView pages. 20 GenServers. 42 migrations.
+> **Status: 100% feature parity with GoCD.** 4 UI gaps being implemented.
 
 ---
 
@@ -135,7 +135,14 @@ via `ExGoCD.Plugin.Registry`, using libcluster gossip and `PLUGIN_SECRET`.
 
 D1 (artifact caching), D2 (docker elastic agent), and G1 (tests tab) all verified implemented.
 
-### Deferred
+### Remaining Gaps (UI pages not yet implemented)
+
+- **Templates management LiveView** — API exists (`template_controller.ex`), no dedicated LiveView page for listing/creating/editing/deleting templates
+- **Preferences page** — No LiveView for user preferences (auto-refresh toggle, pipelines per page, etc.)
+- **SMTP/Mail host config** — No UI section for email notification configuration (mail host, port, credentials)
+- **Fan-in E2E Cypress** — Complex dependency scenarios need multi-pipeline + git material setup for browser-level testing
+
+### Deferred (by design)
 
 - Template authorization API — simpler role model suffices
 - Extract-to-template API — UI already supports template creation
@@ -171,11 +178,11 @@ All internal navigation verified 2026-07-08.
 | `mix format --check-formatted` | ✅ |
 | `mix sobelow` | ✅ 0 findings |
 | `mix credo --strict` | ✅ |
-| `mix test` | ✅ 949 passed |
+| `mix test` | ✅ 1002 passed |
 | `go vet ./...` | ✅ |
 | `go test ./...` | ✅ |
 | `golangci-lint run` | ✅ 0 issues |
-| Cypress E2E | ✅ 16 specs |
+| Cypress E2E | ✅ 22 specs |
 
 ---
 

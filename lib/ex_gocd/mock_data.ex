@@ -453,4 +453,14 @@ defmodule ExGoCD.MockData do
       }
     ]
   end
+
+  @doc """
+  Mock templates for the admin templates page.
+  """
+  def templates do
+    [
+      %{id: 1, name: "build-template", stages: [%{name: "compile"}, %{name: "test"}]},
+      %{id: 2, name: "deploy-template", stages: [%{name: "staging"}, %{name: "production"}]}
+    ]
+  end
 end

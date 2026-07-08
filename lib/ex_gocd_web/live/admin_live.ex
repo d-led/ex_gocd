@@ -41,6 +41,13 @@ defmodule ExGoCDWeb.AdminLive do
 
       users = Accounts.list_users()
 
+      templates =
+        if use_mock?() do
+          ExGoCD.MockData.templates()
+        else
+          Pipelines.list_templates()
+        end
+
       {:ok,
        socket
        |> assign(:cluster_info, cluster_info)
@@ -57,6 +64,13 @@ defmodule ExGoCDWeb.AdminLive do
        |> assign(:backup_message, safe_backup_message())
        |> assign(:new_group_name, "")
        |> assign(:show_create_modal, false)
+       # Templates assigns
+       |> assign(:templates, templates)
+       |> assign(:pipeline_sub_tab, "pipelines")
+       |> assign(:show_template_form, false)
+       |> assign(:template_form, %{"name" => ""})
+       |> assign(:template_form_error, nil)
+       |> assign(:template_editing, nil)
        # User modals assigns
        |> assign(:show_user_modal, false)
        # :add_user, :edit_roles
@@ -125,9 +139,17 @@ defmodule ExGoCDWeb.AdminLive do
     path = URI.parse(url).path || ""
     mapped_tab = tab_from_path(path)
 
+    pipeline_sub_tab =
+      cond do
+        String.contains?(path, "/admin/templates") -> "templates"
+        String.contains?(path, "/admin/package_repositories") -> "package_repositories"
+        true -> "pipelines"
+      end
+
     socket =
       socket
       |> assign(:tab, mapped_tab)
+      |> assign(:pipeline_sub_tab, pipeline_sub_tab)
       |> assign(:page_title, "GoCD Administration - #{tab_title(mapped_tab)}")
       |> assign(:current_path, path)
 
@@ -251,6 +273,14 @@ defmodule ExGoCDWeb.AdminLive do
               <i class="fa fa-plus mr-1"></i> Create new pipeline group
             </button>
           <% end %>
+          <%= if @tab == "pipelines" and @pipeline_sub_tab == "templates" do %>
+            <button
+              phx-click="open_template_form"
+              class="px-3 py-1.5 bg-white border border-[#943a9e] text-[#943a9e] rounded text-xs font-semibold hover:bg-purple-50 transition-all"
+            >
+              <i class="fa fa-plus mr-1"></i> Add New Template
+            </button>
+          <% end %>
           <%= if @tab == "security" do %>
             <button
               phx-click="open_add_user_modal"
@@ -316,12 +346,22 @@ defmodule ExGoCDWeb.AdminLive do
               maintenance_mode={@maintenance_mode}
             />
           <% "pipelines" -> %>
-            <.pipelines_tab
-              filtered_groups={@filtered_groups}
-              search_query={@search_query}
-              new_group_name={@new_group_name}
-              show_create_modal={@show_create_modal}
-            />
+            <%= if @pipeline_sub_tab == "templates" do %>
+              <.templates_tab
+                templates={@templates}
+                show_template_form={@show_template_form}
+                template_form={@template_form}
+                template_form_error={@template_form_error}
+                template_editing={@template_editing}
+              />
+            <% else %>
+              <.pipelines_tab
+                filtered_groups={@filtered_groups}
+                search_query={@search_query}
+                new_group_name={@new_group_name}
+                show_create_modal={@show_create_modal}
+              />
+            <% end %>
           <% "environments" -> %>
             <.environments_tab environments={@environments} />
           <% "config_repos" -> %>
@@ -691,6 +731,100 @@ defmodule ExGoCDWeb.AdminLive do
             </div>
           </div>
         <% end %>
+      </div>
+    </div>
+    """
+  end
+
+  defp templates_tab(assigns) do
+    ~H"""
+    <div class="space-y-6">
+      <!-- Add/Edit template form -->
+      <%= if @show_template_form do %>
+        <form
+          phx-submit="save_template"
+          class="bg-white rounded border border-[#d6e0e2] p-5 shadow flex flex-col sm:flex-row gap-4 items-end max-w-2xl"
+        >
+          <div class="flex-grow">
+            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+              {@template_editing && "Edit" || "New"} Template Name
+            </label>
+            <input
+              type="text"
+              name="name"
+              value={@template_form["name"]}
+              placeholder="e.g. my-template"
+              required
+              readonly={@template_editing != nil}
+              class="w-full px-3 py-2 rounded bg-white border border-[#d6e0e2] text-xs text-slate-700 focus:outline-none focus:border-[#943a9e]"
+            />
+            <%= if @template_form_error do %>
+              <p class="text-red-500 text-[11px] mt-1">{@template_form_error}</p>
+            <% end %>
+          </div>
+          <div class="flex gap-2">
+            <button
+              type="submit"
+              class="px-4 py-2 rounded bg-[#943a9e] hover:bg-purple-700 text-white text-xs font-semibold border border-purple-700 shadow-sm transition-all"
+            >
+              <i class="fa fa-check mr-1"></i> Save
+            </button>
+            <button
+              type="button"
+              phx-click="close_template_form"
+              class="px-4 py-2 rounded bg-slate-100 border border-slate-350 text-slate-700 text-xs font-semibold hover:bg-slate-200"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      <% end %>
+
+      <!-- Templates Table -->
+      <div class="bg-white rounded border border-[#d6e0e2] overflow-hidden shadow-sm">
+        <div class="bg-[#e7eef0] px-5 py-3 border-b border-[#d6e0e2]">
+          <span class="text-xs font-bold text-slate-800">
+            {length(@templates)} Template{length(@templates) != 1 && "s" || ""}
+          </span>
+        </div>
+
+        <div class="divide-y divide-[#e9edef]">
+          <%= if Enum.empty?(@templates) do %>
+            <div class="p-6 text-center text-slate-400 text-xs italic bg-white">
+              No templates defined.
+            </div>
+          <% else %>
+            <%= for tpl <- @templates do %>
+              <div class="px-5 py-3 flex justify-between items-center bg-white hover:bg-slate-50/30">
+                <div>
+                  <span class="text-sm font-medium text-slate-700">{tpl.name}</span>
+                  <span class="text-[11px] text-slate-400 ml-2">
+                    {length(tpl.stages || [])} stage{length(tpl.stages || []) != 1 && "s" || ""}
+                  </span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                  <button
+                    phx-click="edit_template"
+                    phx-value-name={tpl.name}
+                    class="w-7 h-7 border border-[#d6e0e2] bg-white text-slate-500 rounded hover:bg-slate-50 flex items-center justify-center text-[13px]"
+                    title={"Edit template #{tpl.name}"}
+                  >
+                    <i class="fa fa-pencil"></i>
+                  </button>
+                  <button
+                    phx-click="delete_template"
+                    phx-value-name={tpl.name}
+                    data-confirm={"Are you sure you want to delete template '#{tpl.name}'?"}
+                    class="w-7 h-7 border border-[#d6e0e2] bg-white text-rose-500 rounded hover:bg-slate-50 flex items-center justify-center text-[13px]"
+                    title={"Delete template #{tpl.name}"}
+                  >
+                    <i class="fa fa-trash-can"></i>
+                  </button>
+                </div>
+              </div>
+            <% end %>
+          <% end %>
+        </div>
       </div>
     </div>
     """
@@ -1605,6 +1739,102 @@ defmodule ExGoCDWeb.AdminLive do
 
       {:error, _} ->
         {:noreply, socket |> put_flash(:error, "Pipeline #{name} not found.")}
+    end
+  end
+
+  # ── Template event handlers ──────────────────────────────────────────
+
+  @impl true
+  def handle_event("open_template_form", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:show_template_form, true)
+     |> assign(:template_form, %{"name" => ""})
+     |> assign(:template_form_error, nil)
+     |> assign(:template_editing, nil)}
+  end
+
+  @impl true
+  def handle_event("close_template_form", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:show_template_form, false)
+     |> assign(:template_form_error, nil)
+     |> assign(:template_editing, nil)}
+  end
+
+  @impl true
+  def handle_event("edit_template", %{"name" => name}, socket) do
+    {:noreply,
+     socket
+     |> assign(:show_template_form, true)
+     |> assign(:template_form, %{"name" => name})
+     |> assign(:template_form_error, nil)
+     |> assign(:template_editing, name)}
+  end
+
+  @impl true
+  def handle_event("save_template", %{"name" => name}, socket) do
+    editing = socket.assigns.template_editing
+
+    result =
+      if editing do
+        case Pipelines.get_template_by_name(editing) do
+          nil -> {:error, "Template not found"}
+          tpl -> Pipelines.update_template(tpl, %{name: name})
+        end
+      else
+        Pipelines.create_template(%{name: name})
+      end
+
+    case result do
+      {:ok, _template} ->
+        templates = Pipelines.list_templates()
+
+        {:noreply,
+         socket
+         |> assign(:templates, templates)
+         |> assign(:show_template_form, false)
+         |> assign(:template_editing, nil)
+         |> put_flash(:info, "Template '#{name}' saved.")}
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        error_msg =
+          changeset.errors
+          |> Enum.map(fn {field, {msg, _}} -> "#{field} #{msg}" end)
+          |> Enum.join(", ")
+
+        {:noreply, socket |> assign(:template_form_error, error_msg)}
+
+      {:error, reason} when is_binary(reason) ->
+        {:noreply, socket |> assign(:template_form_error, reason)}
+    end
+  end
+
+  @impl true
+  def handle_event("delete_template", %{"name" => name}, socket) do
+    case Pipelines.get_template_by_name(name) do
+      nil ->
+        {:noreply, socket |> put_flash(:error, "Template '#{name}' not found.")}
+
+      tpl ->
+        case Pipelines.delete_template(tpl) do
+          {:ok, _} ->
+            templates = Pipelines.list_templates()
+
+            {:noreply,
+             socket
+             |> assign(:templates, templates)
+             |> put_flash(:info, "Template '#{name}' deleted.")}
+
+          {:error, _} ->
+            {:noreply,
+             socket
+             |> put_flash(
+               :error,
+               "Cannot delete template '#{name}'. It may be referenced by pipelines."
+             )}
+        end
     end
   end
 
