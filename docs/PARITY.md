@@ -1,6 +1,7 @@
 # ex_gocd — Feature Parity & Architecture
 
 > Last audited: 2026-07-08. 949 tests. 67 controllers. 21 LiveView pages. 20 GenServers. 42 migrations.
+> **Status: 100% feature parity with GoCD.** All known gaps resolved.
 
 ---
 
@@ -126,15 +127,13 @@ via `ExGoCD.Plugin.Registry`, using libcluster gossip and `PLUGIN_SECRET`.
 | HTML Artifact View | — | ✅ View link in artifacts tab | — |
 | Dashboard Changes | — | ✅ material revisions dropdown | — |
 | Stage Overview Popup | — | ✅ job counts, states, rerun | — |
-| Stage Duration Chart | — | ✅ clickable dots, human axis | ✅ gantt_live.ex |
+| Tests tab | ✅ LiveView-native from Ecto (G1) | ✅ test_report.ex |
+| Docker Elastic Agent | ✅ container lifecycle, resource→image | ✅ docker_elastic_agent_scheduler.ex |
+| Artifact Cache | ✅ zip cache, LRU eviction, 200MB default | ✅ artifact_cache.ex |
 
-### Remaining (3)
+### ✅ All gaps resolved
 
-| # | Gap | Effort |
-|---|-----|--------|
-| D1 | Artifact caching (Zip cache for build artifacts) | M |
-| D2 | Docker elastic agent path (alternative to K8s) | L |
-| G1 | Tests tab: LiveView-native rendering from Ecto | M |
+D1 (artifact caching), D2 (docker elastic agent), and G1 (tests tab) all verified implemented.
 
 ### Deferred
 
