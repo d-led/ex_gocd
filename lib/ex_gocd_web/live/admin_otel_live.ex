@@ -123,8 +123,8 @@ defmodule ExGoCDWeb.AdminOtelLive do
             status={instrumentation_overall(@status.instrumentation)}
           />
         </div>
-
-        <!-- Two-column detail panels -->
+        
+    <!-- Two-column detail panels -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <!-- Instrumentation Details -->
           <.panel title="Instrumentation Handlers" icon="fa-code-branch">
@@ -143,8 +143,8 @@ defmodule ExGoCDWeb.AdminOtelLive do
               />
             </div>
           </.panel>
-
-          <!-- Environment Variables -->
+          
+    <!-- Environment Variables -->
           <.panel title="Environment Variables" icon="fa-gear">
             <div class="space-y-3">
               <%= for {var, val} <- @status.env_vars do %>
@@ -154,7 +154,10 @@ defmodule ExGoCDWeb.AdminOtelLive do
                   </code>
                   <code class={[
                     "text-[11px] font-mono px-2 py-0.5 rounded",
-                    if(val == "not set", do: "text-slate-400 bg-transparent", else: "text-slate-700 bg-slate-50")
+                    if(val == "not set",
+                      do: "text-slate-400 bg-transparent",
+                      else: "text-slate-700 bg-slate-50"
+                    )
                   ]}>
                     {val}
                   </code>
@@ -162,15 +165,18 @@ defmodule ExGoCDWeb.AdminOtelLive do
               <% end %>
             </div>
           </.panel>
-
-          <!-- OTLP Configuration -->
+          
+    <!-- OTLP Configuration -->
           <.panel title="Exporter Configuration" icon="fa-paper-plane">
             <div class="space-y-4">
               <div class="flex justify-between items-center">
                 <span class="text-xs text-slate-500">Exporter type</span>
                 <span class={[
                   "text-xs font-bold px-2 py-0.5 rounded",
-                  if(@status.exporter == :otlp, do: "bg-emerald-50 text-emerald-600", else: "bg-slate-100 text-slate-500")
+                  if(@status.exporter == :otlp,
+                    do: "bg-emerald-50 text-emerald-600",
+                    else: "bg-slate-100 text-slate-500"
+                  )
                 ]}>
                   {exporter_label(@status.exporter)}
                 </span>
@@ -191,15 +197,18 @@ defmodule ExGoCDWeb.AdminOtelLive do
                 <span class="text-xs text-slate-500">EX_GOCD_NO_OTEL</span>
                 <span class={[
                   "text-xs font-bold px-2 py-0.5 rounded",
-                  if(@status.no_otel_env, do: "bg-red-50 text-red-600", else: "bg-emerald-50 text-emerald-600")
+                  if(@status.no_otel_env,
+                    do: "bg-red-50 text-red-600",
+                    else: "bg-emerald-50 text-emerald-600"
+                  )
                 ]}>
                   {if @status.no_otel_env, do: "Set (disabled)", else: "Not set"}
                 </span>
               </div>
             </div>
           </.panel>
-
-          <!-- Setup Guide -->
+          
+    <!-- Setup Guide -->
           <.panel title="Setup Guide" icon="fa-book">
             <div class="space-y-4 text-xs text-slate-600 leading-relaxed">
               <div>
@@ -208,11 +217,19 @@ defmodule ExGoCDWeb.AdminOtelLive do
                   OTel is enabled by default in <code class="bg-slate-50 px-1 rounded">config/dev.exs</code>.
                   Start the collector and Jaeger:
                 </p>
-                <pre class="mt-2 bg-slate-50 border border-[#d6e0e2] rounded p-3 text-[11px] font-mono text-slate-700">docker compose up -d jaeger otel-collector</pre>
+                <pre class="mt-2 bg-slate-50 border border-[#d6e0e2] rounded p-3 text-[11px] font-mono text-slate-700">
+                  docker compose up -d jaeger otel-collector
+                </pre>
                 <p class="mt-2">
                   Traces flow: <strong>ex_gocd → OTLP (localhost:4318) → Collector → Jaeger</strong>
-                  <br />
-                  Jaeger UI: <a href="http://localhost:16686/search" target="_blank" class="text-[#943a9e] hover:underline">http://localhost:16686/search</a>
+                  <br /> Jaeger UI:
+                  <a
+                    href="http://localhost:16686/search"
+                    target="_blank"
+                    class="text-[#943a9e] hover:underline"
+                  >
+                    http://localhost:16686/search
+                  </a>
                 </p>
               </div>
 
@@ -221,7 +238,9 @@ defmodule ExGoCDWeb.AdminOtelLive do
                 <p>
                   Set the environment variable to disable all tracing:
                 </p>
-                <pre class="mt-2 bg-slate-50 border border-[#d6e0e2] rounded p-3 text-[11px] font-mono text-slate-700">EX_GOCD_NO_OTEL=1 mix phx.server</pre>
+                <pre class="mt-2 bg-slate-50 border border-[#d6e0e2] rounded p-3 text-[11px] font-mono text-slate-700">
+                  EX_GOCD_NO_OTEL=1 mix phx.server
+                </pre>
               </div>
 
               <div class="border-t border-[#e9edef] pt-4">
@@ -262,7 +281,8 @@ defmodule ExGoCDWeb.AdminOtelLive do
             :neutral -> "text-slate-400"
             :error -> "text-red-500"
           end
-        ]}></i>
+        ]}>
+        </i>
       </div>
       <div>
         <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{@title}</p>
@@ -297,7 +317,11 @@ defmodule ExGoCDWeb.AdminOtelLive do
           else: "bg-slate-50 text-slate-400 border border-[#d6e0e2]"
         )
       ]}>
-        <span class={["w-1.5 h-1.5 rounded-full", if(@active, do: "bg-emerald-500", else: "bg-slate-300")]}></span>
+        <span class={[
+          "w-1.5 h-1.5 rounded-full",
+          if(@active, do: "bg-emerald-500", else: "bg-slate-300")
+        ]}>
+        </span>
         {if @active, do: "Active", else: "Inactive"}
       </span>
     </div>
