@@ -520,6 +520,49 @@ defmodule ExGoCDWeb.PipelineConfigLive do
             </div>
           </div>
 
+          <div class="border-t border-[#e9edef] pt-4">
+            <h3 class="text-xs font-bold text-slate-600 mb-3">Stage Behavior</h3>
+
+            <label class="flex items-center gap-2 cursor-pointer text-xs mb-2">
+              <input
+                type="checkbox"
+                name="fetch_materials"
+                value="true"
+                checked={@stage.fetch_materials}
+                class="checkbox checkbox-xs checked:bg-[#943a9e]"
+              /> Fetch Materials
+            </label>
+            <p class="text-[11px] text-slate-400 ml-6 mb-3">
+              Whether to fetch source code materials before this stage runs.
+            </p>
+
+            <label class="flex items-center gap-2 cursor-pointer text-xs mb-2">
+              <input
+                type="checkbox"
+                name="clean_working_directory"
+                value="true"
+                checked={@stage.clean_working_directory}
+                class="checkbox checkbox-xs checked:bg-[#943a9e]"
+              /> Clean Working Directory
+            </label>
+            <p class="text-[11px] text-slate-400 ml-6 mb-3">
+              Remove all files from the working directory before this stage runs.
+            </p>
+
+            <label class="flex items-center gap-2 cursor-pointer text-xs">
+              <input
+                type="checkbox"
+                name="never_cleanup_artifacts"
+                value="true"
+                checked={@stage.never_cleanup_artifacts}
+                class="checkbox checkbox-xs checked:bg-[#943a9e]"
+              /> Never Cleanup Artifacts
+            </label>
+            <p class="text-[11px] text-slate-400 ml-6">
+              Keep artifacts from this stage forever (overrides server cleanup policy).
+            </p>
+          </div>
+
           <div class="pt-4">
             <button
               type="submit"
@@ -988,9 +1031,17 @@ defmodule ExGoCDWeb.PipelineConfigLive do
     approval_type = params["approval_type"] || "success"
     stage = socket.assigns.active_stage
 
-    case Pipelines.update_stage(stage, %{name: name, approval_type: approval_type}) do
+    # Checkboxes only appear in params when checked — absent means false.
+    attrs = %{
+      name: name,
+      approval_type: approval_type,
+      fetch_materials: params["fetch_materials"] == "true",
+      clean_working_directory: params["clean_working_directory"] == "true",
+      never_cleanup_artifacts: params["never_cleanup_artifacts"] == "true"
+    }
+
+    case Pipelines.update_stage(stage, attrs) do
       {:ok, _updated} ->
-        # Reload pipeline to refresh tree
         pipeline = Pipelines.get_pipeline_by_name!(socket.assigns.pipeline.name)
 
         {:noreply,
