@@ -96,6 +96,18 @@ defmodule ExGoCD.ClusterProfiles do
   """
   @spec check_connection(ClusterProfile.t()) :: :ok | {:error, String.t() | :incomplete}
   def check_connection(%ClusterProfile{} = profile) do
+    # Docker elastic agent profiles don't use Kubernetes — they connect
+    # to the local Docker daemon.  Skip k8s connectivity checks and
+    # report "Ready" when a docker_socket is configured.
+    if profile.plugin_id == "cd.go.contrib.elastic-agent.docker" do
+      docker_socket = Map.get(profile.properties, "docker_socket", "")
+      if docker_socket != "", do: :ok, else: {:error, :incomplete}
+    else
+      check_k8s_connection(profile)
+    end
+  end
+
+  defp check_k8s_connection(%ClusterProfile{} = profile) do
     kubeconfig = ClusterProfile.kubeconfig_yaml(profile)
 
     if kubeconfig && kubeconfig != "" do

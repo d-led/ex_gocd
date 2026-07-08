@@ -104,7 +104,10 @@ defmodule ExGoCDWeb.AgentsLive do
              :agent_disabled,
              :agent_deleted
            ] do
-    {:noreply, update_agents_list(socket)}
+    {:noreply,
+     socket
+     |> update_agents_list()
+     |> assign(registration_log: ExGoCD.Agents.registration_log())}
   end
 
   def handle_info({:pending_count, count}, socket) do
@@ -826,8 +829,9 @@ defmodule ExGoCDWeb.AgentsLive do
   end
 
   defp fetch_agents(_type) do
-    Agents.list_agents()
-    |> Enum.reject(& &1.deleted)
+    # Include soft-deleted (reaped) agents so their job run history
+    # remains accessible — GoCD keeps historical audit trails.
+    Agents.list_all_agents()
   end
 
   # Normalize registration log entries: handles both 4-tuple (legacy) and 5-tuple (with agent_type).

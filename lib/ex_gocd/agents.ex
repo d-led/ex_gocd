@@ -35,20 +35,27 @@ defmodule ExGoCD.Agents do
   @doc "Returns the last 30 registration attempts (success + failure) sorted newest first."
   def registration_log do
     try do
-      :ets.tab2list(@reg_log_table)
-      |> Enum.sort_by(
-        fn
-          {_k, _h, _r, t} -> t
-          {_k, _h, _r, t, _type} -> t
-        end,
-        {:desc, DateTime}
-      )
+      entries = :ets.tab2list(@reg_log_table)
+
+      Enum.sort(entries, fn a, b ->
+        {ta, ka} = extract_time_key(a)
+        {tb, kb} = extract_time_key(b)
+
+        case DateTime.compare(ta, tb) do
+          :eq -> ka >= kb
+          :gt -> true
+          :lt -> false
+        end
+      end)
     rescue
       _ -> []
     catch
       _, _ -> []
     end
   end
+
+  defp extract_time_key({k, _h, _r, t}), do: {t, k}
+  defp extract_time_key({k, _h, _r, t, _type}), do: {t, k}
 
   # Ensure disabled=false without creating mixed atom/string key maps.
   defp ensure_disabled_false(attrs) do
@@ -240,6 +247,20 @@ defmodule ExGoCD.Agents do
     else
       from(a in Agent, where: a.deleted == false)
       |> Repo.all()
+    end
+  end
+
+  @doc """
+  Lists ALL agents including soft-deleted (reaped) ones.
+  Used for agents page to preserve audit trail and job history links
+  for agents that have been cleaned up.
+  """
+  @spec list_all_agents() :: [Agent.t()]
+  def list_all_agents do
+    if use_mock?() do
+      Mock.list_agents()
+    else
+      Repo.all(Agent)
     end
   end
 

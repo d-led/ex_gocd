@@ -1115,6 +1115,9 @@ end
 # Delegate to the idempotent auto-seed functions
 ElasticAgentProfiles.maybe_auto_seed_docker_profile()
 
+# Auto-discover local k3s cluster (if available) for Kubernetes elastic agents
+ClusterProfiles.maybe_auto_seed_k3s()
+
 IO.puts(
   "Seeded: Docker elastic agent profiles (#{Repo.aggregate(ElasticAgentProfile, :count)} total)"
 )
