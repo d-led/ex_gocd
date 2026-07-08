@@ -287,6 +287,9 @@ defmodule ExGoCDWeb.AdminLive do
         <.sub_tab_link active={@tab == "clustering"} href="/admin/clustering">
           🔗 Clustering
         </.sub_tab_link>
+        <.sub_tab_link active={@tab == "observability"} href="/admin/observability">
+          📡 Observability
+        </.sub_tab_link>
       </div>
       
     <!-- Main Layout Body (Centered Content) -->
