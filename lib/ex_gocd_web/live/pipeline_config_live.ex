@@ -340,6 +340,43 @@ defmodule ExGoCDWeb.PipelineConfigLive do
             </select>
           </div>
 
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">Timer (cron or interval)</label>
+            <input
+              type="text"
+              name="timer"
+              value={@pipeline.timer || ""}
+              placeholder="e.g. 0 0 2 * * ? or 60s"
+              class="w-full px-3 py-2 rounded bg-white border border-[#d6e0e2] text-xs focus:outline-none focus:border-[#943a9e]"
+            />
+            <p class="text-[10px] text-slate-400 mt-0.5">
+              Cron expression or duration. Empty = no timer trigger.
+            </p>
+          </div>
+
+          <div>
+            <label class="flex items-center gap-2 cursor-pointer text-xs font-medium text-slate-700 mt-2">
+              <input
+                type="checkbox"
+                name="timer_only_on_changes"
+                value="true"
+                checked={@pipeline.timer_only_on_changes}
+                class="checkbox checkbox-xs"
+              /> Trigger timer only when materials have changed
+            </label>
+          </div>
+
+          <div class="border-t border-[#e9edef] pt-4">
+            <h3 class="text-xs font-bold text-slate-600 mb-2">Environment Variables</h3>
+            <p class="text-[10px] text-slate-400 mb-2">One per line: KEY=VALUE</p>
+            <textarea
+              name="environment_variables"
+              rows="4"
+              class="w-full px-3 py-2 rounded bg-white border border-[#d6e0e2] text-xs focus:outline-none focus:border-[#943a9e] font-mono"
+              placeholder="MIX_ENV=test&#10;DATABASE_URL=ecto://localhost/db"
+            ><%= (@pipeline.environment_variables || %{}) |> Enum.map(fn {k, v} -> "#{k}=#{v}" end) |> Enum.join("\n") %></textarea>
+          </div>
+
           <div class="pt-4">
             <button
               type="submit"
