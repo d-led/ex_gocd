@@ -644,6 +644,7 @@
                     <th class="px-6 py-3">Material</th>
                     <th class="px-6 py-3">Type</th>
                     <th class="px-6 py-3">Revision</th>
+                    <th class="px-6 py-3">Comment</th>
                     <th class="px-6 py-3">Modified</th>
                   </tr>
                 </thead>
@@ -652,8 +653,17 @@
                     <tr class="hover:bg-gray-50/50">
                       <td class="px-6 py-3.5 font-bold text-gray-800">{material.name}</td>
                       <td class="px-6 py-3.5 text-gray-500">{material.type}</td>
-                      <td class="px-6 py-3.5 text-[11px] text-gray-600 font-mono">
+                      <td
+                        class="px-6 py-3.5 text-[11px] text-gray-600 font-mono"
+                        title={material.full_revision}
+                      >
                         {material.revision}
+                      </td>
+                      <td
+                        class="px-6 py-3.5 text-[11px] text-gray-600 max-w-xs truncate"
+                        title={material.comment}
+                      >
+                        {material.comment}
                       </td>
                       <td class="px-6 py-3.5 text-gray-500">{material.modified_at}</td>
                     </tr>

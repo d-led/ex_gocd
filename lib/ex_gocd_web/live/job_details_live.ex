@@ -606,6 +606,13 @@ defmodule ExGoCDWeb.JobDetailsLive do
     """
   end
 
+  def format_revision(nil), do: "—"
+
+  def format_revision(rev) when is_binary(rev) and byte_size(rev) >= 8,
+    do: String.slice(rev, 0, 8)
+
+  def format_revision(rev), do: rev
+
   def format_size(bytes) when bytes < 1024, do: "#{bytes} B"
   def format_size(bytes) when bytes < 1024 * 1024, do: "#{Float.round(bytes / 1024, 1)} KB"
   def format_size(bytes), do: "#{Float.round(bytes / (1024 * 1024), 1)} MB"
@@ -718,7 +725,8 @@ defmodule ExGoCDWeb.JobDetailsLive do
           %{
             name: r.url || "unknown",
             type: r.type || "git",
-            revision: if(r.revision, do: String.slice(r.revision, 0, 12) <> "...", else: "—"),
+            revision: format_revision(r.revision),
+            full_revision: r.revision,
             comment: r.comment || "—",
             modified_at: r.modified_at || "—"
           }

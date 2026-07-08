@@ -40,7 +40,32 @@
         ExGoCD includes <a href="#">third-party software</a>.
         <span class="gocd-version">ExGoCD v{Application.spec(:ex_gocd, :vsn)}</span>
       </div>
-      <div class="footer-right">
+      <div class="footer-right relative">
+        <!-- Flash log viewer -->
+        <a
+          id="flash-logger-toggle"
+          href="#"
+          class="relative text-gray-400 hover:text-gray-200 transition-colors"
+          style="display:none"
+          title="Flash message log"
+          onclick="event.preventDefault(); document.getElementById('flash-logger-dropdown').classList.toggle('hidden')"
+        >
+          <i class="fa-solid fa-bell"></i>
+          <span id="flash-logger-count" class="absolute -top-1 -right-2.5 bg-amber-500 text-white text-[8px] font-bold rounded-full w-3.5 h-3.5 flex items-center justify-center leading-none hidden">0</span>
+        </a>
+        <div id="flash-logger-dropdown" class="hidden absolute bottom-8 right-0 mb-2 w-80 bg-white border border-gray-300 rounded-lg shadow-2xl z-50 overflow-hidden">
+          <div class="flex items-center justify-between px-3 py-2 bg-gray-100 border-b border-gray-200">
+            <span class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Flash Messages</span>
+            <button
+              id="flash-logger-clear"
+              class="text-[10px] text-gray-400 hover:text-red-500 font-bold uppercase tracking-wider"
+              onclick="window.__exGocdClearPopups()"
+            >Clear</button>
+          </div>
+          <div id="flash-logger-list" class="max-h-60 overflow-y-auto text-[11px] font-mono">
+            <div class="text-gray-400 text-center py-4">No messages yet.</div>
+          </div>
+        </div>
         <a
           href="https://github.com/d-led/ex_gocd"
           target="_blank"
