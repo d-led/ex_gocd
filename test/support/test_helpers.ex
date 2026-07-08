@@ -4,7 +4,7 @@ defmodule ExGoCD.TestHelpers do
   across multiple test files (http_test_agent_test, test_agent_test, etc.).
   """
 
-  import ExUnit.Assertions, only: [flunk: 1]
+  import ExUnit.Assertions, only: [flunk: 0]
 
   @doc """
   Retries a zero-arity function up to `retries` times with `sleep_ms` between attempts.
@@ -18,7 +18,7 @@ defmodule ExGoCD.TestHelpers do
         Process.sleep(sleep_ms)
         assert_receive_or_retry(retries - 1, func, sleep_ms)
       else
-        flunk("Assertion failed after retries")
+        flunk()
       end
     end
   end

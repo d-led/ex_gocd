@@ -72,7 +72,7 @@ defmodule ExGoCDWeb.FeedsController do
 
   defp esc(text),
     do:
-      String.replace(text || "", ~w(& < > " ')a, fn
+      String.replace(text || "", ~w(& < > " '), fn
         "&" -> "&amp;"
         "<" -> "&lt;"
         ">" -> "&gt;"
