@@ -156,10 +156,15 @@ defmodule ExGoCD.DockerElasticAgentScheduler do
   end
 
   defp create_min_containers(state, profile, socket, count) do
+    # Extract resource keys from the profile's ResourceImages mapping.
+    # Standby agents register with these resources so they can pick up matching jobs.
+    ri = Map.get(profile.properties || %{}, "ResourceImages", %{})
+    profile_resources = if is_map(ri), do: Map.keys(ri), else: []
+
     Enum.reduce(1..count, state, fn i, acc ->
       label = "standby-#{i}"
-      image = ElasticAgentProfile.image(profile)
-      env = build_env(%{job: label, resources: []})
+      image = pick_image(profile, profile_resources)
+      env = build_env(%{job: label, resources: profile_resources})
 
       case Docker.create_container(image, env,
              docker_socket: socket,
@@ -173,7 +178,7 @@ defmodule ExGoCD.DockerElasticAgentScheduler do
 
           track_container(acc, container_id, profile, %{
             job: label,
-            resources: [],
+            resources: profile_resources,
             docker_socket: socket
           })
           |> then(fn s ->

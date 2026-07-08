@@ -339,6 +339,12 @@ defmodule ExGoCDWeb.Layouts do
               <span style="color:rgba(255,255,255,0.9);font-weight:600">
                 {@current_user.display_name || @current_user.username}
               </span>
+              <a
+                href="/preferences"
+                style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:rgba(255,255,255,0.8);padding:3px 10px;border-radius:3px;font-size:11px;text-decoration:none"
+              >
+                ⚙ Preferences
+              </a>
               <form method="POST" action="/auth/logout" style="display:inline;margin:0">
                 <input type="hidden" name="_method" value="delete" />
                 <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />

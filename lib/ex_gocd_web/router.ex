@@ -140,6 +140,9 @@ defmodule ExGoCDWeb.Router do
       live "/analytics", AnalyticsLive, :index
       live "/analytics/:tab", AnalyticsLive, :index
 
+      # Preferences
+      live "/preferences", PreferencesLive, :index
+
       # Admin Panel routes
       live "/admin/scheduling", AdminSchedulingLive, :index
       live "/go/admin/scheduling", AdminSchedulingLive, :index
