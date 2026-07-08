@@ -47,7 +47,7 @@ defmodule ExGoCD.ConfigXmlTest do
       </cruise>
       """
 
-      assert {:ok, [pipeline]} = ExGoCD.ConfigXml.from_xml(xml)
+      assert {:ok, [pipeline], _} = ExGoCD.ConfigXml.from_xml(xml)
 
       assert pipeline.name == "test-pipeline"
       assert pipeline.locked == false
@@ -103,7 +103,7 @@ defmodule ExGoCD.ConfigXmlTest do
       </cruise>
       """
 
-      assert {:ok, [pipeline]} = ExGoCD.ConfigXml.from_xml(xml)
+      assert {:ok, [pipeline], _} = ExGoCD.ConfigXml.from_xml(xml)
       assert [material] = pipeline.materials
       assert material.type == "dependency"
       assert material.pipeline_name == "upstream"
@@ -117,7 +117,7 @@ defmodule ExGoCD.ConfigXmlTest do
 
     test "returns empty list for XML with no pipelines" do
       xml = "<cruise><server serverId='x'/></cruise>"
-      assert {:ok, []} = ExGoCD.ConfigXml.from_xml(xml)
+      assert {:ok, [], _} = ExGoCD.ConfigXml.from_xml(xml)
     end
 
     test "parses SVN material with full attributes" do
@@ -134,7 +134,7 @@ defmodule ExGoCD.ConfigXmlTest do
       </cruise>
       """
 
-      assert {:ok, [pipeline]} = ExGoCD.ConfigXml.from_xml(xml)
+      assert {:ok, [pipeline], _} = ExGoCD.ConfigXml.from_xml(xml)
       assert [material] = pipeline.materials
       assert material.type == "svn"
       assert material.url == "https://svn.example.com/repo/trunk"
@@ -160,7 +160,7 @@ defmodule ExGoCD.ConfigXmlTest do
       </cruise>
       """
 
-      assert {:ok, [pipeline]} = ExGoCD.ConfigXml.from_xml(xml)
+      assert {:ok, [pipeline], _} = ExGoCD.ConfigXml.from_xml(xml)
       assert [material] = pipeline.materials
       assert material.type == "svn"
       assert material.url == "https://svn.apache.org/repos/asf/subversion/trunk"
@@ -183,7 +183,7 @@ defmodule ExGoCD.ConfigXmlTest do
       </cruise>
       """
 
-      assert {:ok, [pipeline]} = ExGoCD.ConfigXml.from_xml(xml)
+      assert {:ok, [pipeline], _} = ExGoCD.ConfigXml.from_xml(xml)
       assert [material] = pipeline.materials
       assert material.type == "svn"
       assert material.username == "bob"

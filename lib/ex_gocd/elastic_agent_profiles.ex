@@ -96,6 +96,8 @@ defmodule ExGoCD.ElasticAgentProfiles do
     java_image = "gocd/gocd-agent-docker-24.5.0"
     rust_elixir_image = "ghcr.io/d-led/ex_gocd-agent:rust-elixir"
     golang_image = "ghcr.io/d-led/ex_gocd-agent:golang"
+    standard_image = "ghcr.io/d-led/ex_gocd-agent:standard"
+    full_image = "ghcr.io/d-led/ex_gocd-agent:full"
     ubuntu_image = "gocd/gocd-agent-ubuntu-24.04"
 
     profiles = [
@@ -152,6 +154,42 @@ defmodule ExGoCD.ElasticAgentProfiles do
           "gradle" => ubuntu_image,
           "git" => ubuntu_image,
           "docker" => ubuntu_image
+        }
+      },
+      %{
+        name: "docker-standard",
+        image: standard_image,
+        memory: "1g",
+        cpu: "1.0",
+        resource_images: %{
+          "git" => standard_image,
+          "make" => standard_image,
+          "curl" => standard_image,
+          "bash" => standard_image,
+          "python" => standard_image,
+          "node" => standard_image,
+          "ruby" => standard_image
+        }
+      },
+      %{
+        name: "docker-full",
+        image: full_image,
+        memory: "4g",
+        cpu: "2.0",
+        resource_images: %{
+          "java" => full_image,
+          "gradle" => full_image,
+          "go" => full_image,
+          "golang" => full_image,
+          "rust" => full_image,
+          "cargo" => full_image,
+          "elixir" => full_image,
+          "git" => full_image,
+          "docker" => full_image,
+          "python" => full_image,
+          "node" => full_image,
+          "ruby" => full_image,
+          "make" => full_image
         }
       }
     ]

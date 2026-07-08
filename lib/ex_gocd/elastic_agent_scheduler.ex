@@ -531,10 +531,8 @@ defmodule ExGoCD.ElasticAgentScheduler do
 
   # ── Resource-based image selection ─────────────────────────────────────────
 
-  @doc """
-  Picks the container image for a job based on its resources.
-  Checks the profile's ResourceImages map first, falls back to the profile's Image.
-  """
+  # Picks the container image for a job based on its resources.
+  # Checks the profile's ResourceImages map first, falls back to the profile's Image.
   defp pick_image(profile, resources) do
     resource_images = Map.get(profile.properties || %{}, "ResourceImages", %{})
 

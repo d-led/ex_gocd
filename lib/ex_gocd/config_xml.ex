@@ -270,11 +270,10 @@ defmodule ExGoCD.ConfigXml do
 
     case result do
       {:ok, {doc, []}} ->
-        {:ok, extract_pipelines(doc)}
+        {:ok, extract_pipelines(doc), extract_elastic_profiles(doc)}
 
       {:ok, {doc, _rest}} ->
-        # Some content remained unparsed — still try to extract pipelines
-        {:ok, extract_pipelines(doc)}
+        {:ok, extract_pipelines(doc), extract_elastic_profiles(doc)}
 
       {:fatal, reason} ->
         {:error, "XML parse error: #{inspect(reason)}"}
@@ -285,13 +284,14 @@ defmodule ExGoCD.ConfigXml do
   end
 
   @doc """
-  Imports pipelines from XML, creating new ones and updating existing ones by name.
-  Returns `{:ok, count}` with the number of pipelines created/updated.
+  Imports pipelines and elastic agent profiles from XML, creating new ones
+  and updating existing ones by name. Returns `{:ok, counts}` where counts is
+  a map with `:pipelines` and `:elastic_profiles` keys.
   """
   def import_from_xml(xml_string) when is_binary(xml_string) do
     case from_xml(xml_string) do
-      {:ok, pipelines} ->
-        count =
+      {:ok, pipelines, elastic_profiles} ->
+        pipeline_count =
           Enum.reduce(pipelines, 0, fn pipeline, acc ->
             case Pipelines.get_pipeline_by_name(pipeline.name) do
               nil ->
@@ -304,7 +304,23 @@ defmodule ExGoCD.ConfigXml do
             end
           end)
 
-        {:ok, count}
+        profile_count =
+          Enum.reduce(elastic_profiles, 0, fn profile, acc ->
+            case ExGoCD.ElasticAgentProfiles.Repo.get_by(
+                   ExGoCD.ElasticAgentProfiles.ElasticAgentProfile,
+                   name: profile.name
+                 ) do
+              nil ->
+                ExGoCD.ElasticAgentProfiles.create_profile(profile)
+                acc + 1
+
+              existing ->
+                ExGoCD.ElasticAgentProfiles.update_profile(existing, profile)
+                acc + 1
+            end
+          end)
+
+        {:ok, %{pipelines: pipeline_count, elastic_profiles: profile_count}}
 
       {:error, reason} ->
         {:error, reason}
@@ -320,6 +336,59 @@ defmodule ExGoCD.ConfigXml do
       nil -> []
       pipelines_el -> find_elements(pipelines_el, :pipeline) |> Enum.map(&parse_pipeline/1)
     end
+  end
+
+  defp extract_elastic_profiles(doc) do
+    doc
+    |> find_element(:agentProfiles)
+    |> case do
+      nil -> []
+      ap_el -> find_elements(ap_el, :agentProfile) |> Enum.map(&parse_agent_profile/1)
+    end
+  end
+
+  defp parse_agent_profile(el) do
+    props =
+      el
+      |> find_elements(:property)
+      |> Enum.reduce(%{}, fn prop_el, acc ->
+        key_el = find_child(prop_el, :key)
+        value_el = find_child(prop_el, :value)
+
+        if key_el && value_el do
+          key = text_content(key_el) |> to_string()
+          value = text_content(value_el) |> to_string()
+
+          parsed_value =
+            cond do
+              String.starts_with?(value, "{") || String.starts_with?(value, "[") ->
+                case Jason.decode(value) do
+                  {:ok, decoded} -> decoded
+                  _ -> value
+                end
+
+              key in ["MaxCPU", "MinCPU", "MinAgents"] ->
+                case Integer.parse(value) do
+                  {n, _} -> n
+                  _ -> value
+                end
+
+              true ->
+                value
+            end
+
+          Map.put(acc, key, parsed_value)
+        else
+          acc
+        end
+      end)
+
+    %{
+      name: attr(el, :name) |> to_string(),
+      plugin_id: attr(el, :pluginId) |> to_string(),
+      cluster_profile_id: attr(el, :clusterProfileId) |> to_string(),
+      properties: props
+    }
   end
 
   defp parse_pipeline(el) do
@@ -736,8 +805,49 @@ defmodule ExGoCD.ConfigXml do
   end
 
   defp render_elastic_profiles do
-    # Stub — elastic profiles handled by k8s agent; add when schema stabilizes
-    ""
+    profiles = ExGoCD.ElasticAgentProfiles.list_profiles()
+
+    if profiles == [] do
+      ""
+    else
+      profiles_xml =
+        Enum.map_join(profiles, "\n", fn p ->
+          props = p.properties || %{}
+
+          # Serialize all properties as key/value pairs
+          # ResourceImages is rendered as JSON string
+          kv_pairs =
+            props
+            |> Enum.reject(fn {_k, v} -> is_nil(v) || v == %{} || v == [] end)
+            |> Enum.map(fn {k, v} ->
+              value =
+                cond do
+                  is_map(v) -> Jason.encode!(v)
+                  is_list(v) -> Jason.encode!(v)
+                  true -> to_string(v)
+                end
+
+              tag3("property", %{},
+                tag3("key", %{}, esc(k)) <> tag3("value", %{}, esc(value))
+              )
+            end)
+            |> Enum.join("\n")
+
+          tag3(
+            "agentProfile",
+            %{
+              name: p.name,
+              pluginId: p.plugin_id,
+              clusterProfileId: p.cluster_profile_id || ""
+            },
+            kv_pairs
+          )
+        end)
+
+      tag3("agentProfiles", %{}, profiles_xml)
+    end
+  rescue
+    _ -> ""
   end
 
   defp render_cluster_profiles do

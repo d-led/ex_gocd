@@ -53,11 +53,12 @@ defmodule ExGoCDWeb.ConfigXmlController do
 
   defp do_import(conn, xml) do
     case ExGoCD.ConfigXml.import_from_xml(xml) do
-      {:ok, count} ->
+      {:ok, %{pipelines: p_count, elastic_profiles: e_count}} ->
         ExGoCD.ConfigSnapshot.after_mutation("admin", "config reverted from version")
 
+        msg = "Imported #{p_count} pipeline(s), #{e_count} elastic profile(s)."
         conn
-        |> put_flash(:info, "Imported #{count} pipeline(s) successfully.")
+        |> put_flash(:info, msg)
         |> redirect(to: "/admin/config_xml")
 
       {:error, reason} ->
