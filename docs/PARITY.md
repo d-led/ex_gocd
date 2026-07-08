@@ -185,12 +185,12 @@ ex_gocd has achieved ~95% parity with GoCD. The remaining ~11 gaps are in 4 cate
 4. ✅ B2: Missing webhook endpoints — added 4 handlers to webhook_controller
 5. ✅ B3: Remaining feed XML — added 4 feed types to feeds_controller
 
-### 🟡 Category E: UI Missing Links & Screens (7)
+### 🟡 Category E: UI Missing Links & Screens (7) ✅ ALL DONE
 
 | # | Gap | GoCD Behavior | Effort | Status |
 |---|-----|---------------|--------|--------|
 | E1 | **Dashboard: Changes link on cards** | Dropdown showing material revisions/build cause per instance | S | ✅ |
-| E2 | **Dashboard: Stage overview popup** | Clicking stage pill shows popup with job details | M | ❌ |
+| E2 | **Dashboard: Stage overview popup** | Clicking stage pill shows popup with job details | M | ✅ |
 | E3 | **Dashboard: Group edit gear icon** | Edit pipeline group link on group heading (admin only) | S | ✅ |
 | E4 | **Dashboard: New Pipeline dropdown** | "Use Pipeline Wizard" / "Use Pipelines as Code" on group heading | S | ✅ |
 | E5 | **Job console: env-var echo too granular** | GoCD folds system bits into fewer commands; we echo each var into its own foldable block | S | ✅ |
@@ -222,7 +222,7 @@ ex_gocd has achieved ~95% parity with GoCD. The remaining ~11 gaps are in 4 cate
 | Dashboard | Compare link | ✅ |
 | Dashboard | History link | ✅ |
 | Dashboard | Changes dropdown (material revisions) | ✅ (E1) |
-| Dashboard | Stage overview popup | ❌ (E2) |
+| Dashboard | Stage overview popup | ✅ (E2) |
 | Pipeline Activity | VSM per instance | ✅ |
 | Pipeline Activity | Material revision → material VSM | ✅ |
 | Pipeline Activity | Config diff (⚙) per instance | ✅ |
@@ -246,15 +246,14 @@ ex_gocd has achieved ~95% parity with GoCD. The remaining ~11 gaps are in 4 cate
 | Agents | Job name → Job Details | ✅ |
 | Admin Scheduling | Job name → Job Details | ✅ |
 
-### Remaining Gaps (4)
+### Remaining Gaps (3)
 
 #### Done (2026-07-08 session)
-1-15. ✅ A1-A6, B1-B4, C1-C2, E1-E5, E7, G2-G3
+All A, B, C, E, F categories resolved. G2-G3 resolved.
 
 #### Remaining
 - D1: Artifact caching Phase 1 (M)
 - D2: Docker elastic agent path (L)
-- E2: Dashboard Stage overview popup (M)
 - G1: Tests tab LiveView-native (M)
 
 ### Phase 3: Features (M-L)
