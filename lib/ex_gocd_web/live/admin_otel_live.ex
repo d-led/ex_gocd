@@ -150,14 +150,17 @@ defmodule ExGoCDWeb.AdminOtelLive do
               <.instrumentation_row
                 label="Phoenix (HTTP spans)"
                 active={@status.instrumentation.phoenix}
+                inactive_reason="Bandit adapter — not supported by opentelemetry_phoenix"
               />
               <.instrumentation_row
                 label="Ecto (DB query spans)"
                 active={@status.instrumentation.ecto}
+                inactive_reason="opentelemetry_ecto app not started"
               />
               <.instrumentation_row
                 label="Process Propagator (cross-node tracing)"
                 active={@status.instrumentation.process_propagator}
+                inactive_reason="Module not loaded"
               />
             </div>
           </.panel>
@@ -327,7 +330,12 @@ defmodule ExGoCDWeb.AdminOtelLive do
   defp instrumentation_row(assigns) do
     ~H"""
     <div class="flex justify-between items-center py-2 border-b border-[#e9edef] last:border-0">
-      <span class="text-xs text-slate-600">{@label}</span>
+      <div>
+        <span class="text-xs text-slate-600">{@label}</span>
+        <span :if={!@active && assigns[:inactive_reason]} class="block text-[10px] text-slate-400 mt-0.5">
+          {@inactive_reason}
+        </span>
+      </div>
       <span class={[
         "inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold",
         if(@active,
@@ -373,8 +381,12 @@ defmodule ExGoCDWeb.AdminOtelLive do
     "SDK disabled"
   end
 
+  defp instrumentation_sub(%{exporter: :otlp, otlp_endpoint: endpoint}) do
+    "Traces → #{endpoint}"
+  end
+
   defp instrumentation_sub(_status) do
-    "Traces flowing → Jaeger"
+    "Traces flowing"
   end
 
   defp instrumentation_overall(%{sdk_enabled: false}) do

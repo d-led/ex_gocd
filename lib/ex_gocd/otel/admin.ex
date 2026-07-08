@@ -98,21 +98,39 @@ defmodule ExGoCD.Otel.Admin do
 
   # ── Instrumentation handlers ───────────────────────────────────────
 
-  defp instrumentation do
-    handlers = :telemetry.list_handlers([])
+  @doc """
+  Returns the status of each instrumentation handler.
 
+  - `:phoenix` — auto-instrumentation for HTTP requests (requires Cowboy adapter)
+  - `:ecto` — auto-instrumentation for DB queries
+  - `:process_propagator` — cross-process trace context propagation (always loaded)
+
+  Note: Bandit adapter is not currently supported by opentelemetry_phoenix,
+  so `:phoenix` will be `false` when using Bandit.
+  """
+  defp instrumentation do
     %{
-      phoenix: has_handler?(handlers, :opentelemetry_phoenix),
-      ecto: has_handler?(handlers, :opentelemetry_ecto),
+      phoenix: phoenix_instrumentation_active?(),
+      ecto: ecto_instrumentation_active?(),
       process_propagator: process_propagator_loaded?()
     }
   end
 
-  defp has_handler?(handlers, module) do
-    Enum.any?(handlers, fn
-      {^module, _, _, _} -> true
-      _ -> false
-    end)
+  defp phoenix_instrumentation_active? do
+    # OpentelemetryPhoenix.setup() attaches telemetry handlers for Phoenix
+    # endpoint/route events. However, it only supports Cowboy adapter —
+    # Bandit.PhoenixAdapter is explicitly documented as not supported.
+    adapter = Application.get_env(:ex_gocd, ExGoCDWeb.Endpoint)[:adapter]
+
+    Code.ensure_loaded?(OpentelemetryPhoenix) and adapter != Bandit.PhoenixAdapter
+  end
+
+  defp ecto_instrumentation_active? do
+    # OpentelemetryEcto.setup([:ex_gocd, :repo]) attaches handlers for
+    # Ecto query events. Check that the module is loaded and the
+    # application is configured.
+    Code.ensure_loaded?(OpentelemetryEcto) and
+      Application.spec(:opentelemetry_ecto) != nil
   end
 
   defp process_propagator_loaded? do
