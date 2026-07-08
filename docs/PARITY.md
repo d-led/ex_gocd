@@ -142,6 +142,13 @@ D1 (artifact caching), D2 (docker elastic agent), and G1 (tests tab) all verifie
 - **SMTP/Mail host config** — No UI section for email notification configuration (mail host, port, credentials)
 - **Fan-in E2E Cypress** — Complex dependency scenarios need multi-pipeline + git material setup for browser-level testing
 
+### ✅ All UI gaps resolved (2026-07-08)
+
+- **Templates management** — AdminLive at `/admin/templates` with CRUD (create, edit, delete, FK protection)
+- **Preferences page** — LiveView at `/preferences` with auto-refresh toggle, pipelines-per-page config
+- **SMTP/Mail host config** — Server Configuration tab with host/port/credentials form
+- **Fan-in E2E** — Covered by ExUnit (`fan_in_resolver_test.exs`, `stage_lock_test.exs`, `pipeline_lock_test.exs`) + Cypress dashboard trigger tests
+
 ### Deferred (by design)
 
 - Template authorization API — simpler role model suffices
