@@ -118,9 +118,9 @@ defmodule ExGoCDWeb.AdminOtelLive do
           <.status_card
             icon="fa-code-branch"
             title="Instrumentation"
-            value={instrumentation_summary(@status.instrumentation)}
-            sub="Phoenix / Ecto / Process"
-            status={instrumentation_overall(@status.instrumentation)}
+            value={instrumentation_summary(@status)}
+            sub={instrumentation_sub(@status)}
+            status={instrumentation_overall(@status)}
           />
         </div>
         
@@ -361,12 +361,38 @@ defmodule ExGoCDWeb.AdminOtelLive do
   defp collector_status(:unreachable), do: :error
   defp collector_status(_), do: :neutral
 
-  defp instrumentation_summary(%{phoenix: p, ecto: e, process_propagator: pp}) do
+  defp instrumentation_summary(%{sdk_enabled: false}) do
+    "N/A"
+  end
+
+  defp instrumentation_summary(%{instrumentation: %{phoenix: p, ecto: e, process_propagator: pp}}) do
     active = Enum.count([p, e, pp], & &1)
     "#{active}/3 active"
   end
 
-  defp instrumentation_overall(%{phoenix: p, ecto: e}) do
+  defp instrumentation_sub(%{sdk_enabled: false}) do
+    "SDK disabled — handlers not attached"
+  end
+
+  defp instrumentation_sub(%{instrumentation: %{phoenix: p, ecto: e, process_propagator: pp}}) do
+    parts =
+      []
+      |> maybe_add(p, "Phoenix")
+      |> maybe_add(e, "Ecto")
+      |> maybe_add(pp, "Process")
+      |> Enum.join(", ")
+
+    if parts == "", do: "None active", else: parts
+  end
+
+  defp maybe_add(acc, true, label), do: acc ++ [label]
+  defp maybe_add(acc, false, _label), do: acc
+
+  defp instrumentation_overall(%{sdk_enabled: false}) do
+    :neutral
+  end
+
+  defp instrumentation_overall(%{instrumentation: %{phoenix: p, ecto: e}}) do
     if p and e, do: :ok, else: :warn
   end
 end
