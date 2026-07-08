@@ -183,6 +183,45 @@ defmodule RegionalAffinityWeb.PluginDashboardLive do
           </div>
         <% end %>
 
+        <%!-- Decision Trace Timeline --%>
+        <%= if @decisions != [] do %>
+          <div class="card bg-base-100 shadow-sm border border-base-300/50 mb-6">
+            <div class="card-body p-4">
+              <h2 class="text-sm font-semibold text-base-content/60 uppercase tracking-wide mb-3">
+                Decision Trace ({@count})
+              </h2>
+              <div class="overflow-x-auto">
+                <div class="flex items-end gap-px" style="height: 60px;">
+                  <%= for entry <- @decisions |> Enum.reverse() do %>
+                    <% agent_name = if entry.preferred_detail && entry.preferred_detail.hostname not in [nil, ""],
+                         do: entry.preferred_detail.hostname,
+                         else: "?" %>
+                    <% bar_h = cond do
+                      entry.preferred_detail && entry.preferred_detail.state == "Building" -> 40
+                      entry.preferred_detail && entry.preferred_detail.state == "Idle" -> 30
+                      true -> 15
+                    end %>
+                    <div
+                      class={"rounded-t-sm tooltip cursor-pointer #{if bar_h >= 30, do: "bg-success", else: "bg-base-300"}"}
+                      style={"width: max(4px, #{max(4, div(800, max(@count, 1)))}px); height: #{bar_h}px;"}
+                      data-tip={"#{Calendar.strftime(entry.timestamp, "%H:%M:%S")} → #{agent_name}"}>
+                    </div>
+                  <% end %>
+                </div>
+                <div class="flex items-center gap-1 mt-1">
+                  <span class="text-[10px] text-base-content/30">
+                    {Calendar.strftime(List.last(@decisions).timestamp, "%H:%M")}
+                  </span>
+                  <div class="flex-1"></div>
+                  <span class="text-[10px] text-base-content/30">
+                    {Calendar.strftime(List.first(@decisions).timestamp, "%H:%M")}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        <% end %>
+
         <%!-- Decisions --%>
         <%= if @decisions == [] do %>
           <div class="card bg-base-100 shadow">
