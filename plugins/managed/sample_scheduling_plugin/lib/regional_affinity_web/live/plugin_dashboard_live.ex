@@ -40,27 +40,30 @@ defmodule RegionalAffinityWeb.PluginDashboardLive do
       (d.candidates_detail || [])
       |> Enum.filter(&(&1.uuid == d.preferred))
       |> Enum.map(fn a -> infer_region(a.hostname) end)
+      |> Enum.reject(&is_nil/1)
     end)
     |> Enum.frequencies()
     |> Enum.sort_by(fn {_r, c} -> -c end)
   end
 
   defp build_agent_map(decisions) do
-    # Collect unique agents from recent decisions
     decisions
     |> Enum.flat_map(&(&1.candidates_detail || []))
     |> Enum.uniq_by(& &1.uuid)
     |> Enum.group_by(&infer_region(&1.hostname))
+    |> Enum.reject(fn {region, _} -> is_nil(region) end)
+    |> Map.new()
   end
 
   defp infer_region(hostname) when is_binary(hostname) and hostname != "" do
+    # Split on dots: "us-east-1.worker.prod" → "us-east-1"
     case String.split(hostname, ".", parts: 2) do
-      [region | _] when region != "" -> region
-      _ -> "unknown"
+      [region, _] when region != "" -> region
+      _ -> nil
     end
   end
 
-  defp infer_region(_), do: "unknown"
+  defp infer_region(_), do: nil
 
   defp state_color("Idle"), do: "badge-success"
   defp state_color("Building"), do: "badge-warning"
@@ -103,8 +106,8 @@ defmodule RegionalAffinityWeb.PluginDashboardLive do
           </div>
         </div>
 
-        <%!-- Agent Region Map --%>
-        <%= if @agent_map != %{} do %>
+        <%!-- Agent Region Map (only when 2+ regions detected) --%>
+        <%= if map_size(@agent_map) >= 2 do %>
           <div class="card bg-base-100 shadow-sm border border-base-300/50 mb-6">
             <div class="card-body p-4">
               <h2 class="text-sm font-semibold text-base-content/60 uppercase tracking-wide mb-3">
@@ -152,8 +155,8 @@ defmodule RegionalAffinityWeb.PluginDashboardLive do
           </div>
         <% end %>
 
-        <%!-- Region Decision Stats --%>
-        <%= if @region_stats != [] do %>
+        <%!-- Region Stats (only when 2+ regions with data) --%>
+        <%= if length(@region_stats) >= 2 do %>
           <div class="card bg-base-100 shadow-sm border border-base-300/50 mb-6">
             <div class="card-body p-4">
               <h2 class="text-sm font-semibold text-base-content/60 uppercase tracking-wide mb-3">
