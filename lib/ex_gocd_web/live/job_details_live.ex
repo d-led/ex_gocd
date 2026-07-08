@@ -12,6 +12,7 @@ defmodule ExGoCDWeb.JobDetailsLive do
   alias ExGoCD.Pipelines.PipelineMaterialRevision
   alias ExGoCD.Repo
   alias ExGoCD.Scheduler
+  alias ExGoCD.TestReport
 
   @impl true
   def mount(params, _session, socket) do
@@ -48,6 +49,8 @@ defmodule ExGoCDWeb.JobDetailsLive do
 
     custom_tabs = get_custom_tabs(job_instance)
 
+    test_report = load_test_report(job_instance)
+
     {:ok,
      socket
      |> assign(:pipeline_name, pipeline_name)
@@ -64,6 +67,7 @@ defmodule ExGoCDWeb.JobDetailsLive do
      |> assign(:environment_variables, env_vars)
      |> assign(:scheduling_diagnostics, diagnostics)
      |> assign(:custom_tabs, custom_tabs)
+     |> assign(:test_report, test_report)
      |> assign(:show_timestamps, false)
      |> assign(:follow, true)
      |> assign(:wrap_lines, true)
@@ -480,6 +484,11 @@ defmodule ExGoCDWeb.JobDetailsLive do
 
   defp get_custom_tabs(_), do: %{}
 
+  defp load_test_report(%{id: ji_id}) when is_integer(ji_id),
+    do: TestReport.get_by_job_instance(ji_id)
+
+  defp load_test_report(_), do: nil
+
   defp get_run_by_params(pipeline_name, pipeline_counter, stage_name, stage_counter, job_name) do
     AgentJobRuns.get_run_by_params(
       pipeline_name,
@@ -620,6 +629,13 @@ defmodule ExGoCDWeb.JobDetailsLive do
   def test_report_url(pipeline_name, pipeline_counter, stage_name, stage_counter, job_name) do
     "/files/#{pipeline_name}/#{pipeline_counter}/#{stage_name}/#{stage_counter}/#{job_name}/testoutput/index.html"
   end
+
+  def format_test_time(seconds) when seconds < 1, do: "<1ms"
+  def format_test_time(seconds) when seconds < 60, do: "#{Float.round(seconds, 1)}s"
+  def format_test_time(seconds), do: "#{div(round(seconds), 60)}m #{rem(round(seconds), 60)}s"
+
+  def test_bar_width(_count, total) when total == 0, do: "0%"
+  def test_bar_width(count, total), do: "#{Float.round(count / total * 100, 1)}%"
 
   def console_with_links(log) do
     ExGoCDWeb.ConsoleLogHelper.format_log(log)
