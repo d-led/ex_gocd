@@ -109,8 +109,11 @@ defmodule ExGoCD.Otel.Admin do
     endpoint = otlp_endpoint()
 
     cond do
-      exporter() == :none -> :disabled
-      endpoint == "not configured" -> :not_configured
+      exporter() == :none ->
+        :disabled
+
+      endpoint == "not configured" ->
+        :not_configured
 
       true ->
         # Extract base URL from OTLP endpoint (strip /v1/traces suffix if present)

@@ -1114,7 +1114,10 @@ end
 
 # Delegate to the idempotent auto-seed functions
 ElasticAgentProfiles.maybe_auto_seed_docker_profile()
-IO.puts("Seeded: Docker elastic agent profiles (#{Repo.aggregate(ElasticAgentProfile, :count)} total)")
+
+IO.puts(
+  "Seeded: Docker elastic agent profiles (#{Repo.aggregate(ElasticAgentProfile, :count)} total)"
+)
 
 # ── Config repo seeding ───────────────────────────────────────────────────
 repo_urls = [
