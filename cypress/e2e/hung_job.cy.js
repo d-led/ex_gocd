@@ -21,7 +21,9 @@ describe("Hung Job Handling", () => {
   it("displays Server Configuration form fields", () => {
     cy.visitPage("/admin/server");
     // Should show server management options
-    cy.get("form, .form, [data-test-id='server-config']", { timeout: 5000 }).should("exist");
+    cy.get("form, .form, [data-test-id='server-config']", {
+      timeout: 5000,
+    }).should("exist");
   });
 
   it("navigates to Pipeline Config page for job timeout settings", () => {

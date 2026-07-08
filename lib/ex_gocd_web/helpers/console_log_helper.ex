@@ -11,10 +11,12 @@ defmodule ExGoCDWeb.ConsoleLogHelper do
   def format_log(nil), do: ""
 
   def format_log(log) when is_binary(log) do
-    log
-    |> ansi_to_html()
-    |> replace_urls_with_links()
-    |> Phoenix.HTML.raw()
+    content =
+      log
+      |> ansi_to_html()
+      |> replace_urls_with_links()
+
+    {:safe, content}
   end
 
   # Tokenizes the log string by ANSI escape codes and wraps styled segments in HTML spans.

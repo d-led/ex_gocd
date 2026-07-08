@@ -10,9 +10,7 @@ describe("Pipeline Locking", () => {
     cy.get(".pipeline", { timeout: 10000 }).should("have.length.at.least", 1);
 
     // Click on the first pipeline to open stage summary
-    cy.get(".pipeline_stages .pipeline_stage")
-      .first()
-      .click({ force: true });
+    cy.get(".pipeline_stages .pipeline_stage").first().click({ force: true });
 
     cy.wait(300);
 

@@ -11,9 +11,7 @@ describe("Job Rerun", () => {
     cy.get(".pipeline", { timeout: 10000 }).should("have.length.at.least", 1);
 
     // Find a pipeline with a failed or completed stage
-    cy.get(".pipeline_stages .pipeline_stage")
-      .first()
-      .click({ force: true });
+    cy.get(".pipeline_stages .pipeline_stage").first().click({ force: true });
 
     cy.wait(500);
 
@@ -25,17 +23,18 @@ describe("Job Rerun", () => {
         $body.text().includes("Re-run");
 
       // At minimum, stage summary popup should show
-      cy.get(
-        ".stage-summary, [data-test-id='stage-summary'], .popup, .modal",
-        { timeout: 3000 },
-      ).should("exist");
+      cy.get(".stage-summary, [data-test-id='stage-summary'], .popup, .modal", {
+        timeout: 3000,
+      }).should("exist");
     });
   });
 
   it("dashboard shows stage status indicators", () => {
     // Verify stage statuses are rendered (Passed, Failed, Building, etc.)
-    cy.get(".pipeline_stages .pipeline_stage", { timeout: 10000 })
-      .should("have.length.at.least", 1);
+    cy.get(".pipeline_stages .pipeline_stage", { timeout: 10000 }).should(
+      "have.length.at.least",
+      1,
+    );
 
     // Each stage should have a status indicator
     cy.get(".pipeline_stage_status, [class*='status']").should("exist");

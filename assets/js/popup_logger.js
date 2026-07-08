@@ -25,7 +25,10 @@ function saveLog(log) {
 
 function pushEntry(type, message) {
   const log = loadLog();
-  const trimmed = String(message || "").replace(/\s+/g, " ").trim().slice(0, 500);
+  const trimmed = String(message || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 500);
   // Don't log duplicates of the last entry
   if (log.length > 0) {
     const last = log[log.length - 1];
@@ -55,14 +58,18 @@ function startWatching() {
         if (node.nodeType !== Node.ELEMENT_NODE) continue;
 
         if (node.id === "flash-info" || node.querySelector?.("#flash-info")) {
-          const flashEl = node.id === "flash-info" ? node : node.querySelector("#flash-info");
+          const flashEl =
+            node.id === "flash-info" ? node : node.querySelector("#flash-info");
           if (!flashEl || flashEl.style.display === "none") continue;
           const msg = extractFlashText(flashEl);
           if (msg) pushEntry("info", msg);
         }
 
         if (node.id === "flash-error" || node.querySelector?.("#flash-error")) {
-          const flashEl = node.id === "flash-error" ? node : node.querySelector("#flash-error");
+          const flashEl =
+            node.id === "flash-error"
+              ? node
+              : node.querySelector("#flash-error");
           if (!flashEl || flashEl.style.display === "none") continue;
           const msg = extractFlashText(flashEl);
           if (msg) pushEntry("error", msg);
@@ -101,8 +108,13 @@ if (document.readyState === "loading") {
 }
 
 // Debug helpers
-window.__exGocdPopups = function () { return loadLog(); };
-window.__exGocdClearPopups = function () { saveLog([]); renderLogUI([]); };
+window.__exGocdPopups = function () {
+  return loadLog();
+};
+window.__exGocdClearPopups = function () {
+  saveLog([]);
+  renderLogUI([]);
+};
 
 // ── Footer dropdown UI ──────────────────────────────────────────
 

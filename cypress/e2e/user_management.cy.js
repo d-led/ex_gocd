@@ -23,7 +23,7 @@ describe("User Management", () => {
 
   it("navigates to Security tab from admin", () => {
     cy.visitPage("/admin/security");
-    cy.get("a[href=\"/admin/security\"]").should("exist");
+    cy.get('a[href="/admin/security"]').should("exist");
     cy.thePageShows("Security");
   });
 
