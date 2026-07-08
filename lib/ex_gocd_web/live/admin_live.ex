@@ -747,7 +747,7 @@ defmodule ExGoCDWeb.AdminLive do
         >
           <div class="flex-grow">
             <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
-              {@template_editing && "Edit" || "New"} Template Name
+              {(@template_editing && "Edit") || "New"} Template Name
             </label>
             <input
               type="text"
@@ -779,12 +779,12 @@ defmodule ExGoCDWeb.AdminLive do
           </div>
         </form>
       <% end %>
-
-      <!-- Templates Table -->
+      
+    <!-- Templates Table -->
       <div class="bg-white rounded border border-[#d6e0e2] overflow-hidden shadow-sm">
         <div class="bg-[#e7eef0] px-5 py-3 border-b border-[#d6e0e2]">
           <span class="text-xs font-bold text-slate-800">
-            {length(@templates)} Template{length(@templates) != 1 && "s" || ""}
+            {length(@templates)} Template{(length(@templates) != 1 && "s") || ""}
           </span>
         </div>
 
@@ -799,7 +799,7 @@ defmodule ExGoCDWeb.AdminLive do
                 <div>
                   <span class="text-sm font-medium text-slate-700">{tpl.name}</span>
                   <span class="text-[11px] text-slate-400 ml-2">
-                    {length(tpl.stages || [])} stage{length(tpl.stages || []) != 1 && "s" || ""}
+                    {length(tpl.stages || [])} stage{(length(tpl.stages || []) != 1 && "s") || ""}
                   </span>
                 </div>
                 <div class="flex items-center gap-1.5">
@@ -1081,8 +1081,8 @@ defmodule ExGoCDWeb.AdminLive do
           <% end %>
         </button>
       </div>
-
-      <!-- Mail Server Configuration -->
+      
+    <!-- Mail Server Configuration -->
       <div class="bg-white rounded border border-[#d6e0e2] p-5 shadow-sm space-y-4">
         <h3 class="text-sm font-bold text-slate-700 border-b border-[#e9edef] pb-3 flex items-center gap-2">
           <i class="fa fa-envelope text-[#943a9e]"></i> Email Notification

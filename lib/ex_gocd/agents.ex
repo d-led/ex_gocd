@@ -251,7 +251,8 @@ defmodule ExGoCD.Agents do
     if use_mock?() do
       Mock.list_agents() |> Enum.filter(&(not is_nil(&1.elastic_agent_id)))
     else
-      from(a in Agent, where: not is_nil(a.elastic_agent_id) or a.deleted == false,
+      from(a in Agent,
+        where: not is_nil(a.elastic_agent_id) or a.deleted == false,
         order_by: [desc: a.updated_at]
       )
       |> Repo.all()

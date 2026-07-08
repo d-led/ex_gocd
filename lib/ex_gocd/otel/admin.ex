@@ -67,17 +67,19 @@ defmodule ExGoCD.Otel.Admin do
   # ── Config source (why is OTel in this state?) ────────────────────
 
   defp config_source do
+    env = Application.get_env(:ex_gocd, :env, :prod)
+
     cond do
       System.get_env("EX_GOCD_NO_OTEL") == "1" ->
         "EX_GOCD_NO_OTEL=1 — tracing forcefully disabled"
 
-      Mix.env() == :test ->
+      env == :test ->
         "config/test.exs — SDK disabled for tests (sdk_disabled: true)"
 
       exporter() == :otlp ->
         "config/dev.exs — local OTLP → Jaeger (docker compose up -d jaeger otel-collector)"
 
-      Mix.env() == :dev ->
+      env == :dev ->
         "config/config.exs fallback — exporter set to :none by default. Enable in config/dev.exs."
 
       true ->
@@ -98,16 +100,10 @@ defmodule ExGoCD.Otel.Admin do
 
   # ── Instrumentation handlers ───────────────────────────────────────
 
-  @doc """
-  Returns the status of each instrumentation handler.
-
-  - `:phoenix` — auto-instrumentation for HTTP requests (requires Cowboy adapter)
-  - `:ecto` — auto-instrumentation for DB queries
-  - `:process_propagator` — cross-process trace context propagation (always loaded)
-
-  Note: Bandit adapter is not currently supported by opentelemetry_phoenix,
-  so `:phoenix` will be `false` when using Bandit.
-  """
+  # Status of each instrumentation handler:
+  #   :phoenix — auto-instrumentation for HTTP requests (Cowboy only, not Bandit)
+  #   :ecto — auto-instrumentation for DB queries
+  #   :process_propagator — cross-process trace context propagation
   defp instrumentation do
     %{
       phoenix: phoenix_instrumentation_active?(),

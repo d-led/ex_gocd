@@ -1071,7 +1071,9 @@ defmodule ExGoCDWeb.AdminK8sLive do
   defp connection_status_badge({:error, reason}) when is_binary(reason) do
     # html_escape ensures the reason is safe before interpolating into raw HTML
     safe = reason |> Phoenix.HTML.html_escape() |> Phoenix.HTML.safe_to_string()
-    html = "<span class=\"inline-flex items-center gap-1 text-xs text-red-700\" title=\"#{safe}\"><span class=\"w-2 h-2 bg-red-500 rounded-full\"></span>Failed — #{safe}</span>"
+
+    html =
+      "<span class=\"inline-flex items-center gap-1 text-xs text-red-700\" title=\"#{safe}\"><span class=\"w-2 h-2 bg-red-500 rounded-full\"></span>Failed — #{safe}</span>"
 
     Phoenix.HTML.raw(html)
   end

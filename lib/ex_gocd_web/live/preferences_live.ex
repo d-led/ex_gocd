@@ -19,14 +19,22 @@ defmodule ExGoCDWeb.PreferencesLive do
   @impl true
   def handle_event("toggle_auto_refresh", _params, socket) do
     new_val = !socket.assigns.auto_refresh
-    {:noreply, socket |> assign(:auto_refresh, new_val) |> put_flash(:info, "Auto-refresh #{if new_val, do: "enabled", else: "disabled"}.")}
+
+    {:noreply,
+     socket
+     |> assign(:auto_refresh, new_val)
+     |> put_flash(:info, "Auto-refresh #{if new_val, do: "enabled", else: "disabled"}.")}
   end
 
   @impl true
   def handle_event("set_pipelines_per_page", %{"value" => value}, socket) do
     case Integer.parse(value) do
       {n, _} when n >= 5 and n <= 100 ->
-        {:noreply, socket |> assign(:pipelines_per_page, n) |> put_flash(:info, "Pipelines per page set to #{n}.")}
+        {:noreply,
+         socket
+         |> assign(:pipelines_per_page, n)
+         |> put_flash(:info, "Pipelines per page set to #{n}.")}
+
       _ ->
         {:noreply, socket |> put_flash(:error, "Must be a number between 5 and 100.")}
     end
@@ -50,8 +58,8 @@ defmodule ExGoCDWeb.PreferencesLive do
             </h1>
             <p class="text-xs text-slate-500 mt-1">Customize your GoCD experience</p>
           </div>
-
-          <!-- Flash -->
+          
+    <!-- Flash -->
           <%= if @flash_info do %>
             <div class="mx-6 mt-4 bg-[#dbf1d9] border border-[#a3d7a8] text-[#298a4c] px-4 py-3 rounded flex justify-between items-center text-sm">
               <span class="font-medium">{@flash_info}</span>
@@ -60,8 +68,8 @@ defmodule ExGoCDWeb.PreferencesLive do
               </button>
             </div>
           <% end %>
-
-          <!-- Settings -->
+          
+    <!-- Settings -->
           <div class="divide-y divide-[#e9edef]">
             <!-- Auto-refresh -->
             <div class="px-6 py-5 flex items-center justify-between">
@@ -85,8 +93,8 @@ defmodule ExGoCDWeb.PreferencesLive do
                 </span>
               </button>
             </div>
-
-            <!-- Pipelines per page -->
+            
+    <!-- Pipelines per page -->
             <div class="px-6 py-5">
               <p class="text-sm font-bold text-slate-700 mb-3">Pipelines per page</p>
               <p class="text-xs text-slate-400 mb-4">
@@ -109,13 +117,21 @@ defmodule ExGoCDWeb.PreferencesLive do
                 </button>
               </form>
             </div>
-
-            <!-- Display Info -->
+            
+    <!-- Display Info -->
             <div class="px-6 py-5">
               <h3 class="text-sm font-bold text-slate-700 mb-2">Current Settings</h3>
               <div class="text-xs text-slate-500 space-y-1">
-                <p>Auto-refresh: <span class="font-semibold text-slate-700">{if @auto_refresh, do: "On", else: "Off"}</span></p>
-                <p>Pipelines per page: <span class="font-semibold text-slate-700">{@pipelines_per_page}</span></p>
+                <p>
+                  Auto-refresh:
+                  <span class="font-semibold text-slate-700">
+                    {if @auto_refresh, do: "On", else: "Off"}
+                  </span>
+                </p>
+                <p>
+                  Pipelines per page:
+                  <span class="font-semibold text-slate-700">{@pipelines_per_page}</span>
+                </p>
               </div>
             </div>
           </div>

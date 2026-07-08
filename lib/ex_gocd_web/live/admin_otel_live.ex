@@ -134,14 +134,18 @@ defmodule ExGoCDWeb.AdminOtelLive do
         ]}>
           <i class={[
             "fa mt-0.5",
-            if(@status.sdk_enabled, do: "fa-circle-info text-emerald-500", else: "fa-triangle-exclamation text-amber-500")
-          ]}></i>
+            if(@status.sdk_enabled,
+              do: "fa-circle-info text-emerald-500",
+              else: "fa-triangle-exclamation text-amber-500"
+            )
+          ]}>
+          </i>
           <div>
             <span class="font-bold">Why this state?</span>
             <span class="ml-1">{@status.config_source}</span>
           </div>
         </div>
-
+        
     <!-- Two-column detail panels -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <!-- Instrumentation Details -->
@@ -332,7 +336,10 @@ defmodule ExGoCDWeb.AdminOtelLive do
     <div class="flex justify-between items-center py-2 border-b border-[#e9edef] last:border-0">
       <div>
         <span class="text-xs text-slate-600">{@label}</span>
-        <span :if={!@active && assigns[:inactive_reason]} class="block text-[10px] text-slate-400 mt-0.5">
+        <span
+          :if={!@active && assigns[:inactive_reason]}
+          class="block text-[10px] text-slate-400 mt-0.5"
+        >
           {@inactive_reason}
         </span>
       </div>
