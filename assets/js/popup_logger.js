@@ -160,4 +160,21 @@ function escHtml(s) {
 // Restore existing log on page load
 document.addEventListener("DOMContentLoaded", function () {
   renderLogUI(loadLog());
+
+  // Esc to close dropdown
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") {
+      var dd = document.getElementById("flash-logger-dropdown");
+      if (dd && !dd.classList.contains("hidden")) dd.classList.add("hidden");
+    }
+  });
+
+  // Click outside to close dropdown
+  document.addEventListener("click", function (e) {
+    var toggle = document.getElementById("flash-logger-toggle");
+    var dd = document.getElementById("flash-logger-dropdown");
+    if (!dd || dd.classList.contains("hidden")) return;
+    if (toggle && toggle.contains(e.target)) return;
+    if (!dd.contains(e.target)) dd.classList.add("hidden");
+  });
 });

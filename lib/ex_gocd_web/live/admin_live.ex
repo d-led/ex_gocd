@@ -1174,16 +1174,16 @@ defmodule ExGoCDWeb.AdminLive do
         {:noreply, put_flash(socket, :error, "Config repo not found.")}
 
       repo ->
-        _result = ConfigRepos.refresh_config_repo(repo)
+        result = ConfigRepos.refresh_config_repo(repo)
         repos = ConfigRepos.list_config_repos()
 
-        {:noreply,
-         socket
-         |> assign(:config_repos, repos)
-         |> put_flash(
-           :info,
-           "Re-parse triggered for '#{repo.url}'. (Git clone not yet wired — use Sync for now.)"
-         )}
+        socket =
+          case result do
+            {:ok, _} -> socket
+            {:error, reason} -> put_flash(socket, :error, "Cannot trigger '#{repo.url}': #{reason}")
+          end
+
+        {:noreply, assign(socket, :config_repos, repos)}
     end
   end
 
@@ -1196,16 +1196,16 @@ defmodule ExGoCDWeb.AdminLive do
         {:noreply, put_flash(socket, :error, "Config repo not found.")}
 
       repo ->
-        # Trigger a re-sync (in future: open wizard)
-        {:ok, updated} =
-          ConfigRepos.update_config_repo(repo, %{last_parsed_at: DateTime.utc_now()})
-
+        result = ConfigRepos.refresh_config_repo(repo)
         repos = ConfigRepos.list_config_repos()
 
-        {:noreply,
-         socket
-         |> assign(:config_repos, repos)
-         |> put_flash(:info, "Config repo '#{updated.url}' synced.")}
+        socket =
+          case result do
+            {:ok, _} -> socket
+            {:error, reason} -> put_flash(socket, :error, "Cannot sync '#{repo.url}': #{reason}")
+          end
+
+        {:noreply, assign(socket, :config_repos, repos)}
     end
   end
 

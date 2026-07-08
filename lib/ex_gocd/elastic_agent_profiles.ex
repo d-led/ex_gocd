@@ -85,115 +85,100 @@ defmodule ExGoCD.ElasticAgentProfiles do
   end
 
   @doc """
-  Auto-seeds Docker elastic agent profiles if none exist. Idempotent.
+  Auto-seeds Docker elastic agent profiles by name. Idempotent — skips profiles
+  that already exist so new profiles are added without touching existing ones.
 
-  Seeds four profiles, each mapping different resource sets to the right image:
-
-  | Profile              | Resources                  | Image                                    | Size   |
-  |----------------------|----------------------------|------------------------------------------|--------|
-  | docker-no-resources  | (none — default)           | ghcr.io/d-led/ex_gocd-agent:latest       | ~55MB  |
-  | docker-default       | java, gradle, git, docker, | gocd/gocd-agent-docker-24.5.0            | ~200MB |
-  |                      | python, node, ruby         |                                          |        |
-  | docker-rust-elixir   | rust, cargo, elixir        | ghcr.io/d-led/ex_gocd-agent:rust-elixir  | ~788MB |
-  | docker-golang        | go, golang                 | ghcr.io/d-led/ex_gocd-agent:golang       | ~487MB |
-
-  Returns :ok (seeded or already exists).
+  Returns :ok.
   """
   @spec maybe_auto_seed_docker_profile() :: :ok
   def maybe_auto_seed_docker_profile do
-    existing =
-      Repo.exists?(
-        from p in ElasticAgentProfile,
-          where: p.plugin_id == "cd.go.contrib.elastic-agent.docker"
-      )
+    min_image = "ghcr.io/d-led/ex_gocd-agent:latest"
+    java_image = "gocd/gocd-agent-docker-24.5.0"
+    rust_elixir_image = "ghcr.io/d-led/ex_gocd-agent:rust-elixir"
+    golang_image = "ghcr.io/d-led/ex_gocd-agent:golang"
+    ubuntu_image = "gocd/gocd-agent-ubuntu-24.04"
 
-    if existing do
-      :ok
-    else
-      min_image = "ghcr.io/d-led/ex_gocd-agent:latest"
-      java_image = "gocd/gocd-agent-docker-24.5.0"
-      rust_elixir_image = "ghcr.io/d-led/ex_gocd-agent:rust-elixir"
-      golang_image = "ghcr.io/d-led/ex_gocd-agent:golang"
-
-      # Profile 1: No resources — lightweight, no Java needed
-      %ElasticAgentProfile{}
-      |> ElasticAgentProfile.changeset(%{
+    profiles = [
+      %{
         name: "docker-no-resources",
-        plugin_id: "cd.go.contrib.elastic-agent.docker",
-        cluster_profile_id: "docker-local",
-        properties: %{
-          "Image" => min_image,
-          "MaxMemory" => "512m",
-          "MaxCPU" => "1.0",
-          "MinAgents" => 0
-        }
-      })
-      |> Repo.insert()
-
-      # Profile 2: Java/Gradle — needs JVM, handles most common tools
-      %ElasticAgentProfile{}
-      |> ElasticAgentProfile.changeset(%{
+        image: min_image,
+        memory: "512m",
+        cpu: "1.0",
+        resource_images: %{}
+      },
+      %{
         name: "docker-default",
-        plugin_id: "cd.go.contrib.elastic-agent.docker",
-        cluster_profile_id: "docker-local",
-        properties: %{
-          "Image" => java_image,
-          "MaxMemory" => "2g",
-          "MaxCPU" => "2.0",
-          "ResourceImages" => %{
-            "java" => java_image,
-            "gradle" => java_image,
-            "git" => java_image,
-            "docker" => java_image,
-            "python" => java_image,
-            "node" => java_image,
-            "ruby" => java_image
-          },
-          "MinAgents" => 0
+        image: java_image,
+        memory: "2g",
+        cpu: "2.0",
+        resource_images: %{
+          "java" => java_image,
+          "gradle" => java_image,
+          "git" => java_image,
+          "docker" => java_image,
+          "python" => java_image,
+          "node" => java_image,
+          "ruby" => java_image
         }
-      })
-      |> Repo.insert()
-
-      # Profile 3: Rust + Elixir — includes Rust, Cargo, Elixir, Erlang, build tools
-      %ElasticAgentProfile{}
-      |> ElasticAgentProfile.changeset(%{
+      },
+      %{
         name: "docker-rust-elixir",
-        plugin_id: "cd.go.contrib.elastic-agent.docker",
-        cluster_profile_id: "docker-local",
-        properties: %{
-          "Image" => rust_elixir_image,
-          "MaxMemory" => "2g",
-          "MaxCPU" => "2.0",
-          "ResourceImages" => %{
-            "rust" => rust_elixir_image,
-            "cargo" => rust_elixir_image,
-            "elixir" => rust_elixir_image
-          },
-          "MinAgents" => 0
+        image: rust_elixir_image,
+        memory: "2g",
+        cpu: "2.0",
+        resource_images: %{
+          "rust" => rust_elixir_image,
+          "cargo" => rust_elixir_image,
+          "elixir" => rust_elixir_image
         }
-      })
-      |> Repo.insert()
-
-      # Profile 4: Go — lightweight Go compiler + build-base for CGO
-      %ElasticAgentProfile{}
-      |> ElasticAgentProfile.changeset(%{
+      },
+      %{
         name: "docker-golang",
-        plugin_id: "cd.go.contrib.elastic-agent.docker",
-        cluster_profile_id: "docker-local",
-        properties: %{
-          "Image" => golang_image,
-          "MaxMemory" => "2g",
-          "MaxCPU" => "2.0",
-          "ResourceImages" => %{
-            "go" => golang_image,
-            "golang" => golang_image
-          },
-          "MinAgents" => 0
+        image: golang_image,
+        memory: "2g",
+        cpu: "2.0",
+        resource_images: %{
+          "go" => golang_image,
+          "golang" => golang_image
         }
-      })
-      |> Repo.insert()
+      },
+      %{
+        name: "docker-gradle-official",
+        image: ubuntu_image,
+        memory: "4g",
+        cpu: "2.0",
+        resource_images: %{
+          "java" => ubuntu_image,
+          "gradle" => ubuntu_image,
+          "git" => ubuntu_image,
+          "docker" => ubuntu_image
+        }
+      }
+    ]
 
-      :ok
-    end
+    Enum.each(profiles, fn p ->
+      unless repo_exists?(p.name) do
+        %ElasticAgentProfile{}
+        |> ElasticAgentProfile.changeset(%{
+          name: p.name,
+          plugin_id: "cd.go.contrib.elastic-agent.docker",
+          cluster_profile_id: "docker-local",
+          properties: %{
+            "Image" => p.image,
+            "MaxMemory" => p.memory,
+            "MaxCPU" => p.cpu,
+            "ResourceImages" => p.resource_images,
+            "MinAgents" => 0
+          }
+        })
+        |> Repo.insert()
+      end
+    end)
+
+    :ok
+  end
+
+  defp repo_exists?(name) do
+    Repo.exists?(from p in ElasticAgentProfile, where: p.name == ^name)
   end
 end

@@ -497,6 +497,20 @@ defmodule ExGoCDWeb.AdminK8sLive do
                 <div>
                   <span class="font-medium">Image:</span> {ElasticAgentProfile.image(profile)}
                 </div>
+                <%= if ElasticAgentProfile.resource_images(profile) do %>
+                  <div class="mt-2 pt-2 border-t border-gray-100">
+                    <span class="font-medium text-[11px] uppercase tracking-wide text-gray-500">Resource → Image Mapping:</span>
+                    <div class="mt-1 space-y-0.5">
+                      <%= for {resource, img} <- ElasticAgentProfile.resource_images(profile) |> Enum.sort() do %>
+                        <div class="flex items-center gap-1 text-[10px] font-mono">
+                          <span class="bg-gray-200 text-gray-700 px-1.5 py-0.5 rounded font-bold">{resource}</span>
+                          <span class="text-gray-400">→</span>
+                          <span class="text-gray-600 truncate" title={img}>{img}</span>
+                        </div>
+                      <% end %>
+                    </div>
+                  </div>
+                <% end %>
                 <div>
                   <span class="font-medium">Memory:</span> {ElasticAgentProfile.min_memory(profile)} → {ElasticAgentProfile.max_memory(
                     profile
