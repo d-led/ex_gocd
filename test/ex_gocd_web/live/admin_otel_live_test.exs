@@ -86,6 +86,13 @@ defmodule ExGoCDWeb.AdminOtelLiveTest do
       # In test, exporter is :none, so collector should show N/A
       assert html =~ "N/A"
     end
+
+    test "shows config source hint explaining why OTel is disabled", %{conn: conn} do
+      {:ok, _view, html} = live(conn, ~p"/admin/observability")
+
+      assert html =~ "Why this state?"
+      assert html =~ "config/test.exs"
+    end
   end
 
   describe "AdminOtelLive access control" do
@@ -136,6 +143,13 @@ defmodule ExGoCDWeb.AdminOtelLiveTest do
       assert Map.has_key?(status.instrumentation, :process_propagator)
     end
 
+    test "config_source explains why OTel is disabled in test" do
+      status = ExGoCD.Otel.Admin.status()
+
+      assert status.config_source =~ "config/test.exs"
+      assert status.config_source =~ "SDK disabled"
+    end
+
     test "status map has all expected keys" do
       status = ExGoCD.Otel.Admin.status()
 
@@ -148,7 +162,8 @@ defmodule ExGoCDWeb.AdminOtelLiveTest do
         :env_vars,
         :instrumentation,
         :collector_reachable,
-        :no_otel_env
+        :no_otel_env,
+        :config_source
       ]
 
       for key <- expected_keys do

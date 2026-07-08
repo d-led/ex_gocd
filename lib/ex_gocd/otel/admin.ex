@@ -19,7 +19,8 @@ defmodule ExGoCD.Otel.Admin do
       env_vars: env_vars(),
       instrumentation: instrumentation(),
       collector_reachable: collector_reachable?(),
-      no_otel_env: System.get_env("EX_GOCD_NO_OTEL") == "1"
+      no_otel_env: System.get_env("EX_GOCD_NO_OTEL") == "1",
+      config_source: config_source()
     }
   end
 
@@ -61,6 +62,27 @@ defmodule ExGoCD.Otel.Admin do
 
   defp service_name do
     Keyword.get(app_config(), :service_name, "ex_gocd")
+  end
+
+  # ── Config source (why is OTel in this state?) ────────────────────
+
+  defp config_source do
+    cond do
+      System.get_env("EX_GOCD_NO_OTEL") == "1" ->
+        "EX_GOCD_NO_OTEL=1 — tracing forcefully disabled"
+
+      Mix.env() == :test ->
+        "config/test.exs — SDK disabled for tests (sdk_disabled: true)"
+
+      exporter() == :otlp ->
+        "config/dev.exs — local OTLP → Jaeger (docker compose up -d jaeger otel-collector)"
+
+      Mix.env() == :dev ->
+        "config/config.exs fallback — exporter set to :none by default. Enable in config/dev.exs."
+
+      true ->
+        "config/config.exs — exporter set to :none"
+    end
   end
 
   # ── Environment variables ──────────────────────────────────────────

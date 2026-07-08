@@ -124,6 +124,24 @@ defmodule ExGoCDWeb.AdminOtelLive do
           />
         </div>
         
+    <!-- Config Source Hint -->
+        <div class={[
+          "border rounded p-4 text-xs flex items-start gap-3",
+          if(@status.sdk_enabled,
+            do: "bg-emerald-50 border-emerald-200 text-emerald-800",
+            else: "bg-amber-50 border-amber-200 text-amber-800"
+          )
+        ]}>
+          <i class={[
+            "fa mt-0.5",
+            if(@status.sdk_enabled, do: "fa-circle-info text-emerald-500", else: "fa-triangle-exclamation text-amber-500")
+          ]}></i>
+          <div>
+            <span class="font-bold">Why this state?</span>
+            <span class="ml-1">{@status.config_source}</span>
+          </div>
+        </div>
+
     <!-- Two-column detail panels -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <!-- Instrumentation Details -->
