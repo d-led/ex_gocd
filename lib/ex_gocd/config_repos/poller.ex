@@ -34,26 +34,28 @@ defmodule ExGoCD.ConfigRepos.Poller do
     {:ok, _} = :timer.send_interval(interval, :poll)
     # Poll immediately on startup — don't wait for the first interval
     send(self(), :poll)
-    {:ok, %{}}
+    {:ok, %{first_poll: true}}
   end
 
   @impl true
   def handle_info(:poll, state) do
+    first? = Map.get(state, :first_poll, false)
     repos = ConfigRepos.list_config_repos()
-    Enum.each(repos, &poll_repo/1)
-    {:noreply, state}
+    Enum.each(repos, &poll_repo(&1, first?))
+    {:noreply, %{first_poll: false}}
   end
 
   @impl true
   def handle_cast(:poll, state) do
+    first? = Map.get(state, :first_poll, false)
     repos = ConfigRepos.list_config_repos()
-    Enum.each(repos, &poll_repo/1)
-    {:noreply, state}
+    Enum.each(repos, &poll_repo(&1, first?))
+    {:noreply, %{first_poll: false}}
   end
 
   # -- Private --
 
-  defp poll_repo(repo) do
+  defp poll_repo(repo, first_poll?) do
     case ensure_cloned(repo) do
       {:ok, dir} ->
         case git_pull(dir) do
@@ -62,12 +64,15 @@ defmodule ExGoCD.ConfigRepos.Poller do
             parse_repo(repo, dir)
 
           :unchanged ->
-            # When multiple config repos share the same URL, the first one
-            # pulls all changes; subsequent repos see :unchanged and would
-            # never parse.  Parse anyway if this repo has never been
-            # parsed (last_parsed_at is nil).
-            if is_nil(repo.last_parsed_at) do
-              Logger.info("[ConfigRepoPoller] No git changes but repo #{repo.id} never parsed — forcing parse")
+            # Always parse on the first poll after startup so config repos
+            # pick up YAML changes that were pushed while the server was
+            # down or before the clone existed.
+            # Also parse if this repo has never been parsed.
+            if first_poll? or is_nil(repo.last_parsed_at) do
+              Logger.info(
+                "[ConfigRepoPoller] No git changes but repo #{repo.id} forcing parse (first_poll=#{first_poll?}, last_parsed=#{repo.last_parsed_at})"
+              )
+
               parse_repo(repo, dir)
             else
               :ok

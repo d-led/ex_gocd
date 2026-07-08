@@ -361,7 +361,18 @@ defmodule ExGoCD.ConfigRepos.Parser do
       exists? = Enum.any?(existing_mats, &(&1.url == mat_attrs.url && &1.type == mat_attrs.type))
 
       unless exists? do
-        case Repo.get_by(ExGoCD.Pipelines.Material, url: mat_attrs.url, type: mat_attrs.type) do
+        # Use first() instead of get_by() — duplicates can exist from seed + parser
+        import Ecto.Query, only: [from: 2]
+
+        material =
+          Repo.one(
+            from m in ExGoCD.Pipelines.Material,
+              where: m.url == ^mat_attrs.url and m.type == ^mat_attrs.type,
+              order_by: [asc: m.id],
+              limit: 1
+          )
+
+        case material do
           nil ->
             link_new_material(mat_attrs, pipeline.id, existing_mats)
 
