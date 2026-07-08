@@ -306,7 +306,7 @@ defmodule ExGoCD.ConfigXml do
 
         profile_count =
           Enum.reduce(elastic_profiles, 0, fn profile, acc ->
-            case ExGoCD.ElasticAgentProfiles.Repo.get_by(
+            case Repo.get_by(
                    ExGoCD.ElasticAgentProfiles.ElasticAgentProfile,
                    name: profile.name
                  ) do
@@ -827,9 +827,7 @@ defmodule ExGoCD.ConfigXml do
                   true -> to_string(v)
                 end
 
-              tag3("property", %{},
-                tag3("key", %{}, esc(k)) <> tag3("value", %{}, esc(value))
-              )
+              tag3("property", %{}, tag3("key", %{}, esc(k)) <> tag3("value", %{}, esc(value)))
             end)
             |> Enum.join("\n")
 

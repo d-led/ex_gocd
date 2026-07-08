@@ -72,7 +72,7 @@ defmodule ExGoCD.ElasticAgentProfiles do
               "MinCPU" => "1",
               "ImagePullPolicy" => "IfNotPresent",
               "Privileged" => "false",
-              "MinAgents" => 0
+              "MinAgents" => 1
             }
           })
           |> Repo.insert()
@@ -206,7 +206,7 @@ defmodule ExGoCD.ElasticAgentProfiles do
             "MaxMemory" => p.memory,
             "MaxCPU" => p.cpu,
             "ResourceImages" => p.resource_images,
-            "MinAgents" => 0
+            "MinAgents" => 1
           }
         })
         |> Repo.insert()

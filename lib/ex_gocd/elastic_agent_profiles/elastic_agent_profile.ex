@@ -58,6 +58,7 @@ defmodule ExGoCD.ElasticAgentProfiles.ElasticAgentProfile do
 
   @doc "Environment variables for the agent pod."
   def env_vars(%__MODULE__{properties: props}), do: Map.get(props, "Environment", [])
+  def env_vars(_), do: []
 
   @doc "Resource-to-image mapping for Docker elastic agents."
   def resource_images(%__MODULE__{properties: props}) do
@@ -68,7 +69,6 @@ defmodule ExGoCD.ElasticAgentProfiles.ElasticAgentProfile do
   end
 
   def resource_images(_), do: nil
-  def env_vars(_), do: []
 
   @doc "Pod labels."
   def pod_labels(%__MODULE__{properties: props}), do: Map.get(props, "PodLabels", %{})

@@ -57,6 +57,7 @@ defmodule ExGoCDWeb.ConfigXmlController do
         ExGoCD.ConfigSnapshot.after_mutation("admin", "config reverted from version")
 
         msg = "Imported #{p_count} pipeline(s), #{e_count} elastic profile(s)."
+
         conn
         |> put_flash(:info, msg)
         |> redirect(to: "/admin/config_xml")

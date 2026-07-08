@@ -1182,8 +1182,11 @@ defmodule ExGoCDWeb.AdminLive do
 
         socket =
           case result do
-            {:ok, _} -> socket
-            {:error, reason} -> put_flash(socket, :error, "Cannot trigger '#{repo.url}': #{reason}")
+            {:ok, _} ->
+              socket
+
+            {:error, reason} ->
+              put_flash(socket, :error, "Cannot trigger '#{repo.url}': #{reason}")
           end
 
         {:noreply, assign(socket, :config_repos, repos)}

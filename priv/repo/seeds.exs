@@ -1088,3 +1088,53 @@ unless Repo.get_by(Pipeline, name: "two-stage-demo") do
 
   IO.puts("Seeded: two-stage-demo (build → test, 3 historical runs)")
 end
+
+# ── Elastic Agent Profile seeding ─────────────────────────────────────────
+# Seeds Docker profiles with resource→image mappings so elastic agents
+# are ready to build jobs requesting resources like "gradle", "go", "rust", etc.
+# All profiles set MinAgents=1 so one agent is always idling.
+
+alias ExGoCD.ClusterProfiles
+alias ExGoCD.ElasticAgentProfiles
+alias ExGoCD.ElasticAgentProfiles.ElasticAgentProfile
+alias ExGoCD.ConfigRepos.ConfigRepo
+
+# Ensure docker-local cluster profile exists
+unless Repo.get_by(ClusterProfiles.ClusterProfile, name: "docker-local") do
+  %ClusterProfiles.ClusterProfile{}
+  |> ClusterProfiles.ClusterProfile.changeset(%{
+    name: "docker-local",
+    plugin_id: "cd.go.contrib.elastic-agent.docker",
+    properties: %{"docker_socket" => "unix:///var/run/docker.sock"}
+  })
+  |> Repo.insert!()
+
+  IO.puts("Seeded: cluster profile docker-local")
+end
+
+# Delegate to the idempotent auto-seed functions
+ElasticAgentProfiles.maybe_auto_seed_docker_profile()
+IO.puts("Seeded: Docker elastic agent profiles (#{Repo.aggregate(ElasticAgentProfile, :count)} total)")
+
+# ── Config repo seeding ───────────────────────────────────────────────────
+repo_urls = [
+  {"https://github.com/d-led/ex_gocd.git", "main", "gocd_pipeline"},
+  {"https://github.com/d-led/dont_wait_forever_for_the_tests.git", "master", "gocd_pipeline"},
+  {"https://github.com/d-led/dont_wait_forever_for_the_tests.git", "master", "github_actions"},
+  {"https://github.com/d-led/dont_wait_forever_for_the_tests.git", "master", "gitlab_ci"}
+]
+
+for {url, branch, source_type} <- repo_urls do
+  unless Repo.get_by(ConfigRepo, url: url, source_type: source_type) do
+    %ConfigRepo{}
+    |> ConfigRepo.changeset(%{
+      url: url,
+      branch: branch,
+      material_type: "git",
+      source_type: source_type
+    })
+    |> Repo.insert!()
+
+    IO.puts("Seeded: config repo #{source_type} → #{url}")
+  end
+end
