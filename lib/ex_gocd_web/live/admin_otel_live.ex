@@ -365,24 +365,27 @@ defmodule ExGoCDWeb.AdminOtelLive do
     "N/A"
   end
 
-  defp instrumentation_summary(%{instrumentation: %{phoenix: p, ecto: e, process_propagator: pp}}) do
-    active = Enum.count([p, e, pp], & &1)
-    "#{active}/3 active"
+  defp instrumentation_summary(%{instrumentation: %{phoenix: p, ecto: e}}) do
+    case {p, e} do
+      {true, true} -> "Active"
+      {true, false} -> "Partial (1 of 2)"
+      {false, true} -> "Partial (1 of 2)"
+      {false, false} -> "Inactive"
+    end
   end
 
   defp instrumentation_sub(%{sdk_enabled: false}) do
     "SDK disabled — handlers not attached"
   end
 
-  defp instrumentation_sub(%{instrumentation: %{phoenix: p, ecto: e, process_propagator: pp}}) do
+  defp instrumentation_sub(%{instrumentation: %{phoenix: p, ecto: e}}) do
     parts =
       []
       |> maybe_add(p, "Phoenix")
       |> maybe_add(e, "Ecto")
-      |> maybe_add(pp, "Process")
       |> Enum.join(", ")
 
-    if parts == "", do: "None active", else: parts
+    if parts == "", do: "No handlers attached", else: "Tracing: #{parts}"
   end
 
   defp maybe_add(acc, true, label), do: acc ++ [label]
