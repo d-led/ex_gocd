@@ -147,9 +147,9 @@ ex_gocd has achieved ~95% parity with GoCD. The remaining ~11 gaps are in 4 cate
 | A1 | **Encryption API** | `POST /go/api/admin/encrypt` | S | ✅ |
 | A2 | **Agent Health Monitoring** | `GET /health/v1/isConnectedToServer` | M | ❌ |
 | A3 | **Agent kill running tasks** | `POST /go/api/agents/:uuid/kill_running_tasks` | S | ✅ |
-| A4 | **Pipeline Groups Admin API** | CRUD `/go/api/admin/pipeline_groups` | M | ❌ |
-| A5 | **Backup Config API** | `GET/POST/DELETE /go/api/config/backup` | S | ❌ |
-| A6 | **Backup Status Tracking** | `GET /go/api/backups/:backup_id` | S | ❌ |
+| A4 | **Pipeline Groups Admin API** | CRUD `/go/api/admin/pipeline_groups` | M | ✅ |
+| A5 | **Backup Config API** | `GET/POST/DELETE /go/api/config/backup` | S | ✅ |
+| A6 | **Backup Status Tracking** | `GET /go/api/backups/:backup_id` | S | ✅ |
 
 ### 🟡 Category B: Partial Features (4)
 
@@ -158,14 +158,14 @@ ex_gocd has achieved ~95% parity with GoCD. The remaining ~11 gaps are in 4 cate
 | B1 | **Material VSM link in UI** | S | ✅ | Already wired in materials + pipeline activity |
 | B2 | **Missing webhook endpoints** | S | ✅ | bitbucket-server/cloud, hg, other-scm added |
 | B3 | **Feed XML incomplete** | S | ✅ | stage, job, material, scheduled-jobs feeds added |
-| B4 | **Agent UI search/filter/sort** | M | ❌ | Search box exists, not functional |
+| B4 | **Agent UI search/filter/sort** | M | ✅ | Search by hostname/IP/resources/envs, sort on all columns |
 
 ### 🟡 Category C: SCM & Package Ecosystem (2)
 
 | # | Gap | Effort | Status |
 |---|-----|--------|--------|
 | C1 | **Packages CRUD API** | M | ✅ |
-| C2 | **Pluggable SCM full CRUD** | S | ⚠️ | Materials are pipeline-managed, not independent |
+| C2 | **Pluggable SCM full CRUD** | S | ✅ | GET /api/scms (list), GET /api/scms/:id (show) |
 
 ### 🟡 Category D: Planned but Not Started (2)
 
@@ -189,11 +189,11 @@ ex_gocd has achieved ~95% parity with GoCD. The remaining ~11 gaps are in 4 cate
 
 | # | Gap | GoCD Behavior | Effort | Status |
 |---|-----|---------------|--------|--------|
-| E1 | **Dashboard: Changes link on cards** | Dropdown showing material revisions/build cause per instance | S | ❌ |
+| E1 | **Dashboard: Changes link on cards** | Dropdown showing material revisions/build cause per instance | S | ✅ |
 | E2 | **Dashboard: Stage overview popup** | Clicking stage pill shows popup with job details | M | ❌ |
-| E3 | **Dashboard: Group edit gear icon** | Edit pipeline group link on group heading (admin only) | S | ❌ |
-| E4 | **Dashboard: New Pipeline dropdown** | "Use Pipeline Wizard" / "Use Pipelines as Code" on group heading | S | ❌ |
-| E5 | **Job console: env-var echo too granular** | GoCD folds system bits into fewer commands; we echo each var into its own foldable block | S | ❌ |
+| E3 | **Dashboard: Group edit gear icon** | Edit pipeline group link on group heading (admin only) | S | ✅ |
+| E4 | **Dashboard: New Pipeline dropdown** | "Use Pipeline Wizard" / "Use Pipelines as Code" on group heading | S | ✅ |
+| E5 | **Job console: env-var echo too granular** | GoCD folds system bits into fewer commands; we echo each var into its own foldable block | S | ✅ |
 | E6 | **Nav menu wildness** | "Sharing with Agent" button appearing incorrectly; partial sidebar "A..." | S | ❌ |
 | E7 | **Stage details: missing links** | Stage Overview links to job details, config diff, pipeline compare | S | ✅ |
 
@@ -221,7 +221,7 @@ ex_gocd has achieved ~95% parity with GoCD. The remaining ~11 gaps are in 4 cate
 | Dashboard | VSM link per instance | ✅ |
 | Dashboard | Compare link | ✅ |
 | Dashboard | History link | ✅ |
-| Dashboard | Changes dropdown (material revisions) | ❌ (E1) |
+| Dashboard | Changes dropdown (material revisions) | ✅ (E1) |
 | Dashboard | Stage overview popup | ❌ (E2) |
 | Pipeline Activity | VSM per instance | ✅ |
 | Pipeline Activity | Material revision → material VSM | ✅ |
@@ -246,25 +246,18 @@ ex_gocd has achieved ~95% parity with GoCD. The remaining ~11 gaps are in 4 cate
 | Agents | Job name → Job Details | ✅ |
 | Admin Scheduling | Job name → Job Details | ✅ |
 
-### Remaining Gaps (10)
+### Remaining Gaps (9)
 
-#### Already Done (this session, 2026-07-08)
-1. ✅ XML import/export for `<artifacts>` (type=build|test) and `<tabs>`
-2. ✅ YAML config repo parser: normalize artifacts + tabs
-3. ✅ Scheduler: `uploadTestArtifact` for type=test
-4. ✅ Stage duration chart: human-readable axis + clickable dots
-5. ✅ E7: Stage details Config Diff + Compare links
-6. ✅ DB-backed test reports (JUnit/NUnit/XUnit)
-7. ✅ G2: Artifacts HTML View link
-8. ✅ G3: Custom tabs from job config
-9. ✅ Seeds: ex_gocd dogfood with test artifacts + tabs
+#### Done (2026-07-08 session)
+1-15. ✅ A1-A6, B1-B4, C1-C2, E1-E5, E7, G2-G3
 
 #### Remaining
-6. A5: Backup config API
-7. A6: Backup status tracking
-8. A4: Pipeline groups admin API
-9. C2: Pluggable SCM full CRUD
-10. C1: Packages CRUD API
+- D1: Artifact caching Phase 1 (M)
+- D2: Docker elastic agent path (L)
+- E2: Dashboard Stage overview popup (M)
+- E6: Nav menu wildness (S)
+- F1+F2: RBAC with Bodyguard (M)
+- G1: Tests tab LiveView-native (M)
 
 ### Phase 3: Features (M-L)
 11. B4: Agent UI search/filter/sort
