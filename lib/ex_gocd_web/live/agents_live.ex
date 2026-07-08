@@ -21,7 +21,7 @@ defmodule ExGoCDWeb.AgentsLive do
     {:ok,
      socket
      |> assign(
-       agents: fetch_agents(),
+       agents: fetch_agents(:static),
        registration_log: ExGoCD.Agents.registration_log(),
        selected_agents: MapSet.new(),
        agent_type: :static,
@@ -821,7 +821,11 @@ defmodule ExGoCDWeb.AgentsLive do
     """
   end
 
-  defp fetch_agents do
+  defp fetch_agents(:elastic) do
+    Agents.list_all_elastic_agents()
+  end
+
+  defp fetch_agents(_type) do
     Agents.list_agents()
     |> Enum.reject(& &1.deleted)
   end
@@ -917,12 +921,14 @@ defmodule ExGoCDWeb.AgentsLive do
   defp status_text(:building), do: "Building"
   defp status_text(:idle), do: "Idle"
   defp status_text(:unknown), do: "Unknown"
+  defp status_text(:reaped), do: "Reaped"
 
   defp status_class(:disabled), do: "status-disabled"
   defp status_class(:lost_contact), do: "status-lost-contact"
   defp status_class(:building), do: "status-building"
   defp status_class(:idle), do: "status-idle"
   defp status_class(:unknown), do: "status-unknown"
+  defp status_class(:reaped), do: "status-disabled"
 
   defp format_bytes(nil), do: "Unknown"
   defp format_bytes(bytes) when bytes < 1024, do: "#{bytes} B"
@@ -940,7 +946,7 @@ defmodule ExGoCDWeb.AgentsLive do
   end
 
   defp update_agents_list(socket) do
-    new_agents = fetch_agents()
+    new_agents = fetch_agents(socket.assigns.agent_type)
 
     selected =
       if socket.assigns[:selected_agents] do

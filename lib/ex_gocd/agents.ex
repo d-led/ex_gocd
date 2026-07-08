@@ -244,6 +244,21 @@ defmodule ExGoCD.Agents do
   end
 
   @doc """
+  Lists all agents including soft-deleted (terminated) elastic agents.
+  Used for historical audit on the elastic agents page.
+  """
+  def list_all_elastic_agents do
+    if use_mock?() do
+      Mock.list_agents() |> Enum.filter(&(not is_nil(&1.elastic_agent_id)))
+    else
+      from(a in Agent, where: not is_nil(a.elastic_agent_id) or a.deleted == false,
+        order_by: [desc: a.updated_at]
+      )
+      |> Repo.all()
+    end
+  end
+
+  @doc """
   Soft deletes ALL disabled agents. Returns count of deleted agents.
   """
   def clean_disabled_agents do
@@ -441,8 +456,10 @@ defmodule ExGoCD.Agents do
   they are ephemeral and auto-cleaned separately.
   """
   @spec effective_status(Agent.t(), keyword()) ::
-          :disabled | :lost_contact | :building | :idle | :unknown
+          :disabled | :lost_contact | :building | :idle | :unknown | :reaped
   def effective_status(agent, opts \\ [])
+
+  def effective_status(%Agent{deleted: true}, _opts), do: :reaped
   def effective_status(%Agent{disabled: true}, _opts), do: :disabled
 
   def effective_status(agent, opts) do
@@ -652,21 +669,32 @@ defmodule ExGoCD.Agents do
   """
   @spec reap_stale_agents() :: integer()
   def reap_stale_agents do
-    # Delete agents already marked as deleted
+    # Soft-delete stale elastic agents instead of hard-deleting — preserves audit trail
+    {elastic_terminated, _} =
+      from(a in Agent,
+        where:
+          not is_nil(a.elastic_agent_id) and
+            a.state in ["LostContact", "Idle"] and
+            a.deleted == false
+      )
+      |> Repo.update_all(set: [deleted: true, state: "Terminated"])
+
+    # Delete agents already marked as deleted that are NOT elastic
     {deleted_count, _} =
-      from(a in Agent, where: a.deleted == true)
+      from(a in Agent, where: a.deleted == true and is_nil(a.elastic_agent_id))
       |> Repo.delete_all()
 
-    # Delete LostContact agents without elastic_id (probably stale)
+    # Soft-delete LostContact agents without elastic_id
     {lost_count, _} =
       from(a in Agent,
-        where: a.state == "LostContact" and is_nil(a.elastic_agent_id)
+        where: a.state == "LostContact" and is_nil(a.elastic_agent_id) and a.deleted == false
       )
-      |> Repo.delete_all()
+      |> Repo.update_all(set: [deleted: true, state: "Terminated"])
 
-    # Deduplicate: keep only the most recent agent per hostname
+    # Deduplicate: keep only the most recent agent per hostname (non-elastic only)
     dup_counts =
       from(a in Agent,
+        where: is_nil(a.elastic_agent_id),
         group_by: a.hostname,
         having: count(a.id) > 1,
         select: {a.hostname, count(a.id)}
@@ -676,7 +704,10 @@ defmodule ExGoCD.Agents do
     dup_removed =
       Enum.reduce(dup_counts, 0, fn {hostname, _count}, acc ->
         agents =
-          from(a in Agent, where: a.hostname == ^hostname, order_by: [desc: a.updated_at])
+          from(a in Agent,
+            where: a.hostname == ^hostname and is_nil(a.elastic_agent_id),
+            order_by: [desc: a.updated_at]
+          )
           |> Repo.all()
 
         case agents do
@@ -690,15 +721,17 @@ defmodule ExGoCD.Agents do
         end
       end)
 
-    deleted_count + lost_count + dup_removed
+    elastic_terminated + deleted_count + lost_count + dup_removed
   end
 
-  @doc "Deletes all k8s elastic agents. Returns {count, nil}."
+  @doc "Soft-deletes all k8s elastic agents (preserves audit history). Returns {count, nil}."
   def reap_k8s_agents do
     from(a in Agent,
-      where: a.elastic_plugin_id == "ex_gocd.elasticagent.kubernetes"
+      where:
+        a.elastic_plugin_id == "ex_gocd.elasticagent.kubernetes" and
+          a.deleted == false
     )
-    |> Repo.delete_all()
+    |> Repo.update_all(set: [deleted: true, state: "Terminated"])
   end
 
   @doc """

@@ -1,7 +1,7 @@
 # ex_gocd — Feature Parity & Architecture
 
-> Last audited: 2026-07-08. 1002 tests. 67 controllers. 21 LiveView pages. 20 GenServers. 42 migrations.
-> **Status: 100% feature parity with GoCD.** 4 UI gaps being implemented.
+> Last audited: 2026-07-08. 1004 tests. 67 controllers. 23 LiveView pages. 20 GenServers. 42 migrations.
+> **Status: 100% feature parity with GoCD.** All gaps resolved.
 
 ---
 
@@ -19,7 +19,7 @@ distributed OTP cluster with plugin extensibility and built-in observability.
 | Plugins       | Standalone OTP applications, self-registering via libcluster  |
 | Observability | OpenTelemetry (OTLP → Jaeger), built-in VSM tracing           |
 | Frontend      | Phoenix LiveView (SSR) + Tailwind CSS + daisyUI               |
-| Testing       | ExUnit (949 tests) + Cypress E2E (16 specs) + Go tests        |
+| Testing       | ExUnit (1004 tests) + Cypress E2E (22 specs) + Go tests        |
 
 ### Cluster Topology
 
@@ -131,19 +131,9 @@ via `ExGoCD.Plugin.Registry`, using libcluster gossip and `PLUGIN_SECRET`.
 | Docker Elastic Agent | ✅ container lifecycle, resource→image | ✅ docker_elastic_agent_scheduler.ex |
 | Artifact Cache | ✅ zip cache, LRU eviction, 200MB default | ✅ artifact_cache.ex |
 
-### ✅ All gaps resolved
+### ✅ All gaps resolved (2026-07-08)
 
-D1 (artifact caching), D2 (docker elastic agent), and G1 (tests tab) all verified implemented.
-
-### Remaining Gaps (UI pages not yet implemented)
-
-- **Templates management LiveView** — API exists (`template_controller.ex`), no dedicated LiveView page for listing/creating/editing/deleting templates
-- **Preferences page** — No LiveView for user preferences (auto-refresh toggle, pipelines per page, etc.)
-- **SMTP/Mail host config** — No UI section for email notification configuration (mail host, port, credentials)
-- **Fan-in E2E Cypress** — Complex dependency scenarios need multi-pipeline + git material setup for browser-level testing
-
-### ✅ All UI gaps resolved (2026-07-08)
-
+D1 (artifact caching), D2 (docker elastic agent), G1 (tests tab), plus:
 - **Templates management** — AdminLive at `/admin/templates` with CRUD (create, edit, delete, FK protection)
 - **Preferences page** — LiveView at `/preferences` with auto-refresh toggle, pipelines-per-page config
 - **SMTP/Mail host config** — Server Configuration tab with host/port/credentials form
@@ -185,7 +175,7 @@ All internal navigation verified 2026-07-08.
 | `mix format --check-formatted` | ✅ |
 | `mix sobelow` | ✅ 0 findings |
 | `mix credo --strict` | ✅ |
-| `mix test` | ✅ 1002 passed |
+| `mix test` | ✅ 1004 passed |
 | `go vet ./...` | ✅ |
 | `go test ./...` | ✅ |
 | `golangci-lint run` | ✅ 0 issues |
