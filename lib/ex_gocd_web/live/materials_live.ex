@@ -203,18 +203,23 @@ defmodule ExGoCDWeb.MaterialsLive do
 
   defp get_latest_modification(mat) do
     if mat.type in ["git", "hg", "svn", "p4", "tfs", "pluggable_scm", "dependency"] do
-      # Query the DB for the most recent modification on this material.
-      # Never fabricate data — GoCD throws on empty modifications.
-      case ExGoCD.Pipelines.get_latest_modification(mat.id) do
-        nil -> nil
-        mod ->
-          %{
-            username: mod.username || mod.committer_name || "anonymous",
-            email: mod.email || mod.committer_email || "",
-            revision: mod.revision || "",
-            comment: mod.comment || "",
-            modified_time: mod.modified_time || mod.inserted_at
-          }
+      # Mock materials from test may not have :id — return nil in that case.
+      if is_nil(Map.get(mat, :id)) do
+        nil
+      else
+        case ExGoCD.Pipelines.get_latest_modification(mat.id) do
+          nil ->
+            nil
+
+          mod ->
+            %{
+              username: mod.username || mod.committer_name || "anonymous",
+              email: mod.email || mod.committer_email || "",
+              revision: mod.revision || "",
+              comment: mod.comment || "",
+              modified_time: mod.modified_time || mod.inserted_at
+            }
+        end
       end
     end
   end
@@ -608,29 +613,34 @@ defmodule ExGoCDWeb.MaterialsLive do
   end
 
   defp get_all_modifications(material) do
-    # Query real modifications from DB.  Never fabricate.
-    import Ecto.Query
-    alias ExGoCD.Repo
-    alias ExGoCD.Pipelines.Modification
-
-    mods = Repo.all(
-      from m in Modification,
-      where: m.material_id == ^material.id,
-      order_by: [desc: m.modified_time],
-      limit: 50
-    )
-
-    if mods == [] do
-      nil
+    # Query real modifications from DB. Mock materials may lack :id.
+    if is_nil(Map.get(material, :id)) do
+      []
     else
-      Enum.map(mods, fn mod ->
-        %{
-          username: mod.username || mod.committer_name || "anonymous",
-          revision: mod.revision || "",
-          comment: mod.comment || "",
-          modified_time: mod.modified_time || mod.inserted_at
-        }
-      end)
+      import Ecto.Query
+      alias ExGoCD.Repo
+      alias ExGoCD.Pipelines.Modification
+
+      mods =
+        Repo.all(
+          from m in Modification,
+            where: m.material_id == ^material.id,
+            order_by: [desc: m.modified_time],
+            limit: 50
+        )
+
+      if mods == [] do
+        []
+      else
+        Enum.map(mods, fn mod ->
+          %{
+            username: mod.username || mod.committer_name || "anonymous",
+            revision: mod.revision || "",
+            comment: mod.comment || "",
+            modified_time: mod.modified_time || mod.inserted_at
+          }
+        end)
+      end
     end
   end
 end

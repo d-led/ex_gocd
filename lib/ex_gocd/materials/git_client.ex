@@ -61,8 +61,14 @@ defmodule ExGoCD.Materials.GitClient do
 
       try do
         clone_args = [
-          "clone", "--depth", "1", "--single-branch",
-          "--branch", branch, url, dir
+          "clone",
+          "--depth",
+          "1",
+          "--single-branch",
+          "--branch",
+          branch,
+          url,
+          dir
         ]
 
         case System.cmd("git", clone_args, stderr_to_stdout: true) do
@@ -88,7 +94,10 @@ defmodule ExGoCD.Materials.GitClient do
             end
 
           {err, _} ->
-            Logger.debug("SCM Poller: shallow clone failed for #{url}: #{String.slice(err, 0, 200)}")
+            Logger.debug(
+              "SCM Poller: shallow clone failed for #{url}: #{String.slice(err, 0, 200)}"
+            )
+
             {:error, :clone_failed}
         end
       after

@@ -109,9 +109,9 @@ defmodule ExGoCDWeb.AgentsLiveTest do
       # Flash should show deletion count
       assert html =~ ~r{Deleted \d+ disabled agent}
 
-      # The disabled agent should be gone from the table
+      # Agent is now soft-deleted — should show as "Reaped" in the table
       table_html = view |> element(".agents-table") |> render()
-      refute table_html =~ "disabled-agent"
+      assert table_html =~ "Reaped"
     end
 
     test "non-admin cannot clean disabled agents", %{conn: conn} do

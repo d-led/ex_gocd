@@ -49,13 +49,9 @@ defmodule ExGoCDWeb.ValueStreamMapLiveTest do
     end
 
     test "does not crash when VSM has empty levels", %{conn: conn} do
-      # Given the mock data fallback always returns a VSM with levels
-      {:ok, _view, html} =
+      # Unknown fingerprint → redirects to pipelines with error flash
+      {:error, {:redirect, %{to: "/pipelines"}}} =
         live(conn, ~p"/materials/value_stream_map/0000000000000000/000000000000")
-
-      # Then it still renders without crashing (generic fallback)
-      assert html =~ "Materials"
-      assert html =~ "Revision"
     end
   end
 

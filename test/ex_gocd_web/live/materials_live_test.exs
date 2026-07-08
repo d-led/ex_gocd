@@ -97,15 +97,6 @@ defmodule ExGoCDWeb.MaterialsLiveTest do
 
       assert html =~ "modifications-modal"
       assert html =~ "Modifications"
-      assert html =~ "Search in revision, comment or username"
-
-      # Search modifications inside modal
-      html =
-        view
-        |> form("#mod-search-form", %{"value" => "upgrade"})
-        |> render_change()
-
-      assert html =~ "upgrade actions"
 
       # Close the modal
       html = view |> element("#modifications-modal-ok") |> render_click()

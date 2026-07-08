@@ -377,11 +377,24 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
 
   defp build_material_vsm_data(mat, fingerprint, revision) do
     # Look up the real modification from DB.  Never fabricate.
-    modification = ExGoCD.Pipelines.get_modification_by_revision(mat.id, revision)
+    # Mock materials from tests may not have :id.
+    modification =
+      if Map.has_key?(mat, :id) do
+        ExGoCD.Pipelines.get_modification_by_revision(mat.id, revision)
+      end
 
-    mod_user = if modification, do: "#{modification.username || modification.committer_name || "anonymous"} <#{modification.email || modification.committer_email || ""}>", else: "—"
+    mod_user =
+      if modification,
+        do:
+          "#{modification.username || modification.committer_name || "anonymous"} <#{modification.email || modification.committer_email || ""}>",
+        else: "—"
+
     mod_comment = if modification, do: modification.comment || "", else: ""
-    mod_time = if modification, do: format_time_fuzzy(modification.modified_time || modification.inserted_at), else: "—"
+
+    mod_time =
+      if modification,
+        do: format_time_fuzzy(modification.modified_time || modification.inserted_at),
+        else: "—"
 
     # Level 0 (SCM Material Node)
     material_node = %{
@@ -633,7 +646,8 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
 
   defp get_modification_from_rev(rev) do
     case List.first(rev["modifications"] || []) do
-      nil -> nil
+      nil ->
+        nil
 
       mod ->
         %{
@@ -647,12 +661,14 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
   end
 
   defp parse_or_default_time(nil), do: DateTime.utc_now()
+
   defp parse_or_default_time(time_str) when is_binary(time_str) do
     case DateTime.from_iso8601(time_str) do
       {:ok, dt, _} -> dt
       _ -> DateTime.utc_now()
     end
   end
+
   defp parse_or_default_time(_), do: DateTime.utc_now()
 
   defp fingerprint(mat) do
@@ -706,11 +722,11 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
   end
 
   defp build_matching_or_generic_vsm(nil, _material_fingerprint, _revision) do
-    raise "material fingerprint not found"
+    {:error, :not_found}
   end
 
   defp build_matching_or_generic_vsm(matching_mat, material_fingerprint, revision) do
-    build_material_vsm_data(matching_mat, material_fingerprint, revision)
+    {:ok, build_material_vsm_data(matching_mat, material_fingerprint, revision)}
   end
 
   # Returns stages for a pipeline node in the VSM.

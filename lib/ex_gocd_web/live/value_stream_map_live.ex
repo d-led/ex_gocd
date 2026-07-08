@@ -41,14 +41,22 @@ defmodule ExGoCDWeb.ValueStreamMapLive do
         Map.has_key?(params, "material_fingerprint") ->
           fingerprint = params["material_fingerprint"]
           revision = params["revision"]
-          assign_material_vsm(socket, fingerprint, revision)
+
+          case ValueStreamMap.get_material_vsm(fingerprint, revision) do
+            {:ok, vsm} ->
+              assign_material_vsm(socket, vsm, fingerprint, revision)
+
+            {:error, _} ->
+              socket
+              |> put_flash(:error, "Material not found.")
+              |> redirect(to: "/pipelines")
+          end
       end
 
     {:noreply, socket}
   end
 
-  defp assign_material_vsm(socket, fingerprint, revision) do
-    vsm = ValueStreamMap.get_material_vsm(fingerprint, revision)
+  defp assign_material_vsm(socket, vsm, _fingerprint, revision) do
     levels = Map.get(vsm, "levels", [])
     first_level = List.first(levels) || %{}
     nodes = Map.get(first_level, "nodes", [])

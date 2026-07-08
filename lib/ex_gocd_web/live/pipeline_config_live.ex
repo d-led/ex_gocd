@@ -341,7 +341,9 @@ defmodule ExGoCDWeb.PipelineConfigLive do
           </div>
 
           <div>
-            <label class="block text-xs font-bold text-slate-600 mb-1">Timer (cron or interval)</label>
+            <label class="block text-xs font-bold text-slate-600 mb-1">
+              Timer (cron or interval)
+            </label>
             <input
               type="text"
               name="timer"
