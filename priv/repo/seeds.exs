@@ -1127,7 +1127,7 @@ repo_urls = [
   {"https://github.com/d-led/ex_gocd.git", "main", "gocd_pipeline"},
   {"https://github.com/d-led/dont_wait_forever_for_the_tests.git", "master", "gocd_pipeline"},
   {"https://github.com/d-led/dont_wait_forever_for_the_tests.git", "master", "github_actions"},
-  {"https://github.com/d-led/dont_wait_forever_for_the_tests.git", "master", "gitlab_ci"}
+  {"https://github.com/d-led/java-testing-the-tests.git", "main", "gitlab_ci"}
 ]
 
 for {url, branch, source_type} <- repo_urls do
