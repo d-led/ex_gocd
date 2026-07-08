@@ -375,26 +375,30 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
     end
   end
 
-  defp build_material_vsm_data(mat, fingerprint, revision) do
-    # Look up the real modification from DB.  Never fabricate.
-    # Mock materials from tests may not have :id.
-    modification =
+  defp resolve_modification_for_vsm(mat, revision) do
+    mod =
       if Map.has_key?(mat, :id) do
         ExGoCD.Pipelines.get_modification_by_revision(mat.id, revision)
       end
 
-    mod_user =
-      if modification,
-        do:
-          "#{modification.username || modification.committer_name || "anonymous"} <#{modification.email || modification.committer_email || ""}>",
-        else: "—"
+    %{
+      user: build_mod_user(mod),
+      comment: build_mod_comment(mod),
+      modified_time: build_mod_time(mod)
+    }
+  end
 
-    mod_comment = if modification, do: modification.comment || "", else: ""
+  defp build_mod_user(nil), do: "—"
+  defp build_mod_user(mod), do: "#{mod.username || mod.committer_name || "anonymous"} <#{mod.email || mod.committer_email || ""}>"
 
-    mod_time =
-      if modification,
-        do: format_time_fuzzy(modification.modified_time || modification.inserted_at),
-        else: "—"
+  defp build_mod_comment(nil), do: ""
+  defp build_mod_comment(mod), do: mod.comment || ""
+
+  defp build_mod_time(nil), do: "—"
+  defp build_mod_time(mod), do: format_time_fuzzy(mod.modified_time || mod.inserted_at)
+
+  defp build_material_vsm_data(mat, fingerprint, revision) do
+    modification = resolve_modification_for_vsm(mat, revision)
 
     # Level 0 (SCM Material Node)
     material_node = %{
@@ -411,9 +415,9 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
           "modifications" => [
             %{
               "revision" => revision,
-              "user" => mod_user,
-              "comment" => mod_comment,
-              "modified_time" => mod_time,
+              "user" => modification.user,
+              "comment" => modification.comment,
+              "modified_time" => modification.modified_time,
               "locator" => "/materials/value_stream_map/#{fingerprint}/#{revision}"
             }
           ]
