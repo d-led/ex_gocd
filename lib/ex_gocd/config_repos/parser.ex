@@ -47,8 +47,8 @@ defmodule ExGoCD.ConfigRepos.Parser do
 
   Returns {:ok, count} with number of pipelines upserted, or {:error, reason}.
   """
-  @spec parse_and_upsert(String.t()) :: {:ok, integer()} | {:error, String.t()}
-  def parse_and_upsert(content) when is_binary(content) do
+  @spec parse_and_upsert(String.t(), integer() | nil) :: {:ok, integer()} | {:error, String.t()}
+  def parse_and_upsert(content, config_repo_id \\ nil) when is_binary(content) do
     # Split on YAML document separator (used by poller when concatenating files)
     docs = split_documents(content)
 
@@ -59,7 +59,7 @@ defmodule ExGoCD.ConfigRepos.Parser do
         if trimmed == "" do
           {:cont, {:ok, acc}}
         else
-          case parse_and_upsert_single(trimmed) do
+          case parse_and_upsert_single(trimmed, config_repo_id) do
             {:ok, count} -> {:cont, {:ok, acc + count}}
             {:error, reason} -> {:halt, {:error, reason}}
           end
@@ -72,10 +72,10 @@ defmodule ExGoCD.ConfigRepos.Parser do
     end
   end
 
-  defp parse_and_upsert_single(content) do
+  defp parse_and_upsert_single(content, config_repo_id) do
     with {:ok, parsed} <- parse_content(content),
          {:ok, pipelines} <- extract_pipelines(parsed),
-         {:ok, count} <- upsert_pipelines(pipelines) do
+         {:ok, count} <- upsert_pipelines(pipelines, config_repo_id) do
       {:ok, count}
     end
   end
@@ -276,17 +276,17 @@ defmodule ExGoCD.ConfigRepos.Parser do
     end)
   end
 
-  defp upsert_pipelines(pipelines) do
+  defp upsert_pipelines(pipelines, config_repo_id) do
     count =
       Enum.reduce(pipelines, 0, fn pipeline_def, acc ->
-        upsert_single_pipeline(pipeline_def)
+        upsert_single_pipeline(pipeline_def, config_repo_id)
         acc + 1
       end)
 
     {:ok, count}
   end
 
-  defp upsert_single_pipeline(pipeline_def) when is_map(pipeline_def) do
+  defp upsert_single_pipeline(pipeline_def, config_repo_id) when is_map(pipeline_def) do
     name = pipeline_def["name"] || raise("pipeline name is required")
     group = pipeline_def["group"] || "default"
 
@@ -297,7 +297,9 @@ defmodule ExGoCD.ConfigRepos.Parser do
       lock_behavior: pipeline_def["lock_behavior"] || "none",
       parameters: pipeline_def["parameters"] || %{},
       timer: pipeline_def["timer"],
-      timer_only_on_changes: pipeline_def["timer_only_on_changes"] || false
+      timer_only_on_changes: pipeline_def["timer_only_on_changes"] || false,
+      config_repo_id: config_repo_id,
+      source_file_path: pipeline_def["source_file_path"]
     }
 
     result =

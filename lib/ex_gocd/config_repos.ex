@@ -82,7 +82,7 @@ defmodule ExGoCD.ConfigRepos do
   @spec refresh_config_repo_with_content(ConfigRepo.t(), String.t()) ::
           {:ok, integer()} | {:error, String.t()}
   def refresh_config_repo_with_content(config_repo, content) when is_binary(content) do
-    case Parser.parse_and_upsert(content) do
+    case Parser.parse_and_upsert(content, config_repo.id) do
       {:ok, count} ->
         update_success(config_repo)
         {:ok, count}
