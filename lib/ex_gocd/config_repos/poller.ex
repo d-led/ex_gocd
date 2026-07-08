@@ -19,11 +19,11 @@ defmodule ExGoCD.ConfigRepos.Poller do
   # -- Client API --
 
   def start_link(opts \\ []) do
-    GenServer.start_link(__MODULE__, opts, name: __MODULE__)
+    GenServer.start_link(__MODULE__, opts, name: {:global, __MODULE__})
   end
 
   def poll_now do
-    GenServer.cast(__MODULE__, :poll)
+    GenServer.cast({:global, __MODULE__}, :poll)
   end
 
   # -- Callbacks --

@@ -64,9 +64,9 @@ defmodule ExGoCD.ConfigRepos do
   @spec refresh_config_repo(ConfigRepo.t()) :: {:ok, ConfigRepo.t()} | {:error, String.t()}
   def refresh_config_repo(config_repo) do
     # Delegate to the Poller process — it handles cloning, pulling, parsing.
-    # If the Poller is not running (e.g. tests), return a clear message.
-    case Process.whereis(ExGoCD.ConfigRepos.Poller) do
-      nil ->
+    # Poller is a Horde singleton registered via :global.
+    case :global.whereis_name(ExGoCD.ConfigRepos.Poller) do
+      :undefined ->
         {:error, "Poller not running — config repo sync unavailable"}
 
       _pid ->

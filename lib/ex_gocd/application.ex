@@ -56,6 +56,7 @@ defmodule ExGoCD.Application do
                  ExGoCD.Monitors.DiskSpace,
                  ExGoCD.ElasticAgentScheduler,
                  ExGoCD.DockerElasticAgentScheduler,
+                 ExGoCD.ConfigRepos.Poller,
                  ExGoCD.Backup,
                  ExGoCD.StartupReaper
                ] do
@@ -78,7 +79,6 @@ defmodule ExGoCD.Application do
         ExGoCDWeb.AgentPresence,
         ExGoCD.Plugin.Registry,
         ExGoCD.ClusterEventLog,
-        ExGoCD.ConfigRepos.Poller,
         ExGoCD.TestAgentSupervisor,
         # Per-node artifact cleanup (must run on every node with a disk cache,
         # NOT as a Horde singleton — each node has its own artifact storage)
