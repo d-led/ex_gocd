@@ -842,6 +842,21 @@ defmodule ExGoCDWeb.AdminK8sLive do
               </p>
             </div>
 
+            <div>
+              <label class="block text-sm font-medium mb-1">
+                Resource → Image Mapping (one per line, RESOURCE=IMAGE)
+              </label>
+              <textarea
+                name="agent[resource_images_text]"
+                rows="3"
+                class="w-full border rounded px-3 py-2 font-mono text-xs"
+                placeholder="java=gocd/gocd-agent-docker-24.5.0&#10;gradle=gocd/gocd-agent-docker-24.5.0&#10;go=ghcr.io/d-led/ex_gocd-agent:golang"
+              ><%= @agent_form[:resource_images_text].value %></textarea>
+              <p class="text-xs text-gray-500 mt-1">
+                Map job resources to specific container images. When a job requests a resource (e.g. "gradle"), the matching image is used. Falls back to the profile Image above if no match.
+              </p>
+            </div>
+
             <div class="flex justify-end gap-2 pt-4">
               <button
                 type="button"
@@ -904,6 +919,10 @@ defmodule ExGoCDWeb.AdminK8sLive do
       :pod_annotations_text,
       format_key_value(ElasticAgentProfile.pod_annotations(profile))
     )
+    |> Map.put(
+      :resource_images_text,
+      format_key_value(ElasticAgentProfile.resource_images(profile) || %{})
+    )
     |> ElasticAgentProfile.changeset(%{})
     |> to_form()
   end
@@ -961,6 +980,18 @@ defmodule ExGoCDWeb.AdminK8sLive do
         end
       end)
 
+    resource_images =
+      (params["resource_images_text"] || "")
+      |> String.split("\n", trim: true)
+      |> Enum.map(&String.trim/1)
+      |> Enum.reject(&(&1 == ""))
+      |> Enum.reduce(%{}, fn line, acc ->
+        case String.split(line, "=", parts: 2) do
+          [k, v] -> Map.put(acc, String.trim(k), String.trim(v))
+          _ -> acc
+        end
+      end)
+
     props = %{
       "Image" => Map.get(params, "image", "gocd/gocd-agent-docker-24.5.0"),
       "MaxMemory" => Map.get(params, "max_memory", "2Gi"),
@@ -972,7 +1003,8 @@ defmodule ExGoCDWeb.AdminK8sLive do
       "Environment" => env_vars,
       "ServiceAccount" => Map.get(params, "service_account", ""),
       "NodeSelector" => node_selector,
-      "PodAnnotations" => pod_annotations
+      "PodAnnotations" => pod_annotations,
+      "ResourceImages" => resource_images
     }
 
     %{

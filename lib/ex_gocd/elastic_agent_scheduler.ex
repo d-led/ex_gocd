@@ -371,7 +371,7 @@ defmodule ExGoCD.ElasticAgentScheduler do
   # ── Pod spec builder ───────────────────────────────────────────────────────
 
   defp build_pod_spec(agent_profile, _cluster_profile, job, resources) do
-    image = ElasticAgentProfile.image(agent_profile)
+    image = pick_image(agent_profile, resources)
     name = "gocd-elastic-#{agent_profile.name}-#{random_suffix()}"
     pull_policy = ElasticAgentProfile.image_pull_policy(agent_profile)
 
@@ -527,6 +527,23 @@ defmodule ExGoCD.ElasticAgentScheduler do
     |> :crypto.strong_rand_bytes()
     |> Base.encode32(case: :lower)
     |> binary_part(0, 5)
+  end
+
+  # ── Resource-based image selection ─────────────────────────────────────────
+
+  @doc """
+  Picks the container image for a job based on its resources.
+  Checks the profile's ResourceImages map first, falls back to the profile's Image.
+  """
+  defp pick_image(profile, resources) do
+    resource_images = Map.get(profile.properties || %{}, "ResourceImages", %{})
+
+    image =
+      Enum.find_value(resources, fn r ->
+        Map.get(resource_images, r)
+      end) || ElasticAgentProfile.image(profile)
+
+    image
   end
 
   # ── Event log (aggregated by type+message, latest timestamp) ───────────────
