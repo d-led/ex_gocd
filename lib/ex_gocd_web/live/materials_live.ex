@@ -203,28 +203,19 @@ defmodule ExGoCDWeb.MaterialsLive do
 
   defp get_latest_modification(mat) do
     if mat.type in ["git", "hg", "svn", "p4", "tfs", "pluggable_scm", "dependency"] do
-      {username, email, revision, comment, time} =
-        cond do
-          String.contains?(mat.url || "", "gocd/gocd") ->
-            {"Dmitry Ledentsov", "dmlled@yahoo.com", "05172d07f4f4a0765243628b94f6840f8dc5411a",
-             "upgrade actions and fix compilation warnings", ~U[2026-06-11 12:00:00Z]}
-
-          String.contains?(mat.url || "", "gocd/docs") ->
-            {"ExGoCD Team", "dev@exgocd.local", "98a7b6c5d4e3f2a10987654321abcdef01234567",
-             "Update materials page documentation for rewrite", ~U[2026-06-11 11:30:00Z]}
-
-          true ->
-            {"—", "", "",
-             "(awaiting first material poll)", DateTime.utc_now() |> DateTime.truncate(:second)}
-        end
-
-      %{
-        username: username,
-        email: email,
-        revision: revision,
-        comment: comment,
-        modified_time: time
-      }
+      # Query the DB for the most recent modification on this material.
+      # Never fabricate data — GoCD throws on empty modifications.
+      case ExGoCD.Pipelines.get_latest_modification(mat.id) do
+        nil -> nil
+        mod ->
+          %{
+            username: mod.username || mod.committer_name || "anonymous",
+            email: mod.email || mod.committer_email || "",
+            revision: mod.revision || "",
+            comment: mod.comment || "",
+            modified_time: mod.modified_time || mod.inserted_at
+          }
+      end
     end
   end
 
@@ -617,54 +608,29 @@ defmodule ExGoCDWeb.MaterialsLive do
   end
 
   defp get_all_modifications(material) do
-    cond do
-      String.contains?(material.url || "", "gocd/gocd") ->
-        [
-          %{
-            username: "Dmitry Ledentsov <dmlled@yahoo.com>",
-            revision: "05172d07f4f4a0765243628b94f6840f8dc5411a",
-            comment: "upgrade actions and fix compilation warnings",
-            modified_time: ~U[2026-06-11 12:00:00Z]
-          },
-          %{
-            username: "Dmitry Ledentsov <dmlled@yahoo.com>",
-            revision: "07ad87411d8c2e3612847d08f4f4a9846c9811ae",
-            comment: "Update dependencies and improve Gradle wrapper scripts",
-            modified_time: ~U[2026-06-11 11:30:00Z]
-          },
-          %{
-            username: "Dmitry Ledentsov <dmlled@yahoo.com>",
-            revision: "3318426632c028ba986e30cb7810df67cf9dbe80",
-            comment: "change the action name to use dynamic variables",
-            modified_time: ~U[2026-04-24 23:34:39Z]
-          }
-        ]
+    # Query real modifications from DB.  Never fabricate.
+    import Ecto.Query
+    alias ExGoCD.Repo
+    alias ExGoCD.Pipelines.Modification
 
-      String.contains?(material.url || "", "gocd/docs") ->
-        [
-          %{
-            username: "ExGoCD Team <dev@exgocd.local>",
-            revision: "98a7b6c5d4e3f2a10987654321abcdef01234567",
-            comment: "Update materials page documentation for rewrite",
-            modified_time: ~U[2026-06-11 11:30:00Z]
-          },
-          %{
-            username: "ExGoCD Team <dev@exgocd.local>",
-            revision: "87a6b5c4d3e2f1a0987654321abcdef012345678",
-            comment: "Clarify pipeline dependencies layout in documentation",
-            modified_time: ~U[2026-06-11 10:00:00Z]
-          }
-        ]
+    mods = Repo.all(
+      from m in Modification,
+      where: m.material_id == ^material.id,
+      order_by: [desc: m.modified_time],
+      limit: 50
+    )
 
-      true ->
-        [
-          %{
-            username: "—",
-            revision: "",
-            comment: "(awaiting first material poll)",
-            modified_time: DateTime.utc_now() |> DateTime.truncate(:second)
-          }
-        ]
+    if mods == [] do
+      nil
+    else
+      Enum.map(mods, fn mod ->
+        %{
+          username: mod.username || mod.committer_name || "anonymous",
+          revision: mod.revision || "",
+          comment: mod.comment || "",
+          modified_time: mod.modified_time || mod.inserted_at
+        }
+      end)
     end
   end
 end

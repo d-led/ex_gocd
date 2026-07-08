@@ -28,7 +28,7 @@ defmodule ExGoCDWeb.ValueStreamMapController do
   def show_material(conn, %{"material_fingerprint" => fingerprint, "revision" => revision_raw}) do
     revision = String.replace_suffix(revision_raw, ".json", "")
 
-    {:ok, vsm} = ValueStreamMap.get_material_vsm(fingerprint, revision)
+    vsm = ValueStreamMap.get_material_vsm(fingerprint, revision)
     json(conn, vsm)
   end
 end

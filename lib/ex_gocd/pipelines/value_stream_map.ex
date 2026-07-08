@@ -31,6 +31,7 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
 
   @doc """
   Generates VSM data for an SCM material fingerprint and revision.
+  Returns the VSM map (never fakes — raises on not found).
   """
   def get_material_vsm(material_fingerprint, revision) do
     all_mats =
@@ -138,8 +139,7 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
       material_nodes =
         materials
         |> Enum.map(fn mat ->
-          modification = get_mock_modification(mat)
-          build_material_node(mat, modification, pipeline_name)
+          build_material_node(mat, nil, pipeline_name)
         end)
 
       unrun_instance = build_unrun_instance(pipeline_name)
@@ -178,8 +178,7 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
 
   defp build_material_nodes_no_instance(materials, pipeline_name) do
     Enum.map(materials, fn mat ->
-      modification = get_mock_modification(mat)
-      build_material_node(mat, modification, pipeline_name)
+      build_material_node(mat, nil, pipeline_name)
     end)
   end
 
@@ -317,8 +316,7 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
       material_nodes =
         materials
         |> Enum.map(fn mat ->
-          modification = get_mock_modification(mat)
-          build_material_node(mat, modification, pipeline_name)
+          build_material_node(mat, nil, pipeline_name)
         end)
 
       # Target Pipeline node
@@ -378,7 +376,12 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
   end
 
   defp build_material_vsm_data(mat, fingerprint, revision) do
-    modification = get_mock_modification(mat) |> Map.put(:revision, revision)
+    # Look up the real modification from DB.  Never fabricate.
+    modification = ExGoCD.Pipelines.get_modification_by_revision(mat.id, revision)
+
+    mod_user = if modification, do: "#{modification.username || modification.committer_name || "anonymous"} <#{modification.email || modification.committer_email || ""}>", else: "—"
+    mod_comment = if modification, do: modification.comment || "", else: ""
+    mod_time = if modification, do: format_time_fuzzy(modification.modified_time || modification.inserted_at), else: "—"
 
     # Level 0 (SCM Material Node)
     material_node = %{
@@ -395,9 +398,9 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
           "modifications" => [
             %{
               "revision" => revision,
-              "user" => "#{modification.username} <#{modification.email}>",
-              "comment" => modification.comment,
-              "modified_time" => format_time_fuzzy(modification.modified_time),
+              "user" => mod_user,
+              "comment" => mod_comment,
+              "modified_time" => mod_time,
               "locator" => "/materials/value_stream_map/#{fingerprint}/#{revision}"
             }
           ]
@@ -445,11 +448,10 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
         %{"nodes" => pipeline_nodes}
       ] ++ downstream_levels
 
-    {:ok,
-     %{
-       "current_material" => fingerprint,
-       "levels" => levels
-     }}
+    %{
+      "current_material" => fingerprint,
+      "levels" => levels
+    }
   end
 
   defp get_downstream_pipelines(pipeline_name) do
@@ -624,15 +626,14 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
     revisions = cause["materialRevisions"] || []
 
     case Enum.find(revisions, &(&1["url"] == mat.url)) do
-      nil -> get_mock_modification(mat)
-      rev -> get_modification_from_rev(rev, mat)
+      nil -> nil
+      rev -> get_modification_from_rev(rev)
     end
   end
 
-  defp get_modification_from_rev(rev, mat) do
+  defp get_modification_from_rev(rev) do
     case List.first(rev["modifications"] || []) do
-      nil ->
-        get_mock_modification(mat)
+      nil -> nil
 
       mod ->
         %{
@@ -646,46 +647,13 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
   end
 
   defp parse_or_default_time(nil), do: DateTime.utc_now()
-
   defp parse_or_default_time(time_str) when is_binary(time_str) do
     case DateTime.from_iso8601(time_str) do
       {:ok, dt, _} -> dt
       _ -> DateTime.utc_now()
     end
   end
-
   defp parse_or_default_time(_), do: DateTime.utc_now()
-
-  defp get_mock_modification(mat) do
-    cond do
-      String.contains?(mat.url || "", "gocd/gocd") ->
-        %{
-          username: "Dmitry Ledentsov",
-          email: "dmlled@yahoo.com",
-          revision: "05172d07f4f4a0765243628b94f6840f8dc5411a",
-          comment: "upgrade actions and fix compilation warnings",
-          modified_time: ~U[2026-06-11 12:00:00Z]
-        }
-
-      String.contains?(mat.url || "", "gocd/docs") ->
-        %{
-          username: "ExGoCD Team",
-          email: "dev@exgocd.local",
-          revision: "98a7b6c5d4e3f2a10987654321abcdef01234567",
-          comment: "Update materials page documentation for rewrite",
-          modified_time: ~U[2026-06-11 11:30:00Z]
-        }
-
-      true ->
-        %{
-          username: "—",
-          email: "",
-          revision: "",
-          comment: "(awaiting first material poll)",
-          modified_time: DateTime.utc_now() |> DateTime.truncate(:second)
-        }
-    end
-  end
 
   defp fingerprint(mat) do
     :crypto.hash(:sha256, "#{mat.type}-#{mat.url || ""}-#{Map.get(mat, :branch) || ""}")
@@ -737,16 +705,8 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
     end)
   end
 
-  defp build_matching_or_generic_vsm(nil, material_fingerprint, revision) do
-    # Fallback: unknown fingerprint — return basic git material placeholder
-    generic_mat = %{
-      type: "git",
-      url: "https://github.com/d-led/ex_gocd.git",
-      branch: "main",
-      pipelines: []
-    }
-
-    build_material_vsm_data(generic_mat, material_fingerprint, revision)
+  defp build_matching_or_generic_vsm(nil, _material_fingerprint, _revision) do
+    raise "material fingerprint not found"
   end
 
   defp build_matching_or_generic_vsm(matching_mat, material_fingerprint, revision) do
@@ -788,6 +748,21 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
   defp build_material_node(mat, modification, pipeline_name) do
     fp = fingerprint(mat)
 
+    mod_data =
+      if modification do
+        [
+          %{
+            "revision" => modification.revision,
+            "user" => "#{modification.username} <#{modification.email}>",
+            "comment" => modification.comment,
+            "modified_time" => format_time_fuzzy(modification.modified_time),
+            "locator" => "/materials/value_stream_map/#{fp}/#{modification.revision}"
+          }
+        ]
+      else
+        []
+      end
+
     %{
       "id" => fp,
       "name" => mat.url || mat.type,
@@ -798,17 +773,7 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
       "dependents" => [pipeline_name],
       "material_names" => [mat.url || mat.type],
       "material_revisions" => [
-        %{
-          "modifications" => [
-            %{
-              "revision" => modification.revision,
-              "user" => "#{modification.username} <#{modification.email}>",
-              "comment" => modification.comment,
-              "modified_time" => format_time_fuzzy(modification.modified_time),
-              "locator" => "/materials/value_stream_map/#{fp}/#{modification.revision}"
-            }
-          ]
-        }
+        %{"modifications" => mod_data}
       ]
     }
   end

@@ -41,29 +41,29 @@ defmodule ExGoCDWeb.ValueStreamMapLive do
         Map.has_key?(params, "material_fingerprint") ->
           fingerprint = params["material_fingerprint"]
           revision = params["revision"]
-
-          {:ok, vsm} = ValueStreamMap.get_material_vsm(fingerprint, revision)
-
-          material_name =
-            vsm
-            |> Map.get("levels", [])
-            |> List.first(%{})
-            |> Map.get("nodes", [])
-            |> List.first(%{})
-            |> Map.get("name")
-
-          socket
-          |> assign(:vsm, vsm)
-          |> assign(:type, :material)
-          |> assign(:title, "Value Stream Map of #{Path.basename(material_name || "")}")
-          |> assign(:entity_label, "Material")
-          |> assign(:entity_name, material_name)
-          |> assign(:entity_counter_label, "Revision")
-          |> assign(:entity_counter, String.slice(revision, 0, 12))
-          |> assign(:entity_locator, "/materials?search=#{String.slice(revision, 0, 8)}")
+          assign_material_vsm(socket, fingerprint, revision)
       end
 
     {:noreply, socket}
+  end
+
+  defp assign_material_vsm(socket, fingerprint, revision) do
+    vsm = ValueStreamMap.get_material_vsm(fingerprint, revision)
+    levels = Map.get(vsm, "levels", [])
+    first_level = List.first(levels) || %{}
+    nodes = Map.get(first_level, "nodes", [])
+    first_node = List.first(nodes) || %{}
+    material_name = Map.get(first_node, "name")
+
+    socket
+    |> assign(:vsm, vsm)
+    |> assign(:type, :material)
+    |> assign(:title, "Value Stream Map of #{Path.basename(material_name || "")}")
+    |> assign(:entity_label, "Material")
+    |> assign(:entity_name, material_name)
+    |> assign(:entity_counter_label, "Revision")
+    |> assign(:entity_counter, String.slice(revision, 0, 12))
+    |> assign(:entity_locator, "/materials?search=#{String.slice(revision, 0, 8)}")
   end
 
   defp current?(node, vsm) do

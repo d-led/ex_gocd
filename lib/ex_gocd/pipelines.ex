@@ -1280,6 +1280,14 @@ defmodule ExGoCD.Pipelines do
   end
 
   @doc """
+  Gets a specific modification by material_id and revision.
+  Returns nil if not found — never fabricates data.
+  """
+  def get_modification_by_revision(material_id, revision) do
+    Repo.get_by(Modification, material_id: material_id, revision: revision)
+  end
+
+  @doc """
   Creates a modification record.
   """
   def create_modification(attrs \\ %{}) do
