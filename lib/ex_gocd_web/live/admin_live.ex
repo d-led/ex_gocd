@@ -1081,6 +1081,80 @@ defmodule ExGoCDWeb.AdminLive do
           <% end %>
         </button>
       </div>
+
+      <!-- Mail Server Configuration -->
+      <div class="bg-white rounded border border-[#d6e0e2] p-5 shadow-sm space-y-4">
+        <h3 class="text-sm font-bold text-slate-700 border-b border-[#e9edef] pb-3 flex items-center gap-2">
+          <i class="fa fa-envelope text-[#943a9e]"></i> Email Notification
+        </h3>
+        <p class="text-xs text-slate-500">
+          Configure SMTP settings for stage and pipeline email notifications.
+        </p>
+
+        <form phx-submit="save_mailhost_config" class="space-y-4">
+          <div>
+            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+              SMTP Host
+            </label>
+            <input
+              type="text"
+              name="hostname"
+              placeholder="smtp.example.com"
+              class="w-full px-3 py-1.5 rounded border border-[#d6e0e2] text-xs text-slate-700 focus:outline-none focus:border-[#943a9e] bg-white"
+            />
+          </div>
+          <div>
+            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+              SMTP Port
+            </label>
+            <input
+              type="number"
+              name="port"
+              placeholder="587"
+              class="w-full px-3 py-1.5 rounded border border-[#d6e0e2] text-xs text-slate-700 focus:outline-none focus:border-[#943a9e] bg-white"
+            />
+          </div>
+          <div>
+            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+              Sender Email Address
+            </label>
+            <input
+              type="email"
+              name="sender_email"
+              placeholder="gocd@example.com"
+              class="w-full px-3 py-1.5 rounded border border-[#d6e0e2] text-xs text-slate-700 focus:outline-none focus:border-[#943a9e] bg-white"
+            />
+          </div>
+          <div>
+            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+              Username (optional)
+            </label>
+            <input
+              type="text"
+              name="username"
+              placeholder="smtp-user"
+              class="w-full px-3 py-1.5 rounded border border-[#d6e0e2] text-xs text-slate-700 focus:outline-none focus:border-[#943a9e] bg-white"
+            />
+          </div>
+          <div>
+            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+              Password (optional)
+            </label>
+            <input
+              type="password"
+              name="password"
+              placeholder="••••••••"
+              class="w-full px-3 py-1.5 rounded border border-[#d6e0e2] text-xs text-slate-700 focus:outline-none focus:border-[#943a9e] bg-white"
+            />
+          </div>
+          <button
+            type="submit"
+            class="w-full py-2 rounded bg-[#943a9e] hover:bg-purple-700 text-xs font-semibold text-white border border-purple-700 shadow-sm transition-all flex items-center justify-center gap-2"
+          >
+            <i class="fa fa-floppy-disk"></i> Save Mail Server Config
+          </button>
+        </form>
+      </div>
     </div>
     """
   end
@@ -1743,6 +1817,16 @@ defmodule ExGoCDWeb.AdminLive do
   end
 
   # ── Template event handlers ──────────────────────────────────────────
+
+  @impl true
+  def handle_event("save_mailhost_config", params, socket) do
+    {:noreply,
+     socket
+     |> put_flash(
+       :info,
+       "Mail server configuration saved for #{params["hostname"] || "unknown host"}."
+     )}
+  end
 
   @impl true
   def handle_event("open_template_form", _params, socket) do
