@@ -62,9 +62,13 @@ pipelines:
                 - exec:
                     command: mix
                     arguments: [test]
-  # ── CI pipeline (manual trigger, depends on upstream-lib) ────────────
+  # ── CI pipeline (auto-trigger on every commit, runs quality + test) ──
   ex_gocd_ci:
     group: dogfood
+    materials:
+      main_repo:
+        git: https://github.com/d-led/ex_gocd.git
+        branch: main
     stages:
       - build:
           jobs:
@@ -90,9 +94,13 @@ pipelines:
                     command: bash
                     arguments: [scripts/quality-gate.sh]
 
-  # ── Docker pipeline (runs on docker-agent or elastic-docker-agent) ─────
+  # ── Docker pipeline (auto-trigger, runs on docker-agent or elastic-docker-agent) ──
   ex_gocd_docker:
     group: dogfood
+    materials:
+      main_repo:
+        git: https://github.com/d-led/ex_gocd.git
+        branch: main
     stages:
       - smoke:
           jobs:
