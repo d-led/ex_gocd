@@ -686,6 +686,22 @@ defmodule ExGoCDWeb.PipelineConfigLive do
           </div>
 
           <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">
+              Job Timeout (e.g. 10m, 1h, 0 = never)
+            </label>
+            <input
+              type="text"
+              name="timeout"
+              value={@job.timeout || "0"}
+              placeholder="0"
+              class="w-full px-3 py-2 rounded bg-white border border-[#d6e0e2] text-xs focus:outline-none focus:border-[#943a9e]"
+            />
+            <p class="text-[10px] text-slate-400 mt-0.5">
+              Cancel job if it runs longer than this. 0 or blank = never.
+            </p>
+          </div>
+
+          <div>
             <label class="block text-xs font-bold text-slate-600 mb-2">Agent Settings</label>
             <label class="flex items-center gap-2 cursor-pointer text-xs font-medium text-slate-700">
               <input
@@ -696,6 +712,19 @@ defmodule ExGoCDWeb.PipelineConfigLive do
                 class="checkbox checkbox-xs"
               /> Run on all agents
             </label>
+          </div>
+
+          <div class="border-t border-[#e9edef] pt-4">
+            <h3 class="text-xs font-bold text-slate-600 mb-2">Environment Variables</h3>
+            <p class="text-[10px] text-slate-400 mb-2">
+              One per line: KEY=VALUE
+            </p>
+            <textarea
+              name="environment_variables"
+              rows="4"
+              class="w-full px-3 py-2 rounded bg-white border border-[#d6e0e2] text-xs focus:outline-none focus:border-[#943a9e] font-mono"
+              placeholder="MIX_ENV=test&#10;DATABASE_URL=ecto://localhost/db"
+            ><%= (@job.environment_variables || %{}) |> Enum.map(fn {k, v} -> "#{k}=#{v}" end) |> Enum.join("\n") %></textarea>
           </div>
 
           <div class="pt-4">
@@ -1007,12 +1036,33 @@ defmodule ExGoCDWeb.PipelineConfigLive do
     group = params["group"]
     label_template = params["label_template"]
     lock_behavior = params["lock_behavior"]
+    timer = params["timer"] || ""
+    timer_only = params["timer_only_on_changes"] == "true"
     pipeline = socket.assigns.pipeline
+
+    # Parse environment variables
+    env_vars_text = params["environment_variables"] || ""
+
+    env_vars =
+      env_vars_text
+      |> String.split("\n", trim: true)
+      |> Enum.reduce(%{}, fn line, acc ->
+        case String.split(line, "=", parts: 2) do
+          [key, value] -> Map.put(acc, String.trim(key), String.trim(value))
+          _ -> acc
+        end
+      end)
+
+    # Timer: empty string or 0 means no timer
+    timer_value = if timer == "" or timer == "0", do: nil, else: timer
 
     case Pipelines.update_pipeline(pipeline, %{
            group: group,
            label_template: label_template,
-           lock_behavior: lock_behavior
+           lock_behavior: lock_behavior,
+           timer: timer_value,
+           timer_only_on_changes: timer_only,
+           environment_variables: env_vars
          }) do
       {:ok, updated} ->
         {:noreply,
@@ -1060,6 +1110,7 @@ defmodule ExGoCDWeb.PipelineConfigLive do
     name = params["name"]
     resources = params["resources"] || ""
     run_on_all_agents = params["run_on_all_agents"]
+    timeout = params["timeout"] || "0"
 
     resources_list =
       resources
@@ -1067,12 +1118,28 @@ defmodule ExGoCDWeb.PipelineConfigLive do
       |> Enum.map(&String.trim/1)
 
     run_on_all_agents_bool = run_on_all_agents == "true"
+
+    # Parse environment variables from KEY=VALUE lines
+    env_vars_text = params["environment_variables"] || ""
+
+    env_vars =
+      env_vars_text
+      |> String.split("\n", trim: true)
+      |> Enum.reduce(%{}, fn line, acc ->
+        case String.split(line, "=", parts: 2) do
+          [key, value] -> Map.put(acc, String.trim(key), String.trim(value))
+          _ -> acc
+        end
+      end)
+
     job = socket.assigns.active_job
 
     case Pipelines.update_job(job, %{
            name: name,
            resources: resources_list,
-           run_on_all_agents: run_on_all_agents_bool
+           run_on_all_agents: run_on_all_agents_bool,
+           timeout: timeout,
+           environment_variables: env_vars
          }) do
       {:ok, _updated} ->
         pipeline = Pipelines.get_pipeline_by_name!(socket.assigns.pipeline.name)
