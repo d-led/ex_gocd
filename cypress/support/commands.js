@@ -448,6 +448,36 @@ Cypress.Commands.add("theDashboardDoesNotShow", (name) => {
   cy.verifyPipelineNotVisible(name);
 });
 
+Cypress.Commands.add("theDashboardHasPipelines", (min = 1) => {
+  cy.verifyDashboardLoaded();
+  cy.get(SELECTORS.pipeline, { timeout: 10000 }).should(
+    "have.length.at.least",
+    min,
+  );
+});
+
+Cypress.Commands.add("theDashboardHasStages", (min = 1) => {
+  cy.get(`${SELECTORS.stageList} ${SELECTORS.stageBlock}`, {
+    timeout: 10000,
+  }).should("have.length.at.least", min);
+});
+
+Cypress.Commands.add("theStageIsWiredForLiveView", () => {
+  cy.get(`${SELECTORS.stageList} ${SELECTORS.stageBlock}`)
+    .first()
+    .then(($el) => {
+      expect($el.attr("phx-click")).to.eq("show_stage_summary");
+      expect($el.attr("phx-value-pipeline")).to.be.a("string").and.not.be.empty;
+      expect($el.attr("phx-value-stage")).to.be.a("string").and.not.be.empty;
+      expect($el.attr("phx-value-counter")).to.match(/^\d+$/);
+    });
+});
+
+Cypress.Commands.add("theDashboardHasTriggerButtons", () => {
+  cy.get(SELECTORS.playButton, { timeout: 5000 }).should("exist");
+  cy.get(SELECTORS.pauseButton, { timeout: 5000 }).should("exist");
+});
+
 // -- Agents -------------------------------------------------------------
 
 Cypress.Commands.add("switchToAgentTab", (tabName) => {
