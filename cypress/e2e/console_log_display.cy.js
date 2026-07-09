@@ -75,7 +75,10 @@ describe("Console Log Display", () => {
   it("timestamps toggle shows/hides timestamps via CSS class", function () {
     // Skip if no timestamped lines or toggle control exist
     cy.get("body").then(($body) => {
-      if ($body.find(".log-timestamp").length === 0 || $body.find("#toggle-timestamps").length === 0) {
+      if (
+        $body.find(".log-timestamp").length === 0 ||
+        $body.find("#toggle-timestamps").length === 0
+      ) {
         cy.log("** SKIP: timestamps or toggle not available on this page");
         return;
       }

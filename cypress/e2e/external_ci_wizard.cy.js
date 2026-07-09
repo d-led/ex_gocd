@@ -69,6 +69,8 @@ describe("External CI Repo Wizard E2E Tests", () => {
     // In mock mode or offline, the server cannot reach GitHub to discover
     // workflow files, so we verify only that step 1 renders correctly
     // (tested above) and that the wizard form is functional.
-    cy.log("File discovery (steps 2-4) requires GitHub API — not tested in mock mode");
+    cy.log(
+      "File discovery (steps 2-4) requires GitHub API — not tested in mock mode",
+    );
   });
 });

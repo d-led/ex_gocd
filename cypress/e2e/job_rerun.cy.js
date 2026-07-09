@@ -9,16 +9,26 @@ describe("Job Rerun", () => {
 
   it("dashboard renders pipelines with stage status indicators", () => {
     cy.get(".pipeline", { timeout: 10000 }).should("have.length.at.least", 1);
-    cy.get(".pipeline_stages .pipeline_stage").should("have.length.at.least", 1);
+    cy.get(".pipeline_stages .pipeline_stage").should(
+      "have.length.at.least",
+      1,
+    );
     cy.get(".pipeline_stage").should("exist");
   });
 
   it("stage click opens the stage summary popup", () => {
-    // Clicking a stage triggers a Phoenix LiveView phx-click event.
-    // Cypress click() may not reliably dispatch the LiveView event in all
-    // environments. Verify instead that the stage click target exists.
-    cy.get(".pipeline_stages .pipeline_stage").should("have.length.at.least", 1);
-    cy.get(".pipeline_stages .pipeline_stage").first().should("have.attr", "phx-click", "show_stage_summary");
+    // Click a stage indicator to trigger the LiveView phx-click event.
+    // The <a> has cursor:pointer and 34x16px dimensions. Use force:true
+    // because Cypress may consider the empty <a> (styled via ::before) non-actionable.
+    cy.get(".pipeline_stages .pipeline_stage").should(
+      "have.length.at.least",
+      1,
+    );
+    cy.get(".pipeline_stages .pipeline_stage").first().click({ force: true });
+
+    // LiveView round-trip: server sets @active_stage_summary, re-renders popup
+    cy.get(".stage-summary-popup", { timeout: 8000 }).should("be.visible");
+    cy.get(".stage-summary-header").should("contain", "Pipeline");
   });
 
   it("dashboard has pipeline trigger and pause buttons", () => {

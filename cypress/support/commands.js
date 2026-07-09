@@ -812,21 +812,34 @@ Cypress.Commands.add("hoverStillHighlightsNodes", () => {
     .filter((_i, el) => {
       const src = el.getAttribute("data-source-id");
       const tgt = el.getAttribute("data-target-id");
-      return src && src !== "null" && src !== "undefined" &&
-             tgt && tgt !== "null" && tgt !== "undefined";
+      return (
+        src &&
+        src !== "null" &&
+        src !== "undefined" &&
+        tgt &&
+        tgt !== "null" &&
+        tgt !== "undefined"
+      );
     })
-    .first().then(($arrow) => {
+    .first()
+    .then(($arrow) => {
       const srcId = $arrow.attr("data-source-id");
       const tgtId = $arrow.attr("data-target-id");
       if (srcId && tgtId) {
         cy.wrap($arrow).trigger("mouseenter", { force: true });
-        cy.get(`.vsm-node[data-id="${srcId}"]`).should("have.class", "vsm-path-highlighted");
-        cy.get(`.vsm-node[data-id="${tgtId}"]`).should("have.class", "vsm-path-highlighted");
+        cy.get(`.vsm-node[data-id="${srcId}"]`).should(
+          "have.class",
+          "vsm-path-highlighted",
+        );
+        cy.get(`.vsm-node[data-id="${tgtId}"]`).should(
+          "have.class",
+          "vsm-path-highlighted",
+        );
         cy.wrap($arrow).trigger("mouseleave", { force: true });
         cy.get(".vsm-node.vsm-path-highlighted").should("not.exist");
       }
     });
-  });
+});
 
 // -- Audit Log ----------------------------------------------------------
 

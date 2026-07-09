@@ -49,7 +49,8 @@ describe("Analytics — VSM", () => {
       cy.get("body").then(($body) => {
         const hasTrend = $body.text().includes("Cycle Time Trend");
         const hasEmpty = $body.text().includes("Select a pipeline");
-        expect(hasTrend || hasEmpty, "should show trend or empty state").to.be.true;
+        expect(hasTrend || hasEmpty, "should show trend or empty state").to.be
+          .true;
       });
     });
   });
@@ -63,7 +64,8 @@ describe("Analytics — VSM", () => {
       cy.get("body").then(($body) => {
         const hasTable = $body.find("table").length > 0;
         const hasEmpty = $body.text().includes("Select a pipeline");
-        expect(hasTable || hasEmpty, "should show table or empty state").to.be.true;
+        expect(hasTable || hasEmpty, "should show table or empty state").to.be
+          .true;
       });
     });
   });

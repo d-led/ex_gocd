@@ -38,7 +38,8 @@ describe("Stage Duration Chart", () => {
       cy.get("body").then(($body) => {
         const hasPassed = $body.text().includes("Passed");
         const hasNoRuns = $body.text().includes("No pipeline runs");
-        expect(hasPassed || hasNoRuns, "should show charts or no-runs message").to.be.true;
+        expect(hasPassed || hasNoRuns, "should show charts or no-runs message")
+          .to.be.true;
       });
     });
   });
