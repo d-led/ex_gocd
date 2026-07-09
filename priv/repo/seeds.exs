@@ -208,7 +208,7 @@ alias ExGoCD.ConfigRepos
 
 dont_wait_url = "https://github.com/d-led/dont_wait_forever_for_the_tests.git"
 
-unless Repo.get_by(ConfigRepo, url: dont_wait_url) do
+unless Repo.exists?(from c in ConfigRepo, where: c.url == ^dont_wait_url, limit: 1) do
   {:ok, cr} =
     %ConfigRepo{}
     |> ConfigRepo.changeset(%{

@@ -362,6 +362,7 @@ const VSMGraph = {
 
       nodes.forEach((node) => {
         const sourceId = node.dataset.id;
+        if (!sourceId) return;
         const source = nodeMap[sourceId];
         if (!source) return;
 

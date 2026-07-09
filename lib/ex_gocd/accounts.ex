@@ -444,7 +444,7 @@ defmodule ExGoCD.Accounts do
     %User{
       id: 1,
       username: "admin",
-      display_name: "Admin",
+      display_name: "System Administrator",
       roles: ["admin"],
       status: "Active",
       inserted_at: ~U[2026-01-01 00:00:00Z],

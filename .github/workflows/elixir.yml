@@ -257,7 +257,7 @@ jobs:
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: ex_gocd_dev
+          POSTGRES_DB: ex_gocd_cypress
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -269,22 +269,32 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: docker/setup-buildx-action@v4
-
-      - uses: docker/build-push-action@v7
+      - name: Set up Elixir
+        uses: erlef/setup-beam@v1
         with:
-          context: .
-          file: ./Dockerfile
-          load: true
-          tags: ex_gocd:ci
-          # No cache — always clean build for PR validation gate
+          elixir-version: '1.20.1'
+          otp-version: '29.0'
+
+      - name: Restore dependencies cache
+        uses: actions/cache@v6
+        with:
+          path: deps
+          key: ${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
+          restore-keys: ${{ runner.os }}-mix-
+
+      - name: Install Elixir dependencies
+        run: mix deps.get
+
+      - name: Compile
+        run: mix compile --force --warnings-as-errors
+        env:
+          CI: "true"
 
       - run: npm ci
 
-      - run: bash scripts/run_cypress_ci.sh
-
-      - if: failure()
-        run: docker logs ex_gocd_ci
+      - run: bash scripts/run_cypress.sh --port 4000 --browser electron
+        env:
+          CI: "true"
 
       - uses: dorny/test-reporter@v3
         if: always()
@@ -293,4 +303,5 @@ jobs:
           path: cypress/results/results-*.xml
           reporter: java-junit
           fail-on-error: false
+
 

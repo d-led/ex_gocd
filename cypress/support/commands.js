@@ -805,18 +805,28 @@ Cypress.Commands.add("vsmArrowsStillWork", () => {
 });
 
 Cypress.Commands.add("hoverStillHighlightsNodes", () => {
-  // Find the first visible arrow between a material node and a pipeline node
-  cy.get("#vsm-svg .vsm-path[data-source-id][data-target-id]").first().then(($arrow) => {
-    const srcId = $arrow.attr("data-source-id");
-    const tgtId = $arrow.attr("data-target-id");
-    if (srcId && tgtId) {
-      cy.hoverOnArrowBetween(srcId, tgtId);
-      cy.nodesShouldGlow(srcId, tgtId);
-      cy.moveMouseAwayFromArrowBetween(srcId, tgtId);
-      cy.noNodesShouldGlow();
-    }
+  // Find the first valid arrow and trigger hover/unhover directly,
+  // verifying node glow state. Works with raw DOM data-ids (fingerprint
+  // hashes) — does NOT use label-based helpers that depend on vsmNodeId.
+  cy.get("#vsm-svg .vsm-path[data-source-id][data-target-id]")
+    .filter((_i, el) => {
+      const src = el.getAttribute("data-source-id");
+      const tgt = el.getAttribute("data-target-id");
+      return src && src !== "null" && src !== "undefined" &&
+             tgt && tgt !== "null" && tgt !== "undefined";
+    })
+    .first().then(($arrow) => {
+      const srcId = $arrow.attr("data-source-id");
+      const tgtId = $arrow.attr("data-target-id");
+      if (srcId && tgtId) {
+        cy.wrap($arrow).trigger("mouseenter", { force: true });
+        cy.get(`.vsm-node[data-id="${srcId}"]`).should("have.class", "vsm-path-highlighted");
+        cy.get(`.vsm-node[data-id="${tgtId}"]`).should("have.class", "vsm-path-highlighted");
+        cy.wrap($arrow).trigger("mouseleave", { force: true });
+        cy.get(".vsm-node.vsm-path-highlighted").should("not.exist");
+      }
+    });
   });
-});
 
 // -- Audit Log ----------------------------------------------------------
 
