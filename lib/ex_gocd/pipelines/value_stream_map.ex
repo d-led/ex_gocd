@@ -389,7 +389,10 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
   end
 
   defp build_mod_user(nil), do: "—"
-  defp build_mod_user(mod), do: "#{mod.username || mod.committer_name || "anonymous"} <#{mod.email || mod.committer_email || ""}>"
+
+  defp build_mod_user(mod),
+    do:
+      "#{mod.username || mod.committer_name || "anonymous"} <#{mod.email || mod.committer_email || ""}>"
 
   defp build_mod_comment(nil), do: ""
   defp build_mod_comment(mod), do: mod.comment || ""
