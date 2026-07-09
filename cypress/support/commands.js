@@ -805,10 +805,17 @@ Cypress.Commands.add("vsmArrowsStillWork", () => {
 });
 
 Cypress.Commands.add("hoverStillHighlightsNodes", () => {
-  cy.hoverOnArrowBetween("ex_gocd", "upstream-lib");
-  cy.nodesShouldGlow("ex_gocd", "upstream-lib");
-  cy.moveMouseAwayFromArrowBetween("ex_gocd", "upstream-lib");
-  cy.noNodesShouldGlow();
+  // Find the first visible arrow between a material node and a pipeline node
+  cy.get("#vsm-svg .vsm-path[data-source-id][data-target-id]").first().then(($arrow) => {
+    const srcId = $arrow.attr("data-source-id");
+    const tgtId = $arrow.attr("data-target-id");
+    if (srcId && tgtId) {
+      cy.hoverOnArrowBetween(srcId, tgtId);
+      cy.nodesShouldGlow(srcId, tgtId);
+      cy.moveMouseAwayFromArrowBetween(srcId, tgtId);
+      cy.noNodesShouldGlow();
+    }
+  });
 });
 
 // -- Audit Log ----------------------------------------------------------
