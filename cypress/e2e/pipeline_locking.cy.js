@@ -1,34 +1,34 @@
-// Pipeline Locking tests: lock/unlock behavior on dashboard.
-// Covers ruby specs: PipelineLockingBehavior.spec, PipelineLockingOnDashboard.spec
+// Pipeline Locking tests.
+// Covers ruby specs: pipeline_api_spec.rb, stage_details_spec.rb
 
 describe("Pipeline Locking", () => {
+  const pipeline = "demo";
+
   beforeEach(() => {
     cy.visitPage("/pipelines");
+    cy.theDashboardHasPipelines();
   });
 
-  it("pipeline config page shows lock behavior setting", () => {
-    cy.get(".pipeline", { timeout: 10000 }).should("have.length.at.least", 1);
-
-    // Click on the first pipeline to open stage summary
-    cy.get(".pipeline_stages .pipeline_stage").first().click({ force: true });
-
-    cy.wait(300);
-
-    // If stage summary popup has a config link, click it
-    cy.get("body").then(($body) => {
-      if ($body.find(".stage-summary a:contains('Config')").length > 0) {
-        cy.get(".stage-summary a").contains("Config").click();
-        cy.url({ timeout: 5000 }).should("include", "/admin/pipelines");
-      }
-    });
+  it("given a pipeline, when it is not locked, then it is schedulable", () => {
+    cy.verifyPipelineIsNotLocked(pipeline);
   });
 
-  it("pipeline lock status is displayed on dashboard", () => {
-    // Check if any pipeline has a lock icon
-    cy.get("body").then(($body) => {
-      const lockIcons = $body.find(".pipeline_lock, [class*='lock']");
-      // At minimum, the dashboard should render (no crash means pass)
-      cy.get(".dashboard", { timeout: 5000 }).should("exist");
+  it("given an unlocked pipeline, when I unlock it, then it stays unlocked", () => {
+    cy.unlockPipeline(pipeline);
+    cy.verifyPipelineIsNotLocked(pipeline);
+  });
+
+  it("given an unlocked pipeline, when triggered via API, then it is accepted", () => {
+    cy.verifyPipelineIsNotLocked(pipeline);
+    cy.request({
+      method: "POST",
+      url: `/api/pipelines/${pipeline}/schedule`,
+      headers: {
+        accept: "application/vnd.go.cd+json",
+        "X-GoCD-Confirm": "true",
+      },
+    }).then((resp) => {
+      expect(resp.status).to.eq(202);
     });
   });
 });

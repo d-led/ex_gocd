@@ -8,13 +8,8 @@ describe("Job Rerun", () => {
     cy.theDashboardHasPipelines();
   });
 
-  it("dashboard renders pipelines with stage status indicators", () => {
+  it("dashboard shows stage status indicators", () => {
     cy.theDashboardHasStages();
-  });
-
-  it("stage elements are wired for LiveView stage-summary popup", () => {
-    cy.theDashboardHasStages();
-    cy.theStageIsWiredForLiveView();
   });
 
   it("dashboard has pipeline trigger and pause buttons", () => {

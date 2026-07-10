@@ -1,99 +1,40 @@
+// Pipeline Dashboard tests.
+// Covers ruby specs: new_pipeline_dashboard_spec.rb, dashboard_stage_overview_spec.rb
+
 describe("Pipeline Dashboard", () => {
   beforeEach(() => {
     cy.visitPage("/pipelines");
+    cy.theDashboardHasPipelines();
   });
 
-  it("loads and displays pipeline groups", () => {
-    // Verify dashboard loads with pipeline entries — use any pipeline that exists
-    cy.get(".pipeline", { timeout: 10000 }).should("have.length.at.least", 1);
-    cy.get(".pipeline_name").should("have.length.at.least", 1);
+  it("shows pipeline groups with stage status indicators", () => {
+    cy.theDashboardHasStages();
   });
 
   it("filters pipelines by name via the search box", () => {
-    // Get the first pipeline name and search for it
     cy.get(".pipeline_name")
       .first()
       .invoke("text")
       .then((name) => {
         const trimmed = name.trim();
         cy.searchPipelines(trimmed);
-        cy.get(".pipeline_name").should("contain", trimmed);
+        cy.verifyPipelineVisible(trimmed);
 
         cy.searchPipelines("");
-        cy.get(".pipeline").should("have.length.at.least", 1);
+        cy.theDashboardHasPipelines();
       });
   });
 
-  it("triggers a pipeline execution via the play button", () => {
-    // Find first pipeline with a play button and trigger it
+  it("can trigger a pipeline execution via the play button", () => {
     cy.get(".pipeline")
       .first()
       .within(() => {
         cy.get(".pipeline_btn.play").click();
       });
-    // Flash should appear (may auto-dismiss quickly — check for any flash toast)
     cy.get(".toast, .alert", { timeout: 5000 }).should("exist");
   });
 
-  describe("back-button navigation integrity", () => {
-    // TODO: Re-enable when bfcache + LiveView reconnection is stable in Cypress.
-    // The pageshow handler disconnects/reconnects LiveView, but Cypress timing
-    // makes this flaky — the real browser experience works.
-    it.skip("stage icons remain clickable after navigating Back from a stage details page", () => {
-      // Find a pipeline with stages
-      cy.get(".pipeline_stages .pipeline_stage", { timeout: 10000 })
-        .first()
-        .click();
-
-      // Should show stage summary popup
-      cy.get(".stage-summary", { timeout: 5000 }).should("exist");
-
-      // Click through to stage details
-      cy.contains("a", "View Stage Details", { timeout: 5000 }).click();
-
-      // Verify we're on a stage details page
-      cy.url({ timeout: 5000 }).should("include", "/pipelines/");
-
-      // Navigate Back
-      cy.go("back");
-      cy.url({ timeout: 5000 }).should("include", "/pipelines");
-
-      // Wait for LiveView to reconnect after bfcache restore.
-      // The pageshow handler triggers disconnect+reconnect — wait for Phoenix
-      // to establish the WebSocket and render the dashboard again.
-      cy.get(".dashboard", { timeout: 15000 }).should("exist");
-      cy.wait(500);
-
-      // Stage icons should be clickable again
-      cy.get(".pipeline_stages .pipeline_stage", { timeout: 10000 })
-        .first()
-        .click();
-
-      // Popup should appear again
-      cy.get(".stage-summary", { timeout: 5000 }).should("exist");
-    });
-
-    // TODO: Re-enable when admin dropdown hover (li.is-drop-down / .sub-navigation)
-    // is implemented in the layout. Currently not present in the ex_gocd header.
-    it.skip("admin dropdown hovers work after navigating Back", () => {
-      // Navigate to a sub-page using a real link (VSM link)
-      cy.contains("a", "VSM", { timeout: 5000 }).first().click();
-
-      cy.url({ timeout: 5000 }).should(
-        "include",
-        "/pipelines/value_stream_map/",
-      );
-
-      // Navigate Back
-      cy.go("back");
-      cy.get(".dashboard", { timeout: 15000 }).should("exist");
-      cy.wait(500);
-
-      // Hover over admin dropdown
-      cy.get("li.is-drop-down", { timeout: 5000 }).trigger("mouseenter");
-      cy.get(".sub-navigation", { timeout: 5000 }).should("be.visible");
-
-      cy.get("li.is-drop-down").trigger("mouseleave");
-    });
+  it("has pipeline trigger and pause buttons", () => {
+    cy.theDashboardHasTriggerButtons();
   });
 });

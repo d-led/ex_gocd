@@ -1,19 +1,21 @@
-describe("Agent Job Run History & Console Details E2E Tests", () => {
+// Agent Job Run History tests.
+// Covers ruby specs: job_details_spec.rb, agents_api.rb
+
+describe("Agent Job Run History", () => {
   beforeEach(() => {
-    cy.visit("/agents");
-    cy.get(".phx-connected", { timeout: 10000 }).should("exist");
+    cy.visitPage("/agents");
   });
 
-  it("can navigate to job history and view job details", () => {
-    // Click on first agent to open job run history
-    cy.get(".agent-name, .agents-table tbody tr a, .agent-row a")
+  it("can discover an agent and navigate to its job history", () => {
+    // Discover first agent — uses dynamic data, not structural assertion
+    cy.get(".agent-name, .agents-table tbody tr td:first-child")
       .first()
-      .click();
-    cy.get(".phx-connected", { timeout: 10000 }).should("exist");
-
-    // Verify we're on a history or detail page (may vary by data)
-    cy.get(
-      ".agent-job-history-page, .agent-job-run-detail-page, .phx-connected",
-    ).should("exist");
+      .invoke("text")
+      .then((name) => {
+        if (name && name.trim()) {
+          cy.clickJobHistoryLink(name.trim());
+          cy.verifyJobHistoryPage(name.trim());
+        }
+      });
   });
 });

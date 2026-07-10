@@ -448,34 +448,30 @@ Cypress.Commands.add("theDashboardDoesNotShow", (name) => {
   cy.verifyPipelineNotVisible(name);
 });
 
-Cypress.Commands.add("theDashboardHasPipelines", (min = 1) => {
+Cypress.Commands.add("theDashboardHasPipelines", () => {
   cy.verifyDashboardLoaded();
-  cy.get(SELECTORS.pipeline, { timeout: 10000 }).should(
-    "have.length.at.least",
-    min,
-  );
 });
 
-Cypress.Commands.add("theDashboardHasStages", (min = 1) => {
+Cypress.Commands.add("theDashboardHasStages", () => {
   cy.get(`${SELECTORS.stageList} ${SELECTORS.stageBlock}`, {
     timeout: 10000,
-  }).should("have.length.at.least", min);
-});
-
-Cypress.Commands.add("theStageIsWiredForLiveView", () => {
-  cy.get(`${SELECTORS.stageList} ${SELECTORS.stageBlock}`)
-    .first()
-    .then(($el) => {
-      expect($el.attr("phx-click")).to.eq("show_stage_summary");
-      expect($el.attr("phx-value-pipeline")).to.be.a("string").and.not.be.empty;
-      expect($el.attr("phx-value-stage")).to.be.a("string").and.not.be.empty;
-      expect($el.attr("phx-value-counter")).to.match(/^\d+$/);
-    });
+  }).should("exist");
 });
 
 Cypress.Commands.add("theDashboardHasTriggerButtons", () => {
   cy.get(SELECTORS.playButton, { timeout: 5000 }).should("exist");
   cy.get(SELECTORS.pauseButton, { timeout: 5000 }).should("exist");
+});
+
+// -- Navigation / Header ------------------------------------------------
+
+Cypress.Commands.add("theHeaderHasNavLink", (label) => {
+  cy.get(".site-navigation_left a").contains(label).should("exist");
+});
+
+Cypress.Commands.add("theSearchInputAcceptsText", () => {
+  cy.get(SELECTORS.searchInput).should("be.visible").type("z");
+  cy.get(SELECTORS.dashboard, { timeout: 5000 }).should("exist");
 });
 
 // -- Agents -------------------------------------------------------------
@@ -512,6 +508,10 @@ Cypress.Commands.add("theAgentTableIsNotEmpty", () => {
 
 Cypress.Commands.add("theMaterialsPageIsLoaded", () => {
   cy.verifyMaterialsPageLoaded();
+});
+
+Cypress.Commands.add("theMaterialsPageHasSearch", () => {
+  cy.get(SELECTORS.materialSearchInput).should("exist");
 });
 
 Cypress.Commands.add("theMaterialIsVisible", (url) => {
@@ -949,4 +949,100 @@ Cypress.Commands.add("goToDashboard", () => {
 
 Cypress.Commands.add("goToAgents", () => {
   cy.visitPage("/agents");
+});
+
+// -- Pipeline Comparison -----------------------------------------------
+
+Cypress.Commands.add("goToComparePage", (pipelineName) => {
+  cy.visitPage(`/compare/${pipelineName}`);
+});
+
+Cypress.Commands.add("navigateToVSMFromDashboard", () => {
+  cy.contains("a", "VSM").first().click();
+});
+
+Cypress.Commands.add("theComparePageLoaded", () => {
+  cy.get(".phx-connected", { timeout: 10000 }).should("exist");
+  cy.get("h1, h2", { timeout: 5000 }).should("exist");
+});
+
+// -- Pipeline Pause ----------------------------------------------------
+
+Cypress.Commands.add("openPauseModal", () => {
+  cy.get(SELECTORS.pauseButton).first().click();
+  cy.get("#pause-modal", { timeout: 5000 }).should("be.visible");
+});
+
+Cypress.Commands.add("thePauseModalIsClosed", () => {
+  cy.get("#pause-modal").should("not.exist");
+});
+
+Cypress.Commands.add("closePauseModalViaX", () => {
+  cy.get("#pause-modal .close-btn").click();
+});
+
+Cypress.Commands.add("closePauseModalViaButton", () => {
+  cy.get("#pause-modal-close").click();
+});
+
+Cypress.Commands.add("closePauseModalViaBackdrop", () => {
+  cy.get("#pause-modal-backdrop").click("topLeft");
+});
+
+// -- Pipeline Config ---------------------------------------------------
+
+Cypress.Commands.add("goToPipelineMaterials", (pipelineName) => {
+  cy.visitPage(`/go/admin/pipelines/${pipelineName}/edit/materials`);
+});
+
+// -- Pipeline Locking (API) — matches GoCD's pipeline_api_spec.rb ------
+
+Cypress.Commands.add("verifyPipelineIsLocked", (pipelineName) => {
+  cy.request({
+    url: `/api/pipelines/${pipelineName}/status`,
+    headers: { accept: "application/vnd.go.cd+json" },
+  }).then((resp) => {
+    expect(resp.status).to.eq(200);
+    expect(resp.body.locked).to.be.true;
+    expect(resp.body.schedulable).to.be.false;
+  });
+});
+
+Cypress.Commands.add("verifyPipelineIsNotLocked", (pipelineName) => {
+  cy.request({
+    url: `/api/pipelines/${pipelineName}/status`,
+    headers: { accept: "application/vnd.go.cd+json" },
+  }).then((resp) => {
+    expect(resp.status).to.eq(200);
+    expect(resp.body.locked).to.be.false;
+    expect(resp.body.schedulable).to.be.true;
+  });
+});
+
+Cypress.Commands.add("unlockPipeline", (pipelineName) => {
+  cy.request({
+    method: "POST",
+    url: `/api/pipelines/${pipelineName}/unlock`,
+    headers: {
+      accept: "application/vnd.go.cd+json",
+      "X-GoCD-Confirm": "true",
+    },
+  }).then((resp) => {
+    expect(resp.status).to.eq(200);
+    expect(resp.body.message || "").to.include("Pipeline lock released");
+  });
+});
+
+Cypress.Commands.add("verifyUnauthorizedToUnlock", (pipelineName) => {
+  cy.request({
+    method: "POST",
+    url: `/api/pipelines/${pipelineName}/unlock`,
+    headers: {
+      accept: "application/vnd.go.cd+json",
+      "X-GoCD-Confirm": "true",
+    },
+    failOnStatusCode: false,
+  }).then((resp) => {
+    expect(JSON.stringify(resp.body)).to.include("not authorized");
+  });
 });

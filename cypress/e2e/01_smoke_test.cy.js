@@ -25,36 +25,20 @@ describe("Smoke Test — App Health", () => {
   it("header navigation links are present", () => {
     cy.loginAsAdmin();
     cy.visitPage("/pipelines");
-    cy.get(".site-header", { timeout: 10000 }).should("be.visible");
-    cy.get(".site-navigation_left a").contains("Dashboard").should("exist");
-    cy.get(".site-navigation_left a").contains("Agents").should("exist");
-    cy.get(".site-navigation_left a").contains("Materials").should("exist");
-    cy.get(".site-navigation_left a").contains("Admin").should("exist");
+    ["Dashboard", "Agents", "Materials", "Admin"].forEach((label) => {
+      cy.theHeaderHasNavLink(label);
+    });
   });
 
-  it("dashboard search input is functional", () => {
+  it("dashboard search input accepts text", () => {
     cy.visitPage("/pipelines");
-
-    // Search input should exist and accept typing
-    cy.get("#pipeline-search").should("be.visible").type("z");
-
-    // Page should still be alive after typing
-    cy.get(".dashboard", { timeout: 5000 }).should("exist");
+    cy.theSearchInputAcceptsText();
   });
 
   it("navigates between pages without errors", () => {
     cy.visitPage("/pipelines");
-
-    // Click Agents nav link
-    cy.get(".site-navigation_left a").contains("Agents").click();
-    cy.visitPage("/agents");
-
-    // Click Materials nav link
-    cy.get(".site-navigation_left a").contains("Materials").click();
+    cy.goToAgents();
     cy.visitPage("/materials");
-
-    // Click back to Dashboard
-    cy.get(".site-navigation_left a").contains("Dashboard").click();
-    cy.visitPage("/pipelines");
+    cy.goToDashboard();
   });
 });
