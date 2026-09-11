@@ -11,7 +11,7 @@ defmodule ExGoCDWeb.PipelineActivityLiveTest do
       insert_job_instance: 4
     ]
 
-  @now ~U[2026-07-01 10:00:00.000000Z]
+  import ExGoCD.TestHelpers, only: [recent_instant: 0]
 
   describe "Pipeline Activity rendering" do
     test "renders history list for a valid pipeline", %{conn: conn} do
@@ -47,29 +47,30 @@ defmodule ExGoCDWeb.PipelineActivityLiveTest do
     test "shows stats bar with pass rate, MTTR, avg build/wait when DB data exists", %{conn: conn} do
       # Given a pipeline with completed runs in the database
       {_pipeline, stage, [job]} = insert_pipeline_with_jobs("stats-pipeline", 1)
+      now = recent_instant()
 
-      pi1 = insert_pipeline_instance_by_name("stats-pipeline", 1, @now)
-      si1 = insert_stage_instance(pi1.id, stage.name, created_time: @now)
+      pi1 = insert_pipeline_instance_by_name("stats-pipeline", 1, now)
+      si1 = insert_stage_instance(pi1.id, stage.name, created_time: now)
       # Passed run: assigned 60s after, completed 120s after
-      insert_job_instance(si1.id, job.name, @now, DateTime.add(@now, 120, :second))
+      insert_job_instance(si1.id, job.name, now, DateTime.add(now, 120, :second))
 
       pi2 =
         insert_pipeline_instance_by_name(
           "stats-pipeline",
           2,
-          DateTime.add(@now, 300, :second)
+          DateTime.add(now, 300, :second)
         )
 
       si2 =
-        insert_stage_instance(pi2.id, stage.name, created_time: DateTime.add(@now, 300, :second))
+        insert_stage_instance(pi2.id, stage.name, created_time: DateTime.add(now, 300, :second))
 
       # Failed run: assigned 30s after, completed 60s after
       ji2 =
         insert_job_instance(
           si2.id,
           job.name,
-          DateTime.add(@now, 300, :second),
-          DateTime.add(@now, 360, :second)
+          DateTime.add(now, 300, :second),
+          DateTime.add(now, 360, :second)
         )
 
       ExGoCD.Pipelines.complete_job_instance(ji2.id, "Failed")

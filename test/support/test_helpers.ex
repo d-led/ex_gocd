@@ -7,6 +7,16 @@ defmodule ExGoCD.TestHelpers do
   import ExUnit.Assertions, only: [flunk: 0]
 
   @doc """
+  Returns the current instant, truncated to microseconds.
+
+  Several aggregates only look back over a trailing window (for example
+  `ExGoCD.Analytics.pipeline_analytics/2` and `vsm_trends/2` default to 30
+  days), so fixture timestamps have to be anchored to the present. A hardcoded
+  date silently ages out of the window and turns such tests into false passes.
+  """
+  def recent_instant, do: DateTime.utc_now() |> DateTime.truncate(:microsecond)
+
+  @doc """
   Retries a zero-arity function up to `retries` times with `sleep_ms` between attempts.
   If the function never returns a truthy value, flunks the test.
   """

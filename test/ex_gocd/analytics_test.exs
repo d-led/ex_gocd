@@ -14,58 +14,53 @@ defmodule ExGoCD.AnalyticsTest do
       insert_pipeline_with_jobs: 2
     ]
 
-  @now ~U[2026-06-21 10:00:00.000000Z]
+  import ExGoCD.TestHelpers, only: [recent_instant: 0]
 
   describe "pipeline_analytics/2 avg_wait_time" do
     setup do
       {pipeline, stage, [job]} = insert_pipeline_with_jobs("wait-test-pipeline", 1)
 
-      %{pipeline: pipeline, stage: stage, job: job}
+      %{pipeline: pipeline, stage: stage, job: job, now: recent_instant()}
     end
 
-    test "returns avg wait time = assigned_at - inserted_at for first stage jobs" do
+    test "returns avg wait time = assigned_at - inserted_at for first stage jobs", %{now: now} do
       # Pipeline triggered at T+0
-      pi =
-        insert_pipeline_instance_by_name("wait-test-pipeline", 1, @now)
+      pi = insert_pipeline_instance_by_name("wait-test-pipeline", 1, now)
 
-      si =
-        insert_stage_instance(pi.id, "build", created_time: @now)
+      si = insert_stage_instance(pi.id, "build", created_time: now)
 
-      _ji =
-        insert_job_instance(si.id, "compile", @now, DateTime.add(@now, 120, :second))
+      _ji = insert_job_instance(si.id, "compile", now, DateTime.add(now, 120, :second))
 
-      # wait = 10:02 - 10:00 = 120s
+      # wait = T+120s - T = 120s
       result = Analytics.pipeline_analytics("wait-test-pipeline", 30)
 
       assert result.avg_wait_time_sec == 120.0
     end
 
-    test "averages wait times across multiple pipeline instances" do
+    test "averages wait times across multiple pipeline instances", %{now: now} do
       # Instance 1: wait 60s
-      pi1 =
-        insert_pipeline_instance_by_name("wait-test-pipeline", 1, @now)
+      pi1 = insert_pipeline_instance_by_name("wait-test-pipeline", 1, now)
 
-      si1 =
-        insert_stage_instance(pi1.id, "build", created_time: @now)
+      si1 = insert_stage_instance(pi1.id, "build", created_time: now)
 
-      insert_job_instance(si1.id, "compile", @now, DateTime.add(@now, 60, :second))
+      insert_job_instance(si1.id, "compile", now, DateTime.add(now, 60, :second))
 
       # Instance 2: wait 180s
       pi2 =
         insert_pipeline_instance_by_name(
           "wait-test-pipeline",
           2,
-          DateTime.add(@now, 300, :second)
+          DateTime.add(now, 300, :second)
         )
 
       si2 =
-        insert_stage_instance(pi2.id, "build", created_time: DateTime.add(@now, 300, :second))
+        insert_stage_instance(pi2.id, "build", created_time: DateTime.add(now, 300, :second))
 
       insert_job_instance(
         si2.id,
         "compile",
-        DateTime.add(@now, 300, :second),
-        DateTime.add(@now, 480, :second)
+        DateTime.add(now, 300, :second),
+        DateTime.add(now, 480, :second)
       )
 
       result = Analytics.pipeline_analytics("wait-test-pipeline", 30)
@@ -73,17 +68,15 @@ defmodule ExGoCD.AnalyticsTest do
       assert result.avg_wait_time_sec == 120.0
     end
 
-    test "uses earliest assigned_at among jobs in first stage" do
-      pi =
-        insert_pipeline_instance_by_name("wait-test-pipeline", 1, @now)
+    test "uses earliest assigned_at among jobs in first stage", %{now: now} do
+      pi = insert_pipeline_instance_by_name("wait-test-pipeline", 1, now)
 
-      si =
-        insert_stage_instance(pi.id, "build", created_time: @now)
+      si = insert_stage_instance(pi.id, "build", created_time: now)
 
       # Job A assigned later
-      insert_job_instance(si.id, "compile", @now, DateTime.add(@now, 300, :second))
+      insert_job_instance(si.id, "compile", now, DateTime.add(now, 300, :second))
       # Job B assigned earlier
-      insert_job_instance(si.id, "test", @now, DateTime.add(@now, 60, :second))
+      insert_job_instance(si.id, "test", now, DateTime.add(now, 60, :second))
 
       result = Analytics.pipeline_analytics("wait-test-pipeline", 30)
 
@@ -91,15 +84,13 @@ defmodule ExGoCD.AnalyticsTest do
       assert result.avg_wait_time_sec == 60.0
     end
 
-    test "ignores instances where no job has been assigned yet" do
+    test "ignores instances where no job has been assigned yet", %{now: now} do
       # Instance with no agent assignment (assigned_at = nil)
-      pi =
-        insert_pipeline_instance_by_name("wait-test-pipeline", 1, @now)
+      pi = insert_pipeline_instance_by_name("wait-test-pipeline", 1, now)
 
-      si =
-        insert_stage_instance(pi.id, "build", created_time: @now)
+      si = insert_stage_instance(pi.id, "build", created_time: now)
 
-      insert_job_instance_unassigned(si.id, "compile", @now)
+      insert_job_instance_unassigned(si.id, "compile", now)
 
       result = Analytics.pipeline_analytics("wait-test-pipeline", 30)
 
@@ -114,15 +105,13 @@ defmodule ExGoCD.AnalyticsTest do
       assert is_nil(result.avg_wait_time_sec)
     end
 
-    test "filters out instances where wait time is zero or negative" do
-      pi =
-        insert_pipeline_instance_by_name("wait-test-pipeline", 1, @now)
+    test "filters out instances where wait time is zero or negative", %{now: now} do
+      pi = insert_pipeline_instance_by_name("wait-test-pipeline", 1, now)
 
-      si =
-        insert_stage_instance(pi.id, "build", created_time: @now)
+      si = insert_stage_instance(pi.id, "build", created_time: now)
 
       # All assigned at same time as trigger → 0s wait, should be filtered out
-      insert_job_instance(si.id, "compile", @now, @now)
+      insert_job_instance(si.id, "compile", now, now)
 
       result = Analytics.pipeline_analytics("wait-test-pipeline", 30)
 
@@ -193,11 +182,12 @@ defmodule ExGoCD.AnalyticsTest do
 
     test "returns VSM data for pipeline with stage instances" do
       {pipeline, _, _} = insert_pipeline_with_jobs("vsm-test-pipe", 1)
+      now = recent_instant()
 
-      pi = insert_pipeline_instance_by_name("vsm-test-pipe", 1, @now)
-      si = insert_stage_instance(pi.id, "build", created_time: @now)
+      pi = insert_pipeline_instance_by_name("vsm-test-pipe", 1, now)
+      si = insert_stage_instance(pi.id, "build", created_time: now)
 
-      insert_job_instance(si.id, "compile", @now, DateTime.add(@now, 60, :second))
+      insert_job_instance(si.id, "compile", now, DateTime.add(now, 60, :second))
 
       result = Analytics.vsm_trends("vsm-test-pipe", 30)
 
@@ -212,10 +202,11 @@ defmodule ExGoCD.AnalyticsTest do
   describe "calc_mttr (Mean Time To Recovery)" do
     test "returns nil when all pipelines pass" do
       {pipeline, _, _} = insert_pipeline_with_jobs("mttr-all-pass", 1)
+      now = recent_instant()
 
-      pi1 = insert_pipeline_instance_by_name("mttr-all-pass", 1, @now)
-      si1 = insert_stage_instance(pi1.id, "build", created_time: @now)
-      insert_job_instance(si1.id, "compile", @now, DateTime.add(@now, 60, :second))
+      pi1 = insert_pipeline_instance_by_name("mttr-all-pass", 1, now)
+      si1 = insert_stage_instance(pi1.id, "build", created_time: now)
+      insert_job_instance(si1.id, "compile", now, DateTime.add(now, 60, :second))
       # Mark stage as passed
       Repo.update_all(from(s in ExGoCD.Pipelines.StageInstance, where: s.id == ^si1.id),
         set: [result: "Passed"]
@@ -229,9 +220,10 @@ defmodule ExGoCD.AnalyticsTest do
   describe "avg_build_time" do
     test "returns nil when no completed stages exist" do
       {pipeline, _, _} = insert_pipeline_with_jobs("build-time-pipe", 1)
+      now = recent_instant()
 
-      pi = insert_pipeline_instance_by_name("build-time-pipe", 1, @now)
-      _si = insert_stage_instance(pi.id, "build", created_time: @now)
+      pi = insert_pipeline_instance_by_name("build-time-pipe", 1, now)
+      _si = insert_stage_instance(pi.id, "build", created_time: now)
 
       result = Analytics.pipeline_analytics("build-time-pipe", 30)
       assert is_nil(result.avg_build_time_sec)
@@ -243,7 +235,7 @@ defmodule ExGoCD.AnalyticsTest do
   describe "vsm_workflow_trends/3" do
     test "returns pipelines list with source pipeline" do
       {pipeline, _, _} = insert_pipeline_with_jobs("vsm-wf-source", 1)
-      _pi = insert_pipeline_instance_by_name("vsm-wf-source", 1, @now)
+      _pi = insert_pipeline_instance_by_name("vsm-wf-source", 1, recent_instant())
 
       result = Analytics.vsm_workflow_trends("vsm-wf-source")
 
@@ -253,8 +245,8 @@ defmodule ExGoCD.AnalyticsTest do
     test "returns workflows grouped by source pipeline runs" do
       {pipeline, _, _} = insert_pipeline_with_jobs("vsm-wf-trends", 1)
 
-      t1 = @now
-      t2 = DateTime.add(@now, 600, :second)
+      t1 = recent_instant()
+      t2 = DateTime.add(t1, 600, :second)
 
       pi1 = insert_pipeline_instance_by_name("vsm-wf-trends", 1, t1)
       si1 = insert_stage_instance(pi1.id, "build", created_time: t1)
@@ -278,9 +270,10 @@ defmodule ExGoCD.AnalyticsTest do
     test "each workflow instance has pipeline_name, counter, and stages" do
       {pipeline, _, _} = insert_pipeline_with_jobs("vsm-wf-instance", 1)
 
-      pi = insert_pipeline_instance_by_name("vsm-wf-instance", 1, @now)
-      si = insert_stage_instance(pi.id, "build", created_time: @now)
-      insert_job_instance(si.id, "compile", @now, DateTime.add(@now, 120, :second))
+      now = recent_instant()
+      pi = insert_pipeline_instance_by_name("vsm-wf-instance", 1, now)
+      si = insert_stage_instance(pi.id, "build", created_time: now)
+      insert_job_instance(si.id, "compile", now, DateTime.add(now, 120, :second))
 
       result = Analytics.vsm_workflow_trends("vsm-wf-instance", nil, 10)
       wf = hd(result.workflows)
@@ -303,7 +296,7 @@ defmodule ExGoCD.AnalyticsTest do
     test "workflow start and end times are set correctly" do
       {pipeline, _, _} = insert_pipeline_with_jobs("vsm-wf-times", 1)
 
-      t = @now
+      t = recent_instant()
       pi = insert_pipeline_instance_by_name("vsm-wf-times", 1, t)
       si = insert_stage_instance(pi.id, "build", created_time: t)
       insert_job_instance(si.id, "compile", t, DateTime.add(t, 60, :second))
@@ -319,8 +312,8 @@ defmodule ExGoCD.AnalyticsTest do
     test "workflows are sorted by counter descending (newest first)" do
       {pipeline, _, _} = insert_pipeline_with_jobs("vsm-wf-sorted", 1)
 
-      t1 = @now
-      t2 = DateTime.add(@now, 600, :second)
+      t1 = recent_instant()
+      t2 = DateTime.add(t1, 600, :second)
 
       pi1 = insert_pipeline_instance_by_name("vsm-wf-sorted", 1, t1)
       si1 = insert_stage_instance(pi1.id, "build", created_time: t1)
@@ -346,9 +339,10 @@ defmodule ExGoCD.AnalyticsTest do
     test "returns stages for a specific workflow counter" do
       {_pipeline, _, _} = insert_pipeline_with_jobs("vsm-wfd-pipe", 1)
 
-      pi = insert_pipeline_instance_by_name("vsm-wfd-pipe", 3, @now)
-      si = insert_stage_instance(pi.id, "build", created_time: @now)
-      insert_job_instance(si.id, "compile", @now, DateTime.add(@now, 90, :second))
+      now = recent_instant()
+      pi = insert_pipeline_instance_by_name("vsm-wfd-pipe", 3, now)
+      si = insert_stage_instance(pi.id, "build", created_time: now)
+      insert_job_instance(si.id, "compile", now, DateTime.add(now, 90, :second))
 
       result = Analytics.vsm_workflow_time_distribution("vsm-wfd-pipe", 3)
 
@@ -363,9 +357,10 @@ defmodule ExGoCD.AnalyticsTest do
     test "stages include build_time_sec and wait_time_sec" do
       {_pipeline, _, _} = insert_pipeline_with_jobs("vsm-wfd-times", 1)
 
-      pi = insert_pipeline_instance_by_name("vsm-wfd-times", 1, @now)
-      si = insert_stage_instance(pi.id, "test-stage", created_time: @now)
-      insert_job_instance(si.id, "run", @now, DateTime.add(@now, 45, :second))
+      now = recent_instant()
+      pi = insert_pipeline_instance_by_name("vsm-wfd-times", 1, now)
+      si = insert_stage_instance(pi.id, "test-stage", created_time: now)
+      insert_job_instance(si.id, "run", now, DateTime.add(now, 45, :second))
 
       result = Analytics.vsm_workflow_time_distribution("vsm-wfd-times", 1)
 
