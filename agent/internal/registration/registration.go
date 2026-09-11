@@ -419,7 +419,7 @@ func (r *Registrar) tryDemoCookie(envVar, tokenFile string) (bool, error) {
 	return true, nil
 }
 
-// CreateTLSConfig creates a TLS config for WebSocket connection
+// CreateTLSConfig creates a TLS config for the HTTP remoting client.
 func (r *Registrar) CreateTLSConfig() (*tls.Config, error) {
 	return r.createTLSConfig(true)
 }

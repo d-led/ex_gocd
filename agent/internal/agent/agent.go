@@ -9,7 +9,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/md5"
-	"crypto/tls"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -24,6 +23,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -33,8 +33,8 @@ import (
 	agentdocker "github.com/d-led/ex_gocd/agent/internal/docker"
 	agentlog "github.com/d-led/ex_gocd/agent/internal/log"
 	"github.com/d-led/ex_gocd/agent/internal/registration"
+	"github.com/d-led/ex_gocd/agent/internal/remoting"
 	"github.com/d-led/ex_gocd/agent/internal/telemetry"
-	"github.com/d-led/ex_gocd/agent/internal/websocket"
 	"github.com/d-led/ex_gocd/agent/pkg/protocol"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -50,7 +50,7 @@ var ErrServerUnavailable = errors.New("gocd server unavailable")
 type Agent struct {
 	config    *config.Config
 	registrar *registration.Registrar
-	conn      *websocket.Connection
+	client    *remoting.Client
 	cookie    string
 	state     string
 
@@ -58,15 +58,11 @@ type Agent struct {
 	// idleSince is set when entering Idle state, cleared when building.
 	idleSince time.Time
 
-	// Heartbeat tracking: lastAck is updated on phx_reply. If the server stops
-	// acknowledging pings, we log a warning (once per missed window).
-	lastAck         time.Time
-	missedAckLogged bool
-
-	// Current build cancellation: guarded by buildMu
-	buildMu       sync.Mutex
-	currentBuild  string             // buildId of running build, or ""
-	cancelBuildFn context.CancelFunc // call to cancel current build
+	// Current build: guarded by buildMu.
+	buildMu        sync.Mutex
+	currentBuild   string             // buildId of running build, or ""
+	currentLocator string             // build locator of running build, or ""
+	cancelBuildFn  context.CancelFunc // call to cancel current build
 }
 
 // New creates a new Agent
@@ -82,7 +78,6 @@ func New(cfg *config.Config) (*Agent, error) {
 		registrar: registration.New(cfg),
 		state:     "Idle",
 		idleSince: time.Now(),
-		lastAck:   time.Now(),
 	}, nil
 }
 
@@ -131,307 +126,174 @@ func (a *Agent) Start(ctx context.Context) error {
 	}
 	agentlog.Logger.Info().Msg("Registration successful")
 
-	// Create TLS config for WebSocket
+	// Build the HTTP remoting client (TLS config is nil for plain HTTP).
 	tlsConfig, err := a.registrar.CreateTLSConfig()
 	if err != nil {
 		return fmt.Errorf("%w: failed to create TLS config: %w", ErrServerUnavailable, err)
 	}
 
-	// Main reconnection loop with exponential backoff.
-	// Backoff resets after a stable connection (>= minStableConnection) so that
-	// transient blips don't accumulate delay permanently.
-	const baseRetryDelay = 2 * time.Second
-	const maxRetryDelay = 60 * time.Second
-	const minStableConnection = 30 * time.Second
-
-	retryDelay := baseRetryDelay
-
-	for {
-		select {
-		case <-ctx.Done():
-			agentlog.Logger.Info().Msg("Agent shutting down...")
-			return nil
-		default:
-		}
-
-		// Try to connect and run
-		connStart := time.Now()
-		err := a.runWithConnection(ctx, tlsConfig)
-		if err == nil {
-			return nil // Clean shutdown
-		}
-
-		// Check if context was cancelled
-		if ctx.Err() != nil {
-			agentlog.Logger.Info().Msg("Agent shutting down...")
-			return nil
-		}
-
-		// Reset backoff if the connection was stable for a while before dropping.
-		// A long-lived connection that eventually drops is likely a transient blip,
-		// not a persistent infrastructure problem.
-		if time.Since(connStart) >= minStableConnection {
-			agentlog.Logger.Info().Dur("uptime", time.Since(connStart).Round(time.Second)).Msg("Connection was stable, resetting reconnect backoff")
-			retryDelay = baseRetryDelay
-		}
-
-		// Log error and retry with backoff
-		agentlog.Logger.Info().Err(err).Msg("Connection lost")
-		agentlog.Logger.Info().Dur("retry_delay", retryDelay).Msg("Reconnecting...")
-
-		select {
-		case <-time.After(retryDelay):
-			// Exponential backoff with max
-			retryDelay = retryDelay * 2
-			if retryDelay > maxRetryDelay {
-				retryDelay = maxRetryDelay
-			}
-		case <-ctx.Done():
-			agentlog.Logger.Info().Msg("Agent shutting down...")
-			return nil
-		}
+	client, err := remoting.NewClient(a.config, tlsConfig)
+	if err != nil {
+		return fmt.Errorf("%w: failed to create remoting client: %w", ErrServerUnavailable, err)
 	}
+	a.client = client
+
+	// Official agents fetch their session cookie once, right after registration.
+	cookieCtx, cookieSpan := tracer.Start(ctx, "agent.cookie.exchange",
+		trace.WithAttributes(attribute.String("agent.uuid", a.config.UUID)))
+	if cookie, err := client.GetCookie(cookieCtx, a.runtimeInfo()); err == nil {
+		a.cookie = cookie
+	} else {
+		agentlog.Logger.Warn().Err(err).Msg("get_cookie failed; continuing without a session cookie")
+	}
+	cookieSpan.End()
+
+	return a.run(ctx)
 }
 
-// runWithConnection establishes WebSocket and runs until disconnection
-func (a *Agent) runWithConnection(ctx context.Context, tlsConfig *tls.Config) error {
-	tracer := otel.Tracer("gocd-agent")
-
-	// Span covers WebSocket dial + join (not heartbeats)
-	hsCtx, hsSpan := tracer.Start(ctx, "agent.handshake",
-		trace.WithAttributes(
-			attribute.String("agent.uuid", a.config.UUID),
-			attribute.String("server.url", a.config.ServerURL.String()),
-			attribute.String("net.peer.name", a.config.ServerURL.Hostname()),
-			attribute.String("net.peer.port", a.config.ServerURL.Port()),
-		),
-	)
-
-	// Connect WebSocket
-	agentlog.Logger.Info().Msg("Connecting to server via WebSocket...")
-	conn, err := websocket.Connect(hsCtx, a.config, tlsConfig)
-	if err != nil {
-		hsSpan.RecordError(err)
-		hsSpan.SetStatus(codes.Error, "WebSocket dial failed")
-		hsSpan.End()
-		return fmt.Errorf("WebSocket connection failed: %w", err)
-	}
-	defer conn.Close()
-	a.conn = conn
-	a.lastAck = time.Now() // reset heartbeat timer on fresh connection
-	a.missedAckLogged = false
-	agentlog.Logger.Info().Msg("WebSocket connected")
-
-	// Send join so the server establishes the channel
-	if err := a.sendJoin(); err != nil {
-		return fmt.Errorf("failed to send join: %w", err)
-	}
-
-	hsSpan.SetStatus(codes.Ok, "connected")
-	hsSpan.End()
-
-	// Start ping ticker for heartbeats
+// run runs the agent's main poll loop: ping for heartbeats, get_work for
+// assignments, and idle-timeout enforcement. It returns only when ctx is done.
+func (a *Agent) run(ctx context.Context) error {
 	pingTicker := time.NewTicker(a.config.HeartbeatInterval)
 	defer pingTicker.Stop()
 
-	// Start idle timeout ticker (elastic agents only — IdleTimeout > 0).
-	// When the agent is idle longer than IdleTimeout, it exits cleanly so
-	// the supervisor (docker/process-compose) can terminate the container.
+	workTicker := time.NewTicker(a.config.WorkPollInterval)
+	defer workTicker.Stop()
+
+	// Idle timeout ticker (elastic agents only — IdleTimeout > 0). When the
+	// agent stays idle longer than IdleTimeout it exits cleanly so the
+	// supervisor (docker/process-compose) can terminate the container.
 	var idleTicker *time.Ticker
 	var idleTickerChan <-chan time.Time
 	if a.config.IdleTimeout > 0 {
-		// Check every second whether idle too long
 		idleTicker = time.NewTicker(1 * time.Second)
 		defer idleTicker.Stop()
 		idleTickerChan = idleTicker.C
 		agentlog.Logger.Info().Dur("idle_timeout", a.config.IdleTimeout).Msg("Elastic agent: idle timeout enabled")
 	}
 
-	// Main event loop
 	for {
 		select {
 		case <-ctx.Done():
+			agentlog.Logger.Info().Msg("Agent shutting down...")
 			return nil
 
 		case <-idleTickerChan:
-			if a.state == "Idle" && !a.idleSince.IsZero() {
-				if time.Since(a.idleSince) >= a.config.IdleTimeout {
-					agentlog.Logger.Info().Dur("idle_duration", time.Since(a.idleSince).Round(time.Second)).Dur("idle_timeout", a.config.IdleTimeout).Msg("Elastic agent idle timeout reached, shutting down cleanly")
-					return nil
-				}
+			if a.state == "Idle" && !a.idleSince.IsZero() && time.Since(a.idleSince) >= a.config.IdleTimeout {
+				agentlog.Logger.Info().Dur("idle_duration", time.Since(a.idleSince).Round(time.Second)).Dur("idle_timeout", a.config.IdleTimeout).Msg("Elastic agent idle timeout reached, shutting down cleanly")
+				return nil
 			}
 
 		case <-pingTicker.C:
-			// Warn if server hasn't acknowledged the previous ping within 2× heartbeat window.
-			if ackAge := time.Since(a.lastAck); ackAge > a.config.HeartbeatInterval*2 {
-				if !a.missedAckLogged {
-					agentlog.Logger.Warn().Dur("since_last_ack", ackAge.Round(time.Second)).Msg("Server not acknowledging heartbeats")
-					a.missedAckLogged = true
-				}
-			}
-			a.sendPing()
+			a.ping(ctx)
 
-		case msg, ok := <-conn.Receive():
-			if !ok {
-				agentlog.Logger.Info().Msg("WebSocket disconnected (receive channel closed); will reconnect")
-				return fmt.Errorf("WebSocket connection closed")
-			}
-			if err := a.handleMessage(msg); err != nil {
-				agentlog.Logger.Warn().Err(err).Msg("Fatal server message, reconnecting")
-				return err
-			}
+		case <-workTicker.C:
+			a.pollWork(ctx)
 		}
 	}
 }
 
-// handleMessage processes incoming messages from server
-func (a *Agent) handleMessage(msg *protocol.Message) error {
-	switch msg.Action {
-	case "phx_reply":
-		// Phoenix channel reply to our ping (heartbeat ack). Connection is active.
-		a.lastAck = time.Now()
-		a.missedAckLogged = false
-
-	case "presence_diff":
-		// Phoenix Presence broadcast (server tracks who is on the channel). No action needed.
-		// Ignore silently to avoid log noise.
-
-	case protocol.SetCookieAction:
-		// Server now sends %{"cookie" => ..., "traceparent" => ...}
-		// Extract cookie for auth, traceparent for cross-service tracing.
-		cookiePayload := msg.DataCookiePayload()
-		a.cookie = cookiePayload.Cookie
-		a.conn.SetCookie(cookiePayload.Cookie)
-		preview := cookiePayload.Cookie
-		if len(preview) > 8 {
-			preview = preview[:8] + "..."
-		}
-		agentlog.Logger.Info().
-			Str("cookie_preview", preview).
-			Str("traceparent", cookiePayload.TraceParent).
-			Int("traceparent_len", len(cookiePayload.TraceParent)).
-			Msg("Server set agent cookie")
-
-		// Trace cookie exchange linked to server's agent.connect span
-		cookieCtx := telemetry.ParentContextFromTraceParent(
-			context.Background(), cookiePayload.TraceParent, cookiePayload.TraceState)
-		_, cookieSpan := otel.Tracer("gocd-agent").Start(cookieCtx, "agent.cookie.exchange",
-			trace.WithAttributes(attribute.String("agent.uuid", a.config.UUID)))
-		cookieSpan.End()
-
-	case protocol.ReregisterAction:
-		agentlog.Logger.Info().Msg("Server requested re-registration")
-		// Clean up and exit - supervisor will restart
-		return fmt.Errorf("re-registration requested")
-
-	case protocol.CancelBuildAction:
-		buildID := msg.BuildIdFromData()
-		a.buildMu.Lock()
-		cancelFn := a.cancelBuildFn
-		matches := a.currentBuild == buildID
-		a.buildMu.Unlock()
-		if matches && cancelFn != nil {
-			agentlog.Logger.Info().Str("build_id", buildID).Msg("Cancelling build")
-			cancelFn()
-		} else if buildID != "" {
-			agentlog.Logger.Info().Str("build_id", buildID).Str("current_build", a.currentBuild).Msg("Cancel requested for non-current build")
-		}
-
-	case protocol.BuildAction:
-		build := msg.DataBuild()
-		if build != nil {
-			agentlog.Logger.Info().Str("build_id", build.BuildId).Str("locator", build.BuildLocatorForDisplay).Msg("Build assigned")
-			a.handleBuild(build)
-		} else {
-			agentlog.Logger.Info().Msg("Build assigned but failed to parse payload")
-		}
-
-	case "phx_close":
-		// Server closed the channel (e.g. duplicate join or intentional close); treat as normal close so we reconnect once
-		agentlog.Logger.Info().Msg("Server closed channel (phx_close); will reconnect")
-		return fmt.Errorf("channel closed by server")
-
-	case "phx_error":
-		// Server channel process crashed (phx_error); reconnect so pings reach the server.
-		// Without this, the agent stays on a dead channel and is marked LostContact.
-		agentlog.Logger.Info().Msg("Server channel error (phx_error); will reconnect")
-		return fmt.Errorf("channel error from server")
-
-	default:
-		// Unhandled action: likely a bug (new server message we don't support, or typo).
-		agentlog.Logger.Info().Str("action", msg.Action).Msg("Unknown message action")
-	}
-
-	return nil
-}
-
-// sendJoin sends the initial join so the server establishes the channel (once per connection).
-func (a *Agent) sendJoin() error {
-	info := a.getRuntimeInfo()
-	msg := protocol.JoinMessage(info)
-	return a.conn.Send(msg)
-}
-
-// sendPing sends a ping/heartbeat to the server
-func (a *Agent) sendPing() {
-	info := a.getRuntimeInfo()
-	msg := protocol.PingMessage(info)
-	if err := a.conn.Send(msg); err != nil {
-		agentlog.Logger.Warn().Err(err).Msg("Failed to send ping")
+// ping sends one heartbeat.
+func (a *Agent) ping(ctx context.Context) {
+	if err := a.client.Ping(ctx, a.runtimeInfo()); err != nil {
+		agentlog.Logger.Warn().Err(err).Msg("ping failed")
 	}
 }
 
-// getRuntimeInfo returns current agent runtime information
-func (a *Agent) getRuntimeInfo() *protocol.AgentRuntimeInfo {
+// pollWork asks the server for an assignment and runs it in the background so
+// heartbeats keep flowing while a build executes.
+func (a *Agent) pollWork(ctx context.Context) {
+	work, err := a.client.GetWork(ctx, a.runtimeInfo())
+	if err != nil {
+		agentlog.Logger.Warn().Err(err).Msg("get_work failed")
+		return
+	}
+	if work == nil {
+		return
+	}
+
+	a.buildMu.Lock()
+	busy := a.currentBuild != ""
+	a.buildMu.Unlock()
+	if busy {
+		agentlog.Logger.Warn().Str("build_id", a.currentBuild).Msg("Ignoring assignment while a build is already running")
+		return
+	}
+
+	go a.executeWork(work)
+}
+
+// runtimeInfo returns the agent's current self-description for remoting calls.
+func (a *Agent) runtimeInfo() *protocol.AgentRuntimeInfo {
+	a.buildMu.Lock()
+	locator := a.currentLocator
+	a.buildMu.Unlock()
+
+	buildingInfo := &protocol.AgentBuildingInfo{}
+	if locator != "" {
+		buildingInfo.BuildingInfo = locator
+		buildingInfo.BuildLocator = locator
+	}
+
 	return &protocol.AgentRuntimeInfo{
+		Type: "AgentRuntimeInfo",
 		Identifier: &protocol.AgentIdentifier{
 			HostName:  a.config.Hostname,
 			IpAddress: a.config.IPAddress,
 			Uuid:      a.config.UUID,
 		},
-		BuildingInfo: &protocol.AgentBuildingInfo{
-			BuildingInfo: "",
-			BuildLocator: "",
-		},
+		BuildingInfo:                 buildingInfo,
 		RuntimeStatus:                a.state,
 		Location:                     a.config.WorkingDir,
 		UsableSpace:                  getUsableSpace(),
 		OperatingSystemName:          runtime.GOOS,
 		Cookie:                       a.cookie,
+		AgentBootstrapperVersion:     remoting.AgentBootstrapperVersion,
+		AgentVersion:                 remoting.AgentVersion,
 		ElasticPluginId:              a.config.ElasticPluginID,
 		ElasticAgentId:               a.config.ElasticAgentID,
 		SupportsBuildCommandProtocol: true,
 	}
 }
 
-// handleBuild executes a build
-func (a *Agent) handleBuild(build *protocol.Build) {
+// executeWork runs one BuildWork assignment in a background goroutine.
+func (a *Agent) executeWork(work *remoting.Work) {
+	job := work.Assignment.JobIdentifier
+	build := a.client.Build(work)
+
 	a.state = "Building"
 	defer func() {
 		a.state = "Idle"
-		// Reset idle timer when build completes — elastic agents start counting idle time from here.
 		a.idleSince = time.Now()
 	}()
 
-	ctx, cancel := context.WithCancel(context.Background())
 	a.buildMu.Lock()
 	a.currentBuild = build.BuildId
-	a.cancelBuildFn = cancel
+	a.currentLocator = build.BuildLocator
 	a.buildMu.Unlock()
 	defer func() {
 		a.buildMu.Lock()
 		a.currentBuild = ""
+		a.currentLocator = ""
+		a.buildMu.Unlock()
+	}()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	a.buildMu.Lock()
+	a.cancelBuildFn = cancel
+	a.buildMu.Unlock()
+	defer func() {
+		a.buildMu.Lock()
 		a.cancelBuildFn = nil
 		a.buildMu.Unlock()
 	}()
 
-	// Extract W3C traceparent from server build payload → link agent spans
-	// under the server's pipeline.trigger trace.
-	agentlog.Logger.Info().Str("traceparent", build.TraceParent).Int("traceparent_len", len(build.TraceParent)).Msg("Build traceparent")
-	parentCtx := telemetry.ParentContextFromTraceParent(ctx, build.TraceParent, build.TraceState)
+	// Watch is_ignored so the server can cancel a discarded assignment.
+	go a.watchIgnored(ctx, cancel, job)
 
 	tracer := otel.Tracer("gocd-agent")
-	buildCtx, buildSpan := tracer.Start(parentCtx, "agent.build",
+	buildCtx, buildSpan := tracer.Start(ctx, "agent.build",
 		trace.WithAttributes(
 			attribute.String("build.id", build.BuildId),
 			attribute.String("build.locator", build.BuildLocator),
@@ -439,11 +301,11 @@ func (a *Agent) handleBuild(build *protocol.Build) {
 	)
 	defer buildSpan.End()
 
-	agentlog.Logger.Info().Str("build_id", build.BuildId).Msg("Executing build")
+	agentlog.Logger.Info().Str("build_id", build.BuildId).Str("locator", build.BuildLocator).Msg("Executing build")
 	if build.BuildCommand != nil {
-		agentlog.Logger.Info().Str("cmd_name", build.BuildCommand.Name).Str("cmd", build.BuildCommand.Command).Int("subcommands", len(build.BuildCommand.SubCommands)).Msg("Build command")
+		agentlog.Logger.Info().Str("cmd_name", build.BuildCommand.Name).Int("subcommands", len(build.BuildCommand.SubCommands)).Msg("Build command")
 	}
-	a.reportStatus(build.BuildId, "Building", "")
+	a.reportStatus(job, "Building", "")
 
 	result := "Passed"
 	if build.BuildCommand != nil && (build.BuildCommand.Command != "" || len(build.BuildCommand.SubCommands) > 0) {
@@ -460,18 +322,59 @@ func (a *Agent) handleBuild(build *protocol.Build) {
 			}
 		}
 	} else {
-		// No command: minimal success
+		// No command: minimal success.
 		select {
 		case <-time.After(500 * time.Millisecond):
-		case <-ctx.Done():
+		case <-buildCtx.Done():
 			result = "Cancelled"
 			buildSpan.SetStatus(codes.Error, "build cancelled")
 		}
 	}
 
 	buildSpan.SetAttributes(attribute.String("build.result", result))
-	a.reportStatus(build.BuildId, "Completing", result)
-	a.reportStatus(build.BuildId, "Completed", result)
+	a.reportStatus(job, "Completing", result)
+	a.reportStatus(job, "Completed", result)
+}
+
+// watchIgnored polls is_ignored and cancels the build when the server has
+// discarded the assignment.
+func (a *Agent) watchIgnored(ctx context.Context, cancel context.CancelFunc, job remoting.JobIdentifier) {
+	ticker := time.NewTicker(a.config.WorkPollInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			ignored, err := a.client.IsIgnored(ctx, a.runtimeInfo(), job)
+			if err != nil {
+				agentlog.Logger.Warn().Err(err).Msg("is_ignored check failed")
+				continue
+			}
+			if ignored {
+				agentlog.Logger.Info().Str("locator", job.Locator()).Msg("Assignment ignored by server; cancelling build")
+				cancel()
+				return
+			}
+		}
+	}
+}
+
+// reportStatus reports a job state/result back to the server.
+func (a *Agent) reportStatus(job remoting.JobIdentifier, jobState, result string) {
+	info := a.runtimeInfo()
+	var err error
+	switch jobState {
+	case "Completed":
+		err = a.client.ReportCompleted(context.Background(), info, job, result)
+	case "Completing":
+		err = a.client.ReportCompleting(context.Background(), info, job, result)
+	default:
+		err = a.client.ReportCurrentStatus(context.Background(), info, job, jobState)
+	}
+	if err != nil {
+		agentlog.Logger.Warn().Err(err).Str("job_state", jobState).Str("result", result).Msg("report status failed")
+	}
 }
 
 // runBuildCommand runs the build's command (or subCommands in sequence) in the agent working dir.
@@ -1275,7 +1178,7 @@ func unzipSecurely(zipPath string, destDir string) error {
 	return nil
 }
 
-// streamReaderToConsole reads lines from r, prefixes each with "HH:mm:ss.SSS [prefix]", and POSTs to consoleURL.
+// streamReaderToConsole reads lines from r, prefixes each with "HH:mm:ss.SSS [prefix]", and appends to consoleURL.
 func (a *Agent) streamReaderToConsole(consoleURL, linePrefix string, r io.Reader) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -1309,7 +1212,8 @@ func (a *Agent) streamReaderToConsole(consoleURL, linePrefix string, r io.Reader
 	}
 }
 
-// postConsole POSTs body as text/plain to the given URL.
+// postConsole appends body to the job's console log. The server expects a PUT
+// with the body length in X-Go-Artifact-Size (see test/fixtures/remoting/README.md).
 func (a *Agent) postConsole(consoleURL, body string) error {
 	if consoleURL == "" {
 		return nil
@@ -1318,11 +1222,12 @@ func (a *Agent) postConsole(consoleURL, body string) error {
 	if err != nil {
 		return fmt.Errorf("untrusted console URL: %w", err)
 	}
-	req, err := http.NewRequest(http.MethodPost, validatedURL, strings.NewReader(body))
+	req, err := http.NewRequest(http.MethodPut, validatedURL, strings.NewReader(body))
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Content-Type", "text/plain; charset=utf-8")
+	req.Header.Set("X-Go-Artifact-Size", strconv.Itoa(len(body)))
 
 	var client *http.Client
 	if parsed, _ := url.Parse(validatedURL); parsed != nil && parsed.Scheme == "https" {
@@ -1341,7 +1246,7 @@ func (a *Agent) postConsole(consoleURL, body string) error {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("console POST %s: %s", resp.Status, bytes.TrimSpace(mustRead(resp.Body)))
+		return fmt.Errorf("console upload %s: %s", resp.Status, bytes.TrimSpace(mustRead(resp.Body)))
 	}
 	return nil
 }
@@ -1349,28 +1254,6 @@ func (a *Agent) postConsole(consoleURL, body string) error {
 func mustRead(r io.Reader) []byte {
 	b, _ := io.ReadAll(r)
 	return b
-}
-
-// reportStatus reports job status to server
-func (a *Agent) reportStatus(buildID, jobState, result string) {
-	report := &protocol.Report{
-		BuildId:          buildID,
-		JobState:         jobState,
-		Result:           result,
-		AgentRuntimeInfo: a.getRuntimeInfo(),
-	}
-
-	var msg *protocol.Message
-	switch jobState {
-	case "Completed":
-		msg = protocol.ReportCompletedMessage(report)
-	case "Completing":
-		msg = protocol.ReportCompletingMessage(report)
-	default:
-		msg = protocol.ReportCurrentStatusMessage(report)
-	}
-
-	a.conn.Send(msg)
 }
 
 // getUsableSpace returns available disk space

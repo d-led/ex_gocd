@@ -2,22 +2,12 @@
 
 A Go implementation of a GoCD build agent.
 
-## Protocol Compatibility — current state
+## Protocol
 
-**The agent does not yet speak GoCD's agent protocol.** It uses a WebSocket
-transport that was removed from GoCD in 19.6.0
-(`d45efb4d25 "Remove build session and agent websocket"`), so it can only talk
-to ExGoCD, never to a real GoCD server. The official Java agent's protocol is
-HTTP remoting, and that is what this agent needs to implement.
-
-The protocol to implement is fully specified in
-[`../test/fixtures/remoting/`](../test/fixtures/remoting/README.md) — captured
-verbatim from an official Java agent talking to an official GoCD server. The
-ExGoCD server already speaks it (`ExGoCDWeb.AgentRemotingController`), so the
-agent can be developed and tested against ExGoCD before being pointed at a real
-GoCD server.
-
-What the official agent does, and therefore what this agent must do:
+The agent speaks GoCD's HTTP remoting protocol — the same one the official Java
+agent uses. GoCD removed its WebSocket transport in 19.6.0
+(`d45efb4d25 "Remove build session and agent websocket"`); the agent now does
+everything over `POST /go/remoting/api/agent/*`:
 
 | Step | Endpoint |
 | --- | --- |
@@ -26,6 +16,7 @@ What the official agent does, and therefore what this agent must do:
 | Fetch session cookie | `POST /go/remoting/api/agent/get_cookie` |
 | Heartbeat / poll | `POST /go/remoting/api/agent/ping`, `.../get_work` |
 | Report progress | `POST /go/remoting/api/agent/report_current_status`, `report_completing`, `report_completed` |
+| Check if a build was cancelled | `POST /go/remoting/api/agent/is_ignored` |
 | Append console output | `PUT /go/remoting/files/<locator>/cruise-output/console.log?attempt=1&buildId=<id>` |
 
 Every remoting call carries `Accept: application/vnd.go.cd+json`,
@@ -33,30 +24,38 @@ Every remoting call carries `Accept: application/vnd.go.cd+json`,
 `Authorization: <token>`, with a JSON body whose `type` field names the request
 (`PingRequest`, `GetWorkRequest`, …).
 
+The wire contract is captured verbatim in
+[`../test/fixtures/remoting/`](../test/fixtures/remoting/README.md) and decoded
+by `internal/remoting/wire_test.go`.
+
 ## Architecture
 
 ```shell
 agent/
 ├── cmd/
 │   └── root.go         # CLI with cobra
-├── main.go             # Entry point
+├── main.go             # Entry point (restart policy, identity, reaping)
 ├── internal/
 │   ├── config/         # 12-factor config (env vars)
-│   ├── agent/          # Agent loop (register, ping, work)
-│   ├── client/         # HTTP client (registration, artifacts, console)
-│   ├── executor/       # Task execution (exec, go-git, artifacts)
-│   ├── registration/   # Token + form registration
-│   └── websocket/      # WebSocket transport — to be replaced by HTTP remoting
+│   ├── agent/          # Poll loop + build executor (register, ping, get_work)
+│   ├── remoting/       # GoCD HTTP remoting client + BuildWork decoding
+│   ├── registration/   # Token + form registration + TLS certs
+│   ├── docker/         # Container interception + orphan reaping
+│   ├── log/            # zerolog setup + runtime metrics
+│   └── telemetry/      # OpenTelemetry relay
 └── pkg/
-    └── protocol/       # Message definitions
+    └── protocol/       # Domain types shared by transport and executor
 ```
 
-## What is reusable
+## Features
 
-- Config package (12-factor env vars)
-- Executor (exec, go-git for SCM)
-- Console log buffering
-- Artifact handling
+- Registration (token fetch, form POST, pending-approval retry, TLS certs)
+- HTTP remoting polling loop (ping / get_work / is_ignored / reports)
+- Build execution (exec, git materials, artifacts)
+- Console log streaming to the server
+- Artifact upload/download
+- Agent identity, restart policy, orphan-container reaping
+- OpenTelemetry export
 - Binary build (no cgo, statically linked)
 
 ## Building
@@ -76,7 +75,7 @@ make test
 
 ### Standalone
 ```bash
-./bin/gocd-agent --server-url http://localhost:4000 --work-dir ./work
+AGENT_SERVER_URL=http://localhost:4000 AGENT_WORK_DIR=./work ./bin/gocd-agent
 ```
 
 ### With process-compose
@@ -142,23 +141,19 @@ On first run, the agent creates a `.agent-id.json` file in the work directory co
 
 ## Implementation Status
 
-### ✅ Already working
-- Registration: token fetch, form POST, cookie retrieval
-- Task execution (exec, go-git for SCM)
-- Console log buffering and upload
+### ✅ Working
+- Registration: token fetch, form POST, pending-approval retry, TLS certificates
+- HTTP remoting client: `ping`, `get_work`, `get_cookie`, `is_ignored`, `report_*`
+- `BuildWork` decoding into the executor's command tree
+- Task execution (exec, git materials, artifacts)
+- Console log appends to `/remoting/files/.../console.log`
 - Artifact upload/download
 - Agent identity, restart policy, orphan-container reaping
 - OpenTelemetry export
 
-### ❌ Still missing for drop-in compatibility
-- HTTP remoting client for `POST /go/remoting/api/agent/*`
-- GoCD `BuildWork` decoding (the shapes are in `../test/fixtures/remoting/`)
-- `report_current_status` / `report_completing` / `report_completed` reports
-- Console-log appends to `/remoting/files/.../console.log`
-- `get_work` polling loop replacing the WebSocket loop
-
-The existing WebSocket transport is not a path to compatibility and should be
-deleted once the remoting client lands.
+### ❌ Not yet supported
+- Artifact plans in official `BuildWork` assignments are parsed but not yet
+  mapped to upload/fetch commands (ExGoCD sends them as `exec` nodes instead).
 
 ## Testing
 
@@ -169,10 +164,10 @@ make test
 make test-coverage
 ```
 
-`test-original-gocd.sh` is currently **not** a compatibility test: it points the
-agent at a real GoCD server and cannot succeed until the HTTP remoting client is
-implemented. Treat it as a failing acceptance test, not as evidence of
-compatibility.
+`test-original-gocd.sh` is the compatibility acceptance test: it builds the
+agent, points it at a real GoCD server, and verifies the agent registers with
+the requested resources. Requires a running GoCD server (see the script
+header).
 
 ## Development
 

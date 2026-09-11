@@ -191,25 +191,6 @@ func (c *Config) TokenURL() string {
 	return u.String()
 }
 
-// WebSocketURL returns the WebSocket URL for agent communication.
-// Phoenix mounts the transport at /agent-websocket/websocket (not /agent-websocket).
-// If connecting to the original GoCD server (detected via path suffix /go), we connect to /agent-websocket instead.
-func (c *Config) WebSocketURL() string {
-	u := *c.ServerURL
-	if u.Scheme == "https" {
-		u.Scheme = "wss"
-	} else {
-		u.Scheme = "ws"
-	}
-	trimmedPath := strings.TrimSuffix(u.Path, "/")
-	if trimmedPath == "/go" || strings.HasSuffix(trimmedPath, "/go") {
-		u.Path = trimmedPath + "/agent-websocket"
-	} else {
-		u.Path = trimmedPath + "/agent-websocket/websocket"
-	}
-	return u.String()
-}
-
 // GoServerCAFile returns path to server CA certificate
 func (c *Config) GoServerCAFile() string {
 	return filepath.Join(c.ConfigDir, "go-server-ca.pem")

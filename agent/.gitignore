@@ -24,6 +24,9 @@ work/
 # Agent working directory used by the docker-agent script
 work_docker/
 
+# Acceptance-test working directory (test-original-gocd.sh)
+work-acceptance/
+
 # IDE
 .idea/
 .vscode/
