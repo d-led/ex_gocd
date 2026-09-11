@@ -230,6 +230,7 @@ defmodule ExGoCDWeb.Router do
     pipe_through :api
 
     get "/stats", StatsController, :show
+    get "/v1/health", HealthController, :show
     post "/test/start_agents", TestController, :start_agents
     post "/test/start_http_agents", TestController, :start_http_agents
     delete "/test/agents", TestController, :stop_agents
@@ -384,8 +385,23 @@ defmodule ExGoCDWeb.Router do
     get "/site_url", SiteURLController, :show
     get "/permissions", PermissionsController, :index
 
+    # Server configuration (GoCD parity)
+    get "/config/server/default_job_timeout", DefaultJobTimeoutController, :show
+    get "/config/server/artifact_config", ArtifactConfigController, :show
+    get "/config.xml", ConfigXmlController, :show
+
+    # System admins + plugin settings (GoCD parity)
+    get "/security/system_admins", SystemAdminsController, :index
+    get "/plugin_settings/:plugin_id", PluginSettingsController, :show
+
     # Encryption API (GoCD parity: POST /api/admin/encrypt)
     post "/encrypt", EncryptionController, :encrypt
+  end
+
+  scope "/api/config", ExGoCDWeb.API do
+    pipe_through :api
+
+    get "/mailserver", MailserverConfigController, :show
   end
 
   scope "/api/current_user", ExGoCDWeb.API do
@@ -407,6 +423,12 @@ defmodule ExGoCDWeb.Router do
     get "/jobs/scheduled.xml", FeedsController, :scheduled_jobs
   end
 
+  scope "/go/api/config", ExGoCDWeb.API do
+    pipe_through :api
+
+    get "/mailserver", MailserverConfigController, :show
+  end
+
   scope "/go/api/current_user", ExGoCDWeb.API do
     pipe_through :api
 
@@ -420,6 +442,7 @@ defmodule ExGoCDWeb.Router do
     pipe_through :api
 
     get "/stats", StatsController, :show
+    get "/v1/health", HealthController, :show
 
     post "/agents/register", AgentController, :register
     get "/agents", AgentController, :index
@@ -497,6 +520,17 @@ defmodule ExGoCDWeb.Router do
     post "/users", UserController, :create
     patch "/users/:username", UserController, :update
     delete "/users/:username", UserController, :delete
+  end
+
+  # GoCD-prefixed admin configuration APIs (parity: /go/api/admin/*)
+  scope "/go/api/admin", ExGoCDWeb.API.Admin do
+    pipe_through :admin_api
+
+    get "/security/system_admins", SystemAdminsController, :index
+    get "/config/server/default_job_timeout", DefaultJobTimeoutController, :show
+    get "/config/server/artifact_config", ArtifactConfigController, :show
+    get "/plugin_settings/:plugin_id", PluginSettingsController, :show
+    get "/config.xml", ConfigXmlController, :show
   end
 
   # GoCD internal agent remoting API (HTTP-based, used by official Go agent)

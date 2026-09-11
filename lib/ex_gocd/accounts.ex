@@ -27,6 +27,22 @@ defmodule ExGoCD.Accounts do
   end
 
   @doc """
+  Returns the usernames of all users with the `admin` role, sorted.
+  """
+  def list_admin_users do
+    if mock?() do
+      ["admin"]
+    else
+      from(u in User,
+        where: fragment("? @> ARRAY[?]::varchar[]", u.roles, "admin"),
+        order_by: [asc: :username],
+        select: u.username
+      )
+      |> Repo.all()
+    end
+  end
+
+  @doc """
   Retrieves a user by ID.
   """
   def get_user!(id) do

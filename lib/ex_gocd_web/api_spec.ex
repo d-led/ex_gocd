@@ -39,6 +39,13 @@ defmodule ExGoCDWeb.ApiSpec do
     ExGoCDWeb.API.Admin.EnvironmentController => "Environments",
     ExGoCDWeb.API.Admin.MaintenanceModeController => "Maintenance Mode",
     ExGoCDWeb.API.Admin.BackupController => "Backup",
+    ExGoCDWeb.API.HealthController => "Server Health",
+    ExGoCDWeb.API.MailserverConfigController => "Mailserver Config",
+    ExGoCDWeb.API.Admin.SystemAdminsController => "System Admins",
+    ExGoCDWeb.API.Admin.DefaultJobTimeoutController => "Default Job Timeout",
+    ExGoCDWeb.API.Admin.ArtifactConfigController => "Artifacts Config",
+    ExGoCDWeb.API.Admin.PluginSettingsController => "Plugin Settings",
+    ExGoCDWeb.API.Admin.ConfigXmlController => "Config XML",
     # non-API-namespaced controllers that serve data (not UI)
     ExGoCDWeb.AdminAgentController => "Agents",
     ExGoCDWeb.AgentRemotingController => "Agent Remoting",
