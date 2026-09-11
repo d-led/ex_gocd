@@ -1,19 +1,37 @@
 # GoCD Agent (Go Implementation)
 
-**100% compatible with original GoCD server protocol.**
+A Go implementation of a GoCD build agent.
 
-A clean, modern Go implementation using libraries instead of CLI tools (go-git, not git binary).
+## Protocol Compatibility — current state
 
-## Protocol Compatibility
+**The agent does not yet speak GoCD's agent protocol.** It uses a WebSocket
+transport that was removed from GoCD in 19.6.0
+(`d45efb4d25 "Remove build session and agent websocket"`), so it can only talk
+to ExGoCD, never to a real GoCD server. The official Java agent's protocol is
+HTTP remoting, and that is what this agent needs to implement.
 
-This agent implements the **exact same WebSocket + custom protocol** as original GoCD:
-- Registration: `POST /admin/agent` (form-based, with token)
-- Communication: WebSocket at `/agent-websocket`
-- Messages: `ping`, `build`, `reportCurrentStatus`, `reportCompleted`, etc.
-- Console logs: HTTP POST with timestamped streaming
-- Artifacts: multipart/form-data upload with MD5 checksum
+The protocol to implement is fully specified in
+[`../test/fixtures/remoting/`](../test/fixtures/remoting/README.md) — captured
+verbatim from an official Java agent talking to an official GoCD server. The
+ExGoCD server already speaks it (`ExGoCDWeb.AgentRemotingController`), so the
+agent can be developed and tested against ExGoCD before being pointed at a real
+GoCD server.
 
-Reference: [gocd-contrib/gocd-golang-agent](https://github.com/gocd-contrib/gocd-golang-agent)
+What the official agent does, and therefore what this agent must do:
+
+| Step | Endpoint |
+| --- | --- |
+| Fetch a registration token | `GET /go/admin/agent/token?uuid=<uuid>` |
+| Register | `POST /go/admin/agent` (form-encoded) |
+| Fetch session cookie | `POST /go/remoting/api/agent/get_cookie` |
+| Heartbeat / poll | `POST /go/remoting/api/agent/ping`, `.../get_work` |
+| Report progress | `POST /go/remoting/api/agent/report_current_status`, `report_completing`, `report_completed` |
+| Append console output | `PUT /go/remoting/files/<locator>/cruise-output/console.log?attempt=1&buildId=<id>` |
+
+Every remoting call carries `Accept: application/vnd.go.cd+json`,
+`Content-Type: application/json; charset=UTF-8`, `X-Agent-GUID: <uuid>` and
+`Authorization: <token>`, with a JSON body whose `type` field names the request
+(`PingRequest`, `GetWorkRequest`, …).
 
 ## Architecture
 
@@ -24,13 +42,22 @@ agent/
 ├── main.go             # Entry point
 ├── internal/
 │   ├── config/         # 12-factor config (env vars)
-│   ├── agent/          # Main agent loop (register, ping, work)
+│   ├── agent/          # Agent loop (register, ping, work)
 │   ├── client/         # HTTP client (registration, artifacts, console)
 │   ├── executor/       # Task execution (exec, go-git, artifacts)
-│   └── console/        # Console log buffering & streaming
+│   ├── registration/   # Token + form registration
+│   └── websocket/      # WebSocket transport — to be replaced by HTTP remoting
 └── pkg/
-    └── protocol/       # Protocol message definitions
+    └── protocol/       # Message definitions
 ```
+
+## What is reusable
+
+- Config package (12-factor env vars)
+- Executor (exec, go-git for SCM)
+- Console log buffering
+- Artifact handling
+- Binary build (no cgo, statically linked)
 
 ## Building
 
@@ -115,43 +142,37 @@ On first run, the agent creates a `.agent-id.json` file in the work directory co
 
 ## Implementation Status
 
-### 🚧 Phase 1: WebSocket Protocol (TODO - REQUIRED FOR COMPATIBILITY)
-- [ ] WebSocket connection to `/agent-websocket`
-- [ ] Form-based registration at `/admin/agent` with token flow
-- [ ] Custom protocol message parsing (ping, build, setCookie, reregister, etc.)
-- [ ] Proper TLS/certificate handling
-- [ ] Connection retry and reconnection logic
+### ✅ Already working
+- Registration: token fetch, form POST, cookie retrieval
+- Task execution (exec, go-git for SCM)
+- Console log buffering and upload
+- Artifact upload/download
+- Agent identity, restart policy, orphan-container reaping
+- OpenTelemetry export
 
-### ⚠️ Current State: REST/JSON (INCOMPATIBLE - NEEDS REWRITE)
-- [x] ~~REST registration~~ (uses `/api/agents` - wrong endpoint!)
-- [x] ~~JSON polling~~ (should use WebSocket, not HTTP polling!)
-- [x] Task execution (exec, go-git) - ✅ Keep this
-- [x] Console log buffering - ✅ Keep this, adapt upload to HTTP POST
-- [x] Artifact handling structure - ✅ Keep this, adapt to multipart
+### ❌ Still missing for drop-in compatibility
+- HTTP remoting client for `POST /go/remoting/api/agent/*`
+- GoCD `BuildWork` decoding (the shapes are in `../test/fixtures/remoting/`)
+- `report_current_status` / `report_completing` / `report_completed` reports
+- Console-log appends to `/remoting/files/.../console.log`
+- `get_work` polling loop replacing the WebSocket loop
 
-### 🎯 What to Keep
-- Config package (12-factor env vars) ✅
-- Executor (exec, go-git for Git operations) ✅
-- Console log buffering (change upload to match protocol) ✅
-- Task execution logic ✅
-- Binary build (no cgo, statically linked) ✅
-
-### 🔄 What to Rewrite
-- Replace REST client with WebSocket connection
-- Replace JSON protocol with custom message types
-- Change registration from JSON to form POST
-- Implement ping/heartbeat via WebSocket messages
-- Get work via WebSocket `build` messages (not HTTP polling)
+The existing WebSocket transport is not a path to compatibility and should be
+deleted once the remoting client lands.
 
 ## Testing
 
 ```bash
-# Run all tests
 make test
 
 # Run with coverage
 make test-coverage
 ```
+
+`test-original-gocd.sh` is currently **not** a compatibility test: it points the
+agent at a real GoCD server and cannot succeed until the HTTP remoting client is
+implemented. Treat it as a failing acceptance test, not as evidence of
+compatibility.
 
 ## Development
 

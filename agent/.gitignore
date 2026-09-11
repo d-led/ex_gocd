@@ -21,6 +21,9 @@ go.work
 # Agent working directory
 work/
 
+# Agent working directory used by the docker-agent script
+work_docker/
+
 # IDE
 .idea/
 .vscode/
