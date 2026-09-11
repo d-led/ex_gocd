@@ -18,6 +18,8 @@ defmodule ExGoCD.AgentJobRuns.AgentJobRun do
     field :state, :string, default: "Scheduled"
     field :console_log, :string, default: ""
     field :environment_variables, :map, default: %{}
+    field :work_payload, :map
+    field :work_claimed_at, :utc_datetime
 
     belongs_to :job_instance, ExGoCD.Pipelines.JobInstance
 
@@ -32,7 +34,9 @@ defmodule ExGoCD.AgentJobRuns.AgentJobRun do
     :stage_counter,
     :console_log,
     :job_instance_id,
-    :environment_variables
+    :environment_variables,
+    :work_payload,
+    :work_claimed_at
   ]
 
   def changeset(run, attrs) do

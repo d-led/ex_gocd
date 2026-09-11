@@ -1278,9 +1278,13 @@ defmodule ExGoCD.Scheduler do
     ]
 
     case AgentJobRuns.create_run(agent_uuid, build_id, pipeline, stage, job, opts) do
-      {:ok, _} ->
+      {:ok, run} ->
         if ji_id = job_spec[:job_instance_id],
           do: Pipelines.assign_job_instance(ji_id, agent_uuid)
+
+        # Persist the assignment so pull-based agents (the official GoCD Java
+        # agent) can collect it via POST /remoting/api/agent/get_work.
+        _ = AgentJobRuns.store_work_payload(run.build_id, payload)
 
         Agents.update_agent_runtime_state(agent_uuid, "Building")
         topic = @agent_topic_prefix <> agent_uuid

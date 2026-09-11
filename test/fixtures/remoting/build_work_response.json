@@ -1,0 +1,191 @@
+{
+  "type": "BuildWork",
+  "assignment": {
+    "fetchMaterials": true,
+    "cleanWorkingDirectory": false,
+    "builders": [
+      {
+        "type": "CommandBuilderWithArgList",
+        "args": [
+          "capture-me"
+        ],
+        "command": "echo",
+        "workingDir": {
+          "path": "pipelines/capture-protocol"
+        },
+        "errorString": "",
+        "exitCode": -1,
+        "conditions": [],
+        "description": "echo capture-me",
+        "cancelBuilder": {
+          "type": "BuilderForKillAllChildTask",
+          "currentProcess": {},
+          "cancelAttempted": false,
+          "exitCode": -1,
+          "conditions": [],
+          "description": "Kills child processes",
+          "cancelBuilder": {
+            "type": "NullBuilder",
+            "exitCode": -1,
+            "conditions": [],
+            "description": "NULL"
+          }
+        }
+      }
+    ],
+    "artifactPlans": [],
+    "artifactStores": [],
+    "buildWorkingDirectory": {
+      "path": "pipelines/capture-protocol"
+    },
+    "jobIdentifier": {
+      "pipelineName": "capture-protocol",
+      "pipelineCounter": 3,
+      "pipelineLabel": "3",
+      "stageName": "probe",
+      "buildName": "probe-job",
+      "buildId": 35,
+      "stageCounter": "1"
+    },
+    "initialContext": {
+      "properties": [
+        {
+          "name": "GO_PIPELINE_GROUP_NAME",
+          "value": "demo",
+          "secure": false,
+          "secretParams": []
+        },
+        {
+          "name": "GO_AGENT_RESOURCES",
+          "value": "capture",
+          "secure": false,
+          "secretParams": []
+        },
+        {
+          "name": "GO_TRIGGER_USER",
+          "value": "anonymous",
+          "secure": false,
+          "secretParams": []
+        },
+        {
+          "name": "GO_PIPELINE_NAME",
+          "value": "capture-protocol",
+          "secure": false,
+          "secretParams": []
+        },
+        {
+          "name": "GO_PIPELINE_COUNTER",
+          "value": "3",
+          "secure": false,
+          "secretParams": []
+        },
+        {
+          "name": "GO_PIPELINE_LABEL",
+          "value": "3",
+          "secure": false,
+          "secretParams": []
+        },
+        {
+          "name": "GO_STAGE_NAME",
+          "value": "probe",
+          "secure": false,
+          "secretParams": []
+        },
+        {
+          "name": "GO_STAGE_COUNTER",
+          "value": "1",
+          "secure": false,
+          "secretParams": []
+        },
+        {
+          "name": "GO_JOB_NAME",
+          "value": "probe-job",
+          "secure": false,
+          "secretParams": []
+        },
+        {
+          "name": "GO_REVISION",
+          "value": "7b27bb0d0ab05d3d42c17ca274bb1a98c4beb696",
+          "secure": false,
+          "secretParams": []
+        },
+        {
+          "name": "GO_TO_REVISION",
+          "value": "7b27bb0d0ab05d3d42c17ca274bb1a98c4beb696",
+          "secure": false,
+          "secretParams": []
+        },
+        {
+          "name": "GO_FROM_REVISION",
+          "value": "7b27bb0d0ab05d3d42c17ca274bb1a98c4beb696",
+          "secure": false,
+          "secretParams": []
+        },
+        {
+          "name": "GO_MATERIAL_URL",
+          "value": "https://github.com/d-led/dont_wait_forever_for_the_tests.git",
+          "secure": false,
+          "secretParams": []
+        },
+        {
+          "name": "GO_MATERIAL_BRANCH",
+          "value": "master",
+          "secure": false,
+          "secretParams": []
+        },
+        {
+          "name": "GO_MATERIAL_HAS_CHANGED",
+          "value": "false",
+          "secure": false,
+          "secretParams": []
+        }
+      ]
+    },
+    "materialRevisions": {
+      "revisions": [
+        {
+          "material": {
+            "type": "GitMaterial",
+            "url": {
+              "url": "https://github.com/d-led/dont_wait_forever_for_the_tests.git"
+            },
+            "refSpecOrBranch": "master",
+            "shallowClone": false,
+            "autoUpdate": true,
+            "invertFilter": false,
+            "secretParamsForPassword": [],
+            "materialType": "GitMaterial",
+            "sqlCriteria": {
+              "type": "GitMaterial",
+              "url": "https://github.com/d-led/dont_wait_forever_for_the_tests.git",
+              "branch": "master"
+            },
+            "fingerprint": "6a2e9c45b3f7ea600da835c4133a3f6049f37a8d5c8862668eaf3561ee3e9bdc",
+            "id": 1
+          },
+          "modifications": [
+            {
+              "userName": "Dmitry Ledentsov <dmlled@yahoo.com>",
+              "comment": "fix: add 'test' gradle task to pipeline config",
+              "revision": "7b27bb0d0ab05d3d42c17ca274bb1a98c4beb696",
+              "modifiedTime": "2026-07-07T20:01:50Z",
+              "files": [],
+              "materialInstance": {
+                "type": "GitMaterialInstance",
+                "url": "https://github.com/d-led/dont_wait_forever_for_the_tests.git",
+                "branch": "master",
+                "flyweightName": "03fc57ac-275a-4c81-81b6-7cf45bbefe17",
+                "fingerprint": "6a2e9c45b3f7ea600da835c4133a3f6049f37a8d5c8862668eaf3561ee3e9bdc",
+                "id": 1
+              },
+              "id": 1
+            }
+          ],
+          "changed": false
+        }
+      ]
+    },
+    "approver": "anonymous"
+  },
+  "consoleLogCharset": "UTF-8"
+}

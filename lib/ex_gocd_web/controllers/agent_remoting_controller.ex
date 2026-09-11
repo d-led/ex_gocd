@@ -1,141 +1,211 @@
 defmodule ExGoCDWeb.AgentRemotingController do
   @moduledoc """
-  HTTP controller implementing GoCD's internal agent remoting API.
+  GoCD's internal agent remoting API, spoken by the official Java agent.
 
-  The official GoCD Go agent communicates via HTTP POST to `/remoting/api/agent/*`
-  endpoints (ping, get_work, get_cookie, report_current_status, etc.).
-  This controller provides backward-compatible HTTP endpoints so the real Go agent
-  can communicate with our Elixir rewrite.
+  The official agent does **not** use a websocket. It POSTs JSON to
+  `/remoting/api/agent/<action>`, authenticated with the `X-Agent-GUID` and
+  `Authorization` headers, and expects Gson-serialised GoCD types back
+  (`"NONE"`, `{"type":"NoWork"}`, a `BuildWork`, and so on).
 
-  Based on GoCD's InternalAgentControllerV1.java.
+  The exact shapes implemented here are not guesses: they are asserted against
+  real captured traffic in `test/fixtures/remoting/`, and the capture procedure
+  is documented in that directory's README.
+
+  Based on GoCD's `InternalAgentControllerV1.java`.
   """
   use ExGoCDWeb, :controller
 
   alias ExGoCD.AgentJobRuns
   alias ExGoCD.Agents
+  alias ExGoCD.Remoting.BuildWork
   alias ExGoCD.Scheduler
+
+  # GoCD answers every remoting action with this content type.
+  @remoting_content_type "application/vnd.go.cd.v1+json;charset=utf-8"
+
+  # `AgentInstruction` values the agent understands. A job that is not cancelled
+  # carries no instruction, which GoCD serialises as the quoted string "NONE".
+  @instruction_none "NONE"
 
   @doc """
   POST /remoting/api/agent/ping
 
-  Heartbeat from the agent. Updates runtime info and checks for idle work assignment.
-  The Go agent sends `{"agentRuntimeInfo": {...}}` and expects an AgentInstruction response.
+  Heartbeat. Updates runtime info and offers idle work.
   """
   def ping(conn, _params) do
-    with {:ok, body} <- read_json_body(conn),
-         uuid <- extract_uuid(body),
-         :ok <- verify_agent_identity(conn, uuid) do
-      runtime_info = body["agentRuntimeInfo"] || body
-      _ = Agents.touch_agent_on_heartbeat(uuid, flatten_runtime_info(runtime_info))
+    with_agent(conn, fn conn, uuid, body ->
+      register_heartbeat(uuid, body)
+      maybe_offer_work(uuid, body)
 
-      if runtime_status(runtime_info) == "Idle" do
-        _ = Scheduler.try_assign_work(uuid)
-      end
-
-      json(conn, %{"agentInstruction" => "NONE"})
-    end
+      remoting_json(conn, @instruction_none)
+    end)
   end
 
   @doc """
   POST /remoting/api/agent/get_work
 
-  Agent polls for assigned work. Returns NoWork when nothing is queued.
+  Hands the agent its next build assignment, or `NoWork` when the queue is empty
+  for it. Each assignment is claimed once, so a build is never given to two
+  agents.
   """
   def get_work(conn, _params) do
-    with {:ok, body} <- read_json_body(conn),
-         uuid <- extract_uuid(body),
-         :ok <- verify_agent_identity(conn, uuid) do
-      runtime_info = body["agentRuntimeInfo"] || body
-      _ = Agents.touch_agent_on_heartbeat(uuid, flatten_runtime_info(runtime_info))
+    with_agent(conn, fn conn, uuid, body ->
+      register_heartbeat(uuid, body)
       _ = Scheduler.try_assign_work(uuid)
 
-      # NoWork representation matches GoCD's JSON format
-      json(conn, %{"type" => "com.thoughtworks.go.remote.work.NoWork"})
-    end
+      case AgentJobRuns.claim_work_for_agent(uuid) do
+        {:ok, run} -> remoting_json(conn, BuildWork.render(run.work_payload, run))
+        {:error, :no_work} -> remoting_json(conn, %{"type" => "NoWork"})
+      end
+    end)
   end
 
   @doc """
   POST /remoting/api/agent/get_cookie
 
-  Returns the stored cookie for the agent.
+  Returns the agent's session cookie as plain text, which is what the agent's
+  `Serialization.fromJson(..., String.class)` expects.
   """
   def get_cookie(conn, _params) do
-    with {:ok, body} <- read_json_body(conn),
-         uuid <- extract_uuid(body),
-         :ok <- verify_agent_identity(conn, uuid) do
+    with_agent(conn, fn conn, uuid, _body ->
       case Agents.get_agent_by_uuid(uuid) do
         %{cookie: cookie} when is_binary(cookie) and cookie != "" ->
-          text(conn, cookie)
+          remoting_text(conn, cookie)
 
         _ ->
           conn
-          |> put_status(:not_found)
-          |> json(%{error: "No cookie available for agent"})
+          |> put_resp_content_type(@remoting_content_type)
+          |> send_resp(404, "No cookie available for agent")
       end
-    end
+    end)
   end
 
   @doc """
   POST /remoting/api/agent/report_current_status
 
-  Agent reports a job state change (e.g., Preparing, Building).
+  Reports a job state change such as `Preparing` or `Building`.
   """
   def report_current_status(conn, _params) do
-    with {:ok, body} <- read_json_body(conn),
-         uuid <- extract_uuid(body),
-         :ok <- verify_agent_identity(conn, uuid) do
-      AgentJobRuns.handle_agent_report(uuid, normalize_report_payload(body))
-      send_resp(conn, 200, "")
-    end
+    handle_report(conn, fn body -> body["jobState"] end)
   end
 
   @doc """
   POST /remoting/api/agent/report_completing
 
-  Agent reports a job is completing.
+  Reports that a job is finishing, together with its result.
   """
   def report_completing(conn, _params) do
-    with {:ok, body} <- read_json_body(conn),
-         uuid <- extract_uuid(body),
-         :ok <- verify_agent_identity(conn, uuid) do
-      AgentJobRuns.handle_agent_report(uuid, normalize_report_payload(body))
-      send_resp(conn, 200, "")
-    end
+    handle_report(conn, fn _body -> "Completing" end)
   end
 
   @doc """
   POST /remoting/api/agent/report_completed
 
-  Agent reports a job has completed.
+  Reports that a job has finished, together with its result.
   """
   def report_completed(conn, _params) do
-    with {:ok, body} <- read_json_body(conn),
-         uuid <- extract_uuid(body),
-         :ok <- verify_agent_identity(conn, uuid) do
-      AgentJobRuns.handle_agent_report(uuid, normalize_report_payload(body))
-      send_resp(conn, 200, "")
-    end
+    handle_report(conn, fn _body -> "Completed" end)
   end
 
   @doc """
   POST /remoting/api/agent/is_ignored
 
-  Checks if a job is ignored. Currently always returns false.
+  Tells the agent whether its current assignment has been discarded, so it can
+  stop work early instead of reporting into a job nobody is waiting for.
   """
   def check_ignored(conn, _params) do
+    with_agent(conn, fn conn, uuid, body ->
+      run = run_for_report(uuid, body)
+      remoting_text(conn, to_string(ignored?(run)))
+    end)
+  end
+
+  # ── reports ─────────────────────────────────────────────────────────────
+
+  defp handle_report(conn, job_state_fun) do
+    with_agent(conn, fn conn, uuid, body ->
+      case run_for_report(uuid, body) do
+        nil ->
+          # An unknown build is not something the agent can act on; GoCD also
+          # acknowledges it so the agent moves on instead of retrying forever.
+          send_resp(conn, 200, "")
+
+        run ->
+          AgentJobRuns.handle_agent_report(uuid, %{
+            "buildId" => run.build_id,
+            "jobState" => job_state_fun.(body),
+            "result" => body["jobResult"] || body["result"],
+            "agentRuntimeInfo" => body["agentRuntimeInfo"]
+          })
+
+          send_resp(conn, 200, "")
+      end
+    end)
+  end
+
+  defp ignored?(nil), do: false
+  defp ignored?(%{state: state}), do: state in ["Cancelled", "Canceled", "Ignored"]
+
+  # ── work ────────────────────────────────────────────────────────────────
+
+  defp register_heartbeat(uuid, body) do
+    runtime_info = body["agentRuntimeInfo"] || body
+    _ = Agents.touch_agent_on_heartbeat(uuid, flatten_runtime_info(runtime_info))
+    :ok
+  end
+
+  defp maybe_offer_work(uuid, body) do
+    runtime_info = body["agentRuntimeInfo"] || body
+
+    if runtime_status(runtime_info) == "Idle" do
+      _ = Scheduler.try_assign_work(uuid)
+    end
+
+    :ok
+  end
+
+  # ── agent identification ────────────────────────────────────────────────
+
+  # Every remoting action is authenticated the same way: the body names an
+  # agent, and the request must prove it is that agent. A rejected request
+  # returns the halted connection.
+  defp with_agent(conn, handler) do
     with {:ok, body} <- read_json_body(conn),
-         uuid <- extract_uuid(body),
-         :ok <- verify_agent_identity(conn, uuid) do
-      text(conn, "false")
+         {:ok, uuid} <- authorize(conn, body) do
+      handler.(conn, uuid, body)
+    else
+      {:error, conn} -> conn
     end
   end
 
-  # --- Private helpers ---
+  defp authorize(conn, body) do
+    uuid = extract_uuid(body)
+    header_uuid = get_req_header(conn, "x-agent-guid") |> List.first()
+
+    cond do
+      not is_nil(header_uuid) and header_uuid != uuid ->
+        {:error,
+         forbidden(conn, "Agent UUID mismatch: header '#{header_uuid}' vs body '#{uuid}'")}
+
+      disabled_agent?(uuid) ->
+        {:error, forbidden(conn, "Agent is disabled")}
+
+      true ->
+        {:ok, uuid}
+    end
+  end
+
+  defp forbidden(conn, message) do
+    conn
+    |> put_status(:forbidden)
+    |> json(%{error: message})
+    |> halt()
+  end
 
   defp read_json_body(conn) do
     case conn.body_params do
       %{"_json" => body} when is_map(body) -> {:ok, body}
-      body when is_map(body) and map_size(body) > 0 -> {:ok, body}
+      body when is_map(body) -> {:ok, body}
       _ -> {:ok, %{}}
     end
   end
@@ -147,34 +217,27 @@ defmodule ExGoCDWeb.AgentRemotingController do
       "unknown"
   end
 
-  defp verify_agent_identity(conn, uuid_from_body) do
-    header_uuid = get_req_header(conn, "x-agent-guid") |> List.first()
-
-    if not is_nil(header_uuid) and header_uuid != uuid_from_body do
-      conn
-      |> put_status(:forbidden)
-      |> json(%{
-        error: "Agent UUID mismatch: header '#{header_uuid}' vs body '#{uuid_from_body}'"
-      })
-      |> halt()
-    else
-      # Also verify agent is not disabled — disabled agents must not
-      # access infrastructure via HTTP remoting either.
-      agent = Agents.get_agent_by_uuid(uuid_from_body)
-
-      if agent && agent.disabled do
-        conn
-        |> put_status(:forbidden)
-        |> json(%{error: "Agent is disabled"})
-        |> halt()
-      else
-        :ok
-      end
+  defp disabled_agent?(uuid) do
+    case Agents.get_agent_by_uuid(uuid) do
+      %{disabled: true} -> true
+      _ -> false
     end
   end
 
-  # GoCD's AgentRuntimeInfo uses nested `identifier` with `uuid`, `hostName`, `ipAddress`.
-  # Our `touch_agent_on_heartbeat` expects flat keys. This bridges the two formats.
+  # The GoCD agent identifies a build by numeric id inside `jobIdentifier`.
+  # Resolve it to the run so internal string build ids never leak into the
+  # protocol, and so one agent cannot report on another agent's build.
+  defp run_for_report(uuid, body) do
+    build_id = get_in(body, ["jobIdentifier", "buildId"])
+
+    case AgentJobRuns.get_run_by_id(build_id) do
+      %{agent_uuid: ^uuid} = run -> run
+      _ -> nil
+    end
+  end
+
+  # GoCD's AgentRuntimeInfo nests `identifier` with `uuid`, `hostName` and
+  # `ipAddress`; the Agents context takes flat attributes.
   defp flatten_runtime_info(info) when is_map(info) do
     identifier = info["identifier"] || %{}
 
@@ -191,21 +254,20 @@ defmodule ExGoCDWeb.AgentRemotingController do
   defp maybe_put(map, _key, nil), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)
 
-  defp runtime_status(info) do
-    info["runtimeStatus"]
+  defp runtime_status(info) when is_map(info), do: info["runtimeStatus"]
+  defp runtime_status(_), do: nil
+
+  # ── responses ───────────────────────────────────────────────────────────
+
+  defp remoting_json(conn, value) do
+    conn
+    |> put_resp_content_type(@remoting_content_type)
+    |> json(value)
   end
 
-  # GoCD report payloads wrap job info under `jobIdentifier` and `jobState`/`result`.
-  # Normalize to the flat format that `AgentJobRuns.handle_agent_report/2` expects.
-  defp normalize_report_payload(body) do
-    job_id = body["jobIdentifier"] || %{}
-    build_id = to_string(job_id["buildId"] || body["buildId"] || "")
-
-    %{
-      "buildId" => build_id,
-      "jobState" => body["jobState"],
-      "result" => body["result"] || body["jobResult"],
-      "agentRuntimeInfo" => body["agentRuntimeInfo"]
-    }
+  defp remoting_text(conn, value) do
+    conn
+    |> put_resp_content_type(@remoting_content_type)
+    |> send_resp(200, value)
   end
 end

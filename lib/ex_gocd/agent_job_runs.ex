@@ -205,6 +205,16 @@ defmodule ExGoCD.AgentJobRuns do
   end
 
   @doc """
+  Looks a run up by its numeric id.
+
+  The GoCD agent protocol identifies a build with a number (`jobIdentifier.buildId`),
+  while ExGoCD uses an opaque string `build_id` internally. The run's primary key
+  is what goes on the wire, so reports coming back are resolved through here.
+  """
+  def get_run_by_id(id) when is_integer(id), do: Repo.get(AgentJobRun, id)
+  def get_run_by_id(_), do: nil
+
+  @doc """
   Lists job runs for an agent (by UUID), newest first, for the history page.
   """
   def list_runs_for_agent(agent_uuid) when is_binary(agent_uuid) do
@@ -230,5 +240,83 @@ defmodule ExGoCD.AgentJobRuns do
       limit: 1
     )
     |> Repo.one()
+  end
+
+  @doc """
+  Records the work handed to an agent for a build.
+
+  Push-based agents receive this payload over a PubSub topic at assignment time.
+  Pull-based agents (the official GoCD Java agent) collect it later via
+  `claim_work_for_agent/1`, so the payload has to be persisted first.
+  """
+  def store_work_payload(build_id, payload)
+      when is_binary(build_id) and is_map(payload) do
+    case Repo.get_by(AgentJobRun, build_id: build_id) do
+      nil ->
+        {:error, :run_not_found}
+
+      run ->
+        run
+        |> AgentJobRun.changeset(%{work_payload: payload})
+        |> Repo.update()
+    end
+  end
+
+  @doc """
+  Atomically hands the oldest unclaimed work to the caller.
+
+  Returns `{:ok, run}` with the run's `work_payload` populated and marks the
+  payload claimed, or `{:error, :no_work}` when the agent has nothing waiting.
+  The claim is a single conditional update, so two concurrent `get_work` calls
+  can never receive the same build.
+  """
+  def claim_work_for_agent(agent_uuid) when is_binary(agent_uuid) do
+    candidate =
+      from(r in AgentJobRun,
+        where:
+          r.agent_uuid == ^agent_uuid and
+            is_nil(r.work_claimed_at) and
+            not is_nil(r.work_payload),
+        order_by: [asc: r.inserted_at],
+        limit: 1
+      )
+      |> Repo.one()
+
+    claim(candidate)
+  end
+
+  defp claim(nil), do: {:error, :no_work}
+
+  defp claim(run) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    claimable =
+      from(r in AgentJobRun,
+        where: r.id == ^run.id and is_nil(r.work_claimed_at)
+      )
+
+    case Repo.update_all(claimable, set: [work_claimed_at: now]) do
+      {1, _} -> {:ok, run}
+      {0, _} -> {:error, :no_work}
+    end
+  end
+
+  @doc """
+  Releases a claim so the work can be handed out again.
+
+  Used when an agent reconnects while idle: a claim made before the agent
+  crashed would otherwise strand the build forever.
+  """
+  def release_claim(build_id) when is_binary(build_id) do
+    run = Repo.get_by(AgentJobRun, build_id: build_id)
+    return_claimed_work(run)
+  end
+
+  defp return_claimed_work(nil), do: {:error, :run_not_found}
+
+  defp return_claimed_work(run) do
+    run
+    |> AgentJobRun.changeset(%{work_claimed_at: nil})
+    |> Repo.update()
   end
 end
