@@ -8,6 +8,7 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -198,9 +199,9 @@ func (r *Registrar) registerAndDownloadCerts() error {
 		return err
 	}
 
-	// Check if response is empty (agent pending approval)
+	// An approved agent receives its certificate in the response body.
 	if len(bodyBytes) == 0 {
-		return fmt.Errorf("registration pending: agent may need approval on server (empty response)")
+		return ErrPendingApproval
 	}
 
 	// Parse registration response
@@ -210,10 +211,15 @@ func (r *Registrar) registerAndDownloadCerts() error {
 	}
 
 	if registration.AgentCertificate == "" {
-		return fmt.Errorf("registration failed: empty certificate (agent may need approval on server)")
+		return ErrPendingApproval
 	}
 	return r.saveCertificates(registration)
 }
+
+// ErrPendingApproval is returned when the server accepted the registration but
+// the agent still needs to be approved (or enabled) by an administrator. GoCD
+// answers HTTP 202 in that case, and 200 once the agent may proceed.
+var ErrPendingApproval = errors.New("registration pending: agent is awaiting approval on the server")
 
 // doRegistration POSTs the agent registration form and returns the response body.
 func (r *Registrar) doRegistration() ([]byte, error) {
@@ -229,11 +235,20 @@ func (r *Registrar) doRegistration() ([]byte, error) {
 		return nil, fmt.Errorf("failed to POST registration to %s: %w", registrationURL, err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
+
+	switch resp.StatusCode {
+	case http.StatusOK:
+		return io.ReadAll(resp.Body)
+
+	case http.StatusAccepted:
+		// The server knows this agent but will not hand out work until an
+		// administrator approves it. Retrying is the agent's job.
+		return nil, ErrPendingApproval
+
+	default:
 		body, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("registration failed: status %d, body: %s", resp.StatusCode, string(body))
 	}
-	return io.ReadAll(resp.Body)
 }
 
 // saveCertificates writes the TLS certificates from a registration response.
@@ -354,37 +369,36 @@ func usableSpace() int64 {
 	return 10 * 1024 * 1024 * 1024
 }
 
-// registerWithRetry attempts registration with exponential backoff for approval
+// registerWithRetry attempts registration with exponential backoff for approval.
+//
+// Both transports retry: a server that answers 202 expects the agent to come
+// back, and giving up would leave the agent permanently unusable.
 func (r *Registrar) registerWithRetry() error {
-	// For HTTP servers, empty responses are normal - no retry needed
-	if r.config.ServerURL.Scheme == "http" {
-		return r.registerAndGetCerts()
-	}
-
-	// For HTTPS servers, retry if agent approval is pending
 	maxRetries := 5
 	baseDelay := 2 * time.Second
 
+	var lastErr error
+
 	for attempt := 0; attempt < maxRetries; attempt++ {
-		err := r.registerAndGetCerts()
-		if err == nil {
+		lastErr = r.registerAndGetCerts()
+		if lastErr == nil {
 			return nil
 		}
 
-		// Check if it's a pending approval error
-		if strings.Contains(err.Error(), "pending") || strings.Contains(err.Error(), "empty") {
-			if attempt < maxRetries-1 {
-				delay := baseDelay * time.Duration(1<<uint(attempt)) // Exponential backoff
-				log.Printf("Agent pending approval, retrying in %v (attempt %d/%d)...", delay, attempt+1, maxRetries)
-				time.Sleep(delay)
-				continue
-			}
+		if !errors.Is(lastErr, ErrPendingApproval) {
+			return lastErr
 		}
 
-		return err
+		if attempt == maxRetries-1 {
+			break
+		}
+
+		delay := baseDelay * time.Duration(1<<uint(attempt))
+		log.Printf("Agent pending approval, retrying in %v (attempt %d/%d)...", delay, attempt+1, maxRetries)
+		time.Sleep(delay)
 	}
 
-	return fmt.Errorf("registration failed after %d attempts", maxRetries)
+	return fmt.Errorf("registration failed after %d attempts: %w", maxRetries, lastErr)
 }
 
 // tryDemoCookie checks if the env var is set and writes it as the agent token.
