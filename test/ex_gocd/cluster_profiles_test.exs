@@ -29,6 +29,18 @@ defmodule ExGoCD.ClusterProfilesTest do
       assert found.plugin_id == @valid_attrs.plugin_id
     end
 
+    test "get_profile/1 resolves by id when given a UUID" do
+      {:ok, profile} = ClusterProfiles.create_profile(@valid_attrs)
+      found = ClusterProfiles.get_profile(profile.id)
+      assert found.name == "test-cluster"
+    end
+
+    test "get_profile/1 resolves by name when given a non-UUID" do
+      {:ok, profile} = ClusterProfiles.create_profile(@valid_attrs)
+      found = ClusterProfiles.get_profile("test-cluster")
+      assert found.id == profile.id
+    end
+
     test "create_profile/1 with valid data creates a profile" do
       {:ok, profile} = ClusterProfiles.create_profile(@valid_attrs)
       assert profile.plugin_id == @valid_attrs.plugin_id

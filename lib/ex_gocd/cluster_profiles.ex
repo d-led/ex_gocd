@@ -17,7 +17,22 @@ defmodule ExGoCD.ClusterProfiles do
 
   @doc "Gets a profile by id."
   def get_profile!(id), do: Repo.get!(ClusterProfile, id)
-  def get_profile(id), do: Repo.get(ClusterProfile, id)
+
+  @doc """
+  Gets a profile by id (UUID) or by name.
+
+  Elastic agent profiles may reference their cluster profile by the binary_id
+  (from the admin UI) or by the human-readable name (seeds use "docker-local"),
+  so resolve either.
+  """
+  def get_profile(id) when is_binary(id) do
+    case Ecto.UUID.cast(id) do
+      {:ok, _uuid} -> Repo.get(ClusterProfile, id) || Repo.get_by(ClusterProfile, name: id)
+      :error -> Repo.get_by(ClusterProfile, name: id)
+    end
+  end
+
+  def get_profile(nil), do: nil
 
   @doc "Creates a profile."
   def create_profile(attrs \\ %{}) do
