@@ -26,20 +26,28 @@ defmodule ExGoCDWeb.StageDetailsLive do
     stage_counter = String.to_integer(params["stage_counter"])
 
     stage = get_stage_details(pipeline_name, pipeline_counter, stage_name, stage_counter)
-    trends = Analytics.stage_trends(pipeline_name, stage_name, 10)
 
-    {:noreply,
-     socket
-     |> assign(:pipeline_name, pipeline_name)
-     |> assign(:pipeline_counter, pipeline_counter)
-     |> assign(:stage_name, stage_name)
-     |> assign(:stage_counter, stage_counter)
-     |> assign(:stage, stage)
-     |> assign(:trends, trends)
-     |> assign(
-       :page_title,
-       "#{pipeline_name} / #{pipeline_counter} / #{stage_name} / #{stage_counter}"
-     )}
+    if is_nil(stage) do
+      {:noreply,
+       socket
+       |> put_flash(:error, "Stage not found.")
+       |> redirect(to: "/pipelines")}
+    else
+      trends = Analytics.stage_trends(pipeline_name, stage_name, 10)
+
+      {:noreply,
+       socket
+       |> assign(:pipeline_name, pipeline_name)
+       |> assign(:pipeline_counter, pipeline_counter)
+       |> assign(:stage_name, stage_name)
+       |> assign(:stage_counter, stage_counter)
+       |> assign(:stage, stage)
+       |> assign(:trends, trends)
+       |> assign(
+         :page_title,
+         "#{pipeline_name} / #{pipeline_counter} / #{stage_name} / #{stage_counter}"
+       )}
+    end
   end
 
   @impl true
@@ -108,13 +116,8 @@ defmodule ExGoCDWeb.StageDetailsLive do
 
   # Helpers
 
-  defp use_mock?(name) do
-    System.get_env("USE_MOCK_DATA") == "true" or not has_db_pipeline?(name)
-  end
-
-  defp has_db_pipeline?(name) do
-    import Ecto.Query
-    ExGoCD.Repo.exists?(from(p in ExGoCD.Pipelines.Pipeline, where: p.name == ^name))
+  defp use_mock?(_name) do
+    System.get_env("USE_MOCK_DATA") == "true"
   end
 
   defp get_stage_details(pipeline_name, pipeline_counter, stage_name, stage_counter) do
@@ -135,7 +138,7 @@ defmodule ExGoCDWeb.StageDetailsLive do
           preload: [job_instances: :stage_instance]
       )
       |> case do
-        nil -> get_mock_stage_details(pipeline_name, pipeline_counter, stage_name, stage_counter)
+        nil -> nil
         si -> map_db_stage(si)
       end
     end

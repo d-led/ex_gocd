@@ -14,6 +14,12 @@ defmodule ExGoCDWeb.PipelineActivityLiveTest do
   import ExGoCD.TestHelpers, only: [recent_instant: 0]
 
   describe "Pipeline Activity rendering" do
+    setup do
+      System.put_env("USE_MOCK_DATA", "true")
+      on_exit(fn -> System.delete_env("USE_MOCK_DATA") end)
+      :ok
+    end
+
     test "renders history list for a valid pipeline", %{conn: conn} do
       # Given a valid pipeline activity route
       {:ok, _view, html} = live(conn, ~p"/pipeline/activity/build-linux")

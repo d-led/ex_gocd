@@ -3,6 +3,12 @@ defmodule ExGoCDWeb.ValueStreamMapLiveTest do
 
   import Phoenix.LiveViewTest
 
+  setup do
+    System.put_env("USE_MOCK_DATA", "true")
+    on_exit(fn -> System.delete_env("USE_MOCK_DATA") end)
+    :ok
+  end
+
   describe "Pipeline VSM rendering" do
     test "renders value stream map for a valid pipeline run", %{conn: conn} do
       # Given a valid pipeline VSM route

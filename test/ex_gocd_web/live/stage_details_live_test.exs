@@ -14,6 +14,12 @@ defmodule ExGoCDWeb.StageDetailsLiveTest do
   @now ~U[2026-07-01 10:00:00.000000Z]
 
   describe "Stage Details rendering" do
+    setup do
+      System.put_env("USE_MOCK_DATA", "true")
+      on_exit(fn -> System.delete_env("USE_MOCK_DATA") end)
+      :ok
+    end
+
     test "renders stage run metadata and breadcrumbs", %{conn: conn} do
       # Given a valid stage details route
       {:ok, _view, html} = live(conn, ~p"/pipelines/build-linux/1/compile/1")

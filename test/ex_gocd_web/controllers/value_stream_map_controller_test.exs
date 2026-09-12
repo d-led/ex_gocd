@@ -1,5 +1,11 @@
 defmodule ExGoCDWeb.ValueStreamMapControllerTest do
-  use ExGoCDWeb.ConnCase, async: true
+  use ExGoCDWeb.ConnCase, async: false
+
+  setup do
+    System.put_env("USE_MOCK_DATA", "true")
+    on_exit(fn -> System.delete_env("USE_MOCK_DATA") end)
+    :ok
+  end
 
   test "GET /pipelines/value_stream_map/:pipeline_name/:pipeline_counter.json", %{conn: conn} do
     # When requesting JSON VSM for valid pipeline

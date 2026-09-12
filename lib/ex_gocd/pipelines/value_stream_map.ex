@@ -22,7 +22,7 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
         get_mock_pipeline_vsm(pipeline_name, counter)
       else
         case fetch_db_instance(pipeline_name, counter) do
-          nil -> fallback_to_mock_or_not_found(pipeline_name, counter)
+          nil -> {:error, :not_found}
           instance -> build_db_pipeline_vsm(instance)
         end
       end
@@ -38,10 +38,7 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
       if use_mock?("") do
         get_all_mock_materials()
       else
-        case Pipelines.list_materials() do
-          [] -> get_all_mock_materials()
-          list -> map_db_materials_vsm(list)
-        end
+        Pipelines.list_materials() |> map_db_materials_vsm()
       end
 
     matching_mat = Enum.find(all_mats, &(fingerprint(&1) == material_fingerprint))
@@ -50,16 +47,8 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
 
   # Helpers
 
-  defp use_mock?(pipeline_name) do
-    System.get_env("USE_MOCK_DATA") == "true" or not has_db_pipeline?(pipeline_name)
-  end
-
-  defp has_db_pipeline?(name) do
-    if name == "", do: false, else: Repo.exists?(from(p in Pipeline, where: p.name == ^name))
-  end
-
-  defp has_mock_pipeline?(name) do
-    Enum.any?(MockData.pipelines(), &(&1.name == name))
+  defp use_mock?(_pipeline_name) do
+    System.get_env("USE_MOCK_DATA") == "true"
   end
 
   defp fetch_db_instance(pipeline_name, counter) do
@@ -475,58 +464,55 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
   end
 
   defp get_downstream_pipelines(pipeline_name) do
-    db_downstream =
-      if use_mock?(pipeline_name) do
-        []
-      else
-        Repo.all(
-          from p in Pipeline,
-            join: m in assoc(p, :materials),
-            where: m.type == "dependency" and m.url == ^pipeline_name,
-            select: p.name
-        )
-      end
+    if use_mock?(pipeline_name) do
+      mock_downstream(pipeline_name)
+    else
+      Repo.all(
+        from p in Pipeline,
+          join: m in assoc(p, :materials),
+          where: m.type == "dependency" and m.url == ^pipeline_name,
+          select: p.name
+      )
+    end
+  end
 
-    mock_downstream =
-      case pipeline_name do
-        "build-linux" -> ["deploy-staging"]
-        "deploy-staging" -> ["deploy-production"]
-        "upstream-lib" -> ["component-a", "component-b", "downstream-app"]
-        "component-a" -> ["integration-pipeline"]
-        "component-b" -> ["integration-pipeline"]
-        _ -> []
-      end
-
-    (db_downstream ++ mock_downstream) |> Enum.uniq()
+  defp mock_downstream(pipeline_name) do
+    case pipeline_name do
+      "build-linux" -> ["deploy-staging"]
+      "deploy-staging" -> ["deploy-production"]
+      "upstream-lib" -> ["component-a", "component-b", "downstream-app"]
+      "component-a" -> ["integration-pipeline"]
+      "component-b" -> ["integration-pipeline"]
+      _ -> []
+    end
   end
 
   # Counts how many distinct upstream pipelines feed into the given pipeline.
   # Fan-in > 1 means multiple pipelines converge here.
   def count_fan_in(pipeline_name) do
-    db_upstream =
-      if use_mock?(pipeline_name) do
-        []
-      else
-        Repo.all(
-          from p in Pipeline,
-            join: m in assoc(p, :materials),
-            where: m.type == "dependency" and m.url == ^pipeline_name,
-            select: p.name
-        )
-      end
+    if use_mock?(pipeline_name) do
+      mock_upstream(pipeline_name) |> length()
+    else
+      Repo.all(
+        from p in Pipeline,
+          join: m in assoc(p, :materials),
+          where: m.type == "dependency" and m.url == ^pipeline_name,
+          select: p.name
+      )
+      |> length()
+    end
+  end
 
-    mock_upstream =
-      case pipeline_name do
-        "deploy-staging" -> ["build-linux"]
-        "deploy-production" -> ["deploy-staging"]
-        "component-a" -> ["upstream-lib"]
-        "component-b" -> ["upstream-lib"]
-        "integration-pipeline" -> ["component-a", "component-b"]
-        "downstream-app" -> ["upstream-lib"]
-        _ -> []
-      end
-
-    (db_upstream ++ mock_upstream) |> Enum.uniq() |> length()
+  defp mock_upstream(pipeline_name) do
+    case pipeline_name do
+      "deploy-staging" -> ["build-linux"]
+      "deploy-production" -> ["deploy-staging"]
+      "component-a" -> ["upstream-lib"]
+      "component-b" -> ["upstream-lib"]
+      "integration-pipeline" -> ["component-a", "component-b"]
+      "downstream-app" -> ["upstream-lib"]
+      _ -> []
+    end
   end
 
   defp build_all_downstream_nodes(names, parents, depth, visited \\ MapSet.new())
@@ -707,14 +693,6 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
 
   defp get_all_mock_materials do
     MockData.get_all_mock_materials()
-  end
-
-  defp fallback_to_mock_or_not_found(pipeline_name, counter) do
-    if has_mock_pipeline?(pipeline_name) do
-      get_mock_pipeline_vsm(pipeline_name, counter)
-    else
-      {:error, :not_found}
-    end
   end
 
   defp map_db_materials_vsm(list) do

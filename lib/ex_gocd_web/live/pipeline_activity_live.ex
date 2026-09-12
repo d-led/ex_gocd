@@ -52,13 +52,8 @@ defmodule ExGoCDWeb.PipelineActivityLive do
 
   # Helper functions
 
-  defp use_mock?(name) do
-    System.get_env("USE_MOCK_DATA") == "true" or not has_db_pipeline?(name)
-  end
-
-  defp has_db_pipeline?(name) do
-    import Ecto.Query
-    ExGoCD.Repo.exists?(from(p in ExGoCD.Pipelines.Pipeline, where: p.name == ^name))
+  defp use_mock?(_name) do
+    System.get_env("USE_MOCK_DATA") == "true"
   end
 
   defp get_pipeline_runs(pipeline_name) do

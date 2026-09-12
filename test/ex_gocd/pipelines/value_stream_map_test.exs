@@ -1,9 +1,15 @@
 defmodule ExGoCD.Pipelines.ValueStreamMapTest do
-  use ExGoCD.DataCase, async: true
+  use ExGoCD.DataCase, async: false
 
   alias ExGoCD.Pipelines.ValueStreamMap
 
   describe "get_pipeline_vsm/2" do
+    setup do
+      System.put_env("USE_MOCK_DATA", "true")
+      on_exit(fn -> System.delete_env("USE_MOCK_DATA") end)
+      :ok
+    end
+
     test "returns the VSM for a valid mock pipeline" do
       # Given a mock pipeline name and counter
       pipeline_name = "build-linux"
@@ -50,6 +56,12 @@ defmodule ExGoCD.Pipelines.ValueStreamMapTest do
   end
 
   describe "get_material_vsm/2" do
+    setup do
+      System.put_env("USE_MOCK_DATA", "true")
+      on_exit(fn -> System.delete_env("USE_MOCK_DATA") end)
+      :ok
+    end
+
     test "returns the VSM for a material fingerprint and revision" do
       # Given a material fingerprint and revision
       fingerprint = "8d78bc9f6c661806"
