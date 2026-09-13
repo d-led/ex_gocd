@@ -13,6 +13,6 @@
     "cypress": "^15.18.0"
   },
   "allowScripts": {
-    "cypress@15.18.0": true
+    "cypress@15.21.1": true
   }
 }
