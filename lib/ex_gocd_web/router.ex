@@ -523,14 +523,59 @@ defmodule ExGoCDWeb.Router do
   end
 
   # GoCD-prefixed admin configuration APIs (parity: /go/api/admin/*)
+  scope "/go/api/admin", ExGoCDWeb.API do
+    pipe_through :admin_api
+    get "/scms", SCMController, :index
+    get "/scms/:id", SCMController, :show
+  end
+
   scope "/go/api/admin", ExGoCDWeb.API.Admin do
     pipe_through :admin_api
 
-    get "/security/system_admins", SystemAdminsController, :index
+    resources "/pipelines", PipelineConfigController, except: [:new, :edit], param: "name"
+    resources "/pipeline_groups", PipelineGroupController, except: [:new, :edit], param: "name"
+    resources "/templates", TemplateController, except: [:new, :edit], param: "name"
+    resources "/environments", EnvironmentController, except: [:new, :edit], param: "name"
+
+    get "/maintenance_mode/info", MaintenanceModeController, :show
+    post "/maintenance_mode/enable", MaintenanceModeController, :enable
+    post "/maintenance_mode/disable", MaintenanceModeController, :disable
+
+    post "/backups", BackupController, :create
+    get "/backups/:id", BackupController, :show
+
+    # Backup config (GoCD parity: GET/POST/DELETE /api/config/backup)
+    get "/config/backup", BackupConfigController, :show
+    post "/config/backup", BackupConfigController, :create
+    delete "/config/backup", BackupConfigController, :delete
+
+    resources "/elastic_agent_profiles", ElasticAgentProfileController, except: [:new, :edit]
+    resources "/cluster_profiles", ClusterProfileController, except: [:new, :edit]
+    resources "/package_repositories", PackageRepositoryController, except: [:new, :edit]
+    resources "/packages", PackageController, except: [:new, :edit]
+    resources "/secret_configs", SecretConfigController, except: [:new, :edit]
+    resources "/auth_configs", AuthConfigController, except: [:new, :edit]
+
+    get "/pipeline_group_permissions", PipelineGroupPermissionController, :index
+    post "/pipeline_group_permissions", PipelineGroupPermissionController, :create
+    delete "/pipeline_group_permissions", PipelineGroupPermissionController, :delete
+
+    get "/notification_filters", NotificationFilterController, :index
+    post "/notification_filters", NotificationFilterController, :create
+    delete "/notification_filters/:id", NotificationFilterController, :delete
+
+    resources "/artifact_stores", ArtifactStoreController, except: [:new, :edit]
+    get "/site_url", SiteURLController, :show
+    get "/permissions", PermissionsController, :index
+
+    # Server configuration (GoCD parity)
     get "/config/server/default_job_timeout", DefaultJobTimeoutController, :show
     get "/config/server/artifact_config", ArtifactConfigController, :show
-    get "/plugin_settings/:plugin_id", PluginSettingsController, :show
     get "/config.xml", ConfigXmlController, :show
+
+    # System admins + plugin settings (GoCD parity)
+    get "/security/system_admins", SystemAdminsController, :index
+    get "/plugin_settings/:plugin_id", PluginSettingsController, :show
   end
 
   # GoCD internal agent remoting API (HTTP-based, used by official Go agent)
