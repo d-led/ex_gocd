@@ -75,6 +75,16 @@ else
   fail_step "Docs — a reference resolves to nothing"
 fi
 
+# ── Tests: the database they will use ─────────────────────────────────
+
+echo ""
+echo "=== Test database reachable ==="
+if elixir scripts/check_test_db.exs; then
+  pass_step "Test database — reachable"
+else
+  fail_step "Test database — not reachable (see the message above)"
+fi
+
 # ── Elixir: Test suite ─────────────────────────────────────────────────
 
 echo ""
