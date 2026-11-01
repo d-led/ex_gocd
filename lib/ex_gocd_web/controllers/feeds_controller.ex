@@ -121,7 +121,6 @@ defmodule ExGoCDWeb.FeedsController do
           <id>#{esc("urn:exgocd:stage:#{pipeline_name}:#{counter}:#{si.name}:#{si.counter}")}</id>
           <published>#{esc(updated)}</published>
           <updated>#{esc(updated)}</updated>
-          <title>#{esc("#{pipeline_name} ##{counter} #{si.name}")}</title>
         </entry>
         """
       end)
