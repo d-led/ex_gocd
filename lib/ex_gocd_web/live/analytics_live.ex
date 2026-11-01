@@ -379,6 +379,9 @@ defmodule ExGoCDWeb.AnalyticsLive do
       </div>
     <% else %>
       <div class="space-y-6">
+        <div>
+          <h2 class="text-lg font-semibold text-gray-800">{@pipeline_name}</h2>
+        </div>
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div class="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
             <p class="text-xs text-gray-500 uppercase tracking-wide">Runs (30d)</p>
