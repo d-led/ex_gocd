@@ -138,8 +138,11 @@ A revert therefore reads both artefacts of a version: the XML through
 sections only the JSON holds. Each of those is upserted on the key its schema
 keeps unique (artifact store id, secret config and package repository name,
 config repo url and source type), so a restore adds and updates but never
-deletes. Nothing is dropped on a revert any more; the XML is still short of
-those four sections as an interop artefact.
+deletes. The restore runs in one transaction and through each schema's
+changeset, so a version that cannot be restored in full leaves nothing
+half-restored and the revert says which half happened. Nothing is dropped on a
+revert any more; the XML is still short of those four sections as an interop
+artefact.
 
 Config repos are exported as `<config-repos>`, and the pipelines that belong to
 one are left out of `<pipelines>`. Both halves follow upstream: `configRepos` is
