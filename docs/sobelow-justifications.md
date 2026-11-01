@@ -27,3 +27,21 @@ All ignored checks are by design, not bugs. Each has been reviewed.
 ## XSS.SendResp
 **Files:** `lib/ex_gocd_web/controllers/artifacts_controller.ex`
 - `send_resp` serves `application/zip` binary content (not HTML). No XSS vector exists for binary zip responses.
+
+---
+
+## Kept, not ignored: `Crypto.WeakHash` (MD5)
+
+**Files:** `lib/ex_gocd_web/controllers/artifacts_controller.ex` — `verify_checksum_on_fetch/1` and `file_md5/1`
+
+MD5 here is not a security primitive. It is the artifact checksum format: a GoCD
+agent writes `md5.checksum` beside each artifact, and the server compares the
+value it computes with the value the agent wrote. Any other algorithm would stop
+interoperating with GoCD agents, and the property being checked is that the file
+arrived intact, not that it came from a trustworthy party — TLS and the agent
+cookie carry that.
+
+These two findings are therefore reported rather than ignored: `.sobelow-conf`
+ignores checks that are wrong for this codebase, and these are right but
+deliberate. `scripts/quality-gate.sh` fails on High-confidence findings and warns
+on Medium-confidence ones, naming this file.

@@ -49,4 +49,3 @@ describe("Pipeline Pause", () => {
     cy.thePauseModalIsClosed();
   });
 });
-

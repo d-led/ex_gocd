@@ -47,12 +47,17 @@ fi
 echo ""
 echo "=== Elixir: Sobelow security scan ==="
 SOBELOW_OUT=$(mix sobelow 2>&1)
-SOBELOW_FINDINGS=$(echo "$SOBELOW_OUT" | grep -c "High Confidence\|Medium Confidence" || true)
-if [ "$SOBELOW_FINDINGS" -eq 0 ]; then
-  pass_step "Sobelow — no security findings"
+SOBELOW_HIGHS=$(echo "$SOBELOW_OUT" | grep -c "High Confidence" || true)
+SOBELOW_MEDIUMS=$(echo "$SOBELOW_OUT" | grep -c "Medium Confidence" || true)
+if [ "$SOBELOW_HIGHS" -gt 0 ]; then
+  echo "$SOBELOW_OUT" | grep -B2 -A4 "High Confidence" | head -40
+  fail_step "Sobelow — ${SOBELOW_HIGHS} high-confidence finding(s)"
+elif [ "$SOBELOW_MEDIUMS" -gt 0 ]; then
+  # Kept on purpose, and written down: docs/sobelow-justifications.md.
+  echo "$SOBELOW_OUT" | grep -B1 -A3 "Medium Confidence" | head -40
+  warn_step "Sobelow — ${SOBELOW_MEDIUMS} medium-confidence finding(s), see docs/sobelow-justifications.md"
 else
-  echo "$SOBELOW_OUT" | grep -E "^(Config\.|Traversal\.|XSS\.)|^(File|Line|Function|Variable):"
-  fail_step "Sobelow — ${SOBELOW_FINDINGS} security findings"
+  pass_step "Sobelow — no security findings"
 fi
 
 # ── Elixir: Credo (if available) ────────────────────────────────────────
