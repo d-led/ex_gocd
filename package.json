@@ -10,9 +10,9 @@
     "screenshots:dashboards": "cypress run --browser chrome --spec cypress/e2e/screenshot-dashboards.cy.js"
   },
   "devDependencies": {
-    "cypress": "^15.18.0"
+    "cypress": "^16.2.1"
   },
   "allowScripts": {
-    "cypress@15.21.1": true
+    "cypress@16.2.1": true
   }
 }

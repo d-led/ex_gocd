@@ -337,8 +337,8 @@ defmodule ExGoCDWeb.AgentsLive do
           </span>
         </h1>
       </div>
-      
-    <!-- Tabs -->
+
+      <!-- Tabs -->
       <div class="agents-tabs">
         <button
           type="button"
@@ -365,8 +365,8 @@ defmodule ExGoCDWeb.AgentsLive do
           K8S PODS
         </button>
       </div>
-      
-    <!-- Bulk Actions & Stats -->
+
+      <!-- Bulk Actions & Stats -->
       <div :if={@agent_type != :k8s_pods} class="agents-controls">
         <%= if @is_user_admin do %>
           <div class="bulk-actions" id="bulk-actions">
@@ -480,8 +480,8 @@ defmodule ExGoCDWeb.AgentsLive do
           </form>
         </div>
       </div>
-      
-    <!-- Agents Table -->
+
+      <!-- Agents Table -->
       <div :if={@agent_type != :k8s_pods} class="agents-table-container">
         <table class="agents-table">
           <thead>
@@ -508,8 +508,7 @@ defmodule ExGoCDWeb.AgentsLive do
                 tabindex="0"
               >
                 AGENT NAME
-                <i class={sort_icon_class("hostname", @sort_column, @sort_order)} aria-hidden="true">
-                </i>
+                <i class={sort_icon_class("hostname", @sort_column, @sort_order)} aria-hidden="true"></i>
               </th>
               <th
                 class="sortable"
@@ -522,8 +521,7 @@ defmodule ExGoCDWeb.AgentsLive do
                 <i
                   class={sort_icon_class("working_dir", @sort_column, @sort_order)}
                   aria-hidden="true"
-                >
-                </i>
+                ></i>
               </th>
               <th
                 class="sortable"
@@ -536,8 +534,7 @@ defmodule ExGoCDWeb.AgentsLive do
                 <i
                   class={sort_icon_class("operating_system", @sort_column, @sort_order)}
                   aria-hidden="true"
-                >
-                </i>
+                ></i>
               </th>
               <th
                 class="sortable"
@@ -547,8 +544,7 @@ defmodule ExGoCDWeb.AgentsLive do
                 tabindex="0"
               >
                 IP ADDRESS
-                <i class={sort_icon_class("ipaddress", @sort_column, @sort_order)} aria-hidden="true">
-                </i>
+                <i class={sort_icon_class("ipaddress", @sort_column, @sort_order)} aria-hidden="true"></i>
               </th>
               <th
                 class="sortable"
@@ -568,8 +564,7 @@ defmodule ExGoCDWeb.AgentsLive do
                 tabindex="0"
               >
                 FREE SPACE
-                <i class={sort_icon_class("free_space", @sort_column, @sort_order)} aria-hidden="true">
-                </i>
+                <i class={sort_icon_class("free_space", @sort_column, @sort_order)} aria-hidden="true"></i>
               </th>
               <th
                 class="sortable"
@@ -579,8 +574,7 @@ defmodule ExGoCDWeb.AgentsLive do
                 tabindex="0"
               >
                 RESOURCES
-                <i class={sort_icon_class("resources", @sort_column, @sort_order)} aria-hidden="true">
-                </i>
+                <i class={sort_icon_class("resources", @sort_column, @sort_order)} aria-hidden="true"></i>
               </th>
               <th
                 class="sortable"
@@ -593,8 +587,7 @@ defmodule ExGoCDWeb.AgentsLive do
                 <i
                   class={sort_icon_class("environments", @sort_column, @sort_order)}
                   aria-hidden="true"
-                >
-                </i>
+                ></i>
               </th>
             </tr>
           </thead>
@@ -662,8 +655,7 @@ defmodule ExGoCDWeb.AgentsLive do
           <%= if is_map(@cluster_statuses) do %>
             <%= for {id, status} <- @cluster_statuses do %>
               <div style="border:1px solid #e5e7eb;border-radius:8px;padding:8px 14px;font-size:13px;display:flex;align-items:center;gap:8px;">
-                <span style={"width:8px;height:8px;border-radius:50%;background:#{cluster_dot_color(status)}"}>
-                </span>
+                <span style={"width:8px;height:8px;border-radius:50%;background:#{cluster_dot_color(status)}"}></span>
                 <span style="font-weight:600;">{cluster_name(id)}</span>
                 <span style={"color:#{cluster_text_color(status)}"}>
                   {cluster_label(status)}

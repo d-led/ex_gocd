@@ -122,8 +122,8 @@ defmodule ExGoCDWeb.AgentJobHistoryLive do
           <span>Job Run History</span>
         </h1>
       </div>
-      
-    <!-- Pagination Top -->
+
+      <!-- Pagination Top -->
       <div class="pagination-controls">
         <button
           type="button"
@@ -142,8 +142,8 @@ defmodule ExGoCDWeb.AgentJobHistoryLive do
           Next
         </button>
       </div>
-      
-    <!-- Job History Table -->
+
+      <!-- Job History Table -->
       <div class="job-history-table-container">
         <table class="job-history-table">
           <thead>
@@ -223,8 +223,8 @@ defmodule ExGoCDWeb.AgentJobHistoryLive do
           </tbody>
         </table>
       </div>
-      
-    <!-- Pagination Bottom -->
+
+      <!-- Pagination Bottom -->
       <div class="pagination-controls">
         <button
           type="button"

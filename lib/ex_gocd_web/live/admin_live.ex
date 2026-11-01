@@ -248,8 +248,8 @@ defmodule ExGoCDWeb.AdminLive do
             <i class="fa-solid fa-circle-question"></i>
           </a>
         </div>
-        
-    <!-- Page Header Actions (Dynamic based on Tab) -->
+
+        <!-- Page Header Actions (Dynamic based on Tab) -->
         <div class="flex flex-wrap items-center gap-4">
           <%= if @tab == "pipelines" do %>
             <div class="relative">
@@ -291,8 +291,8 @@ defmodule ExGoCDWeb.AdminLive do
           <% end %>
         </div>
       </div>
-      
-    <!-- Sub-Tab Navigation Bar -->
+
+      <!-- Sub-Tab Navigation Bar -->
       <div class="bg-white border-b border-[#e9edef] px-6 py-2.5 flex flex-wrap gap-6 text-sm font-semibold shadow-sm">
         <.sub_tab_link active={@tab == "overview"} href="/admin/overview">Overview</.sub_tab_link>
         <.sub_tab_link active={@tab == "pipelines"} href="/admin/pipelines">
@@ -321,8 +321,8 @@ defmodule ExGoCDWeb.AdminLive do
           📡 Observability
         </.sub_tab_link>
       </div>
-      
-    <!-- Main Layout Body (Centered Content) -->
+
+      <!-- Main Layout Body (Centered Content) -->
       <div class="max-w-[1400px] mx-auto px-6 py-6">
         <%= if @flash_info do %>
           <div
@@ -515,8 +515,8 @@ defmodule ExGoCDWeb.AdminLive do
             </div>
           </div>
         </div>
-        
-    <!-- Quick Actions -->
+
+        <!-- Quick Actions -->
         <div class="bg-white rounded border border-[#d6e0e2] p-5 shadow-sm">
           <h3 class="text-sm font-bold border-b border-[#e9edef] pb-3 flex items-center gap-2 text-slate-700">
             <i class="fa fa-bolt text-amber-500"></i> Operations Control
@@ -633,8 +633,8 @@ defmodule ExGoCDWeb.AdminLive do
           </div>
         </form>
       <% end %>
-      
-    <!-- Pipeline Group Cards -->
+
+      <!-- Pipeline Group Cards -->
       <div class="space-y-6">
         <%= for group <- @filtered_groups do %>
           <div class="bg-white rounded border border-[#d6e0e2] overflow-hidden shadow-sm">
@@ -779,8 +779,8 @@ defmodule ExGoCDWeb.AdminLive do
           </div>
         </form>
       <% end %>
-      
-    <!-- Templates Table -->
+
+      <!-- Templates Table -->
       <div class="bg-white rounded border border-[#d6e0e2] overflow-hidden shadow-sm">
         <div class="bg-[#e7eef0] px-5 py-3 border-b border-[#d6e0e2]">
           <span class="text-xs font-bold text-slate-800">
@@ -1081,8 +1081,8 @@ defmodule ExGoCDWeb.AdminLive do
           <% end %>
         </button>
       </div>
-      
-    <!-- Mail Server Configuration -->
+
+      <!-- Mail Server Configuration -->
       <div class="bg-white rounded border border-[#d6e0e2] p-5 shadow-sm space-y-4">
         <h3 class="text-sm font-bold text-slate-700 border-b border-[#e9edef] pb-3 flex items-center gap-2">
           <i class="fa fa-envelope text-[#943a9e]"></i> Email Notification
@@ -2481,8 +2481,8 @@ defmodule ExGoCDWeb.AdminLive do
           </div>
         </form>
       </div>
-      
-    <!-- Results Table -->
+
+      <!-- Results Table -->
       <div class="bg-white rounded border border-[#d6e0e2] overflow-hidden shadow-sm">
         <div class="overflow-x-auto">
           <table class="w-full text-left text-xs text-slate-600 font-sans">
@@ -2596,8 +2596,7 @@ defmodule ExGoCDWeb.AdminLive do
                   <span class={[
                     "w-2.5 h-2.5 rounded-full",
                     if(is_self, do: "bg-[#943a9e]", else: "bg-green-400")
-                  ]}>
-                  </span>
+                  ]}></span>
                   <span class="font-semibold text-slate-700">{node_str}</span>
                   <span
                     :if={is_self}
@@ -2618,8 +2617,8 @@ defmodule ExGoCDWeb.AdminLive do
             <% end %>
           </div>
         </div>
-        
-    <!-- Cluster Events -->
+
+        <!-- Cluster Events -->
         <div>
           <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
             Cluster Events
@@ -2648,8 +2647,8 @@ defmodule ExGoCDWeb.AdminLive do
             <% end %>
           </div>
         </div>
-        
-    <!-- Plugin UIs -->
+
+        <!-- Plugin UIs -->
         <div>
           <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Plugin UIs</h4>
           <div class="flex flex-wrap gap-2">
@@ -2667,8 +2666,8 @@ defmodule ExGoCDWeb.AdminLive do
             <% end %>
           </div>
         </div>
-        
-    <!-- Singleton Locations -->
+
+        <!-- Singleton Locations -->
         <div>
           <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
             Singleton Process Locations

@@ -29,8 +29,9 @@ defmodule ExGoCD.Otel do
         :ok
     end
 
-    # Attach Phoenix instrumentation — creates spans for HTTP requests
-    OpentelemetryPhoenix.setup()
+    # Attach Phoenix instrumentation — creates spans for HTTP requests.
+    # opentelemetry_phoenix 2.x needs to be told which server adapter to wrap.
+    OpentelemetryPhoenix.setup(adapter: :bandit)
 
     # Attach Ecto instrumentation — creates spans for DB queries
     OpentelemetryEcto.setup([:ex_gocd, :repo])

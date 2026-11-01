@@ -358,8 +358,7 @@ defmodule ExGoCDWeb.StageDetailsLive do
                   <span
                     class="absolute top-4 w-px h-1.5 bg-gray-300"
                     style={"left:#{Float.round(pct, 1)}%"}
-                  >
-                  </span>
+                  ></span>
                 <% end %>
               </div>
               <span class="shrink-0" style={"width:#{dur_w}px"}></span>
@@ -534,8 +533,7 @@ defmodule ExGoCDWeb.StageDetailsLive do
 
         <div class="flex items-center justify-between mt-2">
           <div class="flex items-center gap-4">
-            <span class={"w-3.5 h-3.5 rounded-full " <> status_bg_color(@stage.state, @stage.result)}>
-            </span>
+            <span class={"w-3.5 h-3.5 rounded-full " <> status_bg_color(@stage.state, @stage.result)}></span>
             <h1 class="text-2xl font-extrabold text-gray-950 font-mono flex items-baseline gap-2">
               {@stage_name}
               <span class="text-sm font-semibold text-gray-500">Run Details</span>

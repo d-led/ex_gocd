@@ -123,8 +123,8 @@ defmodule ExGoCDWeb.AdminOtelLive do
             status={instrumentation_overall(@status)}
           />
         </div>
-        
-    <!-- Config Source Hint -->
+
+        <!-- Config Source Hint -->
         <div class={[
           "border rounded p-4 text-xs flex items-start gap-3",
           if(@status.sdk_enabled,
@@ -138,15 +138,14 @@ defmodule ExGoCDWeb.AdminOtelLive do
               do: "fa-circle-info text-emerald-500",
               else: "fa-triangle-exclamation text-amber-500"
             )
-          ]}>
-          </i>
+          ]}></i>
           <div>
             <span class="font-bold">Why this state?</span>
             <span class="ml-1">{@status.config_source}</span>
           </div>
         </div>
-        
-    <!-- Two-column detail panels -->
+
+        <!-- Two-column detail panels -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <!-- Instrumentation Details -->
           <.panel title="Instrumentation Handlers" icon="fa-code-branch">
@@ -168,8 +167,8 @@ defmodule ExGoCDWeb.AdminOtelLive do
               />
             </div>
           </.panel>
-          
-    <!-- Environment Variables -->
+
+          <!-- Environment Variables -->
           <.panel title="Environment Variables" icon="fa-gear">
             <div class="space-y-3">
               <%= for {var, val} <- @status.env_vars do %>
@@ -190,8 +189,8 @@ defmodule ExGoCDWeb.AdminOtelLive do
               <% end %>
             </div>
           </.panel>
-          
-    <!-- OTLP Configuration -->
+
+          <!-- OTLP Configuration -->
           <.panel title="Exporter Configuration" icon="fa-paper-plane">
             <div class="space-y-4">
               <div class="flex justify-between items-center">
@@ -232,8 +231,8 @@ defmodule ExGoCDWeb.AdminOtelLive do
               </div>
             </div>
           </.panel>
-          
-    <!-- Setup Guide -->
+
+          <!-- Setup Guide -->
           <.panel title="Setup Guide" icon="fa-book">
             <div class="space-y-4 text-xs text-slate-600 leading-relaxed">
               <div>
@@ -306,8 +305,7 @@ defmodule ExGoCDWeb.AdminOtelLive do
             :neutral -> "text-slate-400"
             :error -> "text-red-500"
           end
-        ]}>
-        </i>
+        ]}></i>
       </div>
       <div>
         <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{@title}</p>
@@ -353,8 +351,7 @@ defmodule ExGoCDWeb.AdminOtelLive do
         <span class={[
           "w-1.5 h-1.5 rounded-full",
           if(@active, do: "bg-emerald-500", else: "bg-slate-300")
-        ]}>
-        </span>
+        ]}></span>
         {if @active, do: "Active", else: "Inactive"}
       </span>
     </div>

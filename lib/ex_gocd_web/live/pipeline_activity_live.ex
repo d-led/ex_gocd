@@ -378,8 +378,7 @@ defmodule ExGoCDWeb.PipelineActivityLive do
                   <span
                     class="absolute top-4 w-px h-1.5 bg-gray-300"
                     style={"left:#{Float.round(pct, 1)}%"}
-                  >
-                  </span>
+                  ></span>
                 <% end %>
               </div>
               <span class="shrink-0" style={"width:#{status_w}px"}></span>
@@ -631,8 +630,7 @@ defmodule ExGoCDWeb.PipelineActivityLive do
                   <span
                     class={"inline-block w-2 h-2 rounded-full shrink-0 " <> run_status_dot(run.status)}
                     title={run.status}
-                  >
-                  </span>
+                  ></span>
                   <span class="text-gray-500 font-medium">{run.status}</span>
 
                   <%= if Map.get(run, :config_changed) do %>
@@ -645,8 +643,8 @@ defmodule ExGoCDWeb.PipelineActivityLive do
                     </.link>
                   <% end %>
                 </div>
-                
-    <!-- Commit messages: every material, full text, no clipping -->
+
+                <!-- Commit messages: every material, full text, no clipping -->
                 <%= if Enum.any?(run.modifications, & &1.comment) do %>
                   <div class="flex flex-col gap-0.5">
                     <%= for mod <- run.modifications, mod.comment do %>
@@ -657,8 +655,8 @@ defmodule ExGoCDWeb.PipelineActivityLive do
                   </div>
                 <% end %>
               </div>
-              
-    <!-- Stage pipeline: compact horizontal strip -->
+
+              <!-- Stage pipeline: compact horizontal strip -->
               <div class="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 border-l border-gray-100">
                 <%= for {stage, idx} <- Enum.with_index(run.stages) do %>
                   <%= if idx > 0 do %>
