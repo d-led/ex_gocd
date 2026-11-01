@@ -14,7 +14,7 @@
 | Dimension | State | Evidence |
 | --- | --- | --- |
 | Code | 275 modules, compile warnings-as-errors clean | `mix compile --force --warnings-as-errors` |
-| ExUnit | **1082 tests, all green** | `mix test` |
+| ExUnit | **1085 tests, all green** | `mix test` |
 | Coverage | **54.8 %** of 274 modules; 80 at 0 % | `mix test.coverage` |
 | Go agent | builds; tests pass in 3 of 10 packages (3,793 prod LOC / 599 test LOC); modules upgraded 2026-11-01 (otel 1.47, grpc 1.85) | `cd agent && go test ./...` |
 | Cypress | 27 specs on disk, **not executed in this session** | `ls cypress/e2e/*.cy.js` |
@@ -199,7 +199,7 @@ table: the agent speaks HTTP remoting, like a real GoCD agent
 (`agent/internal/remoting/`, `agent_remoting_controller.ex`, and no `websocket`
 string anywhere in the Go agent).
 
-`README.md` badges are hand-written and say 1082 tests and 27 Cypress specs.
+`README.md` badges are hand-written and say 1085 tests and 27 Cypress specs.
 Nothing regenerates them, so they will drift again.
 
 ### The agent WebSocket tree is not dead code — it was untested
