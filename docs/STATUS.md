@@ -14,12 +14,12 @@
 | Dimension | State | Evidence |
 | --- | --- | --- |
 | Code | 275 modules, compile warnings-as-errors clean | `mix compile --force --warnings-as-errors` |
-| ExUnit | **1091 tests, all green** | `mix test` |
-| Coverage | **54.7 %** of 274 modules; 79 at 0 % | `mix test.coverage` |
+| ExUnit | **1098 tests, all green** | `mix test` |
+| Coverage | **54.7 %** of 274 modules; 79 at 0 % — measured at 1089 tests; the last two test files were added while the test database's Docker daemon was down | `mix test.coverage` |
 | Go agent | builds; tests pass in 3 of 10 packages (3,793 prod LOC / 599 test LOC); modules upgraded 2026-11-01 (otel 1.47, grpc 1.85) | `cd agent && go test ./...` |
 | Cypress | 27 specs on disk, **not executed in this session** | `ls cypress/e2e/*.cy.js` |
-| Static analysis | `mix format --check-formatted` clean; `mix credo --strict` exit 0 (3 readability notes) | see above |
-| CI | last `main` push 2026-09-13: Elixir CI, CodeQL, Sobelow all green | `gh run list` |
+| Static analysis | `mix format --check-formatted` clean; `mix credo --strict` exit 0 (no findings); `elixir scripts/check_doc_refs.exs` clean | see above |
+| CI | `main` at 8e38639: Elixir CI, CodeQL and Sobelow green through 172a83a…e6369a4; three newer commits were still queued | `gh run list` |
 | Security | **0 open Dependabot alerts**; `npm audit` 0 vulnerabilities | see above |
 | Dependencies | Hex and npm on their latest releases; Go modules not yet | `mix hex.outdated`, `npm outdated` |
 | Upstream | pulled to `gocd/gocd` `eb504a6a6b`; `api.go.cd` has no `source/` changes | see [Upstream delta](#upstream-delta) |
@@ -219,7 +219,7 @@ table: the agent speaks HTTP remoting, like a real GoCD agent
 (`agent/internal/remoting/`, `agent_remoting_controller.ex`, and no `websocket`
 string anywhere in the Go agent).
 
-`README.md` badges are hand-written and say 1091 tests and 27 Cypress specs.
+`README.md` badges are hand-written and say 1098 tests and 27 Cypress specs.
 Nothing regenerates them, so they will drift again.
 
 `scripts/check_doc_refs.exs` is the part that cannot drift: it fails when a
