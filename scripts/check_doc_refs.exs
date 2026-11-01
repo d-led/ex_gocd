@@ -13,6 +13,10 @@ defmodule DocRefs do
   @router "lib/ex_gocd_web/router.ex"
 
   def main do
+    # The paths below are relative to the project, so it does not matter where
+    # this is run from.
+    File.cd!(Path.expand("..", __DIR__))
+
     problems = source_ref_problems() ++ named_module_problems() ++ link_problems()
 
     case problems do
