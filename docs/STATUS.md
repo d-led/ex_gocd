@@ -196,8 +196,20 @@ rendered runs, pass rate, MTTR and build time under no heading, so a person
 following a link to it could not tell which pipeline they were reading. It names
 the pipeline now.
 
-### Doc drift
+### Known noise: the sandbox says a connection was disconnected
 
+Most runs print one or two lines like
+
+    Postgrex.Protocol (…) disconnected: ** (DBConnection.ConnectionError)
+    #PID<…> (:erlang) checked in the connection owned by #PID<…> (ExGoCD.Scheduler)
+
+They come from sandbox teardown and appear in every file, async or not, whether
+the suite passes or not: `test/ex_gocd/analytics_pipelines_test.exs` alone prints
+one, `test/ex_gocd/test_agent_test.exs` alone prints two. Nothing fails because
+of them, and the Scheduler keeps working. They are recorded here so that a later
+reader does not take them for the regression they look like.
+
+### Doc drift
 `docs/PARITY.md` now opens by saying it is a map of intent rather than a status
 report, and it carries no counts: the ones it had were 1004 tests, 67
 controllers, 23 LiveView pages, 20 GenServers, 42 migrations and 22 Cypress
