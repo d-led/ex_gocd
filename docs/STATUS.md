@@ -14,9 +14,9 @@
 | Dimension | State | Evidence |
 | --- | --- | --- |
 | Code | 275 modules, compile warnings-as-errors clean | `mix compile --force --warnings-as-errors` |
-| ExUnit | **1075 tests, all green**, ~14 s | `mix test` |
-| Coverage | **54.4 %** of 274 modules; 81 at 0 % | `mix test.coverage` |
-| Go agent | builds; tests pass in 3 of 10 packages (3,793 prod LOC / 599 test LOC) | `cd agent && go test ./...` |
+| ExUnit | **1082 tests, all green** | `mix test` |
+| Coverage | **54.8 %** of 274 modules; 80 at 0 % | `mix test.coverage` |
+| Go agent | builds; tests pass in 3 of 10 packages (3,793 prod LOC / 599 test LOC); modules upgraded 2026-11-01 (otel 1.47, grpc 1.85) | `cd agent && go test ./...` |
 | Cypress | 27 specs on disk, **not executed in this session** | `ls cypress/e2e/*.cy.js` |
 | Static analysis | `mix format --check-formatted` clean; `mix credo --strict` exit 0 (3 readability notes) | see above |
 | CI | last `main` push 2026-09-13: Elixir CI, CodeQL, Sobelow all green | `gh run list` |
@@ -106,7 +106,7 @@ boilerplate:
 | `live/config_diff_live.ex` | 53 | |
 | `controllers/config_xml_controller.ex` | 20 | Legacy `/admin/config_xml` export/import/revert UI |
 | `elastic_agent_scheduler.ex` | 186 at 12.9 % | |
-| `channels/*` (5 files, 412 lines) | ~0 % | see [Dead code](#dead-code-agent-websocket-channels) |
+| `channels/*` (5 files, 412 lines) | covered by `test/ex_gocd_web/channels/` | see [the agent WebSocket tree](#the-agent-websocket-tree-is-not-dead-code-it-was-untested) |
 
 `config_xml_test.exs` covers `generate/0` and `import_from_xml/1`, including a
 generate → `from_xml/1` round trip and an idempotent second import.
@@ -193,7 +193,7 @@ The wizard's two columns are `text[]` now (migration
 | Claim | Reality |
 | --- | --- |
 | "100 % feature parity, all gaps resolved" | contradicted by the gaps above and the 85 zero-coverage modules |
-| 1004 tests [1075] | |
+| 1004 tests [1082] | |
 | 67 controllers [61] | |
 | 23 LiveView pages [22] | |
 | 20 GenServers [22] | |
@@ -203,13 +203,25 @@ The wizard's two columns are `text[]` now (migration
 
 `README.md` badges claim 949 tests and 16 Cypress specs.
 
-### Dead code: agent WebSocket channels
+### The agent WebSocket tree is not dead code — it was untested
 
-`lib/ex_gocd_web/channels/` is 412 lines at ~0 % coverage, and the Go agent has
-no WebSocket client. `endpoint.ex` still mounts `ExGoCDWeb.AgentSocket` at
-`/agent-websocket` and `ExGoCDWeb.UserSocket` at `/socket`, so the tree is
-reachable but nothing in the shipped system uses it. Either delete it or state
-plainly that it is a compatibility surface.
+`lib/ex_gocd_web/channels/` was called dead code here. It is not: two things use
+it, and neither had a test.
+
+- `AgentSocket` and `AgentChannel` carry `ExGoCD.HTTPTestAgent`, which
+  `POST /api/test/agents/http` starts in test mode and in dev, so a simulated
+  agent can drive the protocol over raw TCP. The shipped Go agent speaks HTTP
+  remoting instead — `agent/internal/remoting/`, `agent_remoting_controller.ex`.
+- `UserSocket` and `AgentsChannel` carry the dashboard's `agents:updates`
+  subscription, which `assets/js/app.js` opens so the agent list refreshes.
+
+Both have tests now (`test/ex_gocd_web/channels/`). They found that
+`AgentsChannel` had no clause for a message it did not recognise, so anything
+else published on that topic took the channel down and live updates stopped
+until the page was reloaded. It ignores unknown messages now.
+
+`AgentChannel` still has no catch-all: an agent speaks an enumerated protocol,
+and an unexpected message there should be loud rather than silently dropped.
 
 ---
 
@@ -263,12 +275,13 @@ Reconstructed from the two indexed sessions for this workspace
 2. **Re-audit `PARITY.md` against the code** rather than against the previous
    audit. Replace the "100 %" claim with the verified coverage table, or split
    the file into "claimed" and "verified" columns.
-3. **Delete or declare `lib/ex_gocd_web/channels/`.** 412 lines that nothing
-   exercises.
+3. ~~**Delete or declare `lib/ex_gocd_web/channels/`.**~~ Declared, and it turned
+   out to be live rather than dead; both trees have tests now.
 4. ~~**Close the largest untested features**~~ Two of the three are done: the
    admin K8s page (57.8 %) and the external CI wizard (63.6 %), which turned up
    four faults in the code they now cover. The analytics tabs' data paths are
    still untested.
-5. **Upgrade the Go modules** in `agent/`.
+5. ~~**Upgrade the Go modules** in `agent/`~~ Done: `go get -u ./...`, then
+   build, vet and test clean.
 6. **Teach the XML the four plugin sections** if an external reader ever needs
    them, which first needs a way to know which plugin property is a secret.

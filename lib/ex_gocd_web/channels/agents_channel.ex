@@ -25,4 +25,11 @@ defmodule ExGoCDWeb.AgentsChannel do
     push(socket, "agents_updated", %{})
     {:noreply, socket}
   end
+
+  # Anything else on this topic is not ours to act on. Ignoring it keeps the
+  # dashboard's subscription alive; a missing clause would take the channel
+  # down and stop live updates until the page is reloaded.
+  def handle_info(_message, socket) do
+    {:noreply, socket}
+  end
 end
