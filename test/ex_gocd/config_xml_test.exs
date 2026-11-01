@@ -253,6 +253,18 @@ defmodule ExGoCD.ConfigXmlTest do
       assert material.branch == "develop"
       assert material.name == "roundtrip"
     end
+
+    test "renders a template with the stages and jobs it declares" do
+      {:ok, template} = ExGoCD.Pipelines.create_template(%{name: "shared-build"})
+      {:ok, stage} = ExGoCD.Pipelines.create_stage(%{name: "build", template_id: template.id})
+      {:ok, _job} = ExGoCD.Pipelines.create_job(%{name: "compile", stage_id: stage.id})
+
+      xml = ExGoCD.ConfigXml.generate()
+
+      assert xml =~ ~s(<pipeline name="shared-build" template="true")
+      assert xml =~ ~s(<stage name="build")
+      assert xml =~ ~s(<job name="compile")
+    end
   end
 
   describe "import_from_xml/1" do

@@ -990,7 +990,7 @@ defmodule ExGoCD.ConfigXml do
   defp render_templates do
     alias ExGoCD.Pipelines.Template
 
-    templates = Repo.all(Template) |> Repo.preload(:pipelines)
+    templates = Repo.all(Template) |> Repo.preload(stages: :jobs)
 
     if Enum.empty?(templates) do
       ""
@@ -998,24 +998,21 @@ defmodule ExGoCD.ConfigXml do
       tag3(
         "templates",
         %{},
-        Enum.map_join(templates, "\n", fn t ->
-          stages_xml = render_template_stages(t.stages || [])
-          tag3("pipeline", %{name: t.name, template: true}, stages_xml)
-        end)
+        Enum.map_join(templates, "\n", &render_template/1)
       )
     end
   end
 
-  defp render_template_stages(stages) do
-    Enum.map_join(stages, "", fn s ->
-      name = s["name"] || s[:name] || ""
-      jobs = s["jobs"] || s[:jobs] || []
+  defp render_template(template) do
+    stages =
+      Enum.map_join(template.stages || [], "", fn stage ->
+        jobs =
+          Enum.map_join(stage.jobs || [], "", fn job -> tag2("job", %{name: job.name}) end)
 
-      jobs_xml =
-        Enum.map_join(jobs, "", fn j -> tag2("job", %{name: j["name"] || j[:name] || ""}) end)
+        tag3("stage", %{name: stage.name}, tag3("jobs", %{}, jobs))
+      end)
 
-      tag3("stage", %{name: name}, tag3("jobs", %{}, jobs_xml))
-    end)
+    tag3("pipeline", %{name: template.name, template: true}, stages)
   end
 
   defp render_environments do
