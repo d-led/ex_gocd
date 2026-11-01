@@ -35,8 +35,7 @@ defmodule ExGoCDWeb.ConnCase do
   end
 
   setup tags do
-    owner = ExGoCD.DataCase.setup_sandbox(tags)
-    ExGoCD.Sandbox.allow_background_processes(owner)
+    ExGoCD.DataCase.setup_sandbox(tags)
 
     if Process.whereis(ExGoCD.Scheduler) do
       ExGoCD.Scheduler.clear_queue()

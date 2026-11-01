@@ -33,8 +33,7 @@ defmodule ExGoCD.DataCase do
   alias Ecto.Adapters.SQL.Sandbox
 
   setup tags do
-    owner = ExGoCD.DataCase.setup_sandbox(tags)
-    ExGoCD.Sandbox.allow_background_processes(owner)
+    ExGoCD.DataCase.setup_sandbox(tags)
 
     if Process.whereis(ExGoCD.Scheduler) do
       ExGoCD.Scheduler.clear_queue()
@@ -84,8 +83,13 @@ defmodule ExGoCD.DataCase do
   end
 
   @doc """
-  Sets up the sandbox based on the test tags and returns the pid that owns the
-  connection, so callers can lend it to the processes they need.
+  Sets up the sandbox based on the test tags.
+
+  A synchronous test switches the pool into shared mode, so every process the
+  application runs can use its connection. An async test gets a connection only
+  for itself: lending that one connection to a shared GenServer would make two
+  writers queue on it, and a test that needs such a GenServer has to run
+  synchronously instead.
   """
   def setup_sandbox(tags) do
     owner = Sandbox.start_owner!(ExGoCD.Repo, shared: not tags[:async])
