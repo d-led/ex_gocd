@@ -94,6 +94,75 @@ defmodule ExGoCD.ConfigSnapshotTest do
       refute secret_val == "my-secret-value"
     end
 
+    test "captures the plugin-configured sections a restore has to recreate" do
+      alias ExGoCD.ArtifactStores.ArtifactStore
+      alias ExGoCD.ConfigRepos.ConfigRepo
+      alias ExGoCD.PackageRepositories.PackageRepository
+      alias ExGoCD.SecretConfigs.SecretConfig
+
+      artifact_store =
+        Repo.insert!(%ArtifactStore{
+          plugin_id: "cd.go.artifact.docker.registry",
+          properties: %{"RegistryURL" => "https://registry.test"}
+        })
+
+      package_repository =
+        Repo.insert!(%PackageRepository{
+          name: "acme-npm",
+          plugin_id: "cd.go.reporter.artifact.npm",
+          configuration: %{"RepositoryURL" => "https://npm.test"}
+        })
+
+      Repo.insert!(%SecretConfig{
+        name: "vault-prod",
+        plugin_id: "cd.go.secrets.vault",
+        configuration: %{"address" => "https://vault.test"}
+      })
+
+      repo_config =
+        Repo.insert!(%ConfigRepo{
+          url: "https://github.com/acme/config.git",
+          branch: "trunk",
+          plugin_id: "cd.go.config-repo.yaml",
+          configuration: %{"pattern" => "*.gocd.yaml"}
+        })
+
+      {:ok, version} = ConfigSnapshot.snapshot("test", "plugin sections")
+      config = version.config_json
+
+      secrets = config["secret_configs"]
+
+      assert Enum.any?(
+               secrets,
+               &(&1["name"] == "vault-prod" and &1["plugin_id"] == "cd.go.secrets.vault")
+             )
+
+      repositories = config["package_repositories"]
+
+      assert Enum.any?(
+               repositories,
+               &(&1["id"] == package_repository.id and &1["name"] == "acme-npm")
+             )
+
+      stores = config["artifact_stores"]
+
+      assert Enum.any?(
+               stores,
+               &(&1["id"] == artifact_store.id and
+                   &1["properties"] == %{"RegistryURL" => "https://registry.test"})
+             )
+
+      repos = config["config_repos"]
+
+      assert Enum.any?(
+               repos,
+               &(&1["id"] == repo_config.id and &1["url"] == "https://github.com/acme/config.git" and
+                   &1["branch"] == "trunk")
+             )
+
+      assert Enum.all?(Map.values(config), &(not is_map(&1) or not Map.has_key?(&1, "_error")))
+    end
+
     test "cluster profiles encrypt bearer tokens" do
       {:ok, _profile} =
         ClusterProfiles.create_profile(%{

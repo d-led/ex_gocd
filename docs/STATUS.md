@@ -14,7 +14,7 @@
 | Dimension | State | Evidence |
 | --- | --- | --- |
 | Code | 275 modules, compile warnings-as-errors clean | `mix compile --force --warnings-as-errors` |
-| ExUnit | **1058 tests, all green**, ~9 s | `mix test` |
+| ExUnit | **1059 tests, all green**, ~9 s | `mix test` |
 | Coverage | **51.4 %** of 274 modules; 85 at 0 % | `mix test.coverage` |
 | Go agent | builds; tests pass in 3 of 10 packages (3,793 prod LOC / 599 test LOC) | `cd agent && go test ./...` |
 | Cypress | 27 specs on disk, **not executed in this session** | `ls cypress/e2e/*.cy.js` |
@@ -132,6 +132,27 @@ complete, and `config_xml`, which is not — and `revert` restores from the XML.
 Reverting to a version therefore drops those five sections. The JSON is there to
 restore from; nothing reads it yet.
 
+### Fixed: five capture sections were silently empty
+
+Every section of `config_json` is built by `safe_section/1`, which records a
+section that raises as `{"_error" => …}` instead of failing the snapshot. Each
+of these sections also had its own `rescue _ -> []`, so a broken section looked
+identical to an empty one. `templates`, `secret_configs`,
+`package_repositories` and `config_repos` were all broken and all silent:
+
+| Section | Cause |
+| --- | --- |
+| `templates` | aliased `PipelineTemplate`; the module is `ExGoCD.Pipelines.Template` |
+| `secret_configs` | read `encrypted_value` and `properties`; the schema has `configuration` and `description` |
+| `package_repositories` | aliased `ExGoCD.Packages.PackageRepository`; the module is under `PackageRepositories`, and the schema has `configuration`, not `repo_url`/`properties` |
+| `config_repos` | read `repo_url`, `password` and `material_update_interval`; the schema has `url`, `branch`, `material_type`, `source_type`, `configuration` |
+
+So no version ever captured a template, a secret config, a package repository or
+a config repo. The inner rescues are gone; `safe_section/1` already reports a
+broken section, and the snapshot test now asserts that no section reports
+`_error`. `scms` still returns `[]` because this build has no SCM table — a
+repository is named by the material that points at it.
+
 ### Doc drift
 
 `docs/PARITY.md` header, verified value in brackets:
@@ -139,7 +160,7 @@ restore from; nothing reads it yet.
 | Claim | Reality |
 | --- | --- |
 | "100 % feature parity, all gaps resolved" | contradicted by the gaps above and the 85 zero-coverage modules |
-| 1004 tests [1058] | |
+| 1004 tests [1059] | |
 | 67 controllers [61] | |
 | 23 LiveView pages [22] | |
 | 20 GenServers [22] | |

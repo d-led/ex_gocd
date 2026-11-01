@@ -226,15 +226,15 @@ defmodule ExGoCD.ConfigSnapshot do
   end
 
   defp templates_config do
-    alias ExGoCD.Pipelines.PipelineTemplate
+    alias ExGoCD.Pipelines.Template
     alias ExGoCD.Repo
 
-    Repo.all(PipelineTemplate)
-    |> Enum.map(fn t ->
+    Repo.all(Template)
+    |> Repo.preload(stages: :jobs)
+    |> Enum.map(fn template ->
       %{
-        "name" => t.name,
-        "pipelines" => t.pipelines || [],
-        "stages" => stages_config(t.stages || [])
+        "name" => template.name,
+        "stages" => stages_config(template.stages)
       }
     end)
   end
@@ -345,15 +345,13 @@ defmodule ExGoCD.ConfigSnapshot do
     alias ExGoCD.Repo
 
     Repo.all(ArtifactStore)
-    |> Enum.map(fn a ->
+    |> Enum.map(fn store ->
       %{
-        "id" => a.id,
-        "plugin_id" => a.plugin_id,
-        "properties" => a.properties
+        "id" => store.id,
+        "plugin_id" => store.plugin_id,
+        "properties" => store.properties
       }
     end)
-  rescue
-    _ -> []
   end
 
   defp secret_configs_config do
@@ -361,36 +359,34 @@ defmodule ExGoCD.ConfigSnapshot do
     alias ExGoCD.SecretConfigs.SecretConfig
 
     Repo.all(SecretConfig)
-    |> Enum.map(fn s ->
+    |> Enum.map(fn secret ->
       %{
-        "id" => s.id,
-        "plugin_id" => s.plugin_id,
-        "encrypted_value" => s.encrypted_value,
-        "properties" => s.properties
+        "id" => secret.id,
+        "name" => secret.name,
+        "plugin_id" => secret.plugin_id,
+        "configuration" => secret.configuration,
+        "description" => secret.description
       }
     end)
-  rescue
-    _ -> []
   end
 
   defp package_repos_config do
-    alias ExGoCD.Packages.PackageRepository
+    alias ExGoCD.PackageRepositories.PackageRepository
     alias ExGoCD.Repo
 
     Repo.all(PackageRepository)
-    |> Enum.map(fn p ->
+    |> Enum.map(fn repository ->
       %{
-        "id" => p.id,
-        "name" => p.name,
-        "plugin_id" => p.plugin_id,
-        "repo_url" => p.repo_url,
-        "properties" => p.properties
+        "id" => repository.id,
+        "name" => repository.name,
+        "plugin_id" => repository.plugin_id,
+        "configuration" => repository.configuration
       }
     end)
-  rescue
-    _ -> []
   end
 
+  # This build has no separate SCM table: a repository is named by the material
+  # that points at it, so there is nothing here to restore.
   defp scms_config do
     []
   end
@@ -400,18 +396,17 @@ defmodule ExGoCD.ConfigSnapshot do
     alias ExGoCD.Repo
 
     Repo.all(ConfigRepo)
-    |> Enum.map(fn c ->
+    |> Enum.map(fn config_repo ->
       %{
-        "id" => c.id,
-        "plugin_id" => c.plugin_id,
-        "repo_url" => c.repo_url,
-        "encrypted_password" => encrypt_if_present(c.password),
-        "material_update_interval" => c.material_update_interval,
-        "properties" => c.properties
+        "id" => config_repo.id,
+        "url" => config_repo.url,
+        "branch" => config_repo.branch,
+        "material_type" => config_repo.material_type,
+        "source_type" => config_repo.source_type,
+        "plugin_id" => config_repo.plugin_id,
+        "configuration" => config_repo.configuration
       }
     end)
-  rescue
-    _ -> []
   end
 
   # ── Helpers ──────────────────────────────────────────────────────────
