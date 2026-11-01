@@ -14,8 +14,8 @@
 | Dimension | State | Evidence |
 | --- | --- | --- |
 | Code | 275 modules, compile warnings-as-errors clean | `mix compile --force --warnings-as-errors` |
-| ExUnit | **1049 tests, all green**, ~9 s | `mix test` |
-| Coverage | **50.3 %** of 274 modules; 86 at 0 % | `mix test.coverage` |
+| ExUnit | **1054 tests, all green**, ~9 s | `mix test` |
+| Coverage | **50.9 %** of 274 modules; 85 at 0 % | `mix test.coverage` |
 | Go agent | builds; tests pass in 3 of 10 packages (3,793 prod LOC / 599 test LOC) | `cd agent && go test ./...` |
 | Cypress | 27 specs on disk, **not executed in this session** | `ls cypress/e2e/*.cy.js` |
 | Static analysis | `mix format --check-formatted` clean; `mix credo --strict` exit 0 (3 readability notes) | see above |
@@ -92,13 +92,13 @@ Two suites can now run at the same time against the same database.
 
 ### What the suite does not reach
 
-86 modules never execute. The ones that carry real features rather than
+85 modules never execute. The ones that carry real features rather than
 boilerplate:
 
 | Module | Uncovered lines | Notes |
 | --- | --- | --- |
-| `live/analytics_live.ex` | 268 | Feature is claimed complete in `PARITY.md` |
-| `live/admin_k8s_live.ex` | 239 | ditto |
+| `live/analytics_live.ex` | 268 at 24 % | Page-level tests only; the tabs' data paths are uncovered |
+| `live/admin_k8s_live.ex` | 239 | Feature is claimed complete in `PARITY.md` |
 | `live/external_ci_repo_wizard_live.ex` | 230 | ditto |
 | `live/gantt_live.ex` | 123 | |
 | `docker.ex` | 99 | |
@@ -123,8 +123,8 @@ generate → `from_xml/1` round trip and an idempotent second import.
 
 | Claim | Reality |
 | --- | --- |
-| "100 % feature parity, all gaps resolved" | contradicted by the gaps above and the 86 zero-coverage modules |
-| 1004 tests [1049] | |
+| "100 % feature parity, all gaps resolved" | contradicted by the gaps above and the 85 zero-coverage modules |
+| 1004 tests [1054] | |
 | 67 controllers [61] | |
 | 23 LiveView pages [22] | |
 | 20 GenServers [22] | |
@@ -183,6 +183,7 @@ Reconstructed from the two indexed sessions for this workspace
 | D10 | A config repo owns the pipelines it declares: a parse that produced pipelines replaces them; a failed or empty parse keeps the last good config | Correctness, and the invariant behind upstream `cfc94e215b`, 2026-11-01 |
 | D11 | A test that drives a shared GenServer runs synchronously; an async test owns a connection for itself only | Removes a real queue-contention flake, 2026-11-01 |
 | D12 | A material's identity is (type, url, branch): same repository and branch is one poll, a different branch is a different material | Two pipelines on different branches silently overwrote each other, 2026-11-01 |
+| D13 | Background work that queries on its own schedule stays off in tests, and a config snapshot runs inside the caller rather than in a detached task | Work outside the test's transaction cannot be asserted on, and hides its own failures, 2026-11-01 |
 
 ---
 
@@ -193,6 +194,6 @@ Reconstructed from the two indexed sessions for this workspace
    the file into "claimed" and "verified" columns.
 2. **Delete or declare `lib/ex_gocd_web/channels/`.** 412 lines that nothing
    exercises.
-3. **Close the largest untested features**: the three 0 %-coverage LiveViews
-   (analytics, admin K8s, external CI wizard).
+3. **Close the largest untested features**: the two remaining 0 %-coverage
+   LiveViews (admin K8s, external CI wizard) and the analytics tabs' data paths.
 4. **Upgrade the Go modules** in `agent/`.
