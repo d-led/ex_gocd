@@ -26,8 +26,8 @@ defmodule ExGoCD.ConfigRepos.ConfigRepoFileSelection do
 
   schema "config_repo_file_selections" do
     field :mode, :string, default: "translate"
-    field :selected_jobs, :map
-    field :selected_triggers, :map
+    field :selected_jobs, {:array, :string}, default: []
+    field :selected_triggers, {:array, :string}, default: []
     field :overrides, :map, default: %{}
 
     belongs_to :config_repo_file, ConfigRepoFile

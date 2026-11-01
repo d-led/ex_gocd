@@ -12,7 +12,7 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
 
   import Ecto.Query
 
-  alias ExGoCD.ConfigRepos.{ConfigRepo, ConfigRepoFile}
+  alias ExGoCD.ConfigRepos.{ConfigRepo, ConfigRepoFile, ConfigRepoFileSelection}
   alias ExGoCD.Repo
 
   @valid_modes ["translate", "execute_act", "execute_gitlab", "skip"]
@@ -162,58 +162,21 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
   end
 
   def handle_event("save_all", _params, socket) do
-    {:noreply, assign(socket, :saving, true)}
-
     config_repo = socket.assigns.config_repo
-    file_configs = socket.assigns.file_configs
+    socket = assign(socket, :saving, true)
 
-    # If editing, delete old ConfigRepoFile records and their selections
-    if socket.assigns.editing do
-      old_files = Repo.all(from(f in ConfigRepoFile, where: f.config_repo_id == ^config_repo.id))
+    if socket.assigns.editing, do: delete_stored_files(config_repo)
 
-      Enum.each(old_files, fn f ->
-        Repo.delete_all(
-          from(s in ExGoCD.ConfigRepos.ConfigRepoFileSelection,
-            where: s.config_repo_file_id == ^f.id
-          )
-        )
-      end)
+    case store_files(config_repo, socket.assigns.file_configs) do
+      :ok ->
+        {:noreply, socket |> assign(:saving, false) |> assign(:saved, true)}
 
-      Repo.delete_all(from(f in ConfigRepoFile, where: f.config_repo_id == ^config_repo.id))
+      {:error, message} ->
+        {:noreply,
+         socket
+         |> assign(:saving, false)
+         |> put_flash(:error, "Could not save the workflow files: #{message}")}
     end
-
-    # Persist ConfigRepoFile + ConfigRepoFileSelection records
-    Enum.each(file_configs, fn {path, cfg} ->
-      {:ok, file} =
-        %ConfigRepoFile{}
-        |> ConfigRepoFile.changeset(%{
-          config_repo_id: config_repo.id,
-          path: path,
-          source_type: config_repo.source_type,
-          status: "new",
-          checksum: "0000000000000000000000000000000000000000000000000000000000000000",
-          raw_content: ""
-        })
-        |> Repo.insert()
-
-      # Create selection record
-      ExGoCD.ConfigRepos.ConfigRepoFileSelection.changeset(
-        %ExGoCD.ConfigRepos.ConfigRepoFileSelection{},
-        %{
-          config_repo_file_id: file.id,
-          mode: cfg.mode,
-          selected_jobs: cfg.selected_jobs,
-          selected_triggers: cfg.selected_triggers,
-          overrides: cfg.overrides
-        }
-      )
-      |> Repo.insert()
-    end)
-
-    {:noreply,
-     socket
-     |> assign(:saving, false)
-     |> assign(:saved, true)}
   end
 
   def handle_event("prev_step", _params, socket) do
@@ -241,6 +204,69 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
   end
 
   # ── Helpers ────────────────────────────────────────────────────────────────
+
+  defp delete_stored_files(config_repo) do
+    file_ids =
+      Repo.all(
+        from(f in ConfigRepoFile, where: f.config_repo_id == ^config_repo.id, select: f.id)
+      )
+
+    Repo.delete_all(from(s in ConfigRepoFileSelection, where: s.config_repo_file_id in ^file_ids))
+
+    Repo.delete_all(from(f in ConfigRepoFile, where: f.config_repo_id == ^config_repo.id))
+  end
+
+  defp store_files(config_repo, file_configs) do
+    Enum.reduce_while(file_configs, :ok, fn {path, cfg}, :ok ->
+      with {:ok, file} <- insert_file(config_repo, path),
+           {:ok, _selection} <- insert_selection(file, cfg) do
+        {:cont, :ok}
+      else
+        {:error, %Ecto.Changeset{} = changeset} -> {:halt, {:error, describe(changeset)}}
+      end
+    end)
+  end
+
+  defp insert_file(config_repo, path) do
+    %ConfigRepoFile{}
+    |> ConfigRepoFile.changeset(%{
+      config_repo_id: config_repo.id,
+      path: path,
+      source_type: file_source_type(config_repo.source_type, path),
+      status: "new",
+      checksum: "0000000000000000000000000000000000000000000000000000000000000000",
+      raw_content: ""
+    })
+    |> Repo.insert()
+  end
+
+  defp insert_selection(file, cfg) do
+    ConfigRepoFileSelection.changeset(
+      %ConfigRepoFileSelection{},
+      %{
+        config_repo_file_id: file.id,
+        mode: cfg.mode,
+        selected_jobs: cfg.selected_jobs,
+        selected_triggers: cfg.selected_triggers,
+        overrides: cfg.overrides
+      }
+    )
+    |> Repo.insert()
+  end
+
+  # A file's kind is its own: a repository of GitHub workflows holds GitHub
+  # workflow files, and the same repository can hold a pipeline file and an
+  # include, which are different kinds of file.
+  defp file_source_type("github_actions", _path), do: "github_workflow"
+  defp file_source_type("gitlab_ci", ".gitlab-ci.yml"), do: "gitlab_pipeline"
+  defp file_source_type("gitlab_ci", _path), do: "gitlab_include"
+  defp file_source_type(_repository_type, _path), do: "github_workflow"
+
+  defp describe(%Ecto.Changeset{} = changeset) do
+    changeset.errors
+    |> Enum.map(fn {field, {message, _opts}} -> "#{field} #{message}" end)
+    |> Enum.join(", ")
+  end
 
   defp do_step1_persist(socket, url, branch) do
     if socket.assigns.editing do
