@@ -14,7 +14,7 @@
 | Dimension | State | Evidence |
 | --- | --- | --- |
 | Code | 275 modules, compile warnings-as-errors clean | `mix compile --force --warnings-as-errors` |
-| ExUnit | **1089 tests, all green** | `mix test` |
+| ExUnit | **1091 tests, all green** | `mix test` |
 | Coverage | **54.7 %** of 274 modules; 79 at 0 % | `mix test.coverage` |
 | Go agent | builds; tests pass in 3 of 10 packages (3,793 prod LOC / 599 test LOC); modules upgraded 2026-11-01 (otel 1.47, grpc 1.85) | `cd agent && go test ./...` |
 | Cypress | 27 specs on disk, **not executed in this session** | `ls cypress/e2e/*.cy.js` |
@@ -191,6 +191,11 @@ someone submits a form:
 The wizard's two columns are `text[]` now (migration
 `20261101230000_config_repo_file_selection_stores_lists`).
 
+Writing the first analytics page tests found a fifth: the pipeline detail tab
+rendered runs, pass rate, MTTR and build time under no heading, so a person
+following a link to it could not tell which pipeline they were reading. It names
+the pipeline now.
+
 ### Doc drift
 
 `docs/PARITY.md` now opens by saying it is a map of intent rather than a status
@@ -202,7 +207,7 @@ table: the agent speaks HTTP remoting, like a real GoCD agent
 (`agent/internal/remoting/`, `agent_remoting_controller.ex`, and no `websocket`
 string anywhere in the Go agent).
 
-`README.md` badges are hand-written and say 1089 tests and 27 Cypress specs.
+`README.md` badges are hand-written and say 1091 tests and 27 Cypress specs.
 Nothing regenerates them, so they will drift again.
 
 `scripts/check_doc_refs.exs` is the part that cannot drift: it fails when a

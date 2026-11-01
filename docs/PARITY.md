@@ -5,7 +5,7 @@
 > gaps resolved" claim from the 2026-07-08 audit is not repeated here, because
 > nothing in the code checks it.
 >
-> Counts last measured 2026-11-01: 1089 tests, 61 controllers, 22 LiveView
+> Counts last measured 2026-11-02: 1091 tests, 61 controllers, 22 LiveView
 > pages, 22 GenServers, 44 migrations.
 >
 > A ✅ below means the module named beside it exists and is wired up. It does
