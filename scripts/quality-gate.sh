@@ -116,7 +116,12 @@ if command -v staticcheck &>/dev/null; then
   # Filter out toolchain version mismatch errors (not our code)
   STATICCHECK_OUT=$(cd agent && staticcheck ./... 2>&1 || true)
   STATICCHECK_REAL=$(echo "$STATICCHECK_OUT" | grep -v "fips140only\|requires newer Go version" || true)
-  if [ -z "$STATICCHECK_REAL" ]; then
+  if echo "$STATICCHECK_OUT" | grep -q "export data version .* is greater than maximum supported"; then
+    # The binary cannot read this Go version's export data, so it checked
+    # nothing. Calling that a pass would be a lie and calling it a failure would
+    # blame the code.
+    warn_step "Go staticcheck — installed binary is older than $(go version | awk '{print $3}'); run: go install honnef.co/go/tools/cmd/staticcheck@latest"
+  elif [ -z "$STATICCHECK_REAL" ]; then
     pass_step "Go staticcheck — no issues (ignoring toolchain warnings)"
   else
     echo "$STATICCHECK_REAL"
