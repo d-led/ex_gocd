@@ -25,7 +25,7 @@ defmodule ExGoCD.Materials.MaterialFilter do
   Returns true if ALL modifications in the list should be ignored based on the material's filter.
   Mirrors GoCD's `Modifications.shouldBeIgnoredByFilterIn()`.
   """
-  @spec all_ignored?(Material.t(), [map()]) :: boolean()
+  @spec all_ignored?(ExGoCD.Pipelines.Material.t(), [map()]) :: boolean()
   def all_ignored?(nil, _modifications), do: false
   def all_ignored?(%{filter_ignore: [], filter_include: []}, _modifications), do: false
 

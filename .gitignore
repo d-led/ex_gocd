@@ -58,3 +58,7 @@ agent/gocd-agent.exe
 .hex/
 **/*results*.xml
 config/cipher.aes
+
+# Dialyzer PLTs (built locally, machine-specific)
+/priv/plts/*.plt
+/priv/plts/*.plt.hash

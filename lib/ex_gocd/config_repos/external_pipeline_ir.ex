@@ -16,6 +16,17 @@ defmodule ExGoCD.ConfigRepos.ExternalPipelineIR do
   - `jobs` — map of job_name → job details (stage, needs, steps, runs_on, image, services, artifacts)
   - `includes` — list of resolved include file paths (GitLab CI)
   """
+  @type t :: %__MODULE__{
+          source_type: String.t() | nil,
+          source_file: String.t() | nil,
+          name: String.t() | nil,
+          triggers: [map()],
+          env_vars: map(),
+          stages: [String.t()],
+          jobs: map(),
+          includes: [String.t()]
+        }
+
   defstruct [
     :source_type,
     :source_file,

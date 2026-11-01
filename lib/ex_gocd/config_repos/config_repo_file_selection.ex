@@ -15,8 +15,8 @@ defmodule ExGoCD.ConfigRepos.ConfigRepoFileSelection do
           config_repo_file_id: integer() | nil,
           config_repo_file: ConfigRepoFile.t() | nil | Ecto.Association.NotLoaded.t(),
           mode: String.t() | nil,
-          selected_jobs: map() | nil,
-          selected_triggers: map() | nil,
+          selected_jobs: [String.t()] | nil,
+          selected_triggers: [String.t()] | nil,
           overrides: map() | nil,
           inserted_at: DateTime.t() | nil,
           updated_at: DateTime.t() | nil
