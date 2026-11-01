@@ -1,18 +1,19 @@
 #!/usr/bin/env elixir
 # Checks that what the documentation points at still exists.
 #
-#   * every source file named in docs/PARITY.md is in lib/
-#   * every /api/... path named there has a matching route in the router
-#   * every relative markdown link in docs/ and README.md resolves to a file
+#   * every source file and /api route named in docs/PARITY.md
+#   * every Elixir module named in docs/module_mapping.md
+#   * every relative markdown link in docs/ and README.md
 #
 # Run with: elixir scripts/check_doc_refs.exs
 
 defmodule DocRefs do
   @parity "docs/PARITY.md"
+  @module_mapping "docs/module_mapping.md"
   @router "lib/ex_gocd_web/router.ex"
 
   def main do
-    problems = source_ref_problems() ++ link_problems()
+    problems = source_ref_problems() ++ named_module_problems() ++ link_problems()
 
     case problems do
       [] ->
@@ -34,12 +35,12 @@ defmodule DocRefs do
   # there; these are the claims that can be read without judgement.
   defp source_ref_problems do
     router = File.read!(@router)
-    lib_files = Path.wildcard("lib/**/*.ex") |> Enum.map(&Path.basename/1) |> MapSet.new()
+    names = Path.wildcard("lib/**/*.ex") |> Enum.map(&Path.basename/1) |> MapSet.new()
 
     @parity
     |> File.read!()
     |> table_cells()
-    |> Enum.flat_map(&cell_problems(&1, router, lib_files))
+    |> Enum.flat_map(&cell_problems(&1, router, names))
   end
 
   defp table_cells(text) do
@@ -47,24 +48,20 @@ defmodule DocRefs do
     |> String.split("\n")
     |> Enum.filter(&String.starts_with?(&1, "| "))
     |> Enum.flat_map(fn row ->
-      row
-      |> String.trim("|")
-      |> String.split("|")
-      |> Enum.map(&String.trim/1)
+      row |> String.trim("|") |> String.split("|") |> Enum.map(&String.trim/1)
     end)
   end
 
-  defp cell_problems(cell, router, lib_files) do
-    module_problems(cell, lib_files) ++ route_problems(cell, router)
+  defp cell_problems(cell, router, names) do
+    file_problems(cell, names) ++ route_problems(cell, router)
   end
 
-  defp module_problems(cell, lib_files) do
+  defp file_problems(cell, names) do
     ~r/[\w\/]+\.ex/
     |> Regex.scan(cell)
     |> List.flatten()
     |> Enum.reject(fn reference ->
-      name = Path.basename(reference)
-      MapSet.member?(lib_files, name) or File.exists?(reference)
+      MapSet.member?(names, Path.basename(reference)) or File.exists?(reference)
     end)
     |> Enum.map(&{@parity, &1, "no such source file"})
   end
@@ -83,10 +80,30 @@ defmodule DocRefs do
     |> Enum.map(&{@parity, &1, "no such route"})
   end
 
+  # The mapping names the Elixir module beside each GoCD source file. A module
+  # that was renamed or removed leaves a claim nothing answers.
+  defp named_module_problems do
+    defined = defined_modules()
+
+    @module_mapping
+    |> File.read!()
+    |> then(&Regex.scan(~r/`(ExGoCD[\w.]*)`/, &1))
+    |> Enum.map(fn [_, name] -> name end)
+    |> Enum.uniq()
+    |> Enum.reject(&MapSet.member?(defined, &1))
+    |> Enum.map(&{@module_mapping, &1, "no such module"})
+  end
+
+  defp defined_modules do
+    Path.wildcard("lib/**/*.ex")
+    |> Enum.flat_map(fn file -> Regex.scan(~r/defmodule\s+([\w.]+)/, File.read!(file)) end)
+    |> Enum.map(fn [_, name] -> name end)
+    |> MapSet.new()
+  end
+
   defp link_problems do
-    (["README.md" | Path.wildcard("docs/*.md")]
-     |> Enum.uniq()
-     |> Enum.flat_map(&links_in/1))
+    (["README.md" | Path.wildcard("docs/*.md")] |> Enum.uniq())
+    |> Enum.flat_map(&links_in/1)
   end
 
   defp links_in(file) do
