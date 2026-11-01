@@ -96,18 +96,18 @@ defmodule ExGoCD.ConfigXml do
       url: mat.url,
       branch: mat.branch || "master",
       dest: destination,
-      materialName: material_attribute(mat, "material_name") || destination,
+      materialName: material_name(mat) || destination,
       autoUpdate: mat.auto_update != false
     })
   end
 
   defp render_material(%{type: "dependency"} = mat) do
-    pipeline_name = material_attribute(mat, "pipeline_name") || mat.url
+    pipeline_name = material_pipeline_name(mat) || mat.url
 
     tag2("pipeline", %{
       pipelineName: pipeline_name,
-      stageName: material_attribute(mat, "stage_name") || "build",
-      materialName: material_attribute(mat, "material_name") || pipeline_name
+      stageName: material_stage_name(mat) || "build",
+      materialName: material_name(mat) || pipeline_name
     })
   end
 
@@ -119,7 +119,7 @@ defmodule ExGoCD.ConfigXml do
     base_attrs = %{
       url: mat.url,
       dest: destination,
-      materialName: material_attribute(mat, "material_name") || destination,
+      materialName: material_name(mat) || destination,
       autoUpdate: mat.auto_update != false
     }
 
@@ -138,7 +138,7 @@ defmodule ExGoCD.ConfigXml do
     tag2(type, %{
       url: mat.url || "",
       dest: destination,
-      materialName: material_attribute(mat, "material_name") || destination
+      materialName: material_name(mat) || destination
     })
   end
 
@@ -146,16 +146,20 @@ defmodule ExGoCD.ConfigXml do
 
   # GoCD checks a material out into `dest`, which defaults to the material name.
   defp material_destination(mat) do
-    mat.destination || material_attribute(mat, "material_name") || mat.url
+    mat.destination || material_name(mat) || mat.url
   end
 
   # Per-type material attributes, stored in `type_specific_config` because the
   # schema has no column for them. Both string and atom keys are accepted:
   # anything that went through a JSON round-trip has strings.
-  defp material_attribute(mat, key) do
-    tsc = mat.type_specific_config || %{}
+  defp material_name(mat), do: type_specific_text(mat, "material_name", :material_name)
+  defp material_pipeline_name(mat), do: type_specific_text(mat, "pipeline_name", :pipeline_name)
+  defp material_stage_name(mat), do: type_specific_text(mat, "stage_name", :stage_name)
 
-    case Map.get(tsc, key) || Map.get(tsc, String.to_existing_atom(key)) do
+  defp type_specific_text(mat, string_key, atom_key) do
+    tsc = Map.get(mat, :type_specific_config) || %{}
+
+    case Map.get(tsc, string_key) || Map.get(tsc, atom_key) do
       value when is_binary(value) and value != "" -> value
       _ -> nil
     end
