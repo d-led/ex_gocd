@@ -91,5 +91,25 @@ defmodule ExGoCD.ConfigRestoreTest do
       assert :ok = ConfigRestore.restore(%{"pipelines" => []})
       assert Repo.all(SecretConfig) == []
     end
+
+    test "a record that does not fit its schema is reported, and nothing is restored" do
+      config = %{
+        "secret_configs" => [
+          %{
+            "name" => "would-have-worked",
+            "plugin_id" => "cd.go.secrets.vault",
+            "configuration" => %{}
+          }
+        ],
+        "package_repositories" => [
+          %{"name" => nil, "plugin_id" => "cd.go.reporter.artifact.npm"}
+        ]
+      }
+
+      assert {:error, message} = ConfigRestore.restore(config)
+      assert message =~ "name"
+
+      assert Repo.all(SecretConfig) == []
+    end
   end
 end

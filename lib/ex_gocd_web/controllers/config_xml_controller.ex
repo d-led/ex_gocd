@@ -52,13 +52,20 @@ defmodule ExGoCDWeb.ConfigXmlController do
   # version without stored XML is refused instead.
   defp revert_to(conn, %ConfigVersion{config_xml: xml} = version)
        when is_binary(xml) and xml != "" do
-    case apply_xml(conn, xml) do
-      {:ok, conn} ->
-        ExGoCD.ConfigRestore.restore(version.config_json || %{})
-        conn
+    with {:ok, conn} <- apply_xml(conn, xml) do
+      case ExGoCD.ConfigRestore.restore(version.config_json || %{}) do
+        :ok ->
+          conn
 
-      {:error, conn} ->
-        conn
+        {:error, message} ->
+          conn
+          |> put_flash(
+            :error,
+            "The pipelines, templates and profiles were restored, but the " <>
+              "plugin configuration was not: #{message}"
+          )
+          |> redirect(to: "/admin/config_xml")
+      end
     end
   end
 
