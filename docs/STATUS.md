@@ -14,8 +14,8 @@
 | Dimension | State | Evidence |
 | --- | --- | --- |
 | Code | 275 modules, compile warnings-as-errors clean | `mix compile --force --warnings-as-errors` |
-| ExUnit | **1062 tests, all green**, ~9 s | `mix test` |
-| Coverage | **51.7 %** of 274 modules; 85 at 0 % | `mix test.coverage` |
+| ExUnit | **1075 tests, all green**, ~14 s | `mix test` |
+| Coverage | **54.4 %** of 274 modules; 81 at 0 % | `mix test.coverage` |
 | Go agent | builds; tests pass in 3 of 10 packages (3,793 prod LOC / 599 test LOC) | `cd agent && go test ./...` |
 | Cypress | 27 specs on disk, **not executed in this session** | `ls cypress/e2e/*.cy.js` |
 | Static analysis | `mix format --check-formatted` clean; `mix credo --strict` exit 0 (3 readability notes) | see above |
@@ -170,6 +170,22 @@ broken section, and the snapshot test now asserts that no section reports
 `_error`. `scms` still returns `[]` because this build has no SCM table — a
 repository is named by the material that points at it.
 
+### Fixed: two 0 %-coverage pages were hiding four faults
+
+Writing the first tests for the admin K8s page and the external CI wizard found
+four faults that nothing had exercised, because both pages render fine until
+someone submits a form:
+
+| Page | Fault |
+| --- | --- |
+| K8s | a field error was rendered with `{for err <- form[:field].errors, do: err}`, and an error is a `{message, opts}` pair, so a missing name raised and took the form down |
+| K8s | the guard was `:if={errors}`, and an empty list is truthy, so the red box drew with nothing in it |
+| Wizard | each file was stored with the repository's kind (`github_actions`) as its own `source_type`, which the file schema rejects, so the last step could never be saved |
+| Wizard | `selected_jobs`/`selected_triggers` are lists and the columns were jsonb, so the selection was rejected as well; the inserts matched `{:ok, _}`, so the rejection crashed the page rather than reporting |
+
+The wizard's two columns are `text[]` now (migration
+`20261101230000_config_repo_file_selection_stores_lists`).
+
 ### Doc drift
 
 `docs/PARITY.md` header, verified value in brackets:
@@ -177,7 +193,7 @@ repository is named by the material that points at it.
 | Claim | Reality |
 | --- | --- |
 | "100 % feature parity, all gaps resolved" | contradicted by the gaps above and the 85 zero-coverage modules |
-| 1004 tests [1062] | |
+| 1004 tests [1075] | |
 | 67 controllers [61] | |
 | 23 LiveView pages [22] | |
 | 20 GenServers [22] | |
@@ -249,8 +265,10 @@ Reconstructed from the two indexed sessions for this workspace
    the file into "claimed" and "verified" columns.
 3. **Delete or declare `lib/ex_gocd_web/channels/`.** 412 lines that nothing
    exercises.
-4. **Close the largest untested features**: the two remaining 0 %-coverage
-   LiveViews (admin K8s, external CI wizard) and the analytics tabs' data paths.
+4. ~~**Close the largest untested features**~~ Two of the three are done: the
+   admin K8s page (57.8 %) and the external CI wizard (63.6 %), which turned up
+   four faults in the code they now cover. The analytics tabs' data paths are
+   still untested.
 5. **Upgrade the Go modules** in `agent/`.
 6. **Teach the XML the four plugin sections** if an external reader ever needs
    them, which first needs a way to know which plugin property is a secret.
