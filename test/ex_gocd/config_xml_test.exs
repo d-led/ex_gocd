@@ -254,4 +254,95 @@ defmodule ExGoCD.ConfigXmlTest do
       assert material.name == "roundtrip"
     end
   end
+
+  describe "import_from_xml/1" do
+    test "stores the material, stage, job and task the XML declares" do
+      assert {:ok, %{pipelines: 1}} = ExGoCD.ConfigXml.import_from_xml(cruise_xml("imported"))
+
+      pipeline = load_pipeline("imported")
+
+      assert [material] = pipeline.materials
+      assert material.type == "git"
+      assert material.url == "https://github.com/example/imported.git"
+      assert material.branch == "main"
+
+      assert [stage] = pipeline.stages
+      assert stage.name == "build"
+
+      assert [job] = stage.jobs
+      assert job.name == "compile"
+
+      assert [task] = job.tasks
+      assert task.command == "make"
+      assert task.arguments == ["build"]
+    end
+
+    test "importing the same XML twice leaves one stage and one job" do
+      assert {:ok, _} = ExGoCD.ConfigXml.import_from_xml(cruise_xml("imported"))
+      assert {:ok, _} = ExGoCD.ConfigXml.import_from_xml(cruise_xml("imported"))
+
+      assert [stage] = load_pipeline("imported").stages
+      assert [job] = stage.jobs
+      assert job.name == "compile"
+    end
+
+    test "reports a pipeline it cannot store instead of counting it as imported" do
+      xml = cruise_xml("not a valid pipeline name")
+
+      assert {:error, message} = ExGoCD.ConfigXml.import_from_xml(xml)
+      assert message =~ "not a valid pipeline name"
+      assert ExGoCD.Pipelines.get_pipeline_by_name("not a valid pipeline name") == nil
+    end
+
+    test "a dependency material is stored once its upstream pipeline exists" do
+      xml = """
+      <cruise>
+        <pipelines group="default">
+          <pipeline name="downstream">
+            <materials>
+              <pipeline pipelineName="upstream" stageName="build" materialName="upstream"/>
+            </materials>
+          </pipeline>
+          <pipeline name="upstream"/>
+        </pipelines>
+      </cruise>
+      """
+
+      assert {:ok, %{pipelines: 2}} = ExGoCD.ConfigXml.import_from_xml(xml)
+
+      assert [material] = load_pipeline("downstream").materials
+      assert material.type == "dependency"
+      assert material.url == "upstream"
+    end
+
+    defp cruise_xml(pipeline_name) do
+      """
+      <cruise>
+        <pipelines group="default">
+          <pipeline name="#{pipeline_name}">
+            <materials>
+              <git url="https://github.com/example/imported.git" branch="main" materialName="imported"/>
+            </materials>
+            <stages>
+              <stage name="build">
+                <jobs>
+                  <job name="compile">
+                    <tasks>
+                      <exec command="make"><arg>build</arg></exec>
+                    </tasks>
+                  </job>
+                </jobs>
+              </stage>
+            </stages>
+          </pipeline>
+        </pipelines>
+      </cruise>
+      """
+    end
+
+    defp load_pipeline(name) do
+      ExGoCD.Pipelines.get_pipeline_by_name(name)
+      |> Repo.preload([:materials, stages: [jobs: :tasks]])
+    end
+  end
 end

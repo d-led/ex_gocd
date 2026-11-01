@@ -92,6 +92,7 @@ defmodule ExGoCD.Pipelines.Pipeline do
       :label_template,
       :lock_behavior,
       :environment_variables,
+      :secure_variables,
       :timer,
       :timer_only_on_changes,
       :params,

@@ -8,6 +8,8 @@ defmodule ExGoCD.ConfigXml do
   alias ExGoCD.Pipelines
   alias ExGoCD.Repo
 
+  import Ecto.Query, only: [where: 3]
+
   # ── Export ────────────────────────────────────────────────────────
 
   @doc "Returns the full cruise-config XML string."
@@ -223,23 +225,38 @@ defmodule ExGoCD.ConfigXml do
 
   defp render_task(%{type: "exec"} = task) do
     args =
-      Enum.map_join(task.args || task.arguments || [], "", fn a -> tag3("arg", %{}, esc(a)) end)
+      Enum.map_join(task_attribute(task, :arguments, :args) || [], "", &tag3("arg", %{}, esc(&1)))
 
     tag3("exec", %{command: task.command || ""}, args)
   end
 
+  # A fetch task keeps its source coordinates in `arguments`, the same shape the
+  # scheduler reads: [pipeline, stage, job, src_file, dest].
   defp render_task(%{type: "fetch"} = task) do
+    {pipeline, stage, job, src_file, dest} =
+      case task_attribute(task, :arguments, :args) || [] do
+        [pipeline, stage, job, src_file, dest] -> {pipeline, stage, job, src_file, dest}
+        [stage, job, src_file, dest] -> {"", stage, job, src_file, dest}
+        _ -> {"", "", "", "", ""}
+      end
+
     tag2("fetchartifact", %{
-      pipeline: task.pipeline || "",
-      stage: task.stage || "",
-      job: task.job || "",
-      srcfile: task.src_file || task.source || "",
-      dest: task.dest || "",
+      pipeline: pipeline,
+      stage: stage,
+      job: job,
+      srcfile: src_file,
+      dest: dest,
       artifactOrigin: "gocd"
     })
   end
 
   defp render_task(_task), do: tag3("exec", %{command: "echo"}, tag3("arg", %{}, "unknown task"))
+
+  # Reads an attribute that exists under two names: the stored struct uses one,
+  # the XML-shaped map the parser produces uses the other.
+  defp task_attribute(task, primary, fallback) do
+    Map.get(task, primary) || Map.get(task, fallback)
+  end
 
   defp render_tabs(tabs) when is_map(tabs) and tabs != %{} do
     inner =
@@ -309,42 +326,261 @@ defmodule ExGoCD.ConfigXml do
   a map with `:pipelines` and `:elastic_profiles` keys.
   """
   def import_from_xml(xml_string) when is_binary(xml_string) do
-    case from_xml(xml_string) do
-      {:ok, pipelines, elastic_profiles} ->
-        pipeline_count =
-          Enum.reduce(pipelines, 0, fn pipeline, acc ->
-            case Pipelines.get_pipeline_by_name(pipeline.name) do
-              nil ->
-                Pipelines.create_pipeline(pipeline)
-                acc + 1
-
-              existing ->
-                Pipelines.update_pipeline(existing, pipeline)
-                acc + 1
-            end
-          end)
-
-        profile_count =
-          Enum.reduce(elastic_profiles, 0, fn profile, acc ->
-            case Repo.get_by(
-                   ExGoCD.ElasticAgentProfiles.ElasticAgentProfile,
-                   name: profile.name
-                 ) do
-              nil ->
-                ExGoCD.ElasticAgentProfiles.create_profile(profile)
-                acc + 1
-
-              existing ->
-                ExGoCD.ElasticAgentProfiles.update_profile(existing, profile)
-                acc + 1
-            end
-          end)
-
-        {:ok, %{pipelines: pipeline_count, elastic_profiles: profile_count}}
-
-      {:error, reason} ->
-        {:error, reason}
+    with {:ok, pipelines, elastic_profiles} <- from_xml(xml_string),
+         :ok <- import_pipelines(pipelines),
+         :ok <- import_elastic_profiles(elastic_profiles) do
+      {:ok, %{pipelines: length(pipelines), elastic_profiles: length(elastic_profiles)}}
     end
+  end
+
+  # ── Import: what is parsed has to be stored ───────────────────────
+  #
+  # Pipelines are stored in two passes. A dependency material names a pipeline
+  # that may be declared later in the same document, so every pipeline has to
+  # exist before any dependency material can be attached.
+
+  defp import_pipelines(definitions) do
+    case Enum.reduce_while(definitions, [], &store_pipeline_or_halt/2) do
+      {:error, _} = error -> error
+      stored -> attach_dependency_materials(Enum.reverse(stored))
+    end
+  end
+
+  defp store_pipeline_or_halt(definition, stored) do
+    case store_pipeline(definition) do
+      {:ok, pipeline} -> {:cont, [{pipeline, definition} | stored]}
+      {:error, _} = error -> {:halt, error}
+    end
+  end
+
+  defp store_pipeline(definition) do
+    with {:ok, pipeline} <- upsert_pipeline(definition),
+         :ok <- store_materials(pipeline, self_sourced_materials(definition.materials)),
+         :ok <- store_stages(pipeline, definition.stages) do
+      {:ok, pipeline}
+    end
+  end
+
+  defp attach_dependency_materials(stored) do
+    Enum.reduce_while(stored, :ok, fn {pipeline, definition}, :ok ->
+      case store_materials(pipeline, dependency_materials(definition.materials)) do
+        :ok -> {:cont, :ok}
+        {:error, _} = error -> {:halt, error}
+      end
+    end)
+  end
+
+  defp self_sourced_materials(materials), do: Enum.reject(materials, &dependency?/1)
+
+  defp dependency_materials(materials), do: Enum.filter(materials, &dependency?/1)
+
+  defp dependency?(material), do: Map.get(material, :type) == "dependency"
+
+  defp upsert_pipeline(definition) do
+    attrs = %{
+      name: definition.name,
+      group: definition.group,
+      locked: definition.locked,
+      timer: definition.timer,
+      timer_only_on_changes: definition.timer_only_on_changes,
+      parameters: definition.parameters,
+      environment_variables: definition.environment_variables,
+      secure_variables: Map.get(definition, :secure_variables) || %{}
+    }
+
+    result =
+      case Pipelines.get_pipeline_by_name(definition.name) do
+        nil -> Pipelines.create_pipeline(attrs)
+        existing -> Pipelines.update_pipeline(existing, attrs)
+      end
+
+    as_stored(result, definition.name)
+  end
+
+  defp store_materials(_pipeline, []), do: :ok
+
+  defp store_materials(pipeline, materials) do
+    Enum.reduce_while(materials, :ok, fn material, :ok ->
+      case Pipelines.create_material_for_pipeline(pipeline, material_attributes(material)) do
+        {:ok, _material} ->
+          {:cont, :ok}
+
+        {:error, reason} ->
+          {:halt,
+           {:error, "\"#{pipeline.name}\" material could not be imported: #{inspect(reason)}"}}
+      end
+    end)
+  end
+
+  defp material_attributes(%{type: "dependency"} = material) do
+    # A dependency material is identified by the pipeline it watches, which this
+    # codebase keeps in `url`.
+    material
+    |> Map.take([:type, :pipeline_name, :stage_name, :name])
+    |> Map.put(:url, Map.get(material, :pipeline_name))
+  end
+
+  defp material_attributes(material) do
+    Map.take(material, [
+      :type,
+      :url,
+      :branch,
+      :username,
+      :destination,
+      :auto_update,
+      :name,
+      :type_specific_config
+    ])
+  end
+
+  defp store_stages(_pipeline, []), do: :ok
+
+  defp store_stages(pipeline, stages) do
+    existing = Repo.preload(pipeline, stages: [jobs: :tasks]).stages
+
+    Enum.reduce_while(stages, :ok, fn definition, :ok ->
+      with {:ok, stage} <- upsert_stage(pipeline, definition, existing),
+           :ok <- store_jobs(stage, definition.jobs) do
+        {:cont, :ok}
+      else
+        {:error, _} = error -> {:halt, error}
+      end
+    end)
+  end
+
+  defp upsert_stage(pipeline, definition, existing_stages) do
+    attrs = %{
+      name: definition.name,
+      pipeline_id: pipeline.id,
+      fetch_materials: definition.fetch_materials,
+      clean_working_directory: definition.clean_working_directory,
+      approval_type: definition.approval_type,
+      environment_variables: definition.environment_variables
+    }
+
+    result =
+      case Enum.find(existing_stages, &(&1.name == definition.name)) do
+        nil -> Pipelines.create_stage(attrs)
+        stage -> Pipelines.update_stage(stage, attrs)
+      end
+
+    as_stored(result, "#{pipeline.name}/#{definition.name}")
+  end
+
+  defp store_jobs(_stage, []), do: :ok
+
+  defp store_jobs(stage, jobs) do
+    existing = Repo.preload(stage, jobs: :tasks).jobs
+
+    Enum.reduce_while(jobs, :ok, fn definition, :ok ->
+      with {:ok, job} <- upsert_job(stage, definition, existing),
+           :ok <- store_tasks(job, definition.tasks) do
+        {:cont, :ok}
+      else
+        {:error, _} = error -> {:halt, error}
+      end
+    end)
+  end
+
+  defp upsert_job(stage, definition, existing_jobs) do
+    # `run_instance_count` and `timeout` are stored as text (see Pipelines.job_config),
+    # even though the XML carries them as numbers.
+    attrs = %{
+      name: definition.name,
+      stage_id: stage.id,
+      run_instance_count: stored_number(definition.run_instance_count),
+      timeout: stored_number(definition.timeout),
+      run_on_all_agents: definition.run_on_all_agents,
+      resources: definition.resources,
+      tabs: definition.tabs,
+      artifact_configs: definition.artifact_configs
+    }
+
+    result =
+      case Enum.find(existing_jobs, &(&1.name == definition.name)) do
+        nil -> Pipelines.create_job(attrs)
+        job -> Pipelines.update_job(job, attrs)
+      end
+
+    as_stored(result, "#{stage.name}/#{definition.name}")
+  end
+
+  defp stored_number(nil), do: nil
+  defp stored_number(number), do: to_string(number)
+
+  # Tasks carry no name to match on, so the job's tasks are replaced wholesale.
+  defp store_tasks(job, tasks) do
+    ExGoCD.Pipelines.Task
+    |> where([task], task.job_id == ^job.id)
+    |> Repo.delete_all()
+
+    Enum.reduce_while(tasks, :ok, fn definition, :ok ->
+      result = Pipelines.create_task(Map.put(task_attributes(definition), :job_id, job.id))
+
+      case as_stored(result, "#{job.name} task") do
+        {:ok, _task} -> {:cont, :ok}
+        {:error, _} = error -> {:halt, error}
+      end
+    end)
+  end
+
+  defp task_attributes(%{type: "fetch"} = task) do
+    %{
+      type: "fetch",
+      arguments: [task.pipeline, task.stage, task.job, task.src_file, task.dest]
+    }
+  end
+
+  defp task_attributes(task) do
+    %{
+      type: Map.get(task, :type) || "exec",
+      command: Map.get(task, :command),
+      arguments: Map.get(task, :args) || Map.get(task, :arguments) || [],
+      run_if: task_run_if(task)
+    }
+  end
+
+  defp task_run_if(task) do
+    case Map.get(task, :run_if) do
+      [status | _] -> status
+      status when is_binary(status) -> status
+      _ -> "passed"
+    end
+  end
+
+  defp import_elastic_profiles(profiles) do
+    Enum.reduce_while(profiles, :ok, fn profile, :ok ->
+      result =
+        case Repo.get_by(ExGoCD.ElasticAgentProfiles.ElasticAgentProfile, name: profile.name) do
+          nil -> ExGoCD.ElasticAgentProfiles.create_profile(profile)
+          existing -> ExGoCD.ElasticAgentProfiles.update_profile(existing, profile)
+        end
+
+      case as_stored(result, profile.name) do
+        {:ok, _profile} -> {:cont, :ok}
+        {:error, _} = error -> {:halt, error}
+      end
+    end)
+  end
+
+  defp as_stored({:ok, record}, _label), do: {:ok, record}
+
+  defp as_stored({:error, %Ecto.Changeset{} = changeset}, label) do
+    {:error, "#{inspect(label)} could not be imported: #{changeset_message(changeset)}"}
+  end
+
+  defp as_stored({:error, reason}, label) do
+    {:error, "#{inspect(label)} could not be imported: #{inspect(reason)}"}
+  end
+
+  defp changeset_message(changeset) do
+    changeset
+    |> Ecto.Changeset.traverse_errors(fn {message, opts} ->
+      Regex.replace(~r"%{(\w+)}", message, fn _, key ->
+        opts |> Keyword.get(String.to_existing_atom(key), key) |> to_string()
+      end)
+    end)
+    |> Enum.map_join(", ", fn {field, errors} -> "#{field} #{Enum.join(errors, ", ")}" end)
   end
 
   # ── XML extraction helpers ─────────────────────────────────────────
@@ -353,8 +589,14 @@ defmodule ExGoCD.ConfigXml do
     doc
     |> find_element(:pipelines)
     |> case do
-      nil -> []
-      pipelines_el -> find_elements(pipelines_el, :pipeline) |> Enum.map(&parse_pipeline/1)
+      nil ->
+        []
+
+      pipelines_el ->
+        group = to_string(attr(pipelines_el, :group) || "default")
+
+        find_elements(pipelines_el, :pipeline)
+        |> Enum.map(&parse_pipeline(&1, group))
     end
   end
 
@@ -412,13 +654,13 @@ defmodule ExGoCD.ConfigXml do
     end
   end
 
-  defp parse_pipeline(el) do
+  defp parse_pipeline(el, group) do
     timer_el = find_child(el, :timer)
 
     %{
       name: attr(el, :name) |> to_string(),
       locked: attr(el, :isLocked) == "true",
-      group: "default",
+      group: group,
       timer: timer_text(timer_el),
       timer_only_on_changes: attr(timer_el, :onlyOnChanges) == "true",
       parameters: parse_params(el),
