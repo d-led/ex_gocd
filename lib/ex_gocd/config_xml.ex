@@ -88,31 +88,36 @@ defmodule ExGoCD.ConfigXml do
   end
 
   defp render_material(%{type: "git"} = mat) do
+    destination = material_destination(mat)
+
     tag2("git", %{
       url: mat.url,
       branch: mat.branch || "master",
-      dest: mat.name || mat.url,
-      materialName: mat.name || mat.url,
+      dest: destination,
+      materialName: material_attribute(mat, "material_name") || destination,
       autoUpdate: mat.auto_update != false
     })
   end
 
   defp render_material(%{type: "dependency"} = mat) do
+    pipeline_name = material_attribute(mat, "pipeline_name") || mat.url
+
     tag2("pipeline", %{
-      pipelineName: mat.pipeline_name || mat.name,
-      stageName: mat.stage_name || "build",
-      materialName: mat.name
+      pipelineName: pipeline_name,
+      stageName: material_attribute(mat, "stage_name") || "build",
+      materialName: material_attribute(mat, "material_name") || pipeline_name
     })
   end
 
   defp render_material(%{type: "svn"} = mat) do
     tsc = mat.type_specific_config || %{}
     check_externals = tsc["check_externals"]
+    destination = material_destination(mat)
 
     base_attrs = %{
       url: mat.url,
-      dest: mat.name || mat.url,
-      materialName: mat.name || mat.url,
+      dest: destination,
+      materialName: material_attribute(mat, "material_name") || destination,
       autoUpdate: mat.auto_update != false
     }
 
@@ -125,19 +130,34 @@ defmodule ExGoCD.ConfigXml do
     tag2("svn", attrs)
   end
 
-  defp render_material(%{type: "hg"} = mat) do
-    tag2("hg", %{url: mat.url || "", dest: mat.name || mat.url})
-  end
+  defp render_material(%{type: type} = mat) when type in ["hg", "p4", "tfs"] do
+    destination = material_destination(mat)
 
-  defp render_material(%{type: "p4"} = mat) do
-    tag2("p4", %{url: mat.url || "", dest: mat.name || mat.url})
-  end
-
-  defp render_material(%{type: "tfs"} = mat) do
-    tag2("tfs", %{url: mat.url || "", dest: mat.name || mat.url})
+    tag2(type, %{
+      url: mat.url || "",
+      dest: destination,
+      materialName: material_attribute(mat, "material_name") || destination
+    })
   end
 
   defp render_material(mat), do: tag2(mat.type || "git", %{url: mat.url || ""})
+
+  # GoCD checks a material out into `dest`, which defaults to the material name.
+  defp material_destination(mat) do
+    mat.destination || material_attribute(mat, "material_name") || mat.url
+  end
+
+  # Per-type material attributes, stored in `type_specific_config` because the
+  # schema has no column for them. Both string and atom keys are accepted:
+  # anything that went through a JSON round-trip has strings.
+  defp material_attribute(mat, key) do
+    tsc = mat.type_specific_config || %{}
+
+    case Map.get(tsc, key) || Map.get(tsc, String.to_existing_atom(key)) do
+      value when is_binary(value) and value != "" -> value
+      _ -> nil
+    end
+  end
 
   defp render_env_vars(vars) when is_map(vars) and map_size(vars) > 0 do
     vars

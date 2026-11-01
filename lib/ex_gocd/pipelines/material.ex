@@ -51,6 +51,8 @@ defmodule ExGoCD.Pipelines.Material do
   """
   @spec changeset(t(), map()) :: Ecto.Changeset.t()
   def changeset(material, attrs) do
+    attrs = fold_identity_into_type_specific_config(attrs)
+
     material
     |> cast(attrs, [
       :type,
@@ -75,4 +77,30 @@ defmodule ExGoCD.Pipelines.Material do
       "pluggable_scm"
     ])
   end
+
+  # GoCD names a material with `materialName`, and a dependency material with the
+  # pipeline and stage it watches. None of those is a column of its own: they are
+  # per-type attributes, so they belong in `type_specific_config`. Keeping them
+  # there means a git material cannot carry a stage name, and a dependency
+  # material cannot carry a branch.
+  defp fold_identity_into_type_specific_config(attrs)
+       when is_map(attrs) and not is_struct(attrs) do
+    attrs = Map.new(attrs, fn {key, value} -> {to_string(key), value} end)
+
+    identity =
+      for key <- ["name", "pipeline_name", "stage_name"],
+          value = attrs[key],
+          value not in [nil, ""],
+          into: %{},
+          do: {identity_attribute(key), value}
+
+    attrs
+    |> Map.drop(["name", "pipeline_name", "stage_name"])
+    |> Map.put("type_specific_config", Map.merge(attrs["type_specific_config"] || %{}, identity))
+  end
+
+  defp fold_identity_into_type_specific_config(attrs), do: attrs
+
+  defp identity_attribute("name"), do: "material_name"
+  defp identity_attribute(key), do: key
 end

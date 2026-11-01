@@ -16,6 +16,8 @@ defmodule ExGoCD.ConfigSnapshot do
   alias ExGoCD.ConfigVersion
   alias ExGoCD.Repo
 
+  require Logger
+
   @doc """
   Takes a snapshot of the current full config.
 
@@ -24,7 +26,8 @@ defmodule ExGoCD.ConfigSnapshot do
   `changed_by` — username or system trigger.
   `change_reason` — e.g. "pipeline updated", "cluster profile added".
   """
-  @spec snapshot(String.t(), String.t()) :: {:ok, ConfigVersion.t()} | :unchanged
+  @spec snapshot(String.t(), String.t()) ::
+          {:ok, ConfigVersion.t()} | :unchanged | {:error, Ecto.Changeset.t()}
   def snapshot(changed_by, change_reason) do
     config = capture()
     hash = hash_config(config)
@@ -32,33 +35,44 @@ defmodule ExGoCD.ConfigSnapshot do
     if latest_hash() == hash do
       :unchanged
     else
-      xml = config_to_xml(config)
-
-      {:ok, version} =
-        %ConfigVersion{}
-        |> Ecto.Changeset.cast(
-          %{
-            config_hash: hash,
-            config_json: config,
-            config_xml: xml,
-            changed_by: changed_by,
-            change_reason: change_reason
-          },
-          [:config_hash, :config_json, :config_xml, :changed_by, :change_reason]
-        )
-        |> Repo.insert()
-
-      {:ok, version}
+      %ConfigVersion{}
+      |> Ecto.Changeset.cast(
+        %{
+          config_hash: hash,
+          config_json: config,
+          config_xml: config_to_xml(config),
+          changed_by: changed_by,
+          change_reason: change_reason
+        },
+        [:config_hash, :config_json, :config_xml, :changed_by, :change_reason]
+      )
+      |> Repo.insert()
     end
   end
 
   @doc """
   Fire-and-forget snapshot after a config mutation succeeds.
-  Runs in a Task so snapshot failures never affect the caller.
+  Runs in a Task so a slow snapshot never delays the caller, but a failure is
+  logged rather than swallowed: a broken snapshot means version history silently
+  stops advancing.
   """
   @spec after_mutation(String.t(), String.t()) :: :ok
   def after_mutation(changed_by, change_reason) do
-    Task.start(fn -> snapshot(changed_by, change_reason) end)
+    Task.start(fn ->
+      case snapshot(changed_by, change_reason) do
+        :unchanged ->
+          :ok
+
+        {:ok, _version} ->
+          :ok
+
+        {:error, reason} ->
+          Logger.error(
+            "[ConfigSnapshot] could not record \"#{change_reason}\": #{inspect(reason)}"
+          )
+      end
+    end)
+
     :ok
   end
 

@@ -190,4 +190,68 @@ defmodule ExGoCD.ConfigXmlTest do
       assert material.type_specific_config["password"] == ""
     end
   end
+
+  describe "generate/0" do
+    test "renders a git material with its url, branch, destination and name" do
+      {:ok, pipeline} =
+        ExGoCD.Pipelines.create_pipeline(%{name: "render-git", group: "test-group"})
+
+      ExGoCD.Pipelines.create_material_for_pipeline(pipeline, %{
+        type: "git",
+        url: "https://github.com/example/repo.git",
+        branch: "main",
+        name: "repo"
+      })
+
+      xml = ExGoCD.ConfigXml.generate()
+
+      assert xml =~ ~s(url="https://github.com/example/repo.git")
+      assert xml =~ ~s(branch="main")
+      assert xml =~ ~s(dest="repo")
+      assert xml =~ ~s(materialName="repo")
+    end
+
+    test "renders a dependency material with the pipeline and stage it watches" do
+      {:ok, _upstream} =
+        ExGoCD.Pipelines.create_pipeline(%{name: "upstream", group: "test-group"})
+
+      {:ok, downstream} =
+        ExGoCD.Pipelines.create_pipeline(%{name: "downstream", group: "test-group"})
+
+      ExGoCD.Pipelines.create_material_for_pipeline(downstream, %{
+        type: "dependency",
+        url: "upstream",
+        pipeline_name: "upstream",
+        stage_name: "test",
+        name: "upstream"
+      })
+
+      xml = ExGoCD.ConfigXml.generate()
+
+      assert xml =~ ~s(pipelineName="upstream")
+      assert xml =~ ~s(stageName="test")
+    end
+
+    test "what it renders parses back into the same material" do
+      {:ok, pipeline} =
+        ExGoCD.Pipelines.create_pipeline(%{name: "roundtrip", group: "test-group"})
+
+      ExGoCD.Pipelines.create_material_for_pipeline(pipeline, %{
+        type: "git",
+        url: "https://github.com/example/roundtrip.git",
+        branch: "develop",
+        name: "roundtrip"
+      })
+
+      assert {:ok, pipelines, _} = ExGoCD.ConfigXml.from_xml(ExGoCD.ConfigXml.generate())
+
+      roundtrip = Enum.find(pipelines, &(&1.name == "roundtrip"))
+
+      assert [material] = roundtrip.materials
+      assert material.type == "git"
+      assert material.url == "https://github.com/example/roundtrip.git"
+      assert material.branch == "develop"
+      assert material.name == "roundtrip"
+    end
+  end
 end

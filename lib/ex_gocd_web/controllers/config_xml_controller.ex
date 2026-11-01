@@ -39,16 +39,26 @@ defmodule ExGoCDWeb.ConfigXmlController do
   @doc "Revert to a previous config version by ID."
   def revert(conn, %{"version_id" => version_id}) do
     case Integer.parse(version_id) do
-      {id, _} ->
-        version = ConfigVersion.get!(id)
-        xml = version.config_xml || config_json_to_xml(version.config_json)
-        do_import(conn, xml)
-
-      :error ->
-        conn
-        |> put_flash(:error, "Invalid version ID.")
-        |> redirect(to: "/admin/config_xml")
+      {id, _} -> revert_to(conn, ConfigVersion.get!(id))
+      :error -> redirect_with_error(conn, "Invalid version ID.")
     end
+  end
+
+  # A revert restores the XML as it was recorded. Regenerating it from the
+  # current config would look like a revert and change nothing, so a version
+  # without stored XML is refused instead.
+  defp revert_to(conn, %ConfigVersion{config_xml: xml}) when is_binary(xml) and xml != "" do
+    do_import(conn, xml)
+  end
+
+  defp revert_to(conn, %ConfigVersion{id: id}) do
+    redirect_with_error(conn, "Version #{id} has no stored XML to revert to.")
+  end
+
+  defp redirect_with_error(conn, message) do
+    conn
+    |> put_flash(:error, message)
+    |> redirect(to: "/admin/config_xml")
   end
 
   defp do_import(conn, xml) do
@@ -67,9 +77,5 @@ defmodule ExGoCDWeb.ConfigXmlController do
         |> put_flash(:error, "Import failed: #{reason}")
         |> redirect(to: "/admin/config_xml")
     end
-  end
-
-  defp config_json_to_xml(_config_json) do
-    ExGoCD.ConfigXml.generate()
   end
 end
