@@ -105,7 +105,7 @@ boilerplate:
 | `live/audit_log_live.ex` | 77 | |
 | `live/config_diff_live.ex` | 53 | |
 | `controllers/config_xml_controller.ex` | 20 | Legacy `/admin/config_xml` export/import/revert UI |
-| `elastic_agent_scheduler.ex` | 186 at 12.9 % | |
+| `elastic_agent_scheduler.ex` | 186 at 12.9 % | Its tick decides when to create and delete pods, and every one of those decisions calls Kubernetes directly, with no seam to stand in for it. Testing the tick needs that seam first — a behaviour for the pod calls, injected — which is a design decision rather than a test |
 | `channels/*` (5 files, 412 lines) | covered by `test/ex_gocd_web/channels/` | see [the agent WebSocket tree](#the-agent-websocket-tree-is-not-dead-code-it-was-untested) |
 
 `config_xml_test.exs` covers `generate/0` and `import_from_xml/1`, including a
