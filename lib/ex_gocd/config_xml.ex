@@ -311,10 +311,10 @@ defmodule ExGoCD.ConfigXml do
 
     case result do
       {:ok, {doc, []}} ->
-        {:ok, extract_pipelines(doc), extract_elastic_profiles(doc)}
+        {:ok, extract_pipelines(doc), extract_profiles(doc)}
 
       {:ok, {doc, _rest}} ->
-        {:ok, extract_pipelines(doc), extract_elastic_profiles(doc)}
+        {:ok, extract_pipelines(doc), extract_profiles(doc)}
 
       {:fatal, reason} ->
         {:error, "XML parse error: #{inspect(reason)}"}
@@ -324,16 +324,77 @@ defmodule ExGoCD.ConfigXml do
     end
   end
 
+  defp extract_profiles(doc) do
+    %{
+      elastic_profiles: extract_elastic_profiles(doc),
+      cluster_profiles: extract_cluster_profiles(doc)
+    }
+  end
+
+  defp extract_cluster_profiles(doc) do
+    doc
+    |> find_element(:clusterProfiles)
+    |> case do
+      nil ->
+        []
+
+      profiles_el ->
+        find_elements(profiles_el, :clusterProfile) |> Enum.map(&parse_cluster_profile/1)
+    end
+  end
+
+  defp parse_cluster_profile(el) do
+    properties =
+      el
+      |> find_elements(:property)
+      |> Enum.reduce(%{}, &reduce_cluster_property/2)
+
+    %{
+      name: to_string(attr(el, :name)),
+      plugin_id: to_string(attr(el, :pluginId)),
+      properties: properties
+    }
+  end
+
+  # A cluster profile's secrets travel encrypted, the same way they are kept in
+  # the version snapshot, so importing has to take them back out.
+  defp reduce_cluster_property(prop_el, acc) do
+    key_el = find_child(prop_el, :key)
+    value_el = find_child(prop_el, :value)
+
+    if key_el && value_el do
+      key = text_content(key_el) |> to_string()
+      Map.put(acc, key, cluster_property_value(key, text_content(value_el) |> to_string()))
+    else
+      acc
+    end
+  end
+
+  defp cluster_property_value(key, value) when key in ["bearer_token", "client_key"] do
+    case ExGoCD.Crypto.decrypt(value) do
+      {:ok, plain} -> plain
+      :error -> value
+    end
+  end
+
+  defp cluster_property_value(_key, value), do: value
+
   @doc """
   Imports pipelines and elastic agent profiles from XML, creating new ones
   and updating existing ones by name. Returns `{:ok, counts}` where counts is
   a map with `:pipelines` and `:elastic_profiles` keys.
   """
   def import_from_xml(xml_string) when is_binary(xml_string) do
-    with {:ok, pipelines, elastic_profiles} <- from_xml(xml_string),
+    with {:ok, pipelines, profiles} <- from_xml(xml_string),
          :ok <- import_pipelines(pipelines),
-         :ok <- import_elastic_profiles(elastic_profiles) do
-      {:ok, %{pipelines: length(pipelines), elastic_profiles: length(elastic_profiles)}}
+         :ok <- import_cluster_profiles(profiles.cluster_profiles),
+         :ok <- import_elastic_profiles(profiles.elastic_profiles) do
+      {:ok,
+       %{
+         pipelines: length(pipelines),
+         cluster_profiles: length(profiles.cluster_profiles),
+         elastic_profiles: length(profiles.elastic_profiles)
+       }}
     end
   end
 
@@ -552,12 +613,12 @@ defmodule ExGoCD.ConfigXml do
     end
   end
 
-  defp import_elastic_profiles(profiles) do
+  defp import_cluster_profiles(profiles) do
     Enum.reduce_while(profiles, :ok, fn profile, :ok ->
       result =
-        case Repo.get_by(ExGoCD.ElasticAgentProfiles.ElasticAgentProfile, name: profile.name) do
-          nil -> ExGoCD.ElasticAgentProfiles.create_profile(profile)
-          existing -> ExGoCD.ElasticAgentProfiles.update_profile(existing, profile)
+        case Repo.get_by(ExGoCD.ClusterProfiles.ClusterProfile, name: profile.name) do
+          nil -> ExGoCD.ClusterProfiles.create_profile(profile)
+          existing -> ExGoCD.ClusterProfiles.update_profile(existing, profile)
         end
 
       case as_stored(result, profile.name) do
@@ -565,6 +626,37 @@ defmodule ExGoCD.ConfigXml do
         {:error, _} = error -> {:halt, error}
       end
     end)
+  end
+
+  defp import_elastic_profiles(profiles) do
+    Enum.reduce_while(profiles, :ok, fn profile, :ok ->
+      with {:ok, attrs} <- with_cluster_profile(profile) do
+        result =
+          case Repo.get_by(ExGoCD.ElasticAgentProfiles.ElasticAgentProfile, name: attrs.name) do
+            nil -> ExGoCD.ElasticAgentProfiles.create_profile(attrs)
+            existing -> ExGoCD.ElasticAgentProfiles.update_profile(existing, attrs)
+          end
+
+        case as_stored(result, attrs.name) do
+          {:ok, _profile} -> {:cont, :ok}
+          {:error, _} = error -> {:halt, error}
+        end
+      else
+        {:error, _} = error -> {:halt, error}
+      end
+    end)
+  end
+
+  # The document names the cluster profile; the row needs its id.
+  defp with_cluster_profile(profile) do
+    case ExGoCD.ClusterProfiles.get_profile(profile.cluster_profile_id) do
+      nil ->
+        {:error,
+         "elastic agent profile #{inspect(profile.name)} names cluster profile #{inspect(profile.cluster_profile_id)}, which the config does not define"}
+
+      cluster ->
+        {:ok, %{profile | cluster_profile_id: cluster.id}}
+    end
   end
 
   defp as_stored({:ok, record}, _label), do: {:ok, record}
@@ -1086,7 +1178,7 @@ defmodule ExGoCD.ConfigXml do
             %{
               name: p.name,
               pluginId: p.plugin_id,
-              clusterProfileId: p.cluster_profile_id || ""
+              clusterProfileId: cluster_profile_reference(p.cluster_profile_id)
             },
             kv_pairs
           )
@@ -1105,9 +1197,48 @@ defmodule ExGoCD.ConfigXml do
   end
 
   defp render_cluster_profiles do
-    # Not exported yet: cluster profiles are still missing from the XML, so a
-    # revert from a config version would drop them. Their JSON is kept in the
-    # version snapshot. See docs/STATUS.md.
-    ""
+    profiles = ExGoCD.ClusterProfiles.list_profiles()
+
+    if profiles == [] do
+      ""
+    else
+      tag3(
+        "clusterProfiles",
+        %{},
+        Enum.map_join(profiles, "\n", &render_cluster_profile/1)
+      )
+    end
+  end
+
+  defp render_cluster_profile(profile) do
+    properties =
+      profile.properties
+      |> Enum.sort_by(fn {key, _value} -> key end)
+      |> Enum.map_join("", fn {key, value} ->
+        property_kv_xml(key, cluster_property_output(key, value))
+      end)
+
+    tag3("clusterProfile", %{name: profile.name, pluginId: profile.plugin_id}, properties)
+  end
+
+  # A cluster profile's secrets are written encrypted: the config XML is handed
+  # out by the API and kept in version history.
+  defp cluster_property_output(key, value) when key in ["bearer_token", "client_key"] do
+    if is_binary(value) and not ExGoCD.Crypto.aes?(value),
+      do: ExGoCD.Crypto.encrypt(value),
+      else: value
+  end
+
+  defp cluster_property_output(_key, value), do: value
+
+  # Agent profiles point at a cluster profile by id; the export names it, which
+  # is both readable and resolvable on import.
+  defp cluster_profile_reference(nil), do: ""
+
+  defp cluster_profile_reference(id) do
+    case ExGoCD.ClusterProfiles.get_profile(id) do
+      nil -> id
+      profile -> profile.name
+    end
   end
 end

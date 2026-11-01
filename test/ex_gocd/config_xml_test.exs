@@ -305,6 +305,49 @@ defmodule ExGoCD.ConfigXmlTest do
     end
   end
 
+  describe "cluster profiles" do
+    test "a cluster profile and the agent profile using it survive a round trip" do
+      {:ok, cluster} =
+        ExGoCD.ClusterProfiles.create_profile(%{
+          name: "k8s",
+          plugin_id: "ex_gocd.elasticagent.kubernetes",
+          properties: %{
+            "kubernetes_cluster_url" => "https://k8s.test:6443",
+            "bearer_token" => "a-bearer-token"
+          }
+        })
+
+      {:ok, agent_profile} =
+        ExGoCD.ElasticAgentProfiles.create_profile(%{
+          name: "small",
+          plugin_id: "ex_gocd.elasticagent.kubernetes",
+          cluster_profile_id: cluster.id,
+          properties: %{"MaxCPU" => "2"}
+        })
+
+      xml = ExGoCD.ConfigXml.generate()
+
+      assert xml =~ ~s(<clusterProfile name="k8s")
+      assert xml =~ ~s(clusterProfileId="k8s")
+      refute xml =~ "a-bearer-token"
+
+      # Empty the database the way a revert would, then import the export.
+      {:ok, _} = ExGoCD.ElasticAgentProfiles.delete_profile(agent_profile)
+      {:ok, _} = ExGoCD.ClusterProfiles.delete_profile(cluster)
+
+      assert {:ok, _counts} = ExGoCD.ConfigXml.import_from_xml(xml)
+
+      assert [restored] = ExGoCD.ClusterProfiles.list_profiles()
+      assert restored.name == "k8s"
+
+      assert ExGoCD.ClusterProfiles.ClusterProfile.bearer_token(restored) ==
+               "a-bearer-token"
+
+      assert [agent] = ExGoCD.ElasticAgentProfiles.list_profiles()
+      assert agent.cluster_profile_id == restored.id
+    end
+  end
+
   describe "import_from_xml/1" do
     test "stores the material, stage, job and task the XML declares" do
       assert {:ok, %{pipelines: 1}} = ExGoCD.ConfigXml.import_from_xml(cruise_xml("imported"))
