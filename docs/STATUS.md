@@ -14,8 +14,8 @@
 | Dimension | State | Evidence |
 | --- | --- | --- |
 | Code | 275 modules, compile warnings-as-errors clean | `mix compile --force --warnings-as-errors` |
-| ExUnit | **1059 tests, all green**, ~9 s | `mix test` |
-| Coverage | **51.4 %** of 274 modules; 85 at 0 % | `mix test.coverage` |
+| ExUnit | **1062 tests, all green**, ~9 s | `mix test` |
+| Coverage | **51.7 %** of 274 modules; 85 at 0 % | `mix test.coverage` |
 | Go agent | builds; tests pass in 3 of 10 packages (3,793 prod LOC / 599 test LOC) | `cd agent && go test ./...` |
 | Cypress | 27 specs on disk, **not executed in this session** | `ls cypress/e2e/*.cy.js` |
 | Static analysis | `mix format --check-formatted` clean; `mix credo --strict` exit 0 (3 readability notes) | see above |
@@ -119,18 +119,28 @@ generate → `from_xml/1` round trip and an idempotent second import.
 
 ### Config XML export covers part of the configuration
 
-`generate/0` renders pipelines, templates, environments, roles, cluster profiles
-and elastic agent profiles, and `import_from_xml/1` stores them again — cluster
-profiles round-trip with their secrets encrypted in the document and the agent
-profiles that reference them resolved by name.
+`generate/0` renders pipelines, templates, environments, roles, cluster profiles,
+elastic agent profiles and config repos, and `import_from_xml/1` stores them
+again — cluster profiles round-trip with their secrets encrypted in the document
+and the agent profiles that reference them resolved by name.
 
-It does **not** render artifact stores, secret configs, package repositories,
-SCMs or config repos.
+It does **not** render artifact stores, secret configs, package repositories or
+SCMs.
 
 That matters because a config version stores both `config_json`, which is
 complete, and `config_xml`, which is not — and `revert` restores from the XML.
-Reverting to a version therefore drops those five sections. The JSON is there to
+Reverting to a version therefore drops those four sections. The JSON is there to
 restore from; nothing reads it yet.
+
+Config repos are exported as `<config-repos>`, and the pipelines that belong to
+one are left out of `<pipelines>`. Both halves follow upstream: `configRepos` is
+a `@ConfigSubtag` of `BasicCruiseConfig`, so `<config-repos>` is part of
+`cruise-config.xml`; and `MagicalGoConfigXmlWriter.write/3` refuses a config that
+is not local (`"Attempted to save merged configuration with partials"`), because
+config-repo pipelines are merged into the groups in memory only. Writing them
+into the document would turn a pipeline a repository tracks into a hand-written
+one that no longer follows its repository. `Pipeline.config_repo_id` is what
+tells the two apart.
 
 ### Fixed: five capture sections were silently empty
 
@@ -160,7 +170,7 @@ repository is named by the material that points at it.
 | Claim | Reality |
 | --- | --- |
 | "100 % feature parity, all gaps resolved" | contradicted by the gaps above and the 85 zero-coverage modules |
-| 1004 tests [1059] | |
+| 1004 tests [1062] | |
 | 67 controllers [61] | |
 | 23 LiveView pages [22] | |
 | 20 GenServers [22] | |

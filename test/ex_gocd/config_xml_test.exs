@@ -1,6 +1,11 @@
 defmodule ExGoCD.ConfigXmlTest do
   use ExGoCD.DataCase
 
+  alias ExGoCD.ConfigRepos.ConfigRepo
+  alias ExGoCD.ConfigXml
+  alias ExGoCD.Pipelines.Pipeline
+  alias ExGoCD.Repo
+
   describe "from_xml/1" do
     test "parses a simple pipeline from cruise-config.xml" do
       xml = """
@@ -436,6 +441,70 @@ defmodule ExGoCD.ConfigXmlTest do
     defp load_pipeline(name) do
       ExGoCD.Pipelines.get_pipeline_by_name(name)
       |> Repo.preload([:materials, stages: [jobs: :tasks]])
+    end
+  end
+
+  describe "config repos" do
+    test "exports the repository and leaves its pipelines to the repository" do
+      config_repo = insert_config_repo()
+      insert_pipeline(name: "hand-written")
+      insert_pipeline(name: "from-the-repository", config_repo_id: config_repo.id)
+
+      xml = ConfigXml.generate()
+
+      assert xml =~ ~s(<config-repo pluginId="cd.go.config-repo.yaml")
+      assert xml =~ ~s(url="https://github.com/acme/config.git")
+      assert xml =~ ~s(branch="trunk")
+      assert xml =~ "hand-written"
+      refute xml =~ "from-the-repository"
+    end
+
+    test "importing stores the repository again" do
+      xml = """
+      <?xml version="1.0" encoding="utf-8"?>
+      <cruise schemaVersion="120">
+        <config-repos>
+          <config-repo pluginId="cd.go.config-repo.yaml" materialType="git" sourceType="gocd_pipeline">
+            <git url="https://github.com/acme/config.git" branch="trunk" />
+            <configuration>
+              <property><key>pattern</key><value>*.gocd.yaml</value></property>
+            </configuration>
+          </config-repo>
+        </config-repos>
+      </cruise>
+      """
+
+      assert {:ok, _summary} = ConfigXml.import_from_xml(xml)
+
+      assert [imported] = Repo.all(ConfigRepo)
+      assert imported.url == "https://github.com/acme/config.git"
+      assert imported.branch == "trunk"
+      assert imported.plugin_id == "cd.go.config-repo.yaml"
+      assert imported.configuration == %{"pattern" => "*.gocd.yaml"}
+    end
+
+    test "a generated document imports back to the same repository" do
+      insert_config_repo()
+
+      assert {:ok, %{config_repos: 1}} = ConfigXml.import_from_xml(ConfigXml.generate())
+
+      assert [imported] = Repo.all(ConfigRepo)
+      assert imported.url == "https://github.com/acme/config.git"
+      assert imported.branch == "trunk"
+      assert imported.configuration == %{"pattern" => "*.gocd.yaml"}
+    end
+
+    defp insert_config_repo do
+      Repo.insert!(%ConfigRepo{
+        url: "https://github.com/acme/config.git",
+        branch: "trunk",
+        plugin_id: "cd.go.config-repo.yaml",
+        configuration: %{"pattern" => "*.gocd.yaml"}
+      })
+    end
+
+    defp insert_pipeline(attrs) do
+      Repo.insert!(struct(Pipeline, attrs))
     end
   end
 end

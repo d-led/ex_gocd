@@ -14,14 +14,14 @@ defmodule ExGoCD.ConfigXml do
 
   @doc "Returns the full cruise-config XML string."
   def generate do
-    pipelines = Pipelines.list_pipelines() |> Repo.preload([:materials, stages: [jobs: :tasks]])
-    pipeline_xml = pipelines |> Enum.map(&render_pipeline/1) |> Enum.join("\n")
+    pipeline_xml = local_pipelines() |> Enum.map(&render_pipeline/1) |> Enum.join("\n")
 
     templates_xml = render_templates()
     environments_xml = render_environments()
     security_xml = render_security()
     elastic_xml = render_elastic_profiles()
     cluster_xml = render_cluster_profiles()
+    config_repos_xml = render_config_repos()
 
     """
     <?xml version="1.0" encoding="utf-8"?>
@@ -35,8 +35,18 @@ defmodule ExGoCD.ConfigXml do
     #{templates_xml}
     #{elastic_xml}
     #{cluster_xml}
+    #{config_repos_xml}
     </cruise>
     """
+  end
+
+  # A pipeline that comes from a config repo is not part of this document: the
+  # repository holds it, and writing it here would turn a tracked pipeline into
+  # a hand-written one on the next import.
+  defp local_pipelines do
+    Pipelines.list_pipelines()
+    |> Repo.preload([:materials, stages: [jobs: :tasks]])
+    |> Enum.reject(& &1.config_repo_id)
   end
 
   defp esc(text) when is_binary(text) do
@@ -327,8 +337,58 @@ defmodule ExGoCD.ConfigXml do
   defp extract_profiles(doc) do
     %{
       elastic_profiles: extract_elastic_profiles(doc),
-      cluster_profiles: extract_cluster_profiles(doc)
+      cluster_profiles: extract_cluster_profiles(doc),
+      config_repos: extract_config_repos(doc)
     }
+  end
+
+  defp extract_config_repos(doc) do
+    doc
+    |> find_element(:"config-repos")
+    |> case do
+      nil ->
+        []
+
+      repos_el ->
+        find_elements(repos_el, :"config-repo") |> Enum.map(&parse_config_repo/1)
+    end
+  end
+
+  defp parse_config_repo(el) do
+    git_el = find_child(el, :git)
+    configuration_el = find_child(el, :configuration)
+
+    properties =
+      case configuration_el do
+        nil ->
+          %{}
+
+        config ->
+          config |> find_elements(:property) |> Enum.reduce(%{}, &reduce_cluster_property/2)
+      end
+
+    %{
+      plugin_id: to_string(attr(el, :pluginId)),
+      material_type: optional_attr(el, :materialType, "git"),
+      source_type: optional_attr(el, :sourceType, "gocd_pipeline"),
+      url: git_el && text_attr(git_el, :url),
+      branch: (git_el && text_attr(git_el, :branch)) || "main",
+      configuration: properties
+    }
+  end
+
+  defp optional_attr(el, name, default) do
+    case attr(el, name) do
+      nil -> default
+      value -> to_string(value)
+    end
+  end
+
+  defp text_attr(el, name) do
+    case attr(el, name) do
+      nil -> nil
+      value -> to_string(value)
+    end
   end
 
   defp extract_cluster_profiles(doc) do
@@ -388,14 +448,41 @@ defmodule ExGoCD.ConfigXml do
     with {:ok, pipelines, profiles} <- from_xml(xml_string),
          :ok <- import_pipelines(pipelines),
          :ok <- import_cluster_profiles(profiles.cluster_profiles),
+         :ok <- import_config_repos(profiles.config_repos),
          :ok <- import_elastic_profiles(profiles.elastic_profiles) do
       {:ok,
        %{
          pipelines: length(pipelines),
          cluster_profiles: length(profiles.cluster_profiles),
+         config_repos: length(profiles.config_repos),
          elastic_profiles: length(profiles.elastic_profiles)
        }}
     end
+  end
+
+  # A config repo is named by the repository it points at: the document carries
+  # no separate id, and two definitions of the same url and branch are the same
+  # repository.
+  defp import_config_repos(config_repos) do
+    Enum.reduce_while(config_repos, :ok, fn definition, :ok ->
+      case store_config_repo(definition) do
+        {:ok, _} -> {:cont, :ok}
+        {:error, _} = error -> {:halt, error}
+      end
+    end)
+  end
+
+  defp store_config_repo(definition) do
+    case ExGoCD.ConfigRepos.list_config_repos()
+         |> Enum.find(&same_config_repo?(&1, definition)) do
+      nil -> ExGoCD.ConfigRepos.create_config_repo(definition)
+      existing -> ExGoCD.ConfigRepos.update_config_repo(existing, definition)
+    end
+  end
+
+  defp same_config_repo?(stored, definition) do
+    stored.url == definition.url and stored.branch == definition.branch and
+      stored.material_type == definition.material_type
   end
 
   # ── Import: what is parsed has to be stored ───────────────────────
@@ -1230,6 +1317,34 @@ defmodule ExGoCD.ConfigXml do
   end
 
   defp cluster_property_output(_key, value), do: value
+
+  defp render_config_repos do
+    config_repos = ExGoCD.ConfigRepos.list_config_repos()
+
+    if config_repos == [] do
+      ""
+    else
+      tag3("config-repos", %{}, Enum.map_join(config_repos, "\n", &render_config_repo/1))
+    end
+  end
+
+  defp render_config_repo(config_repo) do
+    properties =
+      (config_repo.configuration || %{})
+      |> Enum.sort_by(fn {key, _value} -> key end)
+      |> Enum.map_join("", fn {key, value} -> property_kv_xml(key, value) end)
+
+    tag3(
+      "config-repo",
+      %{
+        pluginId: config_repo.plugin_id,
+        materialType: config_repo.material_type,
+        sourceType: config_repo.source_type
+      },
+      tag2("git", %{url: config_repo.url, branch: config_repo.branch}) <>
+        tag3("configuration", %{}, properties)
+    )
+  end
 
   # Agent profiles point at a cluster profile by id; the export names it, which
   # is both readable and resolvable on import.
