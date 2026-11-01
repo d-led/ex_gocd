@@ -14,8 +14,8 @@
 | Dimension | State | Evidence |
 | --- | --- | --- |
 | Code | 275 modules, compile warnings-as-errors clean | `mix compile --force --warnings-as-errors` |
-| ExUnit | **1085 tests, all green** | `mix test` |
-| Coverage | **54.8 %** of 274 modules; 80 at 0 % | `mix test.coverage` |
+| ExUnit | **1089 tests, all green** | `mix test` |
+| Coverage | **54.7 %** of 274 modules; 79 at 0 % | `mix test.coverage` |
 | Go agent | builds; tests pass in 3 of 10 packages (3,793 prod LOC / 599 test LOC); modules upgraded 2026-11-01 (otel 1.47, grpc 1.85) | `cd agent && go test ./...` |
 | Cypress | 27 specs on disk, **not executed in this session** | `ls cypress/e2e/*.cy.js` |
 | Static analysis | `mix format --check-formatted` clean; `mix credo --strict` exit 0 (3 readability notes) | see above |
@@ -97,7 +97,7 @@ boilerplate:
 
 | Module | Uncovered lines | Notes |
 | --- | --- | --- |
-| `live/analytics_live.ex` | 268 at 24 % | Page-level tests only; the tabs' data paths are uncovered |
+| `live/analytics_live.ex` | 268 at 24 % | The tabs are tested through the page; `analytics.ex` itself is at 86.6 % |
 | `live/admin_k8s_live.ex` | 239 | Feature is claimed complete in `PARITY.md` |
 | `live/external_ci_repo_wizard_live.ex` | 230 | ditto |
 | `live/gantt_live.ex` | 123 | |
@@ -202,7 +202,7 @@ table: the agent speaks HTTP remoting, like a real GoCD agent
 (`agent/internal/remoting/`, `agent_remoting_controller.ex`, and no `websocket`
 string anywhere in the Go agent).
 
-`README.md` badges are hand-written and say 1085 tests and 27 Cypress specs.
+`README.md` badges are hand-written and say 1089 tests and 27 Cypress specs.
 Nothing regenerates them, so they will drift again.
 
 ### The agent WebSocket tree is not dead code — it was untested
