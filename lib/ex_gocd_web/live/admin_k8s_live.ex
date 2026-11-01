@@ -573,6 +573,7 @@ defmodule ExGoCDWeb.AdminK8sLive do
 
           <.form
             for={@cluster_form}
+            id="cluster-profile-form"
             phx-change="validate_cluster"
             phx-submit="save_cluster"
             class="space-y-4"
@@ -587,8 +588,8 @@ defmodule ExGoCDWeb.AdminK8sLive do
                 placeholder="my-k8s-cluster"
                 required
               />
-              <div :if={@cluster_form[:name].errors} class="text-red-600 text-sm mt-1">
-                {for err <- @cluster_form[:name].errors, do: err}
+              <div :if={@cluster_form[:name].errors != []} class="text-red-600 text-sm mt-1">
+                {error_text(@cluster_form[:name].errors)}
               </div>
             </div>
 
@@ -669,6 +670,7 @@ defmodule ExGoCDWeb.AdminK8sLive do
 
           <.form
             for={@agent_form}
+            id="agent-profile-form"
             phx-change="validate_agent"
             phx-submit="save_agent"
             class="space-y-4"
@@ -683,8 +685,8 @@ defmodule ExGoCDWeb.AdminK8sLive do
                 placeholder="docker-agent"
                 required
               />
-              <div :if={@agent_form[:name].errors} class="text-red-600 text-sm mt-1">
-                {for err <- @agent_form[:name].errors, do: err}
+              <div :if={@agent_form[:name].errors != []} class="text-red-600 text-sm mt-1">
+                {error_text(@agent_form[:name].errors)}
               </div>
             </div>
 
@@ -702,8 +704,11 @@ defmodule ExGoCDWeb.AdminK8sLive do
                   </option>
                 <% end %>
               </select>
-              <div :if={@agent_form[:cluster_profile_id].errors} class="text-red-600 text-sm mt-1">
-                {for err <- @agent_form[:cluster_profile_id].errors, do: err}
+              <div
+                :if={@agent_form[:cluster_profile_id].errors != []}
+                class="text-red-600 text-sm mt-1"
+              >
+                {error_text(@agent_form[:cluster_profile_id].errors)}
               </div>
             </div>
 
@@ -889,6 +894,15 @@ defmodule ExGoCDWeb.AdminK8sLive do
     %ClusterProfile{}
     |> ClusterProfile.changeset(%{})
     |> to_form()
+  end
+
+  # A field's errors are {message, opts} pairs, which cannot be rendered as
+  # text; the message is what a person reads.
+  defp error_text(errors) do
+    Enum.map_join(errors, ", ", fn
+      {message, _opts} -> message
+      message -> message
+    end)
   end
 
   defp empty_agent_form do
