@@ -1,5 +1,10 @@
 # ex_gocd — Feature Parity & Architecture
 
+> ⚠️ **Superseded for status purposes by [STATUS.md](STATUS.md)** (measured
+> 2026-11-01). The header numbers and the "100% parity / all gaps resolved"
+> claim below are from 2026-07-08 and no longer match the code; the inventory
+> tables further down are still useful as a map of intent.
+
 > Last audited: 2026-07-08. 1004 tests. 67 controllers. 23 LiveView pages. 20 GenServers. 42 migrations.
 > **Status: 100% feature parity with GoCD.** All gaps resolved.
 
