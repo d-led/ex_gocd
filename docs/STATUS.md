@@ -19,7 +19,7 @@
 | Go agent | builds; tests pass in 3 of 10 packages (3,793 prod LOC / 599 test LOC); modules upgraded 2026-11-01 (otel 1.47, grpc 1.85) | `cd agent && go test ./...` |
 | Cypress | 27 specs on disk, **not executed in this session** | `ls cypress/e2e/*.cy.js` |
 | Static analysis | `mix format --check-formatted` clean; `mix credo --strict` exit 0 (no findings); `elixir scripts/check_doc_refs.exs` clean | see above |
-| CI | `main` at 8e38639: Elixir CI, CodeQL and Sobelow green through 172a83a…e6369a4; three newer commits were still queued | `gh run list` |
+| CI | every commit through 80e9021 is green on Elixir CI, CodeQL and Sobelow; 8e38639 and the docs commits after it were still queued at hand-off | `gh run list` |
 | Security | **0 open Dependabot alerts**; `npm audit` 0 vulnerabilities | see above |
 | Dependencies | Hex and npm on their latest releases; Go modules not yet | `mix hex.outdated`, `npm outdated` |
 | Upstream | pulled to `gocd/gocd` `eb504a6a6b`; `api.go.cd` has no `source/` changes | see [Upstream delta](#upstream-delta) |
