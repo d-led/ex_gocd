@@ -617,8 +617,8 @@ defmodule ExGoCDWeb.MaterialsLive do
       []
     else
       import Ecto.Query
-      alias ExGoCD.Repo
       alias ExGoCD.Pipelines.Modification
+      alias ExGoCD.Repo
 
       mods =
         Repo.all(

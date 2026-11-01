@@ -195,7 +195,7 @@ defmodule ExGoCDWeb.AgentRemotingControllerTest do
     test "tells the agent to carry on when the job is still wanted", %{conn: conn, agent: agent} do
       run = assign_work_to_agent_and_claim()
 
-      conn = post_remoting(conn, "is_ignored", is_ignored_payload(run, agent))
+      conn = post_remoting(conn, "is_ignored", ignored_payload(run, agent))
 
       assert response(conn, 200) == RemotingFixture.raw("is_ignored_response.txt")
     end
@@ -204,7 +204,7 @@ defmodule ExGoCDWeb.AgentRemotingControllerTest do
       run = assign_work_to_agent_and_claim()
       {:ok, _} = AgentJobRuns.report_status(@agent_uuid, run.build_id, "Cancelled")
 
-      conn = post_remoting(conn, "is_ignored", is_ignored_payload(run, agent))
+      conn = post_remoting(conn, "is_ignored", ignored_payload(run, agent))
 
       assert response(conn, 200) == "true"
     end
@@ -249,7 +249,7 @@ defmodule ExGoCDWeb.AgentRemotingControllerTest do
     |> Map.put(field, value)
   end
 
-  defp is_ignored_payload(run, agent) do
+  defp ignored_payload(run, agent) do
     "is_ignored_request.json"
     |> captured(agent)
     |> Map.put("jobIdentifier", job_identifier(run))

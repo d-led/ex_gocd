@@ -719,21 +719,24 @@ defmodule ExGoCD.ConfigXml do
 
   defp import_elastic_profiles(profiles) do
     Enum.reduce_while(profiles, :ok, fn profile, :ok ->
-      with {:ok, attrs} <- with_cluster_profile(profile) do
-        result =
-          case Repo.get_by(ExGoCD.ElasticAgentProfiles.ElasticAgentProfile, name: attrs.name) do
-            nil -> ExGoCD.ElasticAgentProfiles.create_profile(attrs)
-            existing -> ExGoCD.ElasticAgentProfiles.update_profile(existing, attrs)
+      case with_cluster_profile(profile) do
+        {:ok, attrs} ->
+          case attrs |> upsert_elastic_profile() |> as_stored(attrs.name) do
+            {:ok, _profile} -> {:cont, :ok}
+            {:error, _} = error -> {:halt, error}
           end
 
-        case as_stored(result, attrs.name) do
-          {:ok, _profile} -> {:cont, :ok}
-          {:error, _} = error -> {:halt, error}
-        end
-      else
-        {:error, _} = error -> {:halt, error}
+        {:error, _} = error ->
+          {:halt, error}
       end
     end)
+  end
+
+  defp upsert_elastic_profile(attrs) do
+    case Repo.get_by(ExGoCD.ElasticAgentProfiles.ElasticAgentProfile, name: attrs.name) do
+      nil -> ExGoCD.ElasticAgentProfiles.create_profile(attrs)
+      existing -> ExGoCD.ElasticAgentProfiles.update_profile(existing, attrs)
+    end
   end
 
   # The document names the cluster profile; the row needs its id.

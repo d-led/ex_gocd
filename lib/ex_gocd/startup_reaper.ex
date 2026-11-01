@@ -17,8 +17,8 @@ defmodule ExGoCD.StartupReaper do
   require Logger
 
   import Ecto.Query, warn: false
-  alias ExGoCD.Pipelines.JobInstance
   alias ExGoCD.Agents.Agent
+  alias ExGoCD.Pipelines.JobInstance
   alias ExGoCD.Repo
 
   @reconcile_interval_ms 30_000
