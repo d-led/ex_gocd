@@ -25,7 +25,8 @@ defmodule TestDatabaseCheck do
 
         Start one and run the tests:
           docker run -d --name gocd-rewrite-test-db -p 5544:5432 \\
-            -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=ex_gocd_test postgres:18-alpine
+            -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres \\
+            -e POSTGRES_DB=postgres postgres:18-alpine
           PGHOST=127.0.0.1 PGPORT=5544 mix test.setup
           PGHOST=127.0.0.1 PGPORT=5544 mix test
 

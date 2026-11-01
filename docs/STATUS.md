@@ -90,9 +90,16 @@ PGHOST=127.0.0.1 PGPORT=5544 mix test
 
 Two suites can now run at the same time against the same database.
 
+`elixir scripts/check_test_db.exs` says whether that database is reachable
+before anything tries to use it, and it runs as a step in
+`scripts/quality-gate.sh`: a stopped container used to look like a failing test
+suite. It warns when the resolved port is the default 5432, because that is
+usually another project's PostgreSQL and `mix test.setup` would create this
+project's schema inside it.
+
 ### What the suite does not reach
 
-85 modules never execute. The ones that carry real features rather than
+79 modules never execute. The ones that carry real features rather than
 boilerplate:
 
 | Module | Uncovered lines | Notes |
