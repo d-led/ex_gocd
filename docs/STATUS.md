@@ -188,20 +188,17 @@ The wizard's two columns are `text[]` now (migration
 
 ### Doc drift
 
-`docs/PARITY.md` header, verified value in brackets:
+`docs/PARITY.md` now opens by saying it is a map of intent rather than a status
+report, and it carries no counts: the ones it had were 1004 tests, 67
+controllers, 23 LiveView pages, 20 GenServers, 42 migrations and 22 Cypress
+specs, all measured 2026-07-08 and all stale. Its claim that the Go agent speaks
+WebSocket was wrong, in the stack table, the topology diagram and the feature
+table: the agent speaks HTTP remoting, like a real GoCD agent
+(`agent/internal/remoting/`, `agent_remoting_controller.ex`, and no `websocket`
+string anywhere in the Go agent).
 
-| Claim | Reality |
-| --- | --- |
-| "100 % feature parity, all gaps resolved" | contradicted by the gaps above and the 85 zero-coverage modules |
-| 1004 tests [1082] | |
-| 67 controllers [61] | |
-| 23 LiveView pages [22] | |
-| 20 GenServers [22] | |
-| 42 migrations [44] | |
-| 22 Cypress specs [27] | |
-| Agent transport "WebSocket" | HTTP remoting — `agent/internal/remoting/`, `agent_remoting_controller.ex`; zero `websocket` strings in the Go agent |
-
-`README.md` badges claim 949 tests and 16 Cypress specs.
+`README.md` badges are hand-written and say 1082 tests and 27 Cypress specs.
+Nothing regenerates them, so they will drift again.
 
 ### The agent WebSocket tree is not dead code — it was untested
 
@@ -272,9 +269,9 @@ Reconstructed from the two indexed sessions for this workspace
 
 1. ~~**Make a revert restore everything.**~~ Done: the revert reads the XML and
    then `ConfigRestore` for the four sections only the JSON holds.
-2. **Re-audit `PARITY.md` against the code** rather than against the previous
-   audit. Replace the "100 %" claim with the verified coverage table, or split
-   the file into "claimed" and "verified" columns.
+2. **Re-audit the rest of `PARITY.md` against the code.** Its header, counts and
+   agent-transport claim are fixed and it no longer claims parity; what remains
+   is the per-feature table, which still says "✅" without a verification.
 3. ~~**Delete or declare `lib/ex_gocd_web/channels/`.**~~ Declared, and it turned
    out to be live rather than dead; both trees have tests now.
 4. ~~**Close the largest untested features**~~ Two of the three are done: the

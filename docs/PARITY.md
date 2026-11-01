@@ -1,12 +1,12 @@
 # ex_gocd — Feature Parity & Architecture
 
-> ⚠️ **Superseded for status purposes by [STATUS.md](STATUS.md)** (measured
-> 2026-11-01). The header numbers and the "100% parity / all gaps resolved"
-> claim below are from 2026-07-08 and no longer match the code; the inventory
-> tables further down are still useful as a map of intent.
-
-> Last audited: 2026-07-08. 1004 tests. 67 controllers. 23 LiveView pages. 20 GenServers. 42 migrations.
-> **Status: 100% feature parity with GoCD.** All gaps resolved.
+> ⚠️ **This file is a map of intent, not a status report.** Status lives in
+> [STATUS.md](STATUS.md), which is measured. The "100 % feature parity / all
+> gaps resolved" claim from the 2026-07-08 audit is not repeated here, because
+> nothing in the code checks it.
+>
+> Counts last measured 2026-11-01: 1082 tests, 61 controllers, 22 LiveView
+> pages, 22 GenServers, 44 migrations.
 
 ---
 
@@ -20,11 +20,11 @@ distributed OTP cluster with plugin extensibility and built-in observability.
 | Layer         | Technology                                                    |
 | ------------- | ------------------------------------------------------------- |
 | Server        | Elixir + Phoenix LiveView + Ecto (PostgreSQL)                 |
-| Agents        | Go (`agent/`) — lightweight, self-registering, WebSocket      |
+| Agents        | Go (`agent/`) — lightweight, self-registering, HTTP remoting |
 | Plugins       | Standalone OTP applications, self-registering via libcluster  |
 | Observability | OpenTelemetry (OTLP → Jaeger), built-in VSM tracing           |
 | Frontend      | Phoenix LiveView (SSR) + Tailwind CSS + daisyUI               |
-| Testing       | ExUnit (1004 tests) + Cypress E2E (22 specs) + Go tests        |
+| Testing       | ExUnit + Cypress E2E + Go tests (counts in [STATUS.md](STATUS.md)) |
 
 ### Cluster Topology
 
@@ -42,7 +42,7 @@ distributed OTP cluster with plugin extensibility and built-in observability.
 │  │:4102      │ │ enterprise_hierarchy (:4110)    │      │
 │  └──────────┘  └─────────────────────────────────┘      │
 │                                                          │
-│  Agents (Go, WebSocket):                                 │
+│  Agents (Go, HTTP remoting):                             │
 │    ci-agent (elixir,postgres)                            │
 │    docker-agent (docker)                                 │
 │    elastic-docker-agent (elastic, self-terminating)      │
@@ -122,7 +122,7 @@ via `ExGoCD.Plugin.Registry`, using libcluster gossip and `PLUGIN_SECRET`.
 | External CI Wizard | — | ✅ ExternalCIRepoWizardLive | ✅ config_repos/parser.ex |
 | Clustering | — | ✅ AdminLive cluster tab | ✅ libcluster+Horde |
 | Elastic Agent Scheduler | — | ✅ AdminLive K8s tab | ✅ elastic_agent_scheduler.ex |
-| Go Agent | ✅ WebSocket protocol | — | ✅ agent/ (Go binary) |
+| Go Agent | ✅ HTTP remoting (agent_remoting_controller) | — | ✅ agent/ (Go binary) |
 | Encryption API | ✅ POST /api/admin/encrypt | — | ✅ crypto.ex |
 | RBAC (Bodyguard) | ✅ per-environment policies | ✅ enforced in LiveViews | ✅ EnvironmentPolicy |
 | Backup Config API | ✅ CRUD /api/config/backup | ✅ AdminLive | ✅ BackupConfig |
@@ -180,11 +180,11 @@ All internal navigation verified 2026-07-08.
 | `mix format --check-formatted` | ✅ |
 | `mix sobelow` | ✅ 0 findings |
 | `mix credo --strict` | ✅ |
-| `mix test` | ✅ 1004 passed |
+| `mix test` | ✅ green (count in [STATUS.md](STATUS.md)) |
 | `go vet ./...` | ✅ |
 | `go test ./...` | ✅ |
 | `golangci-lint run` | ✅ 0 issues |
-| Cypress E2E | ✅ 22 specs |
+| Cypress E2E | 27 specs on disk, not run in this session |
 
 ---
 
