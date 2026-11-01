@@ -14,8 +14,8 @@
 | Dimension | State | Evidence |
 | --- | --- | --- |
 | Code | 275 modules, compile warnings-as-errors clean | `mix compile --force --warnings-as-errors` |
-| ExUnit | **1043 tests, all green**, ~9 s | `mix test` |
-| Coverage | last measured at **49.5 %** of 274 modules; 87 at 0 % | `mix test.coverage` |
+| ExUnit | **1049 tests, all green**, ~9 s | `mix test` |
+| Coverage | **50.3 %** of 274 modules; 86 at 0 % | `mix test.coverage` |
 | Go agent | builds; tests pass in 3 of 10 packages (3,793 prod LOC / 599 test LOC) | `cd agent && go test ./...` |
 | Cypress | 27 specs on disk, **not executed in this session** | `ls cypress/e2e/*.cy.js` |
 | Static analysis | `mix format --check-formatted` clean; `mix credo --strict` exit 0 (3 readability notes) | see above |
@@ -24,7 +24,8 @@
 | Dependencies | Hex and npm on their latest releases; Go modules not yet | `mix hex.outdated`, `npm outdated` |
 | Upstream | pulled to `gocd/gocd` `eb504a6a6b`; `api.go.cd` has no `source/` changes | see [Upstream delta](#upstream-delta) |
 
-The suite being green and the coverage being 49.5 % are both true at once. Green
+The suite being green and the coverage being half the code are both true at
+once. Green
 means nothing currently *fails*; it does not mean the untested paths work.
 
 ---
@@ -91,7 +92,7 @@ Two suites can now run at the same time against the same database.
 
 ### What the suite does not reach
 
-87 modules never execute. The ones that carry real features rather than
+86 modules never execute. The ones that carry real features rather than
 boilerplate:
 
 | Module | Uncovered lines | Notes |
@@ -99,7 +100,6 @@ boilerplate:
 | `live/analytics_live.ex` | 268 | Feature is claimed complete in `PARITY.md` |
 | `live/admin_k8s_live.ex` | 239 | ditto |
 | `live/external_ci_repo_wizard_live.ex` | 230 | ditto |
-| `controllers/feeds_controller.ex` | 146 | CCTray/Atom feeds, routed at `/go/cctray.xml`, no e2e |
 | `live/gantt_live.ex` | 123 | |
 | `docker.ex` | 99 | |
 | `live/audit_log_live.ex` | 77 | |
@@ -110,7 +110,8 @@ boilerplate:
 
 `config_xml_test.exs` covers `generate/0` and `import_from_xml/1`, including a
 generate → `from_xml/1` round trip and an idempotent second import.
-`config_repos/parser_test.exs` covers the GoCD-format config repo parser.
+`config_repos/parser_test.exs` covers the GoCD-format config repo parser, and
+`feeds_controller_test.exs` the Atom feeds.
 
 ---
 
@@ -122,8 +123,8 @@ generate → `from_xml/1` round trip and an idempotent second import.
 
 | Claim | Reality |
 | --- | --- |
-| "100 % feature parity, all gaps resolved" | contradicted by the gaps above and the 87 zero-coverage modules |
-| 1004 tests [1043] | |
+| "100 % feature parity, all gaps resolved" | contradicted by the gaps above and the 86 zero-coverage modules |
+| 1004 tests [1049] | |
 | 67 controllers [61] | |
 | 23 LiveView pages [22] | |
 | 20 GenServers [22] | |
@@ -181,6 +182,7 @@ Reconstructed from the two indexed sessions for this workspace
 | D9 | Dependencies track the latest Hex and npm releases rather than a pinned baseline | Explicit instruction, 2026-11-01 |
 | D10 | A config repo owns the pipelines it declares: a parse that produced pipelines replaces them; a failed or empty parse keeps the last good config | Correctness, and the invariant behind upstream `cfc94e215b`, 2026-11-01 |
 | D11 | A test that drives a shared GenServer runs synchronously; an async test owns a connection for itself only | Removes a real queue-contention flake, 2026-11-01 |
+| D12 | A material's identity is (type, url, branch): same repository and branch is one poll, a different branch is a different material | Two pipelines on different branches silently overwrote each other, 2026-11-01 |
 
 ---
 
@@ -191,11 +193,6 @@ Reconstructed from the two indexed sessions for this workspace
    the file into "claimed" and "verified" columns.
 2. **Delete or declare `lib/ex_gocd_web/channels/`.** 412 lines that nothing
    exercises.
-3. **Close the largest untested features**: the three 0 %-coverage LiveViews and
-   the CCTray feeds. Feeds are cheap and externally visible — they belong in the
-   suite before the LiveViews.
+3. **Close the largest untested features**: the three 0 %-coverage LiveViews
+   (analytics, admin K8s, external CI wizard).
 4. **Upgrade the Go modules** in `agent/`.
-5. **Give a material occurrence its own row.** `create_material_for_pipeline/2`
-   deduplicates on (type, url), so two pipelines using one repository at
-   different branches share a row and the second write wins. Import inherits
-   that behaviour; it needs deciding before it is fixed.
