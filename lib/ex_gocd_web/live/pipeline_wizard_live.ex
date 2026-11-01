@@ -2,7 +2,7 @@ defmodule ExGoCDWeb.PipelineWizardLive do
   use ExGoCDWeb, :live_view
 
   alias ExGoCD.Pipelines
-  alias ExGoCD.Pipelines.{Job, Material, Pipeline, Stage, Task}
+  alias ExGoCD.Pipelines.{Job, Pipeline, Stage, Task}
   alias ExGoCD.Repo
 
   @impl true
@@ -619,25 +619,14 @@ defmodule ExGoCDWeb.PipelineWizardLive do
         })
         |> Repo.insert!()
 
-      # 2. Create material
-      material =
-        case Repo.get_by(Material, type: form["material_type"], url: form["material_url"]) do
-          nil ->
-            %Material{}
-            |> Material.changeset(%{
-              type: form["material_type"],
-              url: form["material_url"],
-              branch: form["material_branch"] || "master",
-              username: form["material_username"]
-            })
-            |> Repo.insert!()
-
-          m ->
-            m
-        end
-
-      # Associate material to pipeline
-      {:ok, _} = Pipelines.add_material_to_pipeline(pipeline, material)
+      # 2. Create the material and link it to the pipeline
+      {:ok, _material} =
+        Pipelines.create_material_for_pipeline(pipeline, %{
+          type: form["material_type"],
+          url: form["material_url"],
+          branch: form["material_branch"] || "master",
+          username: form["material_username"]
+        })
 
       # 3. Create stage
       stage =

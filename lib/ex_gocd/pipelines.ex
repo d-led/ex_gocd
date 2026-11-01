@@ -2547,7 +2547,7 @@ defmodule ExGoCD.Pipelines do
   """
   def create_material_for_pipeline(%Pipeline{} = pipeline, material_attrs) do
     Repo.transaction(fn ->
-      string_attrs = Map.new(material_attrs, fn {k, v} -> {to_string(k), v} end)
+      string_attrs = material_attributes(material_attrs)
       url = string_attrs["url"]
       type = string_attrs["type"]
 
@@ -2556,7 +2556,7 @@ defmodule ExGoCD.Pipelines do
       end
 
       material =
-        case Repo.get_by(Material, type: type, url: url) do
+        case find_material_by_identity(type, url, string_attrs["branch"]) do
           nil ->
             %Material{}
             |> Material.changeset(string_attrs)
@@ -2576,6 +2576,35 @@ defmodule ExGoCD.Pipelines do
       end
     end)
   end
+
+  defp material_attributes(material_attrs) do
+    material_attrs
+    |> Map.new(fn {key, value} -> {to_string(key), value} end)
+    |> Map.update("branch", nil, &blank_to_nil/1)
+  end
+
+  defp blank_to_nil(""), do: nil
+  defp blank_to_nil(value), do: value
+
+  @doc """
+  Finds the material that polls the same thing: the same type, url and branch.
+
+  Two pipelines watching one repository at one branch share a single material and
+  therefore a single poll. A different branch is a different material, because
+  the branch decides what gets checked out — ignoring it made one pipeline's
+  branch overwrite another's.
+  """
+  def find_material_by_identity(type, url, branch) do
+    Material
+    |> where([m], m.type == ^type and m.url == ^url)
+    |> with_branch(branch)
+    |> order_by([m], asc: m.id)
+    |> limit(1)
+    |> Repo.one()
+  end
+
+  defp with_branch(query, nil), do: where(query, [m], is_nil(m.branch))
+  defp with_branch(query, branch), do: where(query, [m], m.branch == ^branch)
 
   defp check_and_trigger_downstreams(stage_instance) do
     stage_instance = Repo.preload(stage_instance, pipeline_instance: [pipeline: :stages])
