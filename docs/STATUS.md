@@ -111,7 +111,9 @@ boilerplate:
 `config_xml_test.exs` covers `generate/0` and `import_from_xml/1`, including a
 generate → `from_xml/1` round trip and an idempotent second import.
 `config_repos/parser_test.exs` covers the GoCD-format config repo parser, and
-`feeds_controller_test.exs` the Atom feeds.
+`feeds_controller_test.exs` the Atom feeds. `config_xml_controller_test.exs`
+covers the revert itself: that it restores a secret config, which only the JSON
+holds, and that it refuses a version with no stored XML.
 
 ---
 
