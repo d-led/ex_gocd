@@ -29,6 +29,26 @@ defmodule ExGoCD.ConfigSnapshotTest do
       assert :unchanged = ConfigSnapshot.snapshot("test", "unchanged")
     end
 
+    test "does not record a configuration it already holds" do
+      {:ok, first} = ConfigSnapshot.snapshot("test", "first")
+
+      {:ok, profile} =
+        ClusterProfiles.create_profile(%{
+          name: "comes-and-goes",
+          plugin_id: "ex_gocd.elasticagent.kubernetes",
+          properties: %{}
+        })
+
+      assert {:ok, _with_profile} = ConfigSnapshot.snapshot("test", "profile added")
+      assert {:ok, _} = ClusterProfiles.delete_profile(profile)
+
+      assert :unchanged = ConfigSnapshot.snapshot("test", "profile removed")
+
+      assert ConfigVersion
+             |> Repo.all()
+             |> Enum.count(&(&1.config_hash == first.config_hash)) == 1
+    end
+
     test "config_json contains expected top-level sections" do
       {:ok, v} = ConfigSnapshot.snapshot("test", "section check")
       config = v.config_json

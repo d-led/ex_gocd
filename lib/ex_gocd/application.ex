@@ -108,8 +108,10 @@ defmodule ExGoCD.Application do
     opts = [strategy: :one_for_one, name: ExGoCD.Supervisor]
     result = Supervisor.start_link(children, opts)
 
-    # Clean up stale LostContact agents on startup (accumulate on DB resets)
-    unless skip_db? do
+    # Clean up stale LostContact agents on startup (accumulate on DB resets).
+    # Like the reaper, this is reconciliation that runs on its own schedule, so
+    # tests switch it off: it would query outside any test's connection.
+    if not skip_db? and Application.get_env(:ex_gocd, :startup_reconciliation, true) do
       Task.start(fn ->
         Process.sleep(2000)
         cleaned = ExGoCD.Agents.cleanup_stale_lost_contact()

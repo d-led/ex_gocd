@@ -46,34 +46,58 @@ defmodule ExGoCD.ConfigSnapshot do
         },
         [:config_hash, :config_json, :config_xml, :changed_by, :change_reason]
       )
+      |> Ecto.Changeset.unique_constraint(:config_hash,
+        name: :config_versions_config_hash_index
+      )
       |> Repo.insert()
+      |> already_recorded()
     end
+  end
+
+  # The unique index is the authority on whether a configuration has been seen.
+  # Comparing against the newest row alone is not enough: a configuration can
+  # come back after a change in between, and two versions written within the
+  # same second are indistinguishable by `inserted_at`.
+  defp already_recorded({:ok, version}), do: {:ok, version}
+
+  defp already_recorded({:error, changeset} = error) do
+    if Keyword.has_key?(changeset.errors, :config_hash), do: :unchanged, else: error
   end
 
   @doc """
   Fire-and-forget snapshot after a config mutation succeeds.
+
   Runs in a Task so a slow snapshot never delays the caller, but a failure is
   logged rather than swallowed: a broken snapshot means version history silently
   stops advancing.
+
+  Tests run it inline. A detached task cannot be part of a test's transaction,
+  so it fights the test for its one connection and any failure lands in the log
+  where no assertion can see it — which is how a renderer that raised on every
+  material went unnoticed.
   """
   @spec after_mutation(String.t(), String.t()) :: :ok
   def after_mutation(changed_by, change_reason) do
-    Task.start(fn ->
-      case snapshot(changed_by, change_reason) do
-        :unchanged ->
-          :ok
-
-        {:ok, _version} ->
-          :ok
-
-        {:error, reason} ->
-          Logger.error(
-            "[ConfigSnapshot] could not record \"#{change_reason}\": #{inspect(reason)}"
-          )
-      end
-    end)
+    if Application.get_env(:ex_gocd, :snapshot_in_background, true) do
+      Task.start(fn -> record(changed_by, change_reason) end)
+    else
+      record(changed_by, change_reason)
+    end
 
     :ok
+  end
+
+  defp record(changed_by, change_reason) do
+    case snapshot(changed_by, change_reason) do
+      :unchanged ->
+        :ok
+
+      {:ok, _version} ->
+        :ok
+
+      {:error, reason} ->
+        Logger.error("[ConfigSnapshot] could not record \"#{change_reason}\": #{inspect(reason)}")
+    end
   end
 
   # ── Config capture ──────────────────────────────────────────────────
@@ -417,7 +441,13 @@ defmodule ExGoCD.ConfigSnapshot do
   defp latest_hash do
     import Ecto.Query
 
-    from(v in ConfigVersion, order_by: [desc: v.inserted_at], limit: 1, select: v.config_hash)
+    # `inserted_at` is stored to the second, so two versions written in the same
+    # second tie; the id breaks the tie towards the row written last.
+    from(v in ConfigVersion,
+      order_by: [desc: v.inserted_at, desc: v.id],
+      limit: 1,
+      select: v.config_hash
+    )
     |> Repo.one()
   end
 

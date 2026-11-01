@@ -9,7 +9,12 @@ config :ex_gocd,
   # inert in tests: their work happens outside any test's sandbox transaction.
   # Tests that need them call the functions directly.
   startup_reaper_enabled: false,
+  startup_reconciliation: false,
   config_repo_poll_interval: :none,
+  # A config snapshot is part of the transaction under test rather than a
+  # detached task: it belongs to the test's connection, and a failure has to be
+  # visible to an assertion.
+  snapshot_in_background: false,
   sync_webhook_poll: true,
   git_client: ExGoCD.Materials.GitClient.MockImpl,
   scm_client: ExGoCD.Materials.ScmClient.MockImpl
