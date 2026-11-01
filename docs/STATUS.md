@@ -18,7 +18,7 @@
 | Coverage | **54.7 %** of 274 modules; 79 at 0 % — measured at 1089 tests; the last two test files were added while the test database's Docker daemon was down | `mix test.coverage` |
 | Go agent | builds; tests pass in 3 of 10 packages (3,793 prod LOC / 599 test LOC); modules upgraded 2026-11-01 (otel 1.47, grpc 1.85) | `cd agent && go test ./...` |
 | Cypress | 27 specs on disk, **not executed in this session** | `ls cypress/e2e/*.cy.js` |
-| Static analysis | `mix format --check-formatted` clean; `mix credo --strict` exit 0 (no findings); `elixir scripts/check_doc_refs.exs` clean | see above |
+| Static analysis | `mix format --check-formatted` clean; `mix credo --strict` finds nothing; `elixir scripts/check_doc_refs.exs` clean; Go `gofmt`/`go vet`/`golangci-lint` clean. **`mix dialyzer` has never been run here** — it is in the `quality` alias but no PLT exists, so nothing in this tree has been type-checked; `staticcheck` is installed but too old to read Go 1.27's export data, and the gate now says so instead of blaming the code | see above |
 | CI | every commit through 80e9021 is green on Elixir CI, CodeQL and Sobelow; 8e38639 and the docs commits after it were still queued at hand-off | `gh run list` |
 | Security | **0 open Dependabot alerts**; `npm audit` 0 vulnerabilities | see above |
 | Dependencies | Hex and npm on their latest releases; Go modules not yet | `mix hex.outdated`, `npm outdated` |
