@@ -494,6 +494,26 @@ defmodule ExGoCD.ConfigXmlTest do
       assert imported.configuration == %{"pattern" => "*.gocd.yaml"}
     end
 
+    test "importing the same repository twice updates it instead of adding another" do
+      document = fn branch ->
+        """
+        <cruise schemaVersion="120">
+          <config-repos>
+            <config-repo pluginId="cd.go.config-repo.yaml">
+              <git url="https://github.com/acme/config.git" branch="#{branch}" />
+            </config-repo>
+          </config-repos>
+        </cruise>
+        """
+      end
+
+      assert {:ok, _} = ConfigXml.import_from_xml(document.("main"))
+      assert {:ok, _} = ConfigXml.import_from_xml(document.("trunk"))
+
+      assert [repo] = Repo.all(ConfigRepo)
+      assert repo.branch == "trunk"
+    end
+
     defp insert_config_repo do
       Repo.insert!(%ConfigRepo{
         url: "https://github.com/acme/config.git",

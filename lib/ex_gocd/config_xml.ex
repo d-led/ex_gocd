@@ -480,9 +480,11 @@ defmodule ExGoCD.ConfigXml do
     end
   end
 
+  # A config repo is named by its url and source type — the pair the schema
+  # keeps unique — so importing the same document twice updates one repository
+  # instead of colliding with the index.
   defp same_config_repo?(stored, definition) do
-    stored.url == definition.url and stored.branch == definition.branch and
-      stored.material_type == definition.material_type
+    stored.url == definition.url and stored.source_type == definition.source_type
   end
 
   # ── Import: what is parsed has to be stored ───────────────────────

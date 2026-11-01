@@ -117,7 +117,7 @@ generate → `from_xml/1` round trip and an idempotent second import.
 
 ## Known gaps
 
-### Config XML export covers part of the configuration
+### Config XML export covers part of the configuration, and revert no longer loses the rest
 
 `generate/0` renders pipelines, templates, environments, roles, cluster profiles,
 elastic agent profiles and config repos, and `import_from_xml/1` stores them
@@ -125,12 +125,19 @@ again — cluster profiles round-trip with their secrets encrypted in the docume
 and the agent profiles that reference them resolved by name.
 
 It does **not** render artifact stores, secret configs, package repositories or
-SCMs.
+SCMs. Those property bags are plugin-defined: which entry is a credential is
+only known from plugin config metadata, and this build reads none, so the
+export cannot tell a registry URL from a password. Guessing would either leak a
+credential into version history — which the API serves — or encrypt something a
+plugin has to read back.
 
-That matters because a config version stores both `config_json`, which is
-complete, and `config_xml`, which is not — and `revert` restores from the XML.
-Reverting to a version therefore drops those four sections. The JSON is there to
-restore from; nothing reads it yet.
+A revert therefore reads both artefacts of a version: the XML through
+`ConfigXml.import_from_xml/1`, then `ConfigRestore.restore/1` for the four
+sections only the JSON holds. Each of those is upserted on the key its schema
+keeps unique (artifact store id, secret config and package repository name,
+config repo url and source type), so a restore adds and updates but never
+deletes. Nothing is dropped on a revert any more; the XML is still short of
+those four sections as an interop artefact.
 
 Config repos are exported as `<config-repos>`, and the pipelines that belong to
 one are left out of `<pipelines>`. Both halves follow upstream: `configRepos` is
@@ -235,9 +242,8 @@ Reconstructed from the two indexed sessions for this workspace
 
 ## Proposed next steps
 
-1. **Make a revert restore everything.** Either render the missing sections in
-   the XML, or teach the revert to restore from `config_json`. Silent data loss
-   on a restore is the worst bug on this list.
+1. ~~**Make a revert restore everything.**~~ Done: the revert reads the XML and
+   then `ConfigRestore` for the four sections only the JSON holds.
 2. **Re-audit `PARITY.md` against the code** rather than against the previous
    audit. Replace the "100 %" claim with the verified coverage table, or split
    the file into "claimed" and "verified" columns.
@@ -246,3 +252,5 @@ Reconstructed from the two indexed sessions for this workspace
 4. **Close the largest untested features**: the two remaining 0 %-coverage
    LiveViews (admin K8s, external CI wizard) and the analytics tabs' data paths.
 5. **Upgrade the Go modules** in `agent/`.
+6. **Teach the XML the four plugin sections** if an external reader ever needs
+   them, which first needs a way to know which plugin property is a secret.
