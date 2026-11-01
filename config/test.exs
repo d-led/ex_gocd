@@ -14,10 +14,13 @@ config :ex_gocd,
 # The MIX_TEST_PARTITION environment variable can be used
 # to provide built-in test partitioning in CI environment.
 # Run `mix help test` for more information.
+# The host and port default to a Postgres on localhost:5432, as in CI. Point
+# them elsewhere (e.g. at a docker container) with PGHOST/PGPORT.
 config :ex_gocd, ExGoCD.Repo,
   username: "postgres",
   password: "postgres",
-  hostname: "localhost",
+  hostname: System.get_env("PGHOST", "localhost"),
+  port: String.to_integer(System.get_env("PGPORT", "5432")),
   database: "ex_gocd_test#{System.get_env("MIX_TEST_PARTITION")}",
   pool: Ecto.Adapters.SQL.Sandbox,
   pool_size: System.schedulers_online() * 4
