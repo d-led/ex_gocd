@@ -24,26 +24,27 @@ defmodule ExGoCD.DataCase do
       import Ecto.Changeset
       import Ecto.Query
       import ExGoCD.DataCase
+
+      # This case sets up a sandbox connection, so it cannot run without a database.
+      @moduletag :database
     end
   end
 
   alias Ecto.Adapters.SQL.Sandbox
 
   setup tags do
-    ExGoCD.DataCase.setup_sandbox(tags)
-
-    for name <- [ExGoCD.Scheduler, ExGoCD.Materials.TimerScheduler, ExGoCD.Materials.Poller] do
-      if pid = Process.whereis(name) do
-        Ecto.Adapters.SQL.Sandbox.allow(ExGoCD.Repo, self(), pid)
-      end
-    end
+    owner = ExGoCD.DataCase.setup_sandbox(tags)
+    ExGoCD.Sandbox.allow_background_processes(owner)
 
     if Process.whereis(ExGoCD.Scheduler) do
       ExGoCD.Scheduler.clear_queue()
     end
 
     on_exit(fn ->
-      wait_for_scheduler_queue()
+      # An async test cannot lend its connection to the shared Scheduler, so it
+      # must not drive it either; waiting on its queue is only meaningful when
+      # the test ran synchronously.
+      unless tags[:async], do: wait_for_scheduler_queue()
     end)
 
     :ok
@@ -83,11 +84,13 @@ defmodule ExGoCD.DataCase do
   end
 
   @doc """
-  Sets up the sandbox based on the test tags.
+  Sets up the sandbox based on the test tags and returns the pid that owns the
+  connection, so callers can lend it to the processes they need.
   """
   def setup_sandbox(tags) do
-    pid = Sandbox.start_owner!(ExGoCD.Repo, shared: not tags[:async])
-    on_exit(fn -> Sandbox.stop_owner(pid) end)
+    owner = Sandbox.start_owner!(ExGoCD.Repo, shared: not tags[:async])
+    on_exit(fn -> Sandbox.stop_owner(owner) end)
+    owner
   end
 
   @doc """

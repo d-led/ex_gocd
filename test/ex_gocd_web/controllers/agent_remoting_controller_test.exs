@@ -1,5 +1,5 @@
 defmodule ExGoCDWeb.AgentRemotingControllerTest do
-  use ExGoCDWeb.ConnCase, async: true
+  use ExGoCDWeb.ConnCase, async: false
 
   alias ExGoCD.AgentJobRuns
   alias ExGoCD.Agents

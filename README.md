@@ -64,8 +64,9 @@ config-as-code, elastic agents, RBAC, and more. See [PARITY.md](docs/PARITY.md).
 ## Testing
 
 ```bash
+mix test.setup                        # once: create and migrate the test database
 mix test                              # full suite (needs Postgres)
-EX_GOCD_TEST_NO_DB=1 mix test_no_db   # skip DB tests
+EX_GOCD_TEST_NO_DB=1 mix test         # only the tests that need no database
 bash scripts/quality-gate.sh          # all static analysis + tests
 ```
 

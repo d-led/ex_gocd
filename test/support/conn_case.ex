@@ -28,24 +28,25 @@ defmodule ExGoCDWeb.ConnCase do
       import Plug.Conn
       import Phoenix.ConnTest
       import ExGoCDWeb.ConnCase
+
+      # This case checks out a sandbox connection, so it cannot run without a database.
+      @moduletag :database
     end
   end
 
   setup tags do
-    ExGoCD.DataCase.setup_sandbox(tags)
-
-    for name <- [ExGoCD.Scheduler, ExGoCD.Materials.TimerScheduler, ExGoCD.Materials.Poller] do
-      if pid = Process.whereis(name) do
-        Ecto.Adapters.SQL.Sandbox.allow(ExGoCD.Repo, self(), pid)
-      end
-    end
+    owner = ExGoCD.DataCase.setup_sandbox(tags)
+    ExGoCD.Sandbox.allow_background_processes(owner)
 
     if Process.whereis(ExGoCD.Scheduler) do
       ExGoCD.Scheduler.clear_queue()
     end
 
     on_exit(fn ->
-      ExGoCD.DataCase.wait_for_scheduler_queue()
+      # An async test cannot lend its connection to the shared Scheduler, so it
+      # must not drive it either; waiting on its queue is only meaningful when
+      # the test ran synchronously.
+      unless tags[:async], do: ExGoCD.DataCase.wait_for_scheduler_queue()
     end)
 
     {:ok, conn: Phoenix.ConnTest.build_conn()}

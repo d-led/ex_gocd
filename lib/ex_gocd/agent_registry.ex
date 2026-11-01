@@ -45,6 +45,9 @@ defmodule ExGoCD.AgentRegistry do
 
   @impl true
   def init(_opts) do
+    # Owns the diagnostic registration-log table so it survives the callers that
+    # write to it; an ETS table would otherwise die with the first writer.
+    ExGoCD.Agents.init_registration_log()
     {:ok, %{}}
   end
 

@@ -58,6 +58,11 @@ jobs:
       run: mix compile --force --warnings-as-errors
       env:
         CI: "true"
+    - name: Prepare test database
+      run: mix test.setup
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ex_gocd_test
+        CI: "true"
     - name: Run Elixir tests
       run: mix test
       env:

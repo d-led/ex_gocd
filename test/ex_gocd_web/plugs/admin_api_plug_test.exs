@@ -4,20 +4,6 @@ defmodule ExGoCDWeb.Plugs.AdminApiPlugTest do
   alias ExGoCD.Accounts
   alias ExGoCDWeb.Plugs.AdminApiPlug
 
-  setup do
-    # Clean up any test users created during tests
-    on_exit(fn ->
-      # Ensure we clean up admin users that would enable security mode
-      {:ok, _} =
-        Ecto.Adapters.SQL.query(
-          ExGoCD.Repo,
-          "DELETE FROM users WHERE username LIKE 'admin_api_test_%'"
-        )
-    end)
-
-    :ok
-  end
-
   describe "open mode (no admin configured)" do
     test "allows all requests when no admin user exists", %{conn: conn} do
       # Sanity: ensure no admin exists

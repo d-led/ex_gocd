@@ -3,7 +3,6 @@ defmodule ExGoCD.Analytics.WorkflowChainTest do
 
   alias ExGoCD.Analytics
   alias ExGoCD.Pipelines
-  alias ExGoCD.Repo
 
   setup do
     # Create a diamond fan-in pipeline setup
@@ -68,27 +67,6 @@ defmodule ExGoCD.Analytics.WorkflowChainTest do
       url: "integration-pipeline",
       name: "int"
     })
-
-    pipeline_names = [
-      "deploy-staging",
-      "integration-pipeline",
-      "component-b",
-      "component-a",
-      "upstream-lib"
-    ]
-
-    on_exit(fn ->
-      for name <- pipeline_names do
-        case Repo.get_by(Pipelines.Pipeline, name: name) do
-          nil ->
-            :ok
-
-          p ->
-            p = Repo.preload(p, :materials)
-            Pipelines.delete_pipeline(p)
-        end
-      end
-    end)
 
     :ok
   end

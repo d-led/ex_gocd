@@ -67,17 +67,23 @@ defmodule ExGoCD.Agents do
   end
 
   defp log_registration(uuid, hostname, result, agent_type) do
-    init_reg_log()
+    init_registration_log()
     logs = :ets.tab2list(@reg_log_table)
     if length(logs) >= @max_reg_log, do: :ets.delete(@reg_log_table, hd(logs))
     :ets.insert(@reg_log_table, {uuid, hostname, result, DateTime.utc_now(), agent_type})
   end
 
-  defp init_reg_log do
+  @doc """
+  Creates the registration-log table if it does not exist yet.
+
+  An ETS table dies with the process that created it, so the table is owned by
+  `ExGoCD.AgentRegistry`, which outlives any single caller. Calling this again
+  is harmless.
+  """
+  def init_registration_log do
     :ets.new(@reg_log_table, [:named_table, :public, :set])
   rescue
     ArgumentError ->
-      Logger.debug("[Agents] Registration log ETS table already exists — ok on concurrent init")
       :ok
   end
 

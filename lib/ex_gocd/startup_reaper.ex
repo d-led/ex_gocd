@@ -33,7 +33,12 @@ defmodule ExGoCD.StartupReaper do
 
   @impl true
   def init(_) do
-    send(self(), :reconcile)
+    # The periodic reconcile is background work. Tests switch it off and drive
+    # the reconciliation functions directly, inside their own transaction.
+    if Application.get_env(:ex_gocd, :startup_reaper_enabled, true) do
+      send(self(), :reconcile)
+    end
+
     {:ok, %{}}
   end
 

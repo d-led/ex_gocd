@@ -69,6 +69,7 @@ fi
 
 echo ""
 echo "=== Elixir: ExUnit tests ==="
+mix test.setup >/dev/null 2>&1 || true
 TEST_OUT=$(mix test 2>&1) && TEST_EXIT=0 || TEST_EXIT=$?
 echo "$TEST_OUT" | tail -3
 if [ "$TEST_EXIT" -eq 0 ]; then

@@ -30,11 +30,16 @@ defmodule ExGoCD.ConfigRepos.Poller do
 
   @impl true
   def init(_opts) do
-    interval = Application.get_env(:ex_gocd, :config_repo_poll_interval, @default_interval_ms)
-    {:ok, _} = :timer.send_interval(interval, :poll)
-    # Poll immediately on startup — don't wait for the first interval
-    send(self(), :poll)
-    {:ok, %{first_poll: true}}
+    case Application.get_env(:ex_gocd, :config_repo_poll_interval, @default_interval_ms) do
+      :none ->
+        {:ok, %{first_poll: false}}
+
+      interval ->
+        {:ok, _} = :timer.send_interval(interval, :poll)
+        # Poll immediately on startup — don't wait for the first interval
+        send(self(), :poll)
+        {:ok, %{first_poll: true}}
+    end
   end
 
   @impl true

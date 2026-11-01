@@ -33,9 +33,7 @@ defmodule ExGoCD.MixProject do
     [
       preferred_envs: [
         precommit: :test,
-        test_no_db: :test,
-        "test.no_db": :test,
-        "test.with_db": :test,
+        "test.setup": :test,
         coveralls: :test,
         "coveralls.detail": :test,
         "coveralls.post": :test,
@@ -117,11 +115,12 @@ defmodule ExGoCD.MixProject do
       setup: ["deps.get", "ecto.setup", "assets.setup", "assets.build"],
       "ecto.setup": ["ecto.create", "ecto.migrate", "run priv/repo/seeds.exs"],
       "ecto.reset": ["ecto.drop", "ecto.setup"],
-      test: ["test.with_db"],
+      # Prepare the test database once. `mix test` deliberately does not create
+      # or migrate anything: doing that on every run makes two concurrent runs
+      # race on CREATE DATABASE.
+      "test.setup": ["ecto.create --quiet", "ecto.migrate --quiet"],
       "test.coverage": ["ecto.create --quiet", "ecto.migrate --quiet", "coveralls.json"],
       quality: ["credo --strict", "dialyzer"],
-      # Run tests without Postgres (skips ecto.create). Use: EX_GOCD_TEST_NO_DB=1 mix test_no_db [path]
-      test_no_db: ["test.no_db"],
       "assets.setup": ["tailwind.install --if-missing", "esbuild.install --if-missing"],
       "assets.build": ["compile", "tailwind ex_gocd", "esbuild ex_gocd"],
       "assets.deploy": [

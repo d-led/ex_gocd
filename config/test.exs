@@ -5,6 +5,11 @@ config :ex_gocd,
   poller_interval: :none,
   enable_timer_scheduler: false,
   console_monitor_interval_ms: :none,
+  # Background workers that would query the database on their own timer are
+  # inert in tests: their work happens outside any test's sandbox transaction.
+  # Tests that need them call the functions directly.
+  startup_reaper_enabled: false,
+  config_repo_poll_interval: :none,
   sync_webhook_poll: true,
   git_client: ExGoCD.Materials.GitClient.MockImpl,
   scm_client: ExGoCD.Materials.ScmClient.MockImpl
@@ -14,16 +19,32 @@ config :ex_gocd,
 # The MIX_TEST_PARTITION environment variable can be used
 # to provide built-in test partitioning in CI environment.
 # Run `mix help test` for more information.
-# The host and port default to a Postgres on localhost:5432, as in CI. Point
-# them elsewhere (e.g. at a docker container) with PGHOST/PGPORT.
-config :ex_gocd, ExGoCD.Repo,
-  username: "postgres",
-  password: "postgres",
-  hostname: System.get_env("PGHOST", "localhost"),
-  port: String.to_integer(System.get_env("PGPORT", "5432")),
-  database: "ex_gocd_test#{System.get_env("MIX_TEST_PARTITION")}",
-  pool: Ecto.Adapters.SQL.Sandbox,
-  pool_size: System.schedulers_online() * 4
+#
+# DATABASE_URL wins when set (that is what CI provides). Otherwise the host and
+# port default to a Postgres on localhost:5432, as in CI; point them elsewhere
+# with PGHOST/PGPORT, e.g. at a Docker container on a free port.
+repo_config =
+  case System.get_env("DATABASE_URL") do
+    nil ->
+      [
+        username: System.get_env("PGUSER", "postgres"),
+        password: System.get_env("PGPASSWORD", "postgres"),
+        hostname: System.get_env("PGHOST", "localhost"),
+        port: String.to_integer(System.get_env("PGPORT", "5432")),
+        database: "ex_gocd_test#{System.get_env("MIX_TEST_PARTITION")}"
+      ]
+
+    url ->
+      [url: url]
+  end
+
+config :ex_gocd,
+       ExGoCD.Repo,
+       repo_config ++
+         [
+           pool: Ecto.Adapters.SQL.Sandbox,
+           pool_size: System.schedulers_online() * 4
+         ]
 
 # We don't run a server during test. If one is required,
 # you can enable the server option below.
