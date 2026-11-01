@@ -205,6 +205,13 @@ string anywhere in the Go agent).
 `README.md` badges are hand-written and say 1089 tests and 27 Cypress specs.
 Nothing regenerates them, so they will drift again.
 
+`scripts/check_doc_refs.exs` is the part that cannot drift: it fails when a
+source file, an `/api` route or an internal link named in `PARITY.md` stops
+existing, and it runs as a step in `scripts/quality-gate.sh`. All 36 references
+the feature table made resolved when it was added (2026-11-02). It checks that
+the things a claim points at exist, not that the claim is true; that is the
+coverage table above.
+
 ### The agent WebSocket tree is not dead code — it was untested
 
 `lib/ex_gocd_web/channels/` was called dead code here. It is not: two things use

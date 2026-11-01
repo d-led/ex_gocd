@@ -65,6 +65,16 @@ else
   fail_step "Credo — suggestions found"
 fi
 
+# ── Docs: references resolve ───────────────────────────────────────────
+
+echo ""
+echo "=== Docs: references resolve ==="
+if elixir scripts/check_doc_refs.exs; then
+  pass_step "Docs — every named source file, route and link resolves"
+else
+  fail_step "Docs — a reference resolves to nothing"
+fi
+
 # ── Elixir: Test suite ─────────────────────────────────────────────────
 
 echo ""

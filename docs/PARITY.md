@@ -7,6 +7,12 @@
 >
 > Counts last measured 2026-11-01: 1089 tests, 61 controllers, 22 LiveView
 > pages, 22 GenServers, 44 migrations.
+>
+> A ✅ below means the module named beside it exists and is wired up. It does
+> **not** mean the behaviour is verified — that is what the coverage table in
+> STATUS.md is for. What can be checked without judgement is checked:
+> `scripts/check_doc_refs.exs` fails the quality gate if a source file, route or
+> internal link named here stops existing.
 
 ---
 
