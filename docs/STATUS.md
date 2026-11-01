@@ -15,7 +15,7 @@
 | --- | --- | --- |
 | Code | 275 modules, compile warnings-as-errors clean | `mix compile --force --warnings-as-errors` |
 | ExUnit | **1098 tests, all green** | `mix test` |
-| Coverage | **54.7 %** of 274 modules; 79 at 0 % — measured at 1089 tests; the last two test files were added while the test database's Docker daemon was down | `mix test.coverage` |
+| Coverage | **55.2 %** of 274 modules; 78 at 0 % | `mix test.coverage` |
 | Go agent | builds; tests pass in 3 of 10 packages (3,793 prod LOC / 599 test LOC); modules upgraded 2026-11-01 (otel 1.47, grpc 1.85) | `cd agent && go test ./...` |
 | Cypress | 27 specs on disk, **not executed in this session** | `ls cypress/e2e/*.cy.js` |
 | Static analysis | `mix format --check-formatted` clean; `mix credo --strict` finds nothing; `elixir scripts/check_doc_refs.exs` clean; Go `gofmt`/`go vet`/`golangci-lint` clean. **`mix dialyzer` has never been run here** — it is in the `quality` alias but no PLT exists, so nothing in this tree has been type-checked; `staticcheck` is installed but too old to read Go 1.27's export data, and the gate now says so instead of blaming the code | see above |
@@ -97,6 +97,20 @@ suite. It warns when the resolved port is the default 5432, because that is
 usually another project's PostgreSQL and `mix test.setup` would create this
 project's schema inside it.
 
+When Docker is not available, the Homebrew PostgreSQL 18 serves the same purpose
+on the same port, in a throw-away directory:
+
+```bash
+export PATH="/opt/homebrew/opt/postgresql@18/bin:$PATH"
+initdb -D /tmp/ex_gocd_pg18 -U postgres --auth=trust
+pg_ctl -D /tmp/ex_gocd_pg18 -o "-p 5544 -k /tmp/ex_gocd_pg18 -h 127.0.0.1" \
+  -l /tmp/ex_gocd_pg18.log start
+PGHOST=127.0.0.1 PGPORT=5544 mix test.setup && PGHOST=127.0.0.1 PGPORT=5544 mix test
+```
+
+The suite has run green against one (1098 tests, 2026-11-02), which also shows
+the migrations apply to an empty database rather than only incrementally.
+
 ### What the suite does not reach
 
 79 modules never execute. The ones that carry real features rather than
@@ -104,7 +118,7 @@ boilerplate:
 
 | Module | Uncovered lines | Notes |
 | --- | --- | --- |
-| `live/analytics_live.ex` | 268 at 24 % | The tabs are tested through the page; `analytics.ex` itself is at 86.6 % |
+| `live/analytics_live.ex` | 269 at 41.6 % | The tabs are tested through the page, including two with a run behind them; `analytics.ex` itself is at 87.4 % |
 | `live/admin_k8s_live.ex` | 239 | Feature is claimed complete in `PARITY.md` |
 | `live/external_ci_repo_wizard_live.ex` | 230 | ditto |
 | `live/gantt_live.ex` | 123 | |
