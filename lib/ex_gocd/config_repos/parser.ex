@@ -39,6 +39,8 @@ defmodule ExGoCD.ConfigRepos.Parser do
   alias ExGoCD.Pipelines
   alias ExGoCD.Repo
 
+  import Ecto.Query, only: [from: 2]
+
   @doc """
   Parses a YAML or JSON string and upserts pipelines into the database.
 
@@ -50,34 +52,69 @@ defmodule ExGoCD.ConfigRepos.Parser do
   @spec parse_and_upsert(String.t(), integer() | nil) :: {:ok, integer()} | {:error, String.t()}
   def parse_and_upsert(content, config_repo_id \\ nil) when is_binary(content) do
     # Split on YAML document separator (used by poller when concatenating files)
-    docs = split_documents(content)
+    case upsert_documents(split_documents(content), config_repo_id) do
+      {:ok, []} ->
+        {:error, "no pipelines found in config file"}
 
-    results =
-      Enum.reduce_while(docs, {:ok, 0}, fn doc, {:ok, acc} ->
-        trimmed = String.trim(doc)
+      {:ok, names} ->
+        remove_undeclared(config_repo_id, names)
+        {:ok, length(names)}
 
-        if trimmed == "" do
-          {:cont, {:ok, acc}}
-        else
-          case parse_and_upsert_single(trimmed, config_repo_id) do
-            {:ok, count} -> {:cont, {:ok, acc + count}}
-            {:error, reason} -> {:halt, {:error, reason}}
-          end
-        end
-      end)
-
-    case results do
-      {:ok, 0} -> {:error, "no pipelines found in config file"}
-      other -> other
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
-  defp parse_and_upsert_single(content, config_repo_id) do
+  defp upsert_documents(documents, config_repo_id) do
+    Enum.reduce_while(documents, {:ok, []}, fn document, {:ok, names} ->
+      case String.trim(document) do
+        "" ->
+          {:cont, {:ok, names}}
+
+        content ->
+          case upsert_document(content, config_repo_id) do
+            {:ok, document_names} -> {:cont, {:ok, names ++ document_names}}
+            {:error, reason} -> {:halt, {:error, reason}}
+          end
+      end
+    end)
+  end
+
+  defp upsert_document(content, config_repo_id) do
     with {:ok, parsed} <- parse_content(content),
-         {:ok, pipelines} <- extract_pipelines(parsed),
-         {:ok, count} <- upsert_pipelines(pipelines, config_repo_id) do
-      {:ok, count}
+         {:ok, pipelines} <- extract_pipelines(parsed) do
+      upsert_pipelines(pipelines, config_repo_id)
     end
+  end
+
+  @doc """
+  Removes the pipelines a config repository no longer declares.
+
+  A repository owns the pipelines it declares, so a successful parse replaces
+  them wholesale rather than only adding to them. This runs only after a parse
+  that produced pipelines: a file that fails to parse, or declares nothing,
+  keeps the last good config instead of emptying the repository. Pipelines no
+  repository owns are never touched.
+  """
+  def remove_undeclared(nil, _names), do: :ok
+
+  def remove_undeclared(config_repo_id, names) do
+    removed =
+      from(p in Pipelines.Pipeline,
+        where: p.config_repo_id == ^config_repo_id and p.name not in ^names
+      )
+      |> Repo.all()
+
+    Enum.each(removed, &Repo.delete/1)
+
+    if removed != [] do
+      ExGoCD.ConfigSnapshot.after_mutation(
+        "config-repo",
+        "pipelines removed from config repo: #{Enum.map_join(removed, ", ", & &1.name)}"
+      )
+    end
+
+    :ok
   end
 
   defp split_documents(content) do
@@ -277,13 +314,13 @@ defmodule ExGoCD.ConfigRepos.Parser do
   end
 
   defp upsert_pipelines(pipelines, config_repo_id) do
-    count =
-      Enum.reduce(pipelines, 0, fn pipeline_def, acc ->
+    names =
+      Enum.map(pipelines, fn pipeline_def ->
         upsert_single_pipeline(pipeline_def, config_repo_id)
-        acc + 1
+        pipeline_def["name"]
       end)
 
-    {:ok, count}
+    {:ok, names}
   end
 
   defp upsert_single_pipeline(pipeline_def, config_repo_id) when is_map(pipeline_def) do
@@ -364,8 +401,6 @@ defmodule ExGoCD.ConfigRepos.Parser do
 
       unless exists? do
         # Use first() instead of get_by() — duplicates can exist from seed + parser
-        import Ecto.Query, only: [from: 2]
-
         material =
           Repo.one(
             from m in ExGoCD.Pipelines.Material,

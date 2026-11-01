@@ -14,7 +14,7 @@
 | Dimension | State | Evidence |
 | --- | --- | --- |
 | Code | 275 modules, compile warnings-as-errors clean | `mix compile --force --warnings-as-errors` |
-| ExUnit | **1032 tests, all green**, 8.6 s | `mix test` |
+| ExUnit | **1043 tests, all green**, ~9 s | `mix test` |
 | Coverage | last measured at **49.5 %** of 274 modules; 87 at 0 % | `mix test.coverage` |
 | Go agent | builds; tests pass in 3 of 10 packages (3,793 prod LOC / 599 test LOC) | `cd agent && go test ./...` |
 | Cypress | 27 specs on disk, **not executed in this session** | `ls cypress/e2e/*.cy.js` |
@@ -54,11 +54,15 @@ instruction rather than a connection error.
 
 ### Sandbox
 
-The sandbox runs in `:manual` mode. `ExGoCD.DataCase.setup_sandbox/1` checks out
-a connection per test and returns the owner; `ExGoCD.Sandbox` lends that
-connection to the application's long-lived singletons from one list. Anything a
-test writes is rolled back with it, so tests do their own setup and never clean
-up afterwards.
+The sandbox runs in `:manual` mode. A synchronous test switches the pool into
+shared mode, so every process the application started can reach its connection.
+An async test owns a connection for itself alone: lending it to a shared
+GenServer makes two writers queue on one connection, which is how a request got
+dropped after 560 ms in an intermittent failure. The rule that follows is one
+sentence — **a test that drives a shared GenServer runs synchronously.**
+
+Anything a test writes is rolled back with it, so tests do their own setup and
+never clean up afterwards.
 
 Workers that would query on their own timer — `StartupReaper`,
 `ConfigRepos.Poller` — are switched off in `config/test.exs`, because their work
@@ -104,31 +108,13 @@ boilerplate:
 | `elastic_agent_scheduler.ex` | 186 at 12.9 % | |
 | `channels/*` (5 files, 412 lines) | ~0 % | see [Dead code](#dead-code-agent-websocket-channels) |
 
-`config_xml_test.exs` now covers `generate/0` with materials, including a
-generate → `from_xml/1` round trip. `import_from_xml/1` is still untested, and
-that is where the next bug is — see [Config XML import](#config-xml-import-does-not-persist-the-config).
+`config_xml_test.exs` covers `generate/0` and `import_from_xml/1`, including a
+generate → `from_xml/1` round trip and an idempotent second import.
+`config_repos/parser_test.exs` covers the GoCD-format config repo parser.
 
 ---
 
 ## Known gaps
-
-### Config XML import does not persist the config
-
-`import_from_xml/1` parses materials and stages and then drops them:
-`Pipeline.changeset/2` casts neither, so an imported pipeline is an empty shell.
-Export is correct and covered; import is not.
-
-### Config repos never prune
-
-Nothing removes a pipeline when a config repo stops declaring it. GoCD keeps a
-config repo's partials and replaces them wholesale on a successful parse; we only
-ever upsert. Upstream `cfc94e215b` guards the opposite mistake — a re-parse that
-does not change the SCM revision must not drop valid partials — but the
-invariant worth copying is: prune only after a parse that succeeded, never on
-failure.
-
-The GoCD-format config repo parser (`ConfigRepos.Parser.parse_and_upsert/2`) has
-no test file; only the GitHub Actions and GitLab CI parsers do.
 
 ### Doc drift
 
@@ -137,7 +123,7 @@ no test file; only the GitHub Actions and GitLab CI parsers do.
 | Claim | Reality |
 | --- | --- |
 | "100 % feature parity, all gaps resolved" | contradicted by the gaps above and the 87 zero-coverage modules |
-| 1004 tests [1032] | |
+| 1004 tests [1043] | |
 | 67 controllers [61] | |
 | 23 LiveView pages [22] | |
 | 20 GenServers [22] | |
@@ -165,7 +151,7 @@ means for us:
 
 | Commit | Change | Status here |
 | --- | --- | --- |
-| `cfc94e215b` | config-repo partials are no longer removed when an SCM revision did not change; validity is compared by structure as well as origin | **Not applicable as written.** We never remove, so we cannot remove incorrectly — see [Config repos never prune](#config-repos-never-prune) for the invariant worth taking |
+| `cfc94e215b` | config-repo partials are no longer removed when an SCM revision did not change; validity is compared by structure as well as origin | **Implemented in spirit.** We never removed incorrectly, because we never removed; a config repo now replaces the pipelines it declares, but only after a parse that produced pipelines — see `ConfigRepos.Parser.remove_undeclared/2` |
 | `a54f70ea90` | the Git branch field moves next to "Repository URL", out of Advanced Settings | **Not applicable.** Our material form is LiveView and has no Advanced Settings split |
 | `5439afc917` | the agent resources checklist is sorted case-insensitively | **Not applicable.** Our agents page shows resources as a joined string, not a checklist |
 
@@ -193,21 +179,23 @@ Reconstructed from the two indexed sessions for this workspace
 | D7 | Fixture timestamps anchor to the present | Avoid time-bomb tests (`fec5e0f`) |
 | D8 | Every test owns its sandbox connection; background workers that query on a timer stay off in test | Sandbox refactor, 2026-11-01 |
 | D9 | Dependencies track the latest Hex and npm releases rather than a pinned baseline | Explicit instruction, 2026-11-01 |
+| D10 | A config repo owns the pipelines it declares: a parse that produced pipelines replaces them; a failed or empty parse keeps the last good config | Correctness, and the invariant behind upstream `cfc94e215b`, 2026-11-01 |
+| D11 | A test that drives a shared GenServer runs synchronously; an async test owns a connection for itself only | Removes a real queue-contention flake, 2026-11-01 |
 
 ---
 
 ## Proposed next steps
 
-1. **Make config XML import persist materials and stages**, with tests on
-   `import_from_xml/1` and a generate → import → generate round trip.
-2. **Prune config-repo pipelines** on a successful parse, guarded as upstream
-   guards it. Write the missing `Parser` test file first.
-3. **Re-audit `PARITY.md` against the code** rather than against the previous
+1. **Re-audit `PARITY.md` against the code** rather than against the previous
    audit. Replace the "100 %" claim with the verified coverage table, or split
    the file into "claimed" and "verified" columns.
-4. **Delete or declare `lib/ex_gocd_web/channels/`.** 412 lines that nothing
+2. **Delete or declare `lib/ex_gocd_web/channels/`.** 412 lines that nothing
    exercises.
-5. **Close the largest untested features**: the three 0 %-coverage LiveViews and
+3. **Close the largest untested features**: the three 0 %-coverage LiveViews and
    the CCTray feeds. Feeds are cheap and externally visible — they belong in the
    suite before the LiveViews.
-6. **Upgrade the Go modules** in `agent/`.
+4. **Upgrade the Go modules** in `agent/`.
+5. **Give a material occurrence its own row.** `create_material_for_pipeline/2`
+   deduplicates on (type, url), so two pipelines using one repository at
+   different branches share a row and the second write wins. Import inherits
+   that behaviour; it needs deciding before it is fixed.
