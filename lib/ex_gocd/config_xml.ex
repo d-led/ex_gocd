@@ -1018,7 +1018,7 @@ defmodule ExGoCD.ConfigXml do
   defp render_environments do
     alias ExGoCD.Environments.Environment
 
-    envs = Repo.all(Environment)
+    envs = Repo.all(Environment) |> Repo.preload(:pipelines)
 
     if Enum.empty?(envs) do
       ""
@@ -1026,14 +1026,13 @@ defmodule ExGoCD.ConfigXml do
       tag3(
         "environments",
         %{},
-        Enum.map_join(envs, "\n", fn e ->
+        Enum.map_join(envs, "\n", fn env ->
           pipelines_xml =
-            (e.pipelines || [])
-            |> Enum.map_join("", fn p ->
-              tag2("pipeline", %{name: p["name"] || p[:name] || ""})
+            Enum.map_join(env.pipelines || [], "", fn pipeline ->
+              tag2("pipeline", %{name: pipeline.name})
             end)
 
-          tag3("environment", %{name: e.name}, pipelines_xml)
+          tag3("environment", %{name: env.name}, pipelines_xml)
         end)
       )
     end
@@ -1064,8 +1063,6 @@ defmodule ExGoCD.ConfigXml do
         )
       )
     end
-  rescue
-    _ -> ""
   end
 
   defp render_elastic_profiles do
@@ -1097,8 +1094,6 @@ defmodule ExGoCD.ConfigXml do
 
       tag3("agentProfiles", %{}, profiles_xml)
     end
-  rescue
-    _ -> ""
   end
 
   defp property_kv_xml(k, v) when is_map(v), do: prop_xml(k, Jason.encode!(v))
@@ -1110,7 +1105,9 @@ defmodule ExGoCD.ConfigXml do
   end
 
   defp render_cluster_profiles do
-    # Stub — cluster profiles handled by k8s agent; add when schema stabilizes
+    # Not exported yet: cluster profiles are still missing from the XML, so a
+    # revert from a config version would drop them. Their JSON is kept in the
+    # version snapshot. See docs/STATUS.md.
     ""
   end
 end

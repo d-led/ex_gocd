@@ -265,6 +265,44 @@ defmodule ExGoCD.ConfigXmlTest do
       assert xml =~ ~s(<stage name="build")
       assert xml =~ ~s(<job name="compile")
     end
+
+    test "renders an environment with the pipelines assigned to it" do
+      {:ok, _pipeline} = ExGoCD.Pipelines.create_pipeline(%{name: "deploy", group: "test"})
+      {:ok, _env} = ExGoCD.Environments.create_environment(%{name: "staging"})
+      ExGoCD.Environments.add_pipeline_to_environment("staging", "deploy")
+
+      xml = ExGoCD.ConfigXml.generate()
+
+      assert xml =~ ~s(<environment name="staging")
+      assert xml =~ ~s(<pipeline name="deploy")
+    end
+
+    test "renders security roles and elastic agent profiles" do
+      {:ok, _role} =
+        ExGoCD.Accounts.create_role(%{name: "deployers", users: ["alice"], policy: %{}})
+
+      {:ok, cluster} =
+        ExGoCD.ClusterProfiles.create_profile(%{
+          name: "k8s",
+          plugin_id: "ex_gocd.elasticagent.kubernetes",
+          properties: %{}
+        })
+
+      {:ok, _profile} =
+        ExGoCD.ElasticAgentProfiles.create_profile(%{
+          name: "small",
+          plugin_id: "ex_gocd.elasticagent.kubernetes",
+          cluster_profile_id: cluster.id,
+          properties: %{"MaxCPU" => "2"}
+        })
+
+      xml = ExGoCD.ConfigXml.generate()
+
+      assert xml =~ ~s(<role name="deployers")
+      assert xml =~ ~s(<user name="alice")
+      assert xml =~ ~s(<agentProfile name="small")
+      assert xml =~ "MaxCPU"
+    end
   end
 
   describe "import_from_xml/1" do
