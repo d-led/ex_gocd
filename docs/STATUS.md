@@ -14,8 +14,8 @@
 | Dimension | State | Evidence |
 | --- | --- | --- |
 | Code | 275 modules, compile warnings-as-errors clean | `mix compile --force --warnings-as-errors` |
-| ExUnit | **1054 tests, all green**, ~9 s | `mix test` |
-| Coverage | **50.9 %** of 274 modules; 85 at 0 % | `mix test.coverage` |
+| ExUnit | **1057 tests, all green**, ~9 s | `mix test` |
+| Coverage | **51.1 %** of 274 modules; 85 at 0 % | `mix test.coverage` |
 | Go agent | builds; tests pass in 3 of 10 packages (3,793 prod LOC / 599 test LOC) | `cd agent && go test ./...` |
 | Cypress | 27 specs on disk, **not executed in this session** | `ls cypress/e2e/*.cy.js` |
 | Static analysis | `mix format --check-formatted` clean; `mix credo --strict` exit 0 (3 readability notes) | see above |
@@ -117,6 +117,18 @@ generate → `from_xml/1` round trip and an idempotent second import.
 
 ## Known gaps
 
+### Config XML export covers part of the configuration
+
+`generate/0` renders pipelines, templates, environments, roles and elastic agent
+profiles. It does **not** render cluster profiles (`render_cluster_profiles/0`
+returns an empty string), artifact stores, secret configs, package repositories,
+SCMs or config repos.
+
+That matters because a config version stores both `config_json`, which is
+complete, and `config_xml`, which is not — and `revert` restores from the XML.
+Reverting to a version therefore silently drops every section the XML does not
+carry. The JSON is there to restore from; nothing reads it yet.
+
 ### Doc drift
 
 `docs/PARITY.md` header, verified value in brackets:
@@ -124,7 +136,7 @@ generate → `from_xml/1` round trip and an idempotent second import.
 | Claim | Reality |
 | --- | --- |
 | "100 % feature parity, all gaps resolved" | contradicted by the gaps above and the 85 zero-coverage modules |
-| 1004 tests [1054] | |
+| 1004 tests [1057] | |
 | 67 controllers [61] | |
 | 23 LiveView pages [22] | |
 | 20 GenServers [22] | |
@@ -189,11 +201,14 @@ Reconstructed from the two indexed sessions for this workspace
 
 ## Proposed next steps
 
-1. **Re-audit `PARITY.md` against the code** rather than against the previous
+1. **Make a revert restore everything.** Either render the missing sections in
+   the XML, or teach the revert to restore from `config_json`. Silent data loss
+   on a restore is the worst bug on this list.
+2. **Re-audit `PARITY.md` against the code** rather than against the previous
    audit. Replace the "100 %" claim with the verified coverage table, or split
    the file into "claimed" and "verified" columns.
-2. **Delete or declare `lib/ex_gocd_web/channels/`.** 412 lines that nothing
+3. **Delete or declare `lib/ex_gocd_web/channels/`.** 412 lines that nothing
    exercises.
-3. **Close the largest untested features**: the two remaining 0 %-coverage
+4. **Close the largest untested features**: the two remaining 0 %-coverage
    LiveViews (admin K8s, external CI wizard) and the analytics tabs' data paths.
-4. **Upgrade the Go modules** in `agent/`.
+5. **Upgrade the Go modules** in `agent/`.
