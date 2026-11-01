@@ -58,6 +58,8 @@ jobs:
       run: mix compile --force --warnings-as-errors
       env:
         CI: "true"
+    - name: Check the documentation still points at real code
+      run: elixir scripts/check_doc_refs.exs
     - name: Prepare test database
       run: mix test.setup
       env:
