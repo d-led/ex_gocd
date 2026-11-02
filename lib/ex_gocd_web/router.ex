@@ -237,14 +237,21 @@ defmodule ExGoCDWeb.Router do
     # Agent management (matching GoCD's agent API spec)
     post "/agents/register", AgentController, :register
     get "/agents", AgentController, :index
-    delete "/agents", AgentController, :bulk_delete
-    patch "/agents", AgentController, :bulk_update
     get "/agents/:uuid", AgentController, :show
-    patch "/agents/:uuid", AgentController, :update
-    delete "/agents/:uuid", AgentController, :delete
-    put "/agents/:uuid/enable", AgentController, :enable
-    put "/agents/:uuid/disable", AgentController, :disable
-    post "/agents/:uuid/kill_running_tasks", AgentController, :kill_running_tasks
+
+    # Changing an agent — its name, its state, or the work it is running — is an
+    # admin act, as in GoCD. Registering and reading are not.
+    scope "/agents" do
+      pipe_through :admin_api
+
+      delete "/", AgentController, :bulk_delete
+      patch "/", AgentController, :bulk_update
+      patch "/:uuid", AgentController, :update
+      delete "/:uuid", AgentController, :delete
+      put "/:uuid/enable", AgentController, :enable
+      put "/:uuid/disable", AgentController, :disable
+      post "/:uuid/kill_running_tasks", AgentController, :kill_running_tasks
+    end
 
     # Build console log upload (agent streams stdout/stderr here)
     post "/builds/:build_id/console", BuildConsoleController, :append
@@ -450,14 +457,22 @@ defmodule ExGoCDWeb.Router do
 
     post "/agents/register", AgentController, :register
     get "/agents", AgentController, :index
-    delete "/agents", AgentController, :bulk_delete
-    patch "/agents", AgentController, :bulk_update
     get "/agents/:uuid", AgentController, :show
-    patch "/agents/:uuid", AgentController, :update
-    delete "/agents/:uuid", AgentController, :delete
-    put "/agents/:uuid/enable", AgentController, :enable
-    put "/agents/:uuid/disable", AgentController, :disable
-    post "/agents/:uuid/kill_running_tasks", AgentController, :kill_running_tasks
+
+    # Changing an agent — its name, its state, or the work it is running — is an
+    # admin act, as in GoCD. Registering and reading are not.
+    scope "/agents" do
+      pipe_through :admin_api
+
+      delete "/", AgentController, :bulk_delete
+      patch "/", AgentController, :bulk_update
+      patch "/:uuid", AgentController, :update
+      delete "/:uuid", AgentController, :delete
+      put "/:uuid/enable", AgentController, :enable
+      put "/:uuid/disable", AgentController, :disable
+      post "/:uuid/kill_running_tasks", AgentController, :kill_running_tasks
+    end
+
     post "/builds/:build_id/console", BuildConsoleController, :append
     post "/jobs/schedule", JobController, :schedule
 
@@ -515,8 +530,13 @@ defmodule ExGoCDWeb.Router do
 
     post "/stages/:pipeline_name/:pipeline_counter/:stage_name/cancel", StageController, :cancel
 
-    # Encryption API
-    post "/admin/encrypt", Admin.EncryptionController, :encrypt
+    # Encryption API. Encrypting with the server's key is an admin act, as in
+    # GoCD, and the /api tree already asks for admin for this one.
+    scope "/admin" do
+      pipe_through :admin_api
+
+      post "/encrypt", Admin.EncryptionController, :encrypt
+    end
 
     # User management (GoCD users v3). Admin-only, for the reason given in the
     # /api scope above.

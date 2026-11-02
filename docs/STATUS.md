@@ -14,7 +14,7 @@
 | Dimension | State | Evidence |
 | --- | --- | --- |
 | Code | 272 source files, compile warnings-as-errors clean | `mix compile --force --warnings-as-errors` |
-| ExUnit | **1153 tests, all green** | `mix test` |
+| ExUnit | **1164 tests, all green** | `mix test` |
 | Coverage | **56.9 %**; 68 modules at 0 % | `mix test.coverage` |
 | Go agent | builds; tests pass in 3 of 10 packages (3,793 prod LOC / 599 test LOC); modules upgraded 2026-11-01 (otel 1.47, grpc 1.85) | `cd agent && go test ./...` |
 | Cypress | 27 specs on disk, **not executed in this session** | `ls cypress/e2e/*.cy.js` |
@@ -336,15 +336,18 @@ both `/api/users` and `/go/api/users`, with thirteen tests; the five that matter
 say a member is refused, and they fail against the old routing — a member could
 create an admin, read the list, rename, and delete.
 
-The same audit found other writes behind `:api` that GoCD reserves for admin:
-`DELETE /go/api/agents`, `PATCH /go/api/agents/:uuid`, enable and disable, and
-kill-running-tasks, plus `POST /go/api/admin/encrypt`. They are named here rather
-than changed in the same breath, because the agent endpoints are called by the
-agent and by the UI and each needs its caller traced before its pipeline moves.
-Until they are moved, an authenticated non-admin token can still do them, and
-that is a known, written-down gap rather than a silent one — note that in GoCD's
-open mode, where no admin exists yet, every request is treated as admin by
-design, so the difference shows only once an admin is configured.
+The same audit found other writes behind `:api` that GoCD reserves for admin, and
+they are fixed in the same way once their callers were traced: nothing in this
+repository, its assets, its Cypress specs or the Go agent calls
+`DELETE /go/api/agents`, `PATCH /go/api/agents/:uuid`, enable, disable or
+kill-running-tasks — the agent speaks `/agent` remoting, not this API. Those
+seven routes are admin-only in both trees now, while registering and reading stay
+open, and `POST /go/api/admin/encrypt` likewise. Eleven tests in
+`authorisation_test.exs`, six of which fail against the old routing: a member
+could disable, enable, rename, kill, delete and bulk-delete agents. `/api/test/*`
+is left as it is on purpose — it is what Cypress drives the simulator through,
+and the controller answers 403 unless the pool is the SQL sandbox, test mode is
+on, or the environment is `dev`.
 ### Known noise: the sandbox says a connection was disconnected
 
 Most runs print one or two lines like
@@ -368,7 +371,7 @@ table: the agent speaks HTTP remoting, like a real GoCD agent
 (`agent/internal/remoting/`, `agent_remoting_controller.ex`, and no `websocket`
 string anywhere in the Go agent).
 
-`README.md` badges are hand-written and say 1153 tests and 27 Cypress specs.
+`README.md` badges are hand-written and say 1164 tests and 27 Cypress specs.
 Nothing regenerates them, so they will drift again.
 
 `scripts/check_doc_refs.exs` is the part that cannot drift: it fails when a
