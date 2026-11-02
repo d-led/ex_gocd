@@ -503,17 +503,17 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
     end
   end
 
-  defp mock_upstream(pipeline_name) do
-    case pipeline_name do
-      "deploy-staging" -> ["build-linux"]
-      "deploy-production" -> ["deploy-staging"]
-      "component-a" -> ["upstream-lib"]
-      "component-b" -> ["upstream-lib"]
-      "integration-pipeline" -> ["component-a", "component-b"]
-      "downstream-app" -> ["upstream-lib"]
-      _ -> []
-    end
-  end
+  # The demo topology the mock VSM draws: which pipelines feed which.
+  @mock_upstream %{
+    "deploy-staging" => ["build-linux"],
+    "deploy-production" => ["deploy-staging"],
+    "component-a" => ["upstream-lib"],
+    "component-b" => ["upstream-lib"],
+    "integration-pipeline" => ["component-a", "component-b"],
+    "downstream-app" => ["upstream-lib"]
+  }
+
+  defp mock_upstream(pipeline_name), do: Map.get(@mock_upstream, pipeline_name, [])
 
   defp build_all_downstream_nodes(names, parents, depth, visited \\ MapSet.new())
   defp build_all_downstream_nodes([], _parents, _depth, _visited), do: []
@@ -589,11 +589,20 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
   defp dependency_upstream(revision, parents) do
     material = revision["material"] || revision
 
-    type = material["type"] || revision["material_type"] || revision["type"]
-    url = material["url"] || revision["url"] || revision["pipeline_name"] || revision["name"]
+    type = first_present([material["type"], revision["material_type"], revision["type"]])
+
+    url =
+      first_present([
+        material["url"],
+        revision["url"],
+        revision["pipeline_name"],
+        revision["name"]
+      ])
 
     type == "dependency" and url in parents
   end
+
+  defp first_present(values), do: Enum.find(values, &(not is_nil(&1)))
 
   defp build_real_instance(instance) do
     pipeline_name =

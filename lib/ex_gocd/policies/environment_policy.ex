@@ -53,44 +53,33 @@ defmodule ExGoCD.Policies.EnvironmentPolicy do
   # ── Permission evaluation ───────────────────────────────────────────────
 
   # Global check: any role policy matches (wildcard resource counts)
-  def has_permission_global?(%User{} = user, action, type) do
-    cond do
-      not Accounts.admin_configured?() ->
-        true
-
-      User.has_role?(user, :admin) ->
-        true
-
-      true ->
-        (user.roles || [])
-        |> Enum.map(&Accounts.get_role_by_name/1)
-        |> Enum.reject(&is_nil/1)
-        |> Enum.any?(fn role -> role_allows?(role, action, type, "*") end)
-    end
-  end
+  def has_permission_global?(%User{} = user, action, type),
+    do: allowed?(user, action, type, "*")
 
   def has_permission_global?(_user, _action, _type), do: false
 
-  def has_permission?(%User{} = user, action, type, resource) do
-    cond do
-      # Open mode: no admin configured → everyone has full access
-      not Accounts.admin_configured?() ->
-        true
+  def has_permission?(%User{} = user, action, type, resource),
+    do: allowed?(user, action, type, resource)
 
-      # Admin users always have full access
-      User.has_role?(user, :admin) ->
-        true
+  def has_permission?(_user, _action, _type, _resource), do: false
 
-      # Check role policies for per-environment access
-      true ->
-        (user.roles || [])
-        |> Enum.map(&Accounts.get_role_by_name/1)
-        |> Enum.reject(&is_nil/1)
-        |> Enum.any?(fn role -> role_allows?(role, action, type, resource) end)
+  # Open mode means everyone; an admin means everyone; otherwise the user's roles
+  # decide, one environment at a time.
+  defp allowed?(user, action, type, resource) do
+    if Accounts.admin_configured?() and not User.has_role?(user, :admin) do
+      roles_allow?(user, action, type, resource)
+    else
+      true
     end
   end
 
-  def has_permission?(_user, _action, _type, _resource), do: false
+  defp roles_allow?(user, action, type, resource) do
+    user.roles
+    |> List.wrap()
+    |> Enum.map(&Accounts.get_role_by_name/1)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.any?(fn role -> role_allows?(role, action, type, resource) end)
+  end
 
   defp role_allows?(role, action, type, resource) do
     policy = role.policy || %{}
