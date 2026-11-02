@@ -1,13 +1,20 @@
 defmodule ExGoCD.Mcp.Tools.PipelineConfig do
   @moduledoc """
-  Authoring: creating a pipeline from a description, changing its own settings,
-  and deleting it.
+  Authoring: a graph of pipelines, built from a description.
 
-  A pipeline is a tree — stages, jobs, tasks, materials — and creating one is
-  several inserts that must all happen or none of them. The create tool does
-  them in one transaction, so a definition with a typo in its third stage leaves
-  nothing behind; and every refusal says which stage or job the typo was in,
-  because "name: has already been taken" without a stage name is a puzzle.
+  A pipeline is not a line of stages. GoCD's vocabulary is a graph — *fan-out* is
+  one build and several deployments; *fan-in* is several upstreams and one
+  deploy that waits for all of them; *passing results* is an artifact a job
+  publishes and a `fetch` task elsewhere takes; and *build once* is what those
+  two make possible, the artifact built once and every environment promoting
+  that same build rather than rebuilding something nobody tested.
+
+  So the shape here is a list of pipelines, not one. They are created in two
+  passes, the way `ConfigXml` imports a document: every pipeline first, then the
+  dependency materials, because a material may name a pipeline declared later in
+  the same graph. It is one transaction — a typo in the third pipeline creates
+  nothing — and a cycle is refused before anything is written, because that is
+  the one mistake a graph can never recover from at run time.
 
   Deliberately not here: rewriting an existing pipeline's stages. A stage's job
   instances are keyed to the stage row, so replacing a stage is a migration
@@ -15,7 +22,7 @@ defmodule ExGoCD.Mcp.Tools.PipelineConfig do
   settings and says so.
   """
 
-  alias ExGoCD.{AuditLog.Events, ConfigAudit, Pipelines, Repo}
+  alias ExGoCD.{AuditLog.Events, ConfigAudit, PipelineGraph, Pipelines, Repo}
   alias ExGoCD.Mcp.{Args, Auth, Changeset, Render, Tool}
 
   @names ~w(gocd_create_pipeline gocd_update_pipeline gocd_delete_pipeline)
@@ -59,10 +66,36 @@ defmodule ExGoCD.Mcp.Tools.PipelineConfig do
             },
             "url" => %{
               "type" => "string",
-              "description" => "The repository url, or the upstream pipeline for a dependency."
+              "description" =>
+                "The repository url, or — for a `dependency` — the upstream pipeline."
+            },
+            "pipeline" => %{
+              "type" => "string",
+              "description" =>
+                "The upstream pipeline of a `dependency`. It may be another pipeline in " <>
+                  "the same call, which is what makes a graph."
+            },
+            "stage" => %{
+              "type" => "string",
+              "description" =>
+                "The upstream stage whose passing starts this pipeline. With several " <>
+                  "dependencies this is fan-in: this pipeline waits for all of them."
             },
             "branch" => %{"type" => "string"},
-            "destination" => %{"type" => "string"}
+            "destination" => %{"type" => "string"},
+            "include" => %{
+              "type" => "array",
+              "items" => %{"type" => "string"},
+              "description" =>
+                "Only changes under these paths trigger the pipeline. Note that a " <>
+                  "material filter stops fan-in resolution working in GoCD, so a filter " <>
+                  "on a shared repository means a fan-in target may never trigger."
+            },
+            "exclude" => %{
+              "type" => "array",
+              "items" => %{"type" => "string"},
+              "description" => "Changes under these paths do not trigger the pipeline."
+            }
           },
           "required" => ["url"]
         }
@@ -79,6 +112,13 @@ defmodule ExGoCD.Mcp.Tools.PipelineConfig do
               "enum" => ["success", "manual"],
               "description" => "`success` runs on its own; `manual` waits for a person."
             },
+            "clean_working_directory" => %{
+              "type" => "boolean",
+              "default" => false,
+              "description" =>
+                "Start from an empty working directory. A stage that only unpacks what " <>
+                  "it fetched wants this; a stage that reuses a build does not."
+            },
             "jobs" => %{
               "type" => "array",
               "description" => "At least one, each with at least one task.",
@@ -91,12 +131,41 @@ defmodule ExGoCD.Mcp.Tools.PipelineConfig do
                     "items" => %{"type" => "string"},
                     "description" => "Resource tags an agent must have."
                   },
+                  "artifacts" => %{
+                    "type" => "array",
+                    "description" =>
+                      "What this job publishes, for another pipeline to fetch instead " <>
+                        "of building it again. The build-once half of a graph.",
+                    "items" => %{
+                      "type" => "object",
+                      "properties" => %{
+                        "type" => %{
+                          "type" => "string",
+                          "enum" => ["build", "test"],
+                          "description" => "`test` artifacts are test reports."
+                        },
+                        "src" => %{
+                          "type" => "string",
+                          "description" => "A path or glob under the job's working directory."
+                        },
+                        "dest" => %{
+                          "type" => "string",
+                          "description" => "Where it is published."
+                        }
+                      },
+                      "required" => ["src"]
+                    }
+                  },
                   "tasks" => %{
                     "type" => "array",
                     "items" => %{
                       "type" => "object",
                       "properties" => %{
-                        "type" => %{"type" => "string", "description" => "Default `exec`."},
+                        "type" => %{
+                          "type" => "string",
+                          "enum" => ["exec", "fetch"],
+                          "description" => "Default `exec`."
+                        },
                         "command" => %{"type" => "string"},
                         "arguments" => %{"type" => "array", "items" => %{"type" => "string"}},
                         "working_directory" => %{"type" => "string"},
@@ -104,6 +173,25 @@ defmodule ExGoCD.Mcp.Tools.PipelineConfig do
                           "type" => "string",
                           "enum" => ["passed", "failed", "any"],
                           "description" => "Default `passed`."
+                        },
+                        "pipeline" => %{
+                          "type" => "string",
+                          "description" =>
+                            "For a `fetch`: the pipeline whose artifact to take. It has " <>
+                              "to be this pipeline or one it depends on."
+                        },
+                        "stage" => %{
+                          "type" => "string",
+                          "description" => "For a `fetch`: the stage."
+                        },
+                        "job" => %{"type" => "string", "description" => "For a `fetch`: the job."},
+                        "src" => %{
+                          "type" => "string",
+                          "description" => "For a `fetch`: the artifact path to take."
+                        },
+                        "dest" => %{
+                          "type" => "string",
+                          "description" => "For a `fetch`: where to put it, here."
                         }
                       }
                     }
@@ -123,17 +211,29 @@ defmodule ExGoCD.Mcp.Tools.PipelineConfig do
   @tools [
     %{
       "name" => "gocd_create_pipeline",
-      "title" => "Create a pipeline",
+      "title" => "Create a pipeline, or a graph of them",
       "description" =>
-        "Creates a pipeline from a description: its stages in order, each stage's jobs, each " <>
-          "job's tasks, and its materials. All of it happens in one transaction — a definition " <>
-          "that is wrong in the third stage creates nothing. Refuses a name that already " <>
-          "exists (`gocd_update_pipeline` changes one) and says which stage or job a refusal " <>
-          "was about. An administrator's act.",
+        "Creates one pipeline from `definition`, or a whole graph from `pipelines` — the " <>
+          "shapes worth having are fan-out (one build, several deployments), fan-in (a " <>
+          "deploy that waits for QA, UAT and performance), and build once (a job " <>
+          "publishes an artifact, the deploy pipelines `fetch` that same build instead " <>
+          "of rebuilding it). Dependencies may name pipelines in the same call, in any " <>
+          "order. Everything happens in one transaction: a definition wrong in the third " <>
+          "pipeline creates nothing, and a cycle is refused before anything is written. " <>
+          "Each answer ends with whether anything can actually run it. An " <>
+          "administrator's act.",
       "inputSchema" => %{
         "type" => "object",
-        "properties" => %{"definition" => @definition},
-        "required" => ["definition"]
+        "properties" => %{
+          "definition" => @definition,
+          "pipelines" => %{
+            "type" => "array",
+            "description" =>
+              "A graph: several pipelines in one call, in any order. A `dependency` " <>
+                "material may name another pipeline here.",
+            "items" => @definition
+          }
+        }
       },
       "annotations" => Tool.writes()
     },
@@ -222,6 +322,15 @@ defmodule ExGoCD.Mcp.Tools.PipelineConfig do
   def preview(_other),
     do: {:error, "`definition` must be an object with at least a `name` and `stages`."}
 
+  @doc """
+  Reads a graph exactly as `gocd_create_pipeline` reads it — one pipeline through
+  `definition`, several through `pipelines` — and writes nothing.
+  """
+  @spec preview_graph(map()) :: {:ok, [map()]} | {:error, String.t()}
+  def preview_graph(attributes) when is_map(attributes), do: definitions_arg(attributes)
+
+  def preview_graph(_other), do: {:error, "A graph description must be an object."}
+
   @doc "The names of this family's tools."
   @spec names() :: [String.t()]
   def names, do: @names
@@ -240,46 +349,91 @@ defmodule ExGoCD.Mcp.Tools.PipelineConfig do
   # ── create ─────────────────────────────────────────────────────────
 
   defp create(args, ctx) do
-    with {:ok, definition} <- definition_arg(args),
+    with {:ok, definitions} <- definitions_arg(args),
          :ok <- Auth.require_admin(ctx.user, "create a pipeline"),
-         :ok <- name_is_free(definition.name) do
-      insert(definition, ctx)
+         :ok <- names_are_free(definitions),
+         :ok <- graph_is_possible(definitions) do
+      insert(definitions, ctx)
     else
       {:error, message} -> {:error, message}
     end
   end
 
-  defp name_is_free(name) do
-    case Pipelines.get_pipeline_by_name(name) do
-      nil ->
-        :ok
+  defp names_are_free(definitions) do
+    Enum.find_value(definitions, :ok, fn definition ->
+      case Pipelines.get_pipeline_by_name(definition.name) do
+        nil ->
+          nil
 
-      _pipeline ->
-        {:error,
-         "Pipeline '#{name}' already exists. `gocd_update_pipeline` changes its settings, " <>
-           "`gocd_describe_pipeline` shows what it is made of."}
+        _pipeline ->
+          {:error,
+           "Pipeline '#{definition.name}' already exists. `gocd_update_pipeline` changes " <>
+             "its settings, `gocd_describe_pipeline` shows what it is made of."}
+      end
+    end)
+  end
+
+  # The mistakes a graph cannot recover from at run time. A dangling fetch is a
+  # warning instead: GoCD keeps a configuration it can only fail, and so does this.
+  defp graph_is_possible(definitions) do
+    case Enum.filter(PipelineGraph.problems(definitions), &fatal?/1) do
+      [] -> :ok
+      [problem | _] -> {:error, problem.message}
     end
   end
 
-  # One transaction: a stage that fails its changeset rolls back the pipeline and
-  # every stage before it, so a typo leaves no half-built pipeline behind.
-  defp insert(definition, ctx) do
+  defp fatal?(%{code: code}), do: code in [:duplicate_pipeline, :unknown_upstream, :cycle]
+
+  # One transaction for the whole graph, and two passes through it: every
+  # pipeline and its stages first, then the materials — because a dependency may
+  # name a pipeline declared later in the same graph. A stage that fails its
+  # changeset rolls all of it back, so a typo leaves nothing behind.
+  defp insert(definitions, ctx) do
     result =
       Repo.transaction(fn ->
-        with {:ok, pipeline} <- Pipelines.create_pipeline(pipeline_attrs(definition)),
-             {:ok, materials} <- add_materials(pipeline, definition.materials),
-             {:ok, stages} <- add_stages(pipeline, definition.stages) do
-          %{pipeline: pipeline, materials: materials, stages: stages}
-        else
-          {:error, reason} -> Repo.rollback(reason)
-        end
+        definitions
+        |> Enum.map(&create_pipeline/1)
+        |> attach_materials()
       end)
 
     case result do
       {:ok, built} -> created(built, ctx)
       {:error, %Ecto.Changeset{} = changeset} -> {:error, Changeset.message(changeset)}
       {:error, message} when is_binary(message) -> {:error, message}
-      {:error, reason} -> {:error, "Could not create the pipeline: #{inspect(reason)}"}
+      {:error, reason} -> {:error, "Could not create the graph: #{inspect(reason)}"}
+    end
+  end
+
+  defp create_pipeline(definition) do
+    with {:ok, pipeline} <- insert_pipeline(definition),
+         {:ok, stages} <- add_stages(pipeline, definition.stages) do
+      %{definition: definition, pipeline: pipeline, stages: stages, materials: []}
+    else
+      {:error, message} -> Repo.rollback(message)
+    end
+  end
+
+  defp insert_pipeline(definition) do
+    case Pipelines.create_pipeline(pipeline_attrs(definition)) do
+      {:ok, pipeline} ->
+        {:ok, pipeline}
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        {:error, "Pipeline '#{definition.name}': #{Changeset.message(changeset)}"}
+    end
+  end
+
+  defp attach_materials(built) do
+    Enum.map(built, fn %{definition: definition, pipeline: pipeline} = entry ->
+      materials = Enum.map(definition.materials, &attach_material(pipeline, &1))
+      %{entry | materials: materials}
+    end)
+  end
+
+  defp attach_material(pipeline, material) do
+    case Pipelines.create_material_for_pipeline(pipeline, material) do
+      {:ok, created} -> created
+      {:error, reason} -> Repo.rollback(material_error(material, reason))
     end
   end
 
@@ -293,19 +447,6 @@ defmodule ExGoCD.Mcp.Tools.PipelineConfig do
       parameters: definition.parameters,
       environment_variables: definition.environment_variables
     }
-  end
-
-  defp add_materials(_pipeline, []), do: {:ok, []}
-
-  defp add_materials(pipeline, materials) do
-    materials
-    |> Enum.reduce_while({:ok, []}, fn material, {:ok, acc} ->
-      case Pipelines.create_material_for_pipeline(pipeline, material) do
-        {:ok, created} -> {:cont, {:ok, [created | acc]}}
-        {:error, reason} -> {:halt, {:error, material_error(material, reason)}}
-      end
-    end)
-    |> in_order()
   end
 
   defp material_error(material, {:missing_pipeline, upstream}) do
@@ -333,7 +474,12 @@ defmodule ExGoCD.Mcp.Tools.PipelineConfig do
   end
 
   defp add_stage(pipeline, stage) do
-    attrs = %{name: stage.name, pipeline_id: pipeline.id, approval_type: stage.approval_type}
+    attrs = %{
+      name: stage.name,
+      pipeline_id: pipeline.id,
+      approval_type: stage.approval_type,
+      clean_working_directory: stage.clean_working_directory
+    }
 
     case Pipelines.create_stage(attrs) do
       {:ok, created} ->
@@ -358,7 +504,12 @@ defmodule ExGoCD.Mcp.Tools.PipelineConfig do
   end
 
   defp add_job(stage, job) do
-    attrs = %{name: job.name, stage_id: stage.id, resources: job.resources}
+    attrs = %{
+      name: job.name,
+      stage_id: stage.id,
+      resources: job.resources,
+      artifact_configs: artifact_configs(job.artifacts)
+    }
 
     case Pipelines.create_job(attrs) do
       {:ok, created} ->
@@ -371,10 +522,17 @@ defmodule ExGoCD.Mcp.Tools.PipelineConfig do
     end
   end
 
+  # Jobs store their artifacts under "artifacts", the shape the scheduler reads
+  # when it tells an agent what to upload. No artifacts is an empty map, not a
+  # list with nothing in it, because that is what the XML writer and the
+  # scheduler both check.
+  defp artifact_configs([]), do: %{}
+  defp artifact_configs(artifacts), do: %{"artifacts" => artifacts}
+
   defp add_tasks(job, tasks) do
     tasks
     |> Enum.reduce_while({:ok, []}, fn task, {:ok, acc} ->
-      case Pipelines.create_task(Map.put(task, :job_id, job.id)) do
+      case Pipelines.create_task(Map.put(task_attrs(task), :job_id, job.id)) do
         {:ok, created} ->
           {:cont, {:ok, [task_label(created) | acc]}}
 
@@ -385,46 +543,174 @@ defmodule ExGoCD.Mcp.Tools.PipelineConfig do
     |> in_order()
   end
 
+  # A fetch task has no command: where to take the artifact from is its whole
+  # content, and it lives in `arguments` in the order the scheduler reads it.
+  defp task_attrs(%{type: "fetch"} = task) do
+    %{
+      type: "fetch",
+      arguments: [task.pipeline, task.stage, task.job, task.src, task.dest],
+      run_if: task.run_if
+    }
+  end
+
+  defp task_attrs(task) do
+    %{
+      type: task.type,
+      command: task.command,
+      arguments: task.arguments,
+      working_directory: task.working_directory,
+      run_if: task.run_if
+    }
+  end
+
   defp in_order({:ok, built}), do: {:ok, Enum.reverse(built)}
   defp in_order({:error, message}), do: {:error, message}
+
+  defp task_label(%{type: "fetch", arguments: [pipeline, stage, job | _]}),
+    do: "fetch #{pipeline}/#{stage}/#{job}"
 
   defp task_label(task) do
     [task.command | task.arguments || []] |> Enum.reject(&(&1 in [nil, ""])) |> Enum.join(" ")
   end
 
-  defp created(%{pipeline: pipeline, materials: materials, stages: stages}, ctx) do
+  defp created([%{pipeline: pipeline, materials: materials, stages: stages} = built], ctx) do
+    audit_creation(built, ctx)
+    jobs = stages |> Enum.flat_map(& &1.jobs) |> length()
+    fit = ConfigAudit.fit_pipeline(pipeline.name)
+    answer = pipeline_answer(built, ctx, fit)
+
+    Tool.ok(
+      "#{pipeline.name} created in group #{Render.cell(pipeline.group)}: " <>
+        "#{length(stages)} stage(s), #{jobs} job(s), #{length(materials)} material(s).\n" <>
+        "Its configuration: #{answer["link"]}\n" <>
+        "It has not run yet; `gocd_trigger_pipeline` starts it." <>
+        verdict_text(fit),
+      answer
+    )
+  end
+
+  # A graph is created as a graph and reported as one: the edges are what was
+  # asked for, and naming the shapes (fan-out, fan-in) is what makes the answer
+  # checkable by the person who described it.
+  defp created(built, ctx) do
+    Enum.each(built, &audit_creation(&1, ctx))
+
+    edges = edges(built)
+
+    answers =
+      Enum.map(built, fn %{pipeline: pipeline} = entry ->
+        pipeline_answer(entry, ctx, ConfigAudit.fit_pipeline(pipeline.name))
+      end)
+
+    Tool.ok(
+      graph_text(answers, edges),
+      %{
+        "pipelines" => answers,
+        "edges" => Enum.map(edges, fn {from, to} -> %{"from" => from, "to" => to} end)
+      }
+    )
+  end
+
+  defp audit_creation(%{pipeline: pipeline, materials: materials, stages: stages}, ctx) do
     Events.config_changed(ctx.user.username, pipeline.name, %{
       action: "created",
       stages: Enum.map(stages, & &1.name),
       materials: Enum.map(materials, & &1.url)
     })
+  end
 
-    jobs = stages |> Enum.flat_map(& &1.jobs) |> length()
-    link = "#{ctx.base_url}/admin/pipelines/#{pipeline.name}/edit"
-    fit = ConfigAudit.fit_pipeline(pipeline.name)
+  defp pipeline_answer(%{pipeline: pipeline, materials: materials, stages: stages}, ctx, fit) do
+    %{
+      "name" => pipeline.name,
+      "group" => pipeline.group,
+      "link" => "#{ctx.base_url}/admin/pipelines/#{pipeline.name}/edit",
+      "materials" => Enum.map(materials, &%{"type" => &1.type, "url" => &1.url}),
+      "stages" =>
+        Enum.map(stages, fn stage ->
+          %{
+            "name" => stage.name,
+            "approval_type" => stage.approval_type,
+            "jobs" => Enum.map(stage.jobs, & &1.name)
+          }
+        end),
+      "will_run" => will_run(fit)
+    }
+  end
 
-    Tool.ok(
-      "#{pipeline.name} created in group #{Render.cell(pipeline.group)}: " <>
-        "#{length(stages)} stage(s), #{jobs} job(s), #{length(materials)} material(s).\n" <>
-        "Its configuration: #{link}\n" <>
-        "It has not run yet; `gocd_trigger_pipeline` starts it." <>
-        verdict_text(fit),
-      %{
-        "name" => pipeline.name,
-        "group" => pipeline.group,
-        "link" => link,
-        "materials" => Enum.map(materials, &%{"type" => &1.type, "url" => &1.url}),
-        "stages" =>
-          Enum.map(stages, fn stage ->
-            %{
-              "name" => stage.name,
-              "approval_type" => stage.approval_type,
-              "jobs" => Enum.map(stage.jobs, & &1.name)
-            }
-          end),
-        "will_run" => will_run(fit)
-      }
-    )
+  # `build -> test-a, test-b`: the dependency materials as edges, upstream first.
+  defp edges(built) do
+    for %{pipeline: pipeline, materials: materials} <- built,
+        material <- materials,
+        material.type == "dependency",
+        do: {upstream_name(material), pipeline.name}
+  end
+
+  defp upstream_name(material) do
+    (material.type_specific_config || %{})["pipeline_name"] || material.url
+  end
+
+  defp graph_text(answers, edges) do
+    [
+      "#{length(answers)} pipelines created: #{Enum.map_join(answers, ", ", &"`#{&1["name"]}`")}.",
+      edge_text(edges),
+      shape_text(edges),
+      verdict_text_for(answers),
+      "Edit pages: #{Enum.map_join(answers, ", ", & &1["link"])}",
+      "They have not run yet; `gocd_trigger_pipeline` starts the first one."
+    ]
+    |> Enum.reject(&(&1 in [nil, ""]))
+    |> Enum.join("\n")
+  end
+
+  defp edge_text(edges) do
+    edges
+    |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
+    |> Enum.sort()
+    |> Enum.map_join("\n", fn {upstream, downstreams} ->
+      "  `#{upstream}` -> #{Enum.map_join(downstreams, ", ", &"`#{&1}`")}"
+    end)
+  end
+
+  # The shapes are worth naming back: they are the reason the graph was asked
+  # for, and a person recognises fan-in faster than they read three edges.
+  defp shape_text(edges) do
+    fan_out =
+      edges
+      |> Enum.group_by(&elem(&1, 0))
+      |> Enum.filter(fn {_upstream, downstreams} -> length(downstreams) > 1 end)
+      |> Enum.map(fn {upstream, downstreams} ->
+        "fan-out from `#{upstream}` to #{length(downstreams)} pipelines"
+      end)
+
+    fan_in =
+      edges
+      |> Enum.group_by(&elem(&1, 1))
+      |> Enum.filter(fn {_downstream, upstreams} -> length(upstreams) > 1 end)
+      |> Enum.map(fn {downstream, upstreams} ->
+        "fan-in at `#{downstream}` from #{length(upstreams)}"
+      end)
+
+    case fan_out ++ fan_in do
+      [] -> ""
+      shapes -> "Shapes: " <> Enum.join(shapes, "; ") <> "."
+    end
+  end
+
+  defp verdict_text_for(answers) do
+    stuck =
+      for answer <- answers,
+          will_run = answer["will_run"],
+          is_map(will_run),
+          problem = will_run["first_problem"],
+          do: "`#{answer["name"]}` #{problem}"
+
+    case stuck do
+      [] ->
+        "Will it run? Yes — every job in every pipeline has an agent."
+
+      [first | _] ->
+        "Will it run? Not yet — #{first}. `gocd_audit_config` shows the rest."
+    end
   end
 
   # The question an author asks the moment a pipeline exists. A pipeline that is
@@ -589,14 +875,44 @@ defmodule ExGoCD.Mcp.Tools.PipelineConfig do
 
   # ── the definition ─────────────────────────────────────────────────
 
-  defp definition_arg(args) do
-    case args["definition"] do
-      definition when is_map(definition) ->
-        validate(definition)
+  defp definitions_arg(args) do
+    case {args["definition"], args["pipelines"]} do
+      {nil, nil} ->
+        {:error, "Give `definition` for one pipeline, or `pipelines` for a graph of them."}
 
-      _missing ->
-        {:error, "`definition` is required: an object with at least a `name` and `stages`."}
+      {nil, definitions} when is_list(definitions) ->
+        graph(definitions)
+
+      {nil, other} ->
+        {:error, "`pipelines` must be a list of definitions, not #{inspect(other)}."}
+
+      {definition, nil} when is_map(definition) ->
+        with {:ok, validated} <- validate(definition), do: {:ok, [validated]}
+
+      {other, nil} ->
+        {:error, "`definition` must be an object, not #{inspect(other)}."}
+
+      {_definition, _pipelines} ->
+        {:error, "Give one of `definition` and `pipelines`, not both."}
     end
+  end
+
+  defp graph([]), do: {:error, "`pipelines` is empty: a graph needs at least one pipeline."}
+
+  defp graph(definitions) do
+    definitions
+    |> Enum.reduce_while({:ok, []}, fn definition, {:ok, acc} ->
+      if is_map(definition) do
+        case validate(definition) do
+          {:ok, validated} -> {:cont, {:ok, [validated | acc]}}
+          {:error, message} -> {:halt, {:error, message}}
+        end
+      else
+        {:halt,
+         {:error, "Every pipeline in `pipelines` must be an object, not #{inspect(definition)}."}}
+      end
+    end)
+    |> in_order()
   end
 
   defp validate(definition) do
@@ -624,12 +940,25 @@ defmodule ExGoCD.Mcp.Tools.PipelineConfig do
   defp stage(stage) when is_map(stage) do
     with {:ok, name} <- text(stage["name"], "stage name"),
          {:ok, approval_type} <- approval_type(stage["approval_type"]),
+         {:ok, clean} <- setting(stage["clean_working_directory"], "clean_working_directory"),
          {:ok, jobs} <- jobs(stage["jobs"]) do
-      {:ok, %{name: name, approval_type: approval_type, jobs: jobs}}
+      {:ok,
+       %{
+         name: name,
+         approval_type: approval_type,
+         clean_working_directory: clean || false,
+         jobs: jobs
+       }}
     end
   end
 
   defp stage(_other), do: {:error, "Every stage must be an object."}
+
+  defp setting(nil, _name), do: {:ok, nil}
+  defp setting(value, _name) when is_boolean(value), do: {:ok, value}
+
+  defp setting(other, name),
+    do: {:error, "`#{name}` must be true or false, not #{inspect(other)}."}
 
   defp approval_type(nil), do: {:ok, "success"}
   defp approval_type("success"), do: {:ok, "success"}
@@ -644,12 +973,34 @@ defmodule ExGoCD.Mcp.Tools.PipelineConfig do
 
   defp job(job) when is_map(job) do
     with {:ok, name} <- text(job["name"], "job name"),
+         {:ok, artifacts} <- artifacts(job["artifacts"] || []),
          {:ok, tasks} <- tasks(job["tasks"]) do
-      {:ok, %{name: name, resources: string_list(job["resources"]), tasks: tasks}}
+      {:ok,
+       %{
+         name: name,
+         resources: string_list(job["resources"]),
+         artifacts: artifacts,
+         tasks: tasks
+       }}
     end
   end
 
   defp job(_other), do: {:error, "Every job must be an object."}
+
+  defp artifacts(artifacts) when is_list(artifacts), do: collect(artifacts, &artifact/1)
+
+  defp artifact(artifact) when is_map(artifact) do
+    with {:ok, src} <- text(artifact["src"], "artifact `src`") do
+      {:ok,
+       %{
+         "type" => artifact["type"] || "build",
+         "src" => src,
+         "dest" => artifact["dest"] || ""
+       }}
+    end
+  end
+
+  defp artifact(_other), do: {:error, "Every artifact must be an object with a `src`."}
 
   defp tasks(tasks) when is_list(tasks) and tasks != [], do: collect(tasks, &task/1)
 
@@ -659,8 +1010,33 @@ defmodule ExGoCD.Mcp.Tools.PipelineConfig do
   end
 
   defp task(task) when is_map(task) do
-    type = task["type"] || "exec"
+    case task["type"] || "exec" do
+      "fetch" -> fetch_task(task)
+      type -> exec_task(type, task)
+    end
+  end
 
+  defp task(_other), do: {:error, "Every task must be an object."}
+
+  defp fetch_task(task) do
+    with {:ok, pipeline} <- text(task["pipeline"], "the pipeline a `fetch` task takes from"),
+         {:ok, stage} <- text(task["stage"], "the stage a `fetch` task takes from"),
+         {:ok, job} <- text(task["job"], "the job a `fetch` task takes from"),
+         {:ok, src} <- text(task["src"], "the artifact a `fetch` task takes") do
+      {:ok,
+       %{
+         type: "fetch",
+         pipeline: pipeline,
+         stage: stage,
+         job: job,
+         src: src,
+         dest: task["dest"] || ".",
+         run_if: task["run_if"] || "passed"
+       }}
+    end
+  end
+
+  defp exec_task(type, task) do
     with {:ok, command} <- command(type, task["command"]) do
       {:ok,
        %{
@@ -673,8 +1049,6 @@ defmodule ExGoCD.Mcp.Tools.PipelineConfig do
     end
   end
 
-  defp task(_other), do: {:error, "Every task must be an object."}
-
   defp command("exec", command), do: text(command, "task command")
   defp command(_type, command), do: {:ok, command}
 
@@ -682,18 +1056,52 @@ defmodule ExGoCD.Mcp.Tools.PipelineConfig do
   defp materials(_other), do: {:error, "`materials` must be a list."}
 
   defp material(material) when is_map(material) do
-    with {:ok, url} <- text(material["url"], "material url") do
+    with {:ok, type} <- material_type(material["type"]),
+         {:ok, url} <- material_url(type, material),
+         :ok <- stage_allowed(type, material["stage"]) do
       {:ok,
        %{
-         "type" => material["type"] || "git",
+         "type" => type,
          "url" => url,
          "branch" => material["branch"],
-         "destination" => material["destination"]
+         "destination" => material["destination"],
+         "filter_include" => string_list(material["include"]),
+         "filter_ignore" => string_list(material["exclude"]),
+         "stage_name" => material["stage"]
        }}
     end
   end
 
   defp material(_other), do: {:error, "Every material must be an object."}
+
+  defp material_type(nil), do: {:ok, "git"}
+
+  defp material_type(type) when type in ["git", "svn", "hg", "dependency"], do: {:ok, type}
+
+  defp material_type(other) do
+    {:error,
+     "A material's `type` must be `git`, `svn`, `hg` or `dependency`, not #{inspect(other)}."}
+  end
+
+  # A dependency names its upstream with `pipeline`; `url` is the older spelling
+  # of the same thing, and a repository material has only a url.
+  defp material_url("dependency", material) do
+    text(
+      material["pipeline"] || material["url"],
+      "the upstream pipeline of a dependency material"
+    )
+  end
+
+  defp material_url(_type, material), do: text(material["url"], "material url")
+
+  defp stage_allowed("dependency", _stage), do: :ok
+  defp stage_allowed(_type, nil), do: :ok
+
+  defp stage_allowed(_type, stage) do
+    {:error,
+     "Only a dependency material names an upstream `stage`; #{inspect(stage)} was given to " <>
+       "another kind of material."}
+  end
 
   # A map is not a contract: a client can send anything, so each element is
   # checked before the first insert happens, and the first failure names itself.

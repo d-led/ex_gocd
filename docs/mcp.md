@@ -68,13 +68,44 @@ locked, schedulable, latest run), `gocd_pipeline_history`,
 **Acting on pipelines** — `gocd_trigger_pipeline`, `gocd_set_pipeline_paused`,
 `gocd_unlock_pipeline`, `gocd_comment_on_pipeline`.
 
-**Authoring pipelines** — `gocd_create_pipeline` (stages, jobs, tasks and
-materials in one transaction — a definition that is wrong in the third stage
-creates nothing), `gocd_update_pipeline` (the pipeline's own settings: group,
-label template, lock behaviour, paused, timer, parameters, variables),
-`gocd_delete_pipeline`. Rewriting an existing pipeline's stages is deliberately
-not offered: a stage's run history is keyed to the stage row, so that is a
-migration rather than an edit.
+**Authoring pipelines** — `gocd_create_pipeline` takes `definition` for one
+pipeline or `pipelines` for a graph, and writes either as one thing;
+`gocd_update_pipeline` changes the pipeline's own settings (group, label
+template, lock behaviour, paused, timer, parameters, variables),
+`gocd_delete_pipeline` deletes it. Rewriting an existing pipeline's stages is
+deliberately not offered: a stage's run history is keyed to the stage row, so
+that is a migration rather than an edit.
+
+### A graph, not a pipeline
+
+GoCD's vocabulary for delivery is a graph, and the shapes are worth keeping the
+moment a second pipeline exists:
+
+- **fan-out** — one build, several deployments. Each deploy pipeline has the
+  build as a `dependency` material and starts when it succeeds.
+- **fan-in** — several upstreams, one pipeline that waits for all of them, so a
+  production deploy cannot begin because UAT went green while staging was still
+  running. Naming the same upstream stage on each dependency is what makes the
+  wait mean something: the material watches *that* stage, not the end of the
+  pipeline.
+- **passing results** — the build job publishes `artifacts`; a deploy job has a
+  `fetch` task that takes them, so what is deployed is the file that was built.
+- **build once** — the four together: build the artifact once, promote that same
+  artifact through every environment. It is why a deploy fetches rather than
+  builds again.
+
+`gocd_create_pipeline` writes a graph in two passes — every pipeline, then the
+materials — so a dependency may name a pipeline declared later in the same call.
+The answer names the edges and the shapes back (`fan-out from build to 2
+pipelines`), with each pipeline's will-it-run verdict. `gocd_validate_pipeline`
+checks the same graph without writing it, including the structural mistakes: a
+cycle, a dependency nobody declares, and a fetch of an artifact nobody publishes.
+
+Two GoCD limits worth knowing, both visible here. A material `include`/`exclude`
+filter stops fan-in resolution working, so a filtered shared repository can leave
+a fan-in target waiting forever. And `ignoreForScheduling` — a dependency that is
+used but does not trigger — is not implemented in this server, so it is not
+offered rather than accepted and ignored.
 
 **Will it run?** — `gocd_audit_config`, `gocd_who_can_run`,
 `gocd_validate_pipeline`. This is the question the old `will_it_go_cd` asked of a

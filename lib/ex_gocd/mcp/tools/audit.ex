@@ -12,7 +12,7 @@ defmodule ExGoCD.Mcp.Tools.Audit do
   It does not answer whether a run will pass; nothing static can.
   """
 
-  alias ExGoCD.ConfigAudit
+  alias ExGoCD.{ConfigAudit, PipelineGraph}
   alias ExGoCD.Mcp.{Args, Render, Tool}
   alias ExGoCD.Mcp.Tools.PipelineConfig
 
@@ -56,14 +56,21 @@ defmodule ExGoCD.Mcp.Tools.Audit do
       "title" => "Check a pipeline definition before creating it",
       "description" =>
         "Reads a definition exactly as `gocd_create_pipeline` would and creates nothing: " <>
-          "answers whether it is well formed, and whether any agent could run its jobs. " <>
-          "A definition that is wrong in the ninth job costs a sentence here instead of " <>
-          "a queue that never moves. `gocd_create_pipeline` reports the same verdict " <>
-          "once the pipeline exists.",
+          "answers whether it is well formed, whether the graph holds together (a cycle, " <>
+          "a dependency nobody declares, a fetch of an artifact nobody publishes), and " <>
+          "whether any agent could run its jobs. One pipeline through `definition`, a " <>
+          "graph through `pipelines`. A definition wrong in the ninth job costs a " <>
+          "sentence here instead of a queue that never moves.",
       "inputSchema" => %{
         "type" => "object",
-        "properties" => %{"definition" => PipelineConfig.definition_schema()},
-        "required" => ["definition"]
+        "properties" => %{
+          "definition" => PipelineConfig.definition_schema(),
+          "pipelines" => %{
+            "type" => "array",
+            "description" => "A graph: several pipelines in one call, in any order.",
+            "items" => PipelineConfig.definition_schema()
+          }
+        }
       },
       "annotations" => Tool.read_only()
     }
@@ -215,15 +222,21 @@ defmodule ExGoCD.Mcp.Tools.Audit do
   # ── a definition that does not exist yet ───────────────────────────
 
   defp validate_pipeline(args, _ctx) do
-    with {:ok, definition} <- PipelineConfig.preview(args["definition"]) do
-      jobs = proposed_jobs(definition)
-      verdicts = Enum.map(jobs, &{&1, ConfigAudit.fit(&1.resources, [])})
+    with {:ok, definitions} <- PipelineConfig.preview_graph(args) do
+      problems = PipelineGraph.problems(definitions)
+      verdicts = verdicts(definitions)
 
       Tool.ok(
-        definition_text(definition, verdicts),
-        definition_answer(definition, verdicts)
+        definition_text(definitions, problems, verdicts),
+        definition_answer(definitions, problems, verdicts)
       )
     end
+  end
+
+  defp verdicts(definitions) do
+    for definition <- definitions,
+        job <- proposed_jobs(definition),
+        do: {definition.name, job, ConfigAudit.fit(job.resources, [])}
   end
 
   defp proposed_jobs(definition) do
@@ -239,24 +252,35 @@ defmodule ExGoCD.Mcp.Tools.Audit do
     end)
   end
 
-  defp definition_text(definition, verdicts) do
-    jobs = length(verdicts)
-    stages = length(definition.stages)
+  defp definition_text(definitions, problems, verdicts) do
+    stages = definitions |> Enum.map(&length(&1.stages)) |> Enum.sum()
 
     body =
       verdicts
-      |> Enum.map(fn {job, fit} -> "`#{job.stage}` / `#{job.job}`: #{fit_text(fit, job)}" end)
+      |> Enum.map(fn {pipeline, job, fit} ->
+        "`#{pipeline}` / `#{job.stage}` / `#{job.job}`: #{fit_text(fit, job)}"
+      end)
       |> Render.bullets()
 
-    "The definition reads: #{stages} stage(s), #{jobs} job(s). Nothing was created.\n" <>
-      "It is in no environment yet, so only agents outside every environment could take " <>
-      "its jobs.\n" <> body <> first_advice(verdicts)
+    "The definition reads: #{length(definitions)} pipeline(s), #{stages} stage(s), " <>
+      "#{length(verdicts)} job(s). Nothing was created.\n" <>
+      "None of them is in an environment yet, so only agents outside every " <>
+      "environment could take their jobs.\n" <>
+      body <> problem_text(problems) <> first_advice(verdicts)
+  end
+
+  # A graph's structural mistakes are the ones a run cannot recover from, so they
+  # come first — an agent fit is worth nothing for a cycle.
+  defp problem_text([]), do: ""
+
+  defp problem_text(problems) do
+    "\nThe graph itself:\n" <> Render.bullets(Enum.map(problems, & &1.message))
   end
 
   defp first_advice(verdicts) do
     verdicts
-    |> Enum.reject(fn {_job, fit} -> fit.runnable != [] end)
-    |> Enum.map(fn {_job, fit} -> fit_advice(fit) end)
+    |> Enum.reject(fn {_pipeline, _job, fit} -> fit.runnable != [] end)
+    |> Enum.map(fn {_pipeline, _job, fit} -> fit_advice(fit) end)
     |> Enum.reject(&is_nil/1)
     |> List.first()
     |> case do
@@ -291,13 +315,14 @@ defmodule ExGoCD.Mcp.Tools.Audit do
     end
   end
 
-  defp definition_answer(definition, verdicts) do
+  defp definition_answer(definitions, problems, verdicts) do
     %{
-      "name" => definition.name,
-      "stages" => Enum.map(definition.stages, & &1.name),
+      "pipelines" => Enum.map(definitions, & &1.name),
+      "problems" => Enum.map(problems, &%{"code" => to_string(&1.code), "message" => &1.message}),
       "jobs" =>
-        Enum.map(verdicts, fn {job, fit} ->
+        Enum.map(verdicts, fn {pipeline, job, fit} ->
           %{
+            "pipeline" => pipeline,
             "stage" => job.stage,
             "job" => job.job,
             "resources" => job.resources,
@@ -305,7 +330,9 @@ defmodule ExGoCD.Mcp.Tools.Audit do
             "verdict" => fit_text(fit, job)
           }
         end),
-      "will_run" => Enum.all?(verdicts, fn {_job, fit} -> fit.runnable != [] end)
+      "will_run" =>
+        problems == [] and
+          Enum.all?(verdicts, fn {_pipeline, _job, fit} -> fit.runnable != [] end)
     }
   end
 

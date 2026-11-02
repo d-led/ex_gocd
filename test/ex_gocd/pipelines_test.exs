@@ -670,6 +670,84 @@ defmodule ExGoCD.PipelinesTest do
       end
     end
 
+    test "a dependency material that names a stage is triggered by that stage, not by the pipeline's end" do
+      upstream =
+        Repo.insert!(
+          %Pipeline{}
+          |> Pipeline.changeset(%{name: "stage-gate-source", group: "test"})
+        )
+
+      for {stage_name, order} <- [{"build", 1}, {"publish", 2}] do
+        stage =
+          Repo.insert!(
+            %Stage{}
+            |> Stage.changeset(%{
+              name: stage_name,
+              pipeline_id: upstream.id,
+              approval_type: "success",
+              order_id: order
+            })
+          )
+
+        job =
+          Repo.insert!(
+            %Job{}
+            |> Job.changeset(%{name: "work", stage_id: stage.id, resources: []})
+          )
+
+        Repo.insert!(
+          %Task{}
+          |> Task.changeset(%{type: "exec", command: "echo", arguments: ["ok"], job_id: job.id})
+        )
+      end
+
+      make_downstream = fn name, stage_name ->
+        downstream = Repo.insert!(%Pipeline{} |> Pipeline.changeset(%{name: name, group: "test"}))
+        Repo.insert!(%Stage{} |> Stage.changeset(%{name: "pack", pipeline_id: downstream.id}))
+
+        material =
+          Repo.insert!(
+            %ExGoCD.Pipelines.Material{}
+            |> ExGoCD.Pipelines.Material.changeset(%{
+              type: "dependency",
+              url: "stage-gate-source",
+              stage_name: stage_name
+            })
+          )
+
+        downstream
+        |> Repo.preload(:materials)
+        |> Ecto.Changeset.change()
+        |> Ecto.Changeset.put_assoc(:materials, [material])
+        |> Repo.update!()
+      end
+
+      make_downstream.("gate-on-build", "build")
+      make_downstream.("gate-on-publish", "publish")
+
+      {:ok, instance} = Pipelines.trigger_pipeline("stage-gate-source")
+
+      build_instance =
+        Repo.one!(
+          from si in StageInstance,
+            where: si.pipeline_instance_id == ^instance.id and si.name == "build",
+            preload: :job_instances
+        )
+
+      Enum.each(build_instance.job_instances, &Pipelines.complete_job_instance(&1.id, "Passed"))
+
+      ran? = fn name ->
+        Repo.exists?(
+          from pi in ExGoCD.Pipelines.PipelineInstance,
+            join: p in assoc(pi, :pipeline),
+            where: p.name == ^name
+        )
+      end
+
+      assert ran?.("gate-on-build"), "the downstream that watches `build` should already have run"
+      refute ran?.("gate-on-publish"), "the downstream that watches `publish` waits for it"
+    end
+
     test "fan-in gate: downstream waits for ALL dependencies before triggering" do
       # Create gate pipeline that depends on BOTH dep-a AND dep-b
       gate = Repo.insert!(%Pipeline{} |> Pipeline.changeset(%{name: "fanin-gate", group: "test"}))

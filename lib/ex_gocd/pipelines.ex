@@ -1904,66 +1904,74 @@ defmodule ExGoCD.Pipelines do
   Assigns a job instance to an agent (called when Scheduler assigns work for a pipeline job).
   """
   def assign_job_instance(job_instance_id, agent_uuid) when is_integer(job_instance_id) do
-    ji = Repo.get(JobInstance, job_instance_id)
-
-    if ji do
-      # Preload to get pipeline/ stage context for span attributes
-      si =
-        from(si in ExGoCD.Pipelines.StageInstance,
-          where: si.id == ^ji.stage_instance_id,
-          preload: :pipeline_instance
-        )
-        |> Repo.one()
-
-      pipeline_name =
-        si && si.pipeline_instance && si.pipeline_instance.pipeline_id &&
-          from(p in ExGoCD.Pipelines.Pipeline,
-            where: p.id == ^si.pipeline_instance.pipeline_id,
-            select: p.name
-          )
-          |> Repo.one()
-
-      pipeline_counter = si && si.pipeline_instance && si.pipeline_instance.counter
-
-      VsmTracer.trace(
-        "job.assign",
-        %{
-          "job.name" => ji.name,
-          "agent.uuid" => agent_uuid,
-          "job.instance_id" => job_instance_id,
-          "pipeline.name" => pipeline_name,
-          "pipeline.counter" => pipeline_counter,
-          "stage.name" => si && si.name
-        },
-        fn ->
-          now = DateTime.utc_now()
-
-          res =
-            ji
-            |> JobInstance.changeset(%{
-              state: "Assigned",
-              agent_uuid: agent_uuid,
-              assigned_at: now
-            })
-            |> Repo.update()
-
-          Phoenix.PubSub.broadcast(ExGoCD.PubSub, "pipelines:updates", :pipelines_updated)
-
-          case res do
-            {:ok, _} ->
-              VsmTracer.set_status(:ok)
-
-            {:error, cs} ->
-              VsmTracer.set_status({:error, "job assign failed: #{inspect(cs.errors)}"})
-          end
-
-          res
-        end
-      )
-    else
-      {:error, :not_found}
+    case Repo.get(JobInstance, job_instance_id) do
+      nil -> {:error, :not_found}
+      job -> assign_to(job, agent_uuid)
     end
   end
+
+  defp assign_to(job, agent_uuid) do
+    context = job_context(job)
+
+    VsmTracer.trace("job.assign", trace_fields(job, agent_uuid, context), fn ->
+      assign_and_publish(job, agent_uuid)
+    end)
+  end
+
+  # The pipeline, counter and stage the job belongs to, for the trace span.
+  defp job_context(job) do
+    stage =
+      Repo.one(
+        from(si in ExGoCD.Pipelines.StageInstance,
+          where: si.id == ^job.stage_instance_id,
+          preload: :pipeline_instance
+        )
+      )
+
+    %{
+      stage_name: stage && stage.name,
+      pipeline_name: pipeline_name_of(stage),
+      pipeline_counter: stage && stage.pipeline_instance && stage.pipeline_instance.counter
+    }
+  end
+
+  defp pipeline_name_of(%{pipeline_instance: %{pipeline_id: pipeline_id}})
+       when not is_nil(pipeline_id) do
+    Repo.one(from(p in ExGoCD.Pipelines.Pipeline, where: p.id == ^pipeline_id, select: p.name))
+  end
+
+  defp pipeline_name_of(_stage), do: nil
+
+  defp trace_fields(job, agent_uuid, context) do
+    %{
+      "job.name" => job.name,
+      "agent.uuid" => agent_uuid,
+      "job.instance_id" => job.id,
+      "pipeline.name" => context.pipeline_name,
+      "pipeline.counter" => context.pipeline_counter,
+      "stage.name" => context.stage_name
+    }
+  end
+
+  defp assign_and_publish(job, agent_uuid) do
+    result =
+      job
+      |> JobInstance.changeset(%{
+        state: "Assigned",
+        agent_uuid: agent_uuid,
+        assigned_at: DateTime.utc_now()
+      })
+      |> Repo.update()
+
+    Phoenix.PubSub.broadcast(ExGoCD.PubSub, "pipelines:updates", :pipelines_updated)
+    record_assign_status(result)
+    result
+  end
+
+  defp record_assign_status({:ok, _}), do: VsmTracer.set_status(:ok)
+
+  defp record_assign_status({:error, changeset}),
+    do: VsmTracer.set_status({:error, "job assign failed: #{inspect(changeset.errors)}"})
 
   @doc """
   Syncs a JobInstance state from the agent's reported job state.
