@@ -204,37 +204,52 @@ defmodule ExGoCD.Mcp.Tools.Stages do
   end
 
   defp history(args, _ctx) do
-    with {:ok, pipeline} <- Args.required(args, "pipeline"),
-         {:ok, stage} <- Args.required(args, "stage"),
-         {:ok, limit} <- Args.integer(args, "limit", default: 10, min: 1, max: 100),
-         {:ok, offset} <- Args.integer(args, "offset", default: 0, min: 0, max: 100_000) do
-      instances = Pipelines.list_stage_instances(pipeline, stage, offset: offset, limit: limit)
-
-      text =
-        "#{pipeline} · stage #{stage}: #{length(instances)} instance(s) from #{offset}\n\n" <>
-          Render.table(
-            ["RUN", "STAGE #", "STATE", "RESULT", "JOBS", "COMPLETED"],
-            Enum.map(instances, fn instance ->
-              [
-                instance.pipeline_instance.counter,
-                instance.counter,
-                instance.state || "Unknown",
-                instance.result || "Unknown",
-                Enum.map_join(instance.job_instances || [], ", ", & &1.name),
-                Render.timestamp(instance.completed_at)
-              ]
-            end)
-          )
-
-      Tool.ok(text, %{
-        "pipeline" => pipeline,
-        "stage" => stage,
-        "offset" => offset,
-        "instances" => Enum.map(instances, &PipelineView.stage/1)
-      })
-    else
+    case Args.all(args,
+           pipeline: :string,
+           stage: :string,
+           limit: {:integer, default: 10, min: 1, max: 100},
+           offset: {:integer, default: 0, min: 0, max: 100_000}
+         ) do
+      {:ok, request} -> history_answer(request)
       {:error, message} -> {:error, message}
     end
+  end
+
+  defp history_answer(request) do
+    instances =
+      Pipelines.list_stage_instances(request.pipeline, request.stage,
+        offset: request.offset,
+        limit: request.limit
+      )
+
+    Tool.ok(history_text(request, instances), history_payload(request, instances))
+  end
+
+  @history_columns ["RUN", "STAGE #", "STATE", "RESULT", "JOBS", "COMPLETED"]
+
+  defp history_text(request, instances) do
+    "#{request.pipeline} · stage #{request.stage}: #{length(instances)} instance(s) from #{request.offset}\n\n" <>
+      Render.table(@history_columns, Enum.map(instances, &history_row/1))
+  end
+
+  defp history_row(instance) do
+    [
+      instance.pipeline_instance.counter,
+      instance.counter,
+      instance.state || "Unknown",
+      instance.result || "Unknown",
+      Enum.map_join(instance.job_instances || [], ", ", & &1.name),
+      Render.timestamp(instance.completed_at)
+    ]
+  end
+
+  defp history_payload(request, instances) do
+    %{
+      "pipeline" => request.pipeline,
+      "stage" => request.stage,
+      "offset" => request.offset,
+      "instances" => Enum.map(instances, &PipelineView.stage/1)
+    }
   end
 
   defp approve(args, ctx) do
@@ -300,26 +315,33 @@ defmodule ExGoCD.Mcp.Tools.Stages do
   end
 
   defp rerun_failed(args, ctx) do
-    with {:ok, pipeline} <- Args.required(args, "pipeline"),
-         {:ok, counter} <- Args.required_integer(args, "counter"),
-         {:ok, stage} <- Args.required(args, "stage"),
-         {:ok, stage_counter} <- Args.required_integer(args, "stage_counter"),
-         {:ok, confirm} <- Args.boolean(args, "confirm"),
+    with {:ok, request} <-
+           Args.all(args,
+             pipeline: :string,
+             counter: :integer,
+             stage: :string,
+             stage_counter: :integer,
+             confirm: :boolean
+           ),
          :ok <- Auth.require_pipeline_access(ctx.user, "re-run failed jobs") do
-      if confirm do
-        rerun_confirmed(pipeline, counter, stage, stage_counter, ctx)
-      else
-        {:error,
-         "Re-running the failed jobs of #{pipeline} ##{counter}, stage #{stage} " <>
-           "##{stage_counter} resets them to scheduled and queues them again, keeping the " <>
-           "jobs that passed. Call again with `confirm: true` to do it."}
-      end
+      if request.confirm, do: rerun_confirmed(request, ctx), else: rerun_explained(request)
     else
       {:error, message} -> {:error, message}
     end
   end
 
-  defp rerun_confirmed(pipeline, counter, stage, stage_counter, ctx) do
+  # Re-running is destructive to the run's record, so the first call only says
+  # what the second one will do.
+  defp rerun_explained(request) do
+    {:error,
+     "Re-running the failed jobs of #{request.pipeline} ##{request.counter}, stage #{request.stage}" <>
+       "##{request.stage_counter} resets them to scheduled and queues them again, keeping the " <>
+       "jobs that passed. Call again with `confirm: true` to do it."}
+  end
+
+  defp rerun_confirmed(request, ctx) do
+    %{pipeline: pipeline, counter: counter, stage: stage, stage_counter: stage_counter} = request
+
     case Pipelines.rerun_failed_jobs(pipeline, counter, stage, stage_counter) do
       {:ok, count} ->
         Events.stage_failed_jobs_rerun(

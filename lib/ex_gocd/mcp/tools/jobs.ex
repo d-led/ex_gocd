@@ -350,38 +350,46 @@ defmodule ExGoCD.Mcp.Tools.Jobs do
   defp first_line(message), do: message |> String.split("\n", parts: 2) |> hd()
 
   defp schedule(args, ctx) do
-    with {:ok, pipeline} <- Args.optional(args, "pipeline"),
-         {:ok, stage} <- Args.optional(args, "stage"),
-         {:ok, job} <- Args.optional(args, "job"),
-         {:ok, resources} <- Args.strings(args, "resources"),
-         {:ok, environments} <- Args.strings(args, "environments"),
+    with {:ok, request} <-
+           Args.all(args,
+             pipeline: :optional,
+             stage: :optional,
+             job: :optional,
+             resources: :strings,
+             environments: :strings
+           ),
          :ok <- Auth.require_pipeline_access(ctx.user, "schedule a job") do
-      spec = %{
-        "pipeline" => pipeline,
-        "stage" => stage,
-        "job" => job,
-        "resources" => resources,
-        "environments" => environments
-      }
-
-      case Scheduler.schedule_job(spec) do
-        {:ok, job_id} ->
-          Tool.ok(
-            "Job queued as `#{job_id}`. `gocd_queue` shows what the scheduler is holding and " <>
-              "whether an agent matches its resources.",
-            %{
-              "job_id" => job_id,
-              "resources" => resources,
-              "environments" => environments
-            }
-          )
-
-        {:error, reason} ->
-          {:error, "Could not queue the job: #{inspect(reason)}"}
-      end
+      queue(request)
     else
       {:error, message} -> {:error, message}
     end
+  end
+
+  defp queue(request) do
+    spec = %{
+      "pipeline" => request.pipeline,
+      "stage" => request.stage,
+      "job" => request.job,
+      "resources" => request.resources,
+      "environments" => request.environments
+    }
+
+    case Scheduler.schedule_job(spec) do
+      {:ok, job_id} -> queued(job_id, request)
+      {:error, reason} -> {:error, "Could not queue the job: #{inspect(reason)}"}
+    end
+  end
+
+  defp queued(job_id, request) do
+    Tool.ok(
+      "Job queued as `#{job_id}`. `gocd_queue` shows what the scheduler is holding and " <>
+        "whether an agent matches its resources.",
+      %{
+        "job_id" => job_id,
+        "resources" => request.resources,
+        "environments" => request.environments
+      }
+    )
   end
 
   # ── reading ────────────────────────────────────────────────────────

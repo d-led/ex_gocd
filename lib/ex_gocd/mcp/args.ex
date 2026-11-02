@@ -156,6 +156,36 @@ defmodule ExGoCD.Mcp.Args do
     end
   end
 
+  @doc """
+  Several required arguments at once, as a map keyed by name.
+
+      with {:ok, request} <- Args.all(args, pipeline: :string, counter: :integer) do
+        # request.pipeline, request.counter
+      end
+
+  A tool that asks for four arguments would otherwise say the same thing with four
+  `with` generators, which is one expression and four ways to fail.
+  """
+  @spec all(map(), keyword()) :: result(map())
+  def all(args, specs) do
+    Enum.reduce_while(specs, {:ok, %{}}, fn {key, kind}, {:ok, parsed} ->
+      case parse_one(args, key, kind) do
+        {:ok, value} -> {:cont, {:ok, Map.put(parsed, key, value)}}
+        {:error, message} -> {:halt, {:error, message}}
+      end
+    end)
+  end
+
+  defp parse_one(args, key, :string), do: required(args, key)
+  defp parse_one(args, key, :integer), do: required_integer(args, key)
+  defp parse_one(args, key, :boolean), do: required_boolean(args, key)
+
+  # An optional integer with the defaults the tool advertises.
+  defp parse_one(args, key, {:integer, opts}), do: integer(args, key, opts)
+
+  defp parse_one(args, key, :optional), do: optional(args, key)
+  defp parse_one(args, key, :strings), do: strings(args, key)
+
   @doc "A required boolean — for a flag whose absence would be a different request."
   @spec required_boolean(map(), String.t()) :: result(boolean())
   def required_boolean(args, key) do
