@@ -436,6 +436,5 @@ defmodule ExGoCD.Mcp.Tools.Analytics do
   defp percentage(nil), do: "—"
   defp percentage(value), do: "#{value}%"
 
-  defp format_ratio(value) when is_float(value), do: "#{Float.round(value * 100, 1)}%"
-  defp format_ratio(value), do: "#{value}"
+  defp format_ratio(value) when is_number(value), do: "#{Float.round(value * 100, 1)}%"
 end

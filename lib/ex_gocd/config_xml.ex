@@ -99,7 +99,26 @@ defmodule ExGoCD.ConfigXml do
       render_secure_vars(pipeline.secure_variables)
   end
 
-  defp render_material(%{type: "git"} = mat) do
+  defp render_material(%{type: type} = mat) do
+    case Map.fetch(material_renderers(), type) do
+      {:ok, renderer} -> renderer.(mat)
+      :error -> render_url_material(mat)
+    end
+  end
+
+  # One renderer per material type, so a new type is a new entry, not a new branch.
+  defp material_renderers do
+    %{
+      "git" => &render_git_material/1,
+      "svn" => &render_svn_material/1,
+      "dependency" => &render_dependency_material/1,
+      "hg" => &render_url_material/1,
+      "p4" => &render_url_material/1,
+      "tfs" => &render_url_material/1
+    }
+  end
+
+  defp render_git_material(mat) do
     destination = material_destination(mat)
 
     tag2("git", %{
@@ -111,17 +130,7 @@ defmodule ExGoCD.ConfigXml do
     })
   end
 
-  defp render_material(%{type: "dependency"} = mat) do
-    pipeline_name = material_pipeline_name(mat) || mat.url
-
-    tag2("pipeline", %{
-      pipelineName: pipeline_name,
-      stageName: material_stage_name(mat) || "build",
-      materialName: named_as(mat, pipeline_name)
-    })
-  end
-
-  defp render_material(%{type: "svn"} = mat) do
+  defp render_svn_material(mat) do
     tsc = type_specific_config(mat)
     destination = material_destination(mat)
 
@@ -137,17 +146,33 @@ defmodule ExGoCD.ConfigXml do
     |> then(&tag2("svn", &1))
   end
 
-  defp render_material(%{type: type} = mat) when type in ["hg", "p4", "tfs"] do
+  defp render_dependency_material(mat) do
+    {pipeline_name, stage_name} = dependency_target(mat)
+
+    tag2("pipeline", %{
+      pipelineName: pipeline_name,
+      stageName: stage_name,
+      materialName: named_as(mat, pipeline_name)
+    })
+  end
+
+  # A dependency names its upstream pipeline; the stage defaults to build.
+  defp dependency_target(mat) do
+    {material_pipeline_name(mat) || mat.url, material_stage_name(mat) || "build"}
+  end
+
+  defp render_url_material(mat) do
     destination = material_destination(mat)
 
-    tag2(type, %{
+    tag2(rendered_type(mat), %{
       url: mat.url || "",
       dest: destination,
       materialName: named_as(mat, destination)
     })
   end
 
-  defp render_material(mat), do: tag2(mat.type || "git", %{url: mat.url || ""})
+  defp rendered_type(%{type: type}) when is_binary(type), do: type
+  defp rendered_type(_mat), do: "git"
 
   # The defaults GoCD's own writer applies, in one place per attribute.
   defp branch_of(mat, default), do: mat.branch || default
@@ -245,7 +270,7 @@ defmodule ExGoCD.ConfigXml do
 
   defp render_task(%{type: "exec"} = task) do
     args =
-      Enum.map_join(task_attribute(task, :arguments, :args) || [], "", &tag3("arg", %{}, esc(&1)))
+      Enum.map_join(task_arguments(task), "", &tag3("arg", %{}, esc(&1)))
 
     tag3("exec", %{command: task.command || ""}, args)
   end
@@ -253,12 +278,7 @@ defmodule ExGoCD.ConfigXml do
   # A fetch task keeps its source coordinates in `arguments`, the same shape the
   # scheduler reads: [pipeline, stage, job, src_file, dest].
   defp render_task(%{type: "fetch"} = task) do
-    {pipeline, stage, job, src_file, dest} =
-      case task_attribute(task, :arguments, :args) || [] do
-        [pipeline, stage, job, src_file, dest] -> {pipeline, stage, job, src_file, dest}
-        [stage, job, src_file, dest] -> {"", stage, job, src_file, dest}
-        _ -> {"", "", "", "", ""}
-      end
+    {pipeline, stage, job, src_file, dest} = fetch_path(task_arguments(task))
 
     tag2("fetchartifact", %{
       pipeline: pipeline,
@@ -277,6 +297,15 @@ defmodule ExGoCD.ConfigXml do
   defp task_attribute(task, primary, fallback) do
     Map.get(task, primary) || Map.get(task, fallback)
   end
+
+  defp task_arguments(task), do: task_attribute(task, :arguments, :args) || []
+
+  # A fetch names its source by pipeline/stage/job/file or by stage/job/file.
+  defp fetch_path([pipeline, stage, job, src_file, dest]),
+    do: {pipeline, stage, job, src_file, dest}
+
+  defp fetch_path([stage, job, src_file, dest]), do: {"", stage, job, src_file, dest}
+  defp fetch_path(_incomplete), do: {"", "", "", "", ""}
 
   defp render_tabs(tabs) when is_map(tabs) and tabs != %{} do
     inner =
@@ -830,21 +859,28 @@ defmodule ExGoCD.ConfigXml do
     end
   end
 
-  defp parse_property_value(key, value) when key in ["MaxCPU", "MinCPU", "MinAgents"] do
+  @numeric_properties ["MaxCPU", "MinCPU", "MinAgents"]
+  @structured_starts ["{", "["]
+
+  defp parse_property_value(key, value) when key in @numeric_properties, do: integer_or(value)
+
+  defp parse_property_value(_key, value) do
+    if structured?(value), do: decode_or(value), else: value
+  end
+
+  defp integer_or(value) do
     case Integer.parse(value) do
-      {n, _} -> n
-      _ -> value
+      {number, _rest} -> number
+      :error -> value
     end
   end
 
-  defp parse_property_value(_key, value) do
-    if String.starts_with?(value, "{") || String.starts_with?(value, "[") do
-      case Jason.decode(value) do
-        {:ok, decoded} -> decoded
-        _ -> value
-      end
-    else
-      value
+  defp structured?(value), do: Enum.any?(@structured_starts, &String.starts_with?(value, &1))
+
+  defp decode_or(value) do
+    case Jason.decode(value) do
+      {:ok, decoded} -> decoded
+      {:error, _reason} -> value
     end
   end
 

@@ -117,52 +117,44 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
   end
 
   defp build_mock_indeterminate_vsm(pipeline_name) do
-    mock_pipeline = Enum.find(MockData.pipelines(), &(&1.name == pipeline_name))
-
-    if is_nil(mock_pipeline) do
-      {:error, :not_found}
-    else
-      materials = mock_pipeline.materials || []
-      downstream_names = get_downstream_pipelines(pipeline_name)
-
-      material_nodes =
-        materials
-        |> Enum.map(fn mat ->
-          build_material_node(mat, nil, pipeline_name)
-        end)
-
-      unrun_instance = build_unrun_instance(pipeline_name)
-
-      pipeline_node = %{
-        "id" => pipeline_name,
-        "name" => pipeline_name,
-        "node_type" => "PIPELINE",
-        "depth" => 1,
-        "parents" => Enum.map(material_nodes, & &1["id"]),
-        "dependents" => downstream_names,
-        "locator" => "/go/pipeline/activity/#{pipeline_name}",
-        "can_edit" => true,
-        "edit_path" => "/go/admin/pipelines/#{pipeline_name}/edit/general",
-        "template_name" => nil,
-        "instances" => [unrun_instance]
-      }
-
-      downstream_nodes = build_all_downstream_nodes(downstream_names, [pipeline_name], 2)
-
-      downstream_levels =
-        downstream_nodes
-        |> Enum.group_by(& &1["depth"])
-        |> Enum.sort_by(fn {depth, _nodes} -> depth end)
-        |> Enum.map(fn {_depth, nodes} -> %{"nodes" => nodes} end)
-
-      levels =
-        [
-          %{"nodes" => material_nodes},
-          %{"nodes" => [pipeline_node]}
-        ] ++ downstream_levels
-
-      {:ok, %{"current_pipeline" => pipeline_name, "levels" => levels}}
+    case Enum.find(MockData.pipelines(), &(&1.name == pipeline_name)) do
+      nil -> {:error, :not_found}
+      mock_pipeline -> {:ok, indeterminate_vsm(pipeline_name, mock_pipeline)}
     end
+  end
+
+  # A pipeline that has never run has no instance, so the only run it shows is a placeholder.
+  defp indeterminate_vsm(pipeline_name, mock_pipeline) do
+    downstream_names = get_downstream_pipelines(pipeline_name)
+
+    material_nodes =
+      build_material_nodes_no_instance(mock_pipeline.materials || [], pipeline_name)
+
+    pipeline_node =
+      unrun_pipeline_node(pipeline_name, material_nodes, downstream_names)
+
+    downstream_nodes = build_all_downstream_nodes(downstream_names, [pipeline_name], 2)
+
+    %{
+      "current_pipeline" => pipeline_name,
+      "levels" => assemble_levels(material_nodes, pipeline_node, downstream_nodes)
+    }
+  end
+
+  defp unrun_pipeline_node(pipeline_name, material_nodes, downstream_names) do
+    %{
+      "id" => pipeline_name,
+      "name" => pipeline_name,
+      "node_type" => "PIPELINE",
+      "depth" => 1,
+      "parents" => Enum.map(material_nodes, & &1["id"]),
+      "dependents" => downstream_names,
+      "locator" => "/go/pipeline/activity/#{pipeline_name}",
+      "can_edit" => true,
+      "edit_path" => "/go/admin/pipelines/#{pipeline_name}/edit/general",
+      "template_name" => nil,
+      "instances" => [build_unrun_instance(pipeline_name)]
+    }
   end
 
   defp build_material_nodes_no_instance(materials, pipeline_name) do
@@ -605,33 +597,36 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
   defp first_present(values), do: Enum.find(values, &(not is_nil(&1)))
 
   defp build_real_instance(instance) do
-    pipeline_name =
-      case instance.pipeline do
-        %Ecto.Association.NotLoaded{} ->
-          # Fallback: extract pipeline name from build_cause or just use stage instance names
-          instance.stage_instances |> List.first() |> Map.get(:name) || "unknown"
-
-        pipeline ->
-          pipeline.name
-      end
-
-    stages =
-      (instance.stage_instances || [])
-      |> Enum.sort_by(& &1.order_id)
-      |> Enum.map(fn si ->
-        %{
-          "name" => si.name,
-          "status" => stage_status_for_vsm(si),
-          "duration" => diff_time(si.completed_at, si.created_time),
-          "locator" => "/pipelines/#{pipeline_name}/#{instance.counter}/#{si.name}/#{si.counter}"
-        }
-      end)
+    pipeline_name = instance_pipeline_name(instance)
 
     %{
       "label" => instance.label,
       "counter" => instance.counter,
       "locator" => "/pipelines/value_stream_map/#{pipeline_name}/#{instance.counter}",
-      "stages" => stages
+      "stages" =>
+        instance
+        |> instance_stages()
+        |> Enum.map(&stage_entry(&1, pipeline_name, instance.counter))
+    }
+  end
+
+  defp instance_pipeline_name(%{pipeline: %Ecto.Association.NotLoaded{}} = instance) do
+    instance.stage_instances |> List.first() |> Map.get(:name) || "unknown"
+  end
+
+  defp instance_pipeline_name(%{pipeline: pipeline}), do: pipeline.name
+
+  defp instance_stages(instance) do
+    (instance.stage_instances || [])
+    |> Enum.sort_by(& &1.order_id)
+  end
+
+  defp stage_entry(stage, pipeline_name, counter) do
+    %{
+      "name" => stage.name,
+      "status" => stage_status_for_vsm(stage),
+      "duration" => diff_time(stage.completed_at, stage.created_time),
+      "locator" => "/pipelines/#{pipeline_name}/#{counter}/#{stage.name}/#{stage.counter}"
     }
   end
 

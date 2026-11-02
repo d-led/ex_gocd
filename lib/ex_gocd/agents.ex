@@ -415,15 +415,15 @@ defmodule ExGoCD.Agents do
   """
   @spec count_idle_matching([String.t()]) :: integer()
   def count_idle_matching(resources) when is_list(resources) and resources != [] do
-    idle_agents = list_idle_agents()
-
-    Enum.count(idle_agents, fn agent ->
-      agent_resources = agent.resources || []
-      Enum.all?(resources, fn r -> r in agent_resources end)
-    end)
+    Enum.count(list_idle_agents(), &has_all_resources?(&1, resources))
   end
 
   def count_idle_matching(_), do: count_idle()
+
+  defp has_all_resources?(agent, resources) do
+    agent_resources = agent.resources || []
+    Enum.all?(resources, &(&1 in agent_resources))
+  end
 
   @doc """
   Lists all idle (not disabled, not deleted) agents.
@@ -555,18 +555,18 @@ defmodule ExGoCD.Agents do
 
   defp find_or_reregister_agent(uuid, hostname) do
     case get_agent_by_uuid(uuid) do
-      nil ->
-        if hostname do
-          case Repo.get_by(Agent, hostname: hostname, disabled: false, deleted: false) do
-            nil -> {:error, :not_found}
-            agent -> re_assign_uuid(agent, uuid)
-          end
-        else
-          {:error, :not_found}
-        end
+      nil -> reregister_by_hostname(uuid, hostname)
+      agent -> {:ok, agent}
+    end
+  end
 
-      agent ->
-        {:ok, agent}
+  # A fresh UUID for a known hostname is an agent that was restarted.
+  defp reregister_by_hostname(_uuid, nil), do: {:error, :not_found}
+
+  defp reregister_by_hostname(uuid, hostname) do
+    case Repo.get_by(Agent, hostname: hostname, disabled: false, deleted: false) do
+      nil -> {:error, :not_found}
+      agent -> re_assign_uuid(agent, uuid)
     end
   end
 
@@ -970,20 +970,13 @@ defmodule ExGoCD.Agents do
   Only affects non-deleted agents.
   """
   def clean_lost_agents do
-    agents =
+    count =
       from(a in Agent,
         where: a.state in ["Idle", "Building", "LostContact"] and a.deleted == false
       )
       |> Repo.all()
       |> Enum.filter(&(effective_status(&1) == :lost_contact))
-
-    count =
-      Enum.reduce(agents, 0, fn agent, acc ->
-        case do_delete_agent(agent) do
-          {:ok, _} -> acc + 1
-          _ -> acc
-        end
-      end)
+      |> delete_agents_and_count()
 
     if count > 0 do
       ExGoCD.AuditLog.log("system", "agents.clean_lost",
@@ -1085,13 +1078,15 @@ defmodule ExGoCD.Agents do
       where: a.state == "LostContact" and a.updated_at < ^cutoff and a.deleted == false
     )
     |> Repo.all()
-    |> Enum.reduce(0, fn agent, acc ->
-      case do_delete_agent(agent) do
-        {:ok, _} -> acc + 1
-        _ -> acc
-      end
-    end)
+    |> delete_agents_and_count()
   end
+
+  defp delete_agents_and_count(agents) do
+    Enum.reduce(agents, 0, fn agent, count -> count_deleted(do_delete_agent(agent), count) end)
+  end
+
+  defp count_deleted({:ok, _agent}, count), do: count + 1
+  defp count_deleted(_error, count), do: count
 
   @doc """
   Bulk soft deletes agents by UUID. Only disabled agents can be deleted.

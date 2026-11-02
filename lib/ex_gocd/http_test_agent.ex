@@ -338,32 +338,33 @@ defmodule ExGoCD.HTTPTestAgent do
 
   defp handle_websocket_frame({:text, payload}, state) do
     case Jason.decode(payload) do
-      {:ok, %{"action" => "build", "data" => data}} ->
-        build_id = data["buildId"]
-        console_url = data["consoleURI"]
-        Logger.info("[HTTPTestAgent] Received build assignment for: #{build_id}")
-
-        # Trigger build execution asynchronously
-        send(self(), {:run_simulated_build, build_id, console_url})
-
-        %{state | runtime_status: "Building", current_build: build_id}
-
-      {:ok, %{"action" => "cancelBuild", "data" => %{"buildId" => build_id}}} ->
-        Logger.warning("[HTTPTestAgent] Received cancelBuild request for: #{build_id}")
-        # Transition back to Idle
-        %{state | runtime_status: "Idle", current_build: nil}
-
-      {:ok, msg} ->
-        # Other actions (e.g. setCookie, phx_reply)
-        Logger.debug("[HTTPTestAgent] Unhandled action: #{inspect(msg)}")
-        state
-
-      _ ->
-        state
+      {:ok, message} -> handle_message(message, state)
+      {:error, _reason} -> state
     end
   end
 
-  defp handle_websocket_frame(_, state), do: state
+  defp handle_websocket_frame(_frame, state), do: state
+
+  defp handle_message(%{"action" => "build", "data" => data}, state) do
+    build_id = data["buildId"]
+    Logger.info("[HTTPTestAgent] Received build assignment for: #{build_id}")
+
+    # The build runs in its own message, so the socket keeps reading.
+    send(self(), {:run_simulated_build, build_id, data["consoleURI"]})
+
+    %{state | runtime_status: "Building", current_build: build_id}
+  end
+
+  defp handle_message(%{"action" => "cancelBuild", "data" => %{"buildId" => build_id}}, state) do
+    Logger.warning("[HTTPTestAgent] Received cancelBuild request for: #{build_id}")
+    %{state | runtime_status: "Idle", current_build: nil}
+  end
+
+  defp handle_message(message, state) do
+    # Other actions (e.g. setCookie, phx_reply) are not for this agent.
+    Logger.debug("[HTTPTestAgent] Unhandled action: #{inspect(message)}")
+    state
+  end
 
   # WebSocket Framing implementation
 
@@ -378,53 +379,51 @@ defmodule ExGoCD.HTTPTestAgent do
 
   # The three frame kinds this agent cares about, by opcode.
   @frame_kinds %{129 => :text, 137 => :ping, 136 => :close}
+  @known_opcodes Map.keys(@frame_kinds)
 
   # A short payload is written into the length byte itself; 126 and 127 mean the
   # length follows in two or eight bytes.
-  defp parse_frame(<<opcode, len, payload::binary-size(len), rest::binary>>)
-       when is_map_key(@frame_kinds, opcode) and len <= 125 do
-    {:ok, {Map.fetch!(@frame_kinds, opcode), payload}, rest}
-  end
-
   defp parse_frame(<<opcode, 126, len::16, payload::binary-size(len), rest::binary>>)
-       when is_map_key(@frame_kinds, opcode) do
+       when opcode in @known_opcodes do
     {:ok, {Map.fetch!(@frame_kinds, opcode), payload}, rest}
   end
 
   defp parse_frame(<<opcode, 127, len::64, payload::binary-size(len), rest::binary>>)
-       when is_map_key(@frame_kinds, opcode) do
+       when opcode in @known_opcodes do
     {:ok, {Map.fetch!(@frame_kinds, opcode), payload}, rest}
   end
 
-  defp parse_frame(buffer) do
-    if byte_size(buffer) < 2 do
-      :incomplete
-    else
-      do_parse_frame(buffer)
-    end
+  defp parse_frame(<<opcode, len, payload::binary-size(len), rest::binary>>)
+       when opcode in @known_opcodes do
+    {:ok, {Map.fetch!(@frame_kinds, opcode), payload}, rest}
   end
 
-  defp do_parse_frame(buffer) do
-    <<_, len_byte, _::binary>> = buffer
+  defp parse_frame(buffer) when byte_size(buffer) < 2, do: :incomplete
+  defp parse_frame(buffer), do: parse_long_frame(buffer)
+
+  # A payload longer than one byte states its length in the bytes after the opcode.
+  defp parse_long_frame(buffer) do
+    <<_opcode, len_byte, _::binary>> = buffer
     len_field = len_byte &&& 0x7F
     needed = frame_needed_bytes(len_field)
 
     if byte_size(buffer) < needed do
       :incomplete
     else
-      actual_len = frame_actual_len(buffer, len_field)
-
-      if byte_size(buffer) >= needed + actual_len do
-        header = binary_part(buffer, 0, needed)
-        payload = binary_part(buffer, needed, actual_len)
-        rest = binary_part(buffer, needed + actual_len, byte_size(buffer) - needed - actual_len)
-        opcode = binary_part(header, 0, 1) |> :binary.decode_unsigned()
-        {:ok, {opcode, payload}, rest}
-      else
-        :incomplete
-      end
+      cut_frame(buffer, needed, frame_actual_len(buffer, len_field))
     end
   end
+
+  defp cut_frame(buffer, needed, actual_len) do
+    if byte_size(buffer) < needed + actual_len do
+      :incomplete
+    else
+      {:ok, {opcode_of(buffer), binary_part(buffer, needed, actual_len)},
+       binary_part(buffer, needed + actual_len, byte_size(buffer) - needed - actual_len)}
+    end
+  end
+
+  defp opcode_of(<<opcode, _rest::binary>>), do: opcode
 
   defp frame_needed_bytes(126), do: 4
   defp frame_needed_bytes(127), do: 10

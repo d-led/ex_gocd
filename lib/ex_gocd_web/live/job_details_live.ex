@@ -156,22 +156,41 @@ defmodule ExGoCDWeb.JobDetailsLive do
       ) do
     case agent && agent.working_dir do
       dir when is_binary(dir) and dir != "" ->
-        safe = fn s -> String.replace(to_string(s), ~r/[^a-zA-Z0-9_.-]/, "_") end
-
-        Path.join([
+        working_dir_under(
           dir,
-          "ex_gocd_jobs",
-          safe.(pipeline_name),
-          to_string(pipeline_counter),
-          safe.(stage_name),
-          to_string(stage_counter),
-          safe.(job_name)
-        ])
+          pipeline_name,
+          pipeline_counter,
+          stage_name,
+          stage_counter,
+          job_name
+        )
 
       _ ->
         nil
     end
   end
+
+  defp working_dir_under(
+         dir,
+         pipeline_name,
+         pipeline_counter,
+         stage_name,
+         stage_counter,
+         job_name
+       ) do
+    Path.join([
+      dir,
+      "ex_gocd_jobs",
+      safe_segment(pipeline_name),
+      to_string(pipeline_counter),
+      safe_segment(stage_name),
+      to_string(stage_counter),
+      safe_segment(job_name)
+    ])
+  end
+
+  # The path is read on the agent, so anything a shell could read into has to go.
+  defp safe_segment(value), do: String.replace(to_string(value), ~r/[^a-zA-Z0-9_.-]/, "_")
 
   @impl true
   def handle_params(_params, _uri, socket) do
@@ -444,21 +463,33 @@ defmodule ExGoCDWeb.JobDetailsLive do
     |> String.trim()
   end
 
-  defp parse_line(
-         <<h1, h2, ?:, m1, m2, ?:, s1, s2, ?., ms1, ms2, ms3, ?\s, message::binary>>,
-         id
-       )
-       when h1 in 48..57 and h2 in 48..57 and
-              m1 in 48..57 and m2 in 48..57 and
-              s1 in 48..57 and s2 in 48..57 and
-              ms1 in 48..57 and ms2 in 48..57 and ms3 in 48..57 do
-    timestamp = <<h1, h2, ?:, m1, m2, ?:, s1, s2, ?., ms1, ms2, ms3>>
-    %{id: to_string(id), timestamp: timestamp, message: message}
+  defp parse_line(line_text, id) do
+    case String.split(line_text, " ", parts: 2) do
+      [stamp, message] when message != "" -> line_with_stamp(stamp, message, line_text, id)
+      _ -> unstamped_line(line_text, id)
+    end
   end
 
-  defp parse_line(line_text, id) do
+  defp line_with_stamp(stamp, message, line_text, id) do
+    if timestamp?(stamp) do
+      %{id: to_string(id), timestamp: stamp, message: message}
+    else
+      unstamped_line(line_text, id)
+    end
+  end
+
+  defp unstamped_line(line_text, id) do
     %{id: to_string(id), timestamp: nil, message: line_text}
   end
+
+  # GoCD prefixes a line with hh:mm:ss.mmm.
+  defp timestamp?(<<h1, h2, ?:, m1, m2, ?:, s1, s2, ?., ms1, ms2, ms3>>) do
+    Enum.all?([h1, h2, m1, m2, s1, s2, ms1, ms2, ms3], &digit?/1)
+  end
+
+  defp timestamp?(_other), do: false
+
+  defp digit?(character), do: character in ?0..?9
 
   # Helpers
 
@@ -700,46 +731,48 @@ defmodule ExGoCDWeb.JobDetailsLive do
   end
 
   defp list_materials(pipeline_name, pipeline_counter) do
-    query =
-      from(pi in ExGoCD.Pipelines.PipelineInstance,
-        join: p in assoc(pi, :pipeline),
-        where: p.name == ^pipeline_name and pi.counter == ^pipeline_counter,
-        select: pi.id,
-        limit: 1
-      )
-
-    case Repo.one(query) do
-      nil ->
-        []
-
-      pi_id ->
-        pmrs =
-          Repo.all(
-            from(pmr in PipelineMaterialRevision,
-              join: m in assoc(pmr, :material),
-              left_join: mod in assoc(pmr, :modification),
-              where: pmr.pipeline_instance_id == ^pi_id,
-              select: %{
-                url: m.url,
-                type: m.type,
-                branch: m.branch,
-                revision: mod.revision,
-                comment: mod.comment,
-                modified_at: mod.modified_time
-              }
-            )
-          )
-
-        Enum.map(pmrs, fn r ->
-          %{
-            name: r.url || "unknown",
-            type: r.type || "git",
-            revision: format_revision(r.revision),
-            full_revision: r.revision,
-            comment: r.comment || "—",
-            modified_at: r.modified_at || "—"
-          }
-        end)
+    case pipeline_instance_id(pipeline_name, pipeline_counter) do
+      nil -> []
+      instance_id -> instance_id |> material_revisions() |> Enum.map(&material_summary/1)
     end
+  end
+
+  defp pipeline_instance_id(pipeline_name, pipeline_counter) do
+    from(pi in ExGoCD.Pipelines.PipelineInstance,
+      join: p in assoc(pi, :pipeline),
+      where: p.name == ^pipeline_name and pi.counter == ^pipeline_counter,
+      select: pi.id,
+      limit: 1
+    )
+    |> Repo.one()
+  end
+
+  defp material_revisions(instance_id) do
+    Repo.all(
+      from(pmr in PipelineMaterialRevision,
+        join: m in assoc(pmr, :material),
+        left_join: mod in assoc(pmr, :modification),
+        where: pmr.pipeline_instance_id == ^instance_id,
+        select: %{
+          url: m.url,
+          type: m.type,
+          branch: m.branch,
+          revision: mod.revision,
+          comment: mod.comment,
+          modified_at: mod.modified_time
+        }
+      )
+    )
+  end
+
+  defp material_summary(revision) do
+    %{
+      name: revision.url || "unknown",
+      type: revision.type || "git",
+      revision: format_revision(revision.revision),
+      full_revision: revision.revision,
+      comment: revision.comment || "—",
+      modified_at: revision.modified_at || "—"
+    }
   end
 end
