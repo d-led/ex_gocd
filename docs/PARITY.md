@@ -5,7 +5,7 @@
 > gaps resolved" claim from the 2026-07-08 audit is not repeated here, because
 > nothing in the code checks it.
 >
-> Counts last measured 2026-11-02: 1136 tests (`mix test`), 81 controller files
+> Counts last measured 2026-11-02: 1135 tests (`mix test`), 79 controller files
 > under `lib/ex_gocd_web/controllers/` (`find … -name '*.ex' | wc -l`), 22
 > LiveView modules under `lib/ex_gocd_web/live/`, 22 modules calling
 > `use GenServer`, 45 migrations in `priv/repo/migrations/`. Each count means what

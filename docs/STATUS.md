@@ -13,8 +13,8 @@
 
 | Dimension | State | Evidence |
 | --- | --- | --- |
-| Code | 275 source files, compile warnings-as-errors clean | `mix compile --force --warnings-as-errors` |
-| ExUnit | **1136 tests, all green** | `mix test` |
+| Code | 273 source files, compile warnings-as-errors clean | `mix compile --force --warnings-as-errors` |
+| ExUnit | **1135 tests, all green** | `mix test` |
 | Coverage | **56.2 %**; 74 modules at 0 % | `mix test.coverage` |
 | Go agent | builds; tests pass in 3 of 10 packages (3,793 prod LOC / 599 test LOC); modules upgraded 2026-11-01 (otel 1.47, grpc 1.85) | `cd agent && go test ./...` |
 | Cypress | 27 specs on disk, **not executed in this session** | `ls cypress/e2e/*.cy.js` |
@@ -331,7 +331,7 @@ table: the agent speaks HTTP remoting, like a real GoCD agent
 (`agent/internal/remoting/`, `agent_remoting_controller.ex`, and no `websocket`
 string anywhere in the Go agent).
 
-`README.md` badges are hand-written and say 1136 tests and 27 Cypress specs.
+`README.md` badges are hand-written and say 1135 tests and 27 Cypress specs.
 Nothing regenerates them, so they will drift again.
 
 `scripts/check_doc_refs.exs` is the part that cannot drift: it fails when a
