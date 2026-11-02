@@ -114,24 +114,15 @@ defmodule ExGoCDWeb.NoPageCrashesTest do
     ]
   end
 
-  # Mounts each page, keeping a note of the ones that do not answer, so one run
-  # names all of them rather than the first. A page that sends the visitor
-  # elsewhere with a message has answered — that is how a page says the thing it
-  # was asked for is not there. A redirect with nothing to say has not.
   defp assert_all_mount(conn, paths) do
-    offenders = paths |> Enum.map(&mount_result(conn, &1)) |> Enum.reject(&is_nil/1)
-
-    assert offenders == [], "pages that did not answer:\n" <> Enum.join(offenders, "\n")
+    ExGoCD.Sweep.assert_all_answered(paths, &live(conn, &1), &answered?/1)
   end
 
-  defp mount_result(conn, path) do
-    case live(conn, path) do
-      {:ok, _view, _html} -> nil
-      {:error, {:redirect, %{flash: %{"error" => _}}}} -> nil
-      {:error, {:live_redirect, %{flash: %{"error" => _}}}} -> nil
-      {:error, other} -> "#{path} answered #{inspect(other)}"
-    end
-  rescue
-    error -> "#{path} raised #{inspect(error.__struct__)}: #{Exception.message(error)}"
-  end
+  # A page that sends the visitor elsewhere with a message has answered — that is
+  # how a page says the thing it was asked for is not there. A redirect with
+  # nothing to say has not.
+  defp answered?({:ok, _view, _html}), do: true
+  defp answered?({:error, {:redirect, %{flash: %{"error" => _}}}}), do: true
+  defp answered?({:error, {:live_redirect, %{flash: %{"error" => _}}}}), do: true
+  defp answered?(_other), do: false
 end

@@ -58,7 +58,7 @@ defmodule ExGoCDWeb.API.NoEndpointCrashesTest do
 
   describe "an unauthenticated caller" do
     test "is answered, not crashed, by every open endpoint", %{conn: conn} do
-      assert_answered(conn, @open_paths)
+      ExGoCD.Sweep.assert_all_answered(@open_paths, &get(conn, &1))
     end
   end
 
@@ -77,11 +77,11 @@ defmodule ExGoCDWeb.API.NoEndpointCrashesTest do
     end
 
     test "is answered, not crashed, by every admin endpoint", %{conn: conn} do
-      assert_answered(conn, @admin_paths)
+      ExGoCD.Sweep.assert_all_answered(@admin_paths, &get(conn, &1))
     end
 
     test "is answered, not crashed, when the thing named is not there", %{conn: conn} do
-      assert_answered(conn, absent_paths())
+      ExGoCD.Sweep.assert_all_answered(absent_paths(), &get(conn, &1))
     end
   end
 
@@ -125,23 +125,5 @@ defmodule ExGoCDWeb.API.NoEndpointCrashesTest do
       "/go/api/plugin_settings/absent",
       "/go/api/scms/absent"
     ]
-  end
-
-  # Collects every offender before failing, so one run names all of them rather
-  # than the first.
-  defp assert_answered(conn, paths) when is_list(paths) do
-    offenders = paths |> Enum.map(&answer(conn, &1)) |> Enum.reject(&is_nil/1)
-
-    assert offenders == [],
-           "endpoints that did not answer:\n" <> Enum.join(offenders, "\n")
-  end
-
-  defp answer(conn, path) do
-    case get(conn, path) do
-      %{status: status} when status < 500 -> nil
-      %{status: status} -> "#{path} answered #{status}"
-    end
-  rescue
-    error -> "#{path} raised #{inspect(error.__struct__)}: #{Exception.message(error)}"
   end
 end
