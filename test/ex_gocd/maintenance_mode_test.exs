@@ -14,20 +14,28 @@ defmodule ExGoCD.MaintenanceModeTest do
   # ExGoCD.MaintenanceMode.enabled?() which uses DistSingleton/Horde,
   # not available in test mode. GenServer state machine tested in isolation.
 
+  # A name of its own per test: the registry is global, so a leftover process from
+  # the previous test would otherwise answer this one's calls.
   setup do
-    {:ok, pid} = GenServer.start_link(ExGoCD.MaintenanceMode, [], name: :mm_test)
-    {:ok, pid: pid}
+    name = :"mm_test_#{System.unique_integer([:positive])}"
+
+    start_supervised!(%{
+      id: name,
+      start: {GenServer, :start_link, [ExGoCD.MaintenanceMode, [], [name: name]]}
+    })
+
+    {:ok, mm: name}
   end
 
-  defp mm_call(msg), do: GenServer.call(:mm_test, msg)
+  defp mm_call(name, msg), do: GenServer.call(name, msg)
 
   describe "initial state" do
-    test "maintenance mode starts disabled" do
-      refute mm_call(:enabled?)
+    test "maintenance mode starts disabled", %{mm: mm} do
+      refute mm_call(mm, :enabled?)
     end
 
-    test "info returns default state" do
-      info = mm_call(:info)
+    test "info returns default state", %{mm: mm} do
+      info = mm_call(mm, :info)
       refute info.enabled
       assert info.enabled_at == nil
       assert info.enabled_by == nil
@@ -35,39 +43,39 @@ defmodule ExGoCD.MaintenanceModeTest do
   end
 
   describe "enable/disable lifecycle" do
-    test "enable sets enabled to true" do
-      assert {:ok, :enabled} = mm_call(:enable)
-      assert mm_call(:enabled?)
+    test "enable sets enabled to true", %{mm: mm} do
+      assert {:ok, :enabled} = mm_call(mm, :enable)
+      assert mm_call(mm, :enabled?)
     end
 
-    test "disable sets enabled to false" do
-      {:ok, :enabled} = mm_call(:enable)
-      assert mm_call(:enabled?)
-      assert {:ok, :disabled} = mm_call(:disable)
-      refute mm_call(:enabled?)
+    test "disable sets enabled to false", %{mm: mm} do
+      {:ok, :enabled} = mm_call(mm, :enable)
+      assert mm_call(mm, :enabled?)
+      assert {:ok, :disabled} = mm_call(mm, :disable)
+      refute mm_call(mm, :enabled?)
     end
 
-    test "enabling when already enabled returns error" do
-      {:ok, :enabled} = mm_call(:enable)
-      assert {:error, :already_enabled} = mm_call(:enable)
+    test "enabling when already enabled returns error", %{mm: mm} do
+      {:ok, :enabled} = mm_call(mm, :enable)
+      assert {:error, :already_enabled} = mm_call(mm, :enable)
     end
 
-    test "disabling when already disabled returns error" do
-      assert {:error, :already_disabled} = mm_call(:disable)
+    test "disabling when already disabled returns error", %{mm: mm} do
+      assert {:error, :already_disabled} = mm_call(mm, :disable)
     end
 
-    test "info reflects current state after enable" do
-      {:ok, :enabled} = mm_call(:enable)
-      info = mm_call(:info)
+    test "info reflects current state after enable", %{mm: mm} do
+      {:ok, :enabled} = mm_call(mm, :enable)
+      info = mm_call(mm, :info)
       assert info.enabled
       assert info.enabled_at != nil
       assert info.enabled_by == "admin"
     end
 
-    test "info reflects current state after disable" do
-      {:ok, :enabled} = mm_call(:enable)
-      {:ok, :disabled} = mm_call(:disable)
-      info = mm_call(:info)
+    test "info reflects current state after disable", %{mm: mm} do
+      {:ok, :enabled} = mm_call(mm, :enable)
+      {:ok, :disabled} = mm_call(mm, :disable)
+      info = mm_call(mm, :info)
       refute info.enabled
       assert info.enabled_at == nil
       assert info.enabled_by == nil
@@ -75,19 +83,19 @@ defmodule ExGoCD.MaintenanceModeTest do
   end
 
   describe "state transitions are correct" do
-    test "full enable/disable cycle works correctly" do
-      {:ok, :enabled} = mm_call(:enable)
-      assert mm_call(:enabled?)
+    test "full enable/disable cycle works correctly", %{mm: mm} do
+      {:ok, :enabled} = mm_call(mm, :enable)
+      assert mm_call(mm, :enabled?)
 
-      info = mm_call(:info)
+      info = mm_call(mm, :info)
       assert info.enabled
       assert info.enabled_at != nil
       assert info.enabled_by == "admin"
 
-      {:ok, :disabled} = mm_call(:disable)
-      refute mm_call(:enabled?)
+      {:ok, :disabled} = mm_call(mm, :disable)
+      refute mm_call(mm, :enabled?)
 
-      info2 = mm_call(:info)
+      info2 = mm_call(mm, :info)
       refute info2.enabled
       assert info2.enabled_at == nil
       assert info2.enabled_by == nil
