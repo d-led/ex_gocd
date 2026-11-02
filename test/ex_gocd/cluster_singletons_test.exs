@@ -9,7 +9,7 @@ defmodule ExGoCD.ClusterSingletonsTest do
   the asks; Horde itself needs a cluster, and what is being tested is the starter's
   reaction, not Horde's bookkeeping.
   """
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
 
   alias ExGoCD.ClusterSingletons
 
