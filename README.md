@@ -1,81 +1,99 @@
 # ExGoCD
 
-**A Phoenix LiveView rewrite of Thoughtworks GoCD** — distributed CI/CD with
-plugin extensibility, built-in observability, and a Go-powered agent.
+A GoCD server and GoCD agent, rewritten: the server in Elixir/Phoenix LiveView, the
+agent in Go. Same pipeline model, same remoting protocol the GoCD agent speaks.
 
-[![Quality Gate](https://img.shields.io/badge/quality-17%2F17-brightgreen)]()
-[![Tests](https://img.shields.io/badge/tests-1276%20passed-brightgreen)]()
-[![Cypress](https://img.shields.io/badge/e2e-27%20specs-brightgreen)]()
+## Run it
 
----
-
-## Quick Start
+Server, database, one connected agent and demo pipelines, in open mode — nobody logs
+in:
 
 ```bash
-mix setup              # install deps, create DB
-mix phx.server         # start at localhost:4000
+curl -fsSLO https://raw.githubusercontent.com/d-led/ex_gocd/main/docker-compose.quickstart.yml
+docker compose -f docker-compose.quickstart.yml up --build
 ```
 
-### With Go agents (process-compose)
+Then open <http://localhost:4000>. The demo pipelines are in the group `default`.
+The first build takes a few minutes; later starts are seconds.
+
+The stack is Postgres 18, the server, and the Go agent, which registers itself and
+picks up work. `EX_GOCD_SKIP_USER_SEED=1` is what keeps open mode: the seed script's
+demo users include an admin, and an admin in the database turns open mode off.
+
+Start from zero again with `docker compose -f docker-compose.quickstart.yml down -v`.
+
+## Run it natively
+
+Needs Elixir 1.20, Erlang 29, Go 1.26 and a Postgres you can reach.
+
+```bash
+mix setup                     # deps, database, seeds, assets
+mix phx.server                # http://localhost:4000
+```
+
+An agent is optional; without one, pipelines queue and nothing runs:
+
+```bash
+cd agent && GOCD_SERVER_URL=http://localhost:4000 go run .
+```
+
+## What works
+
+| Area | State |
+| --- | --- |
+| Pipelines, stages, jobs, materials, fan-in, locking, manual and auto triggers | working, tested |
+| Go agent: registration, work assignment, console upload, artifacts, cancellation | working, tested |
+| UI: dashboard, pipeline activity, stage details, VSM, Gantt, admin pages | working, main paths tested |
+| Config XML import/export, config repos (JSON, YAML, GitHub Actions, GitLab CI) | working, tested |
+| Elastic agents: Kubernetes and Docker | working; the pod and container calls have no tests |
+| OpenTelemetry traces and metrics, Jaeger, Grafana | wired; dashboards in `grafana/` |
+| Plugins: agent selectors, auth providers, notification sinks, org hierarchy | wired through a plugin registry |
+| RBAC: roles, per-environment policies, personal access tokens, encryption | working, tested |
+
+What is measured and what is not is in [docs/STATUS.md](docs/STATUS.md), including the
+modules no test reaches. Feature-by-feature detail, with the GoCD class each module
+corresponds to, is in [docs/PARITY.md](docs/PARITY.md).
+
+## Compatibility with GoCD
+
+- **The Go agent works against this server**, and this agent works against a real GoCD
+  server: both speak GoCD's remoting API (`/remoting/api/agent/*`).
+- **The HTTP API is a subset**, not all of api.go.cd: 157 of the 181 documented
+  endpoints have a route, and the rest are features this rewrite does not have. The
+  documented paths are served under both `/api/...` and the `/go/api/...` spelling
+  GoCD uses.
+- **The UI is a rewrite**, not a copy: same pages and flows, different HTML.
+- **Config XML** is GoCD's format, so an existing `cruise-config.xml` imports.
+
+## Tests
+
+```bash
+mix test.setup                  # once: create and migrate the test database
+mix test                        # the whole suite
+EX_GOCD_TEST_NO_DB=1 mix test   # only what needs no database
+bash scripts/quality-gate.sh    # format, compile, Sobelow, Credo, tests, Go, JS, links
+```
+
+`mix test` needs Postgres. Point it elsewhere with `PGHOST`/`PGPORT`, or set
+`DATABASE_URL`.
+
+## Development stack
+
+`docker-compose.yml` is the one for working on the project: Postgres, Adminer, Jaeger,
+Grafana, Loki, Fluent Bit, smtp4dev and a k3s cluster for elastic agents.
+`process-compose.yaml` starts the server and two agents on the host against it.
 
 ```bash
 docker compose up -d postgres jaeger otel-collector
 process-compose up
 ```
 
-Starts Phoenix server + CI agent (elixir,postgres) + Docker agent (docker).
-See `process-compose.yaml`.
+## Where to read next
 
-## Features
-
-**Full GoCD parity** — pipelines, stages, jobs, materials, VSM, analytics,
-config-as-code, elastic agents, RBAC, and more. See [PARITY.md](docs/PARITY.md).
-
-| Area | Highlights |
-|------|-----------|
-| Pipeline engine | Scheduling, fan-in, config diff, locking, manual/auto trigger |
-| Agents | WebSocket protocol, Go binary (~10MB), elastic (K8s + Docker) |
-| UI | LiveView dashboard, stage overview popups, Gantt charts, VSM |
-| Config | XML import/export, YAML config repos, templates, wizard |
-| Observability | Built-in OpenTelemetry, Jaeger traces, Grafana dashboards |
-| Plugins | Standalone OTP apps — agent selectors, org hierarchy, auth |
-| Security | RBAC with Bodyguard, per-environment policies, PAT, encryption |
-
-## Stack
-
-| Layer | Tech |
-|-------|------|
-| Server | Elixir + Phoenix LiveView + Ecto (PostgreSQL) |
-| Agents | Go — statically linked, no cgo |
-| Plugins | Standalone OTP apps via libcluster |
-| Frontend | Phoenix LiveView + Tailwind CSS + daisyUI |
-| Ops | OpenTelemetry, Jaeger, Grafana, Docker Compose |
-
-## Services
-
-| Service | URL |
-|---------|-----|
-| **ex_gocd** | [localhost:4000](http://localhost:4000) |
-| **Adminer** (DB) | [localhost:8092](http://localhost:8092/?pgsql=postgres&username=postgres&db=postgres&ns=public) |
-| **Grafana** | [localhost:3000](http://localhost:3000) |
-| **Jaeger** (traces) | [localhost:16686](http://localhost:16686/search) |
-| **smtp4dev** (email) | [localhost:8025](http://localhost:8025) |
-
-## Testing
-
-```bash
-mix test.setup                        # once: create and migrate the test database
-mix test                              # full suite (needs Postgres)
-EX_GOCD_TEST_NO_DB=1 mix test         # only the tests that need no database
-bash scripts/quality-gate.sh          # all static analysis + tests
-```
-
-## Docs
-
-- [Feature Parity & Architecture](docs/PARITY.md)
-- [Plugin Authoring Guide](docs/plugin_authoring.md)
-- [Module Mapping](docs/module_mapping.md) — Elixir ↔ GoCD Java
-- [Agent Implementation](agent/README.md)
+- [docs/STATUS.md](docs/STATUS.md) — measured state: tests, coverage, faults found.
+- [docs/PARITY.md](docs/PARITY.md) — GoCD feature map and the module for each.
+- [docs/plugin_authoring.md](docs/plugin_authoring.md) — writing a plugin.
+- [agent/README.md](agent/README.md) — agent configuration and behaviour.
 
 ## License
 

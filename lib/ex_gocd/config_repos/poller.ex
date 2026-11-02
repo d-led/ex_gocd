@@ -100,32 +100,41 @@ defmodule ExGoCD.ConfigRepos.Poller do
     else
       File.mkdir_p!(dir)
 
-      case System.cmd("git", ["clone", repo.url, dir], stderr_to_stdout: true) do
-        {output, 0} ->
+      case git(["clone", repo.url, dir]) do
+        {:ok, output} ->
           Logger.info("[ConfigRepoPoller] Cloned #{repo.id}: #{String.slice(output, 0, 200)}")
           {:ok, dir}
 
-        {output, _} ->
-          {:error, output}
+        {:error, reason} ->
+          {:error, reason}
       end
+    end
+  end
+
+  # Runs git, answering {:ok, output} or {:error, reason}.
+  #
+  # A git that is not installed answers an error rather than raising: one
+  # repository that cannot be cloned must not take the poller down, and the
+  # poller is a cluster-wide singleton — when it crashed in a loop it took the
+  # scheduler with it, and no agent could get work.
+  defp git(args) do
+    if System.find_executable("git") do
+      case System.cmd("git", args, stderr_to_stdout: true) do
+        {output, 0} -> {:ok, output}
+        {output, _} -> {:error, output}
+      end
+    else
+      {:error, "git is not installed in this node"}
     end
   end
 
   defp git_pull(dir) do
     # Fetch + reset to avoid merge conflicts (like GoCD's approach)
-    with {_, 0} <-
-           System.cmd("git", ["-C", dir, "fetch", "origin"], stderr_to_stdout: true),
-         {before, 0} <-
-           System.cmd("git", ["-C", dir, "rev-parse", "HEAD"], stderr_to_stdout: true),
-         {_, 0} <-
-           System.cmd("git", ["-C", dir, "reset", "--hard", "origin/HEAD"],
-             stderr_to_stdout: true
-           ),
-         {after_rev, 0} <-
-           System.cmd("git", ["-C", dir, "rev-parse", "HEAD"], stderr_to_stdout: true) do
+    with {:ok, _} <- git(["-C", dir, "fetch", "origin"]),
+         {:ok, before} <- git(["-C", dir, "rev-parse", "HEAD"]),
+         {:ok, _} <- git(["-C", dir, "reset", "--hard", "origin/HEAD"]),
+         {:ok, after_rev} <- git(["-C", dir, "rev-parse", "HEAD"]) do
       if String.trim(before) != String.trim(after_rev), do: {:changed, ""}, else: :unchanged
-    else
-      {output, _} -> {:error, output}
     end
   end
 

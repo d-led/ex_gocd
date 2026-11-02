@@ -1,0 +1,83 @@
+# Quickstart: a server, a database, one connected agent and the demo pipelines.
+#
+#   curl -fsSLO https://raw.githubusercontent.com/d-led/ex_gocd/main/docker-compose.quickstart.yml
+#   docker compose -f docker-compose.quickstart.yml up --build
+#
+# Open http://localhost:4000 — no login: GoCD's open mode means no admin user
+# exists, so every visitor is an admin. That is why the server starts with
+# EX_GOCD_SKIP_USER_SEED=1: the seed script's demo users would end open mode.
+#
+# This is the "see it run" file. docker-compose.yml is the development one (Jaeger,
+# Grafana, Loki, k3s) and is deliberately separate.
+
+name: ex-gocd-quickstart
+
+services:
+  db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ex_gocd
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ex_gocd"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+    volumes:
+      # Postgres 18 keeps its data in a version subdirectory of this path, so
+      # this is the mount point the image asks for.
+      - db:/var/lib/postgresql
+
+  server:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ecto://postgres:postgres@db/ex_gocd
+      # Demo value, not a secret: this file is for a laptop, not a deployment.
+      SECRET_KEY_BASE: 5Yq3k7uK9n7Xb2mW0c1d4f6g8h0j2l4n6p8r0s2t4v6w8x0y2z4A6B8C0D2E4F6
+      PHX_SERVER: "true"
+      PORT: "4000"
+      POOL_SIZE: "10"
+      LOG_LEVEL: info
+      # The agent's registration token; both sides read it from here.
+      EX_GOCD_DEMO_COOKIE: ex-gocd-demo-cookie
+      # Open mode: no admin user, so nobody logs in.
+      EX_GOCD_SKIP_USER_SEED: "1"
+      # Not USE_MOCK_DATA: that mocks the agents too, and the point of this stack
+      # is the real agent below picking up real work.
+    command:
+      - /bin/sh
+      - -lc
+      - |
+        /app/bin/ex_gocd eval "ExGoCD.Release.migrate()" &&
+        /app/bin/ex_gocd eval "ExGoCD.Release.seed()" &&
+        exec /app/bin/ex_gocd start
+    ports:
+      - "4000:4000"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:4000/go/api/v1/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 90s
+
+  agent:
+    build: ./agent
+    depends_on:
+      server:
+        condition: service_healthy
+    environment:
+      AGENT_SERVER_URL: http://server:4000
+      EX_GOCD_DEMO_COOKIE: ex-gocd-demo-cookie
+      # The demo pipelines ask for these; a job runs here when they match.
+      AGENT_AUTO_REGISTER_RESOURCES: elixir,postgres,docker
+      AGENT_WORK_DIR: /agent-work
+    volumes:
+      - agent-work:/agent-work
+
+volumes:
+  db:
+  agent-work:

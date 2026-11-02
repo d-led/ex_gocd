@@ -909,9 +909,15 @@ if mock_mode?.() do
 end
 
 # Seed default users
+#
+# GoCD's open mode — nobody logs in — means no admin user exists, so a
+# quickstart that wants it sets EX_GOCD_SKIP_USER_SEED=1 and keeps the demo
+# pipelines without the users that would end open mode.
 alias ExGoCD.Accounts
 
-unless Repo.get_by(ExGoCD.Accounts.User, username: "admin") do
+skip_users? = System.get_env("EX_GOCD_SKIP_USER_SEED") == "1"
+
+unless skip_users? or Repo.get_by(ExGoCD.Accounts.User, username: "admin") do
   {:ok, _} =
     Accounts.create_user(%{
       username: "admin",
@@ -923,7 +929,7 @@ unless Repo.get_by(ExGoCD.Accounts.User, username: "admin") do
   IO.puts("Seeded user: admin")
 end
 
-unless Repo.get_by(ExGoCD.Accounts.User, username: "developer") do
+unless skip_users? or Repo.get_by(ExGoCD.Accounts.User, username: "developer") do
   {:ok, _} =
     Accounts.create_user(%{
       username: "developer",
@@ -935,7 +941,7 @@ unless Repo.get_by(ExGoCD.Accounts.User, username: "developer") do
   IO.puts("Seeded user: developer")
 end
 
-unless Repo.get_by(ExGoCD.Accounts.User, username: "viewer") do
+unless skip_users? or Repo.get_by(ExGoCD.Accounts.User, username: "viewer") do
   {:ok, _} =
     Accounts.create_user(%{
       username: "viewer",

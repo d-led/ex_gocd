@@ -12,15 +12,15 @@ defmodule ExGoCD.Git do
   """
   @spec ls_remote(String.t(), String.t()) :: {:ok, String.t()} | {:error, any()}
   def ls_remote(url, branch) do
-    case System.cmd("git", ["ls-remote", url, branch]) do
-      {output, 0} ->
+    case cmd(["ls-remote", url, branch]) do
+      {:ok, output} ->
         case String.split(output) do
           [sha, _ref | _] -> {:ok, sha}
           _ -> {:error, "invalid ls-remote output"}
         end
 
-      {err, _exit_code} ->
-        {:error, err}
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -30,9 +30,9 @@ defmodule ExGoCD.Git do
   """
   @spec rev_parse_short() :: String.t() | nil
   def rev_parse_short do
-    case System.cmd("git", ["rev-parse", "--short", "HEAD"], stderr_to_stdout: true) do
-      {sha, 0} -> String.trim(sha)
-      _ -> nil
+    case cmd(["rev-parse", "--short", "HEAD"]) do
+      {:ok, sha} -> String.trim(sha)
+      {:error, _} -> nil
     end
   end
 
@@ -45,10 +45,8 @@ defmodule ExGoCD.Git do
     format = "%an%n%ae%n%s"
     full_rev = revision |> String.trim() |> then(&"#{&1}^{commit}")
 
-    case System.cmd("git", ["-C", repo_path, "log", "-1", "--format=#{format}", full_rev],
-           stderr_to_stdout: true
-         ) do
-      {output, 0} ->
+    case cmd(["-C", repo_path, "log", "-1", "--format=#{format}", full_rev]) do
+      {:ok, output} ->
         case String.split(output, "\n", trim: true) do
           [name, email, comment] ->
             {:ok,
@@ -62,8 +60,24 @@ defmodule ExGoCD.Git do
             {:error, "unexpected git log output"}
         end
 
-      {err, _} ->
-        {:error, String.trim(err)}
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  # Runs git, answering {:ok, output} or {:error, reason}.
+  #
+  # A git that is not installed answers an error rather than raising
+  # `:enoent`: a node without git cannot poll its materials, which is a thing to
+  # report, not a reason to take the caller's process down.
+  defp cmd(args) do
+    if System.find_executable("git") do
+      case System.cmd("git", args, stderr_to_stdout: true) do
+        {output, 0} -> {:ok, output}
+        {output, _} -> {:error, String.trim(output)}
+      end
+    else
+      {:error, "git is not installed in this node"}
     end
   end
 end

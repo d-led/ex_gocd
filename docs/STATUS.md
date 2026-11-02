@@ -14,7 +14,7 @@
 | Dimension | State | Evidence |
 | --- | --- | --- |
 | Code | 268 source files, compile warnings-as-errors clean | `git ls-files 'lib/**/*.ex'` |
-| ExUnit | **1276 tests, all green** | `mix test` |
+| ExUnit | **1280 tests, all green** | `mix test` |
 | Coverage | **62.9 %**; 26 modules at 0 % | `mix test.coverage` |
 | Go agent | builds; tests pass in 3 of 10 packages (3,793 prod LOC / 599 test LOC); modules upgraded 2026-11-01 (otel 1.47, grpc 1.85) | `cd agent && go test ./...` |
 | Cypress | 27 specs on disk, **not executed in this session** | `ls cypress/e2e/*.cy.js` |
@@ -699,6 +699,48 @@ A comparison of all 181 endpoints api.go.cd documents against the router finds 9
 with no route. Most are features this rewrite does not have; the ones above were
 features it had under other names.
 
+### A quickstart compose, and the three faults running it found
+
+`docker-compose.quickstart.yml` is the "see it run" stack: Postgres 18, the server,
+one Go agent that registers itself, and the seeded demo pipelines. Kept separate
+from `docker-compose.yml`, which is the development stack with Jaeger, Grafana,
+Loki, smtp4dev and k3s.
+
+Open mode needed one change: GoCD's open mode means no admin user exists, and the
+seed script creates an admin. `EX_GOCD_SKIP_USER_SEED=1` skips the three demo users
+and keeps the pipelines, and a test holds it. `USE_MOCK_DATA` is deliberately *not*
+set: it mocks the agents as well as the history, so the agent this stack exists to
+show would have been hidden behind a mock one.
+
+Running it found three things that only happen in a release:
+
+* **The runtime image had no git.** The config repo poller clones with
+  `System.cmd("git", …)`, which raises `:enoent` for a missing binary, so every
+  poll crashed the poller. `git` and `openssh-client` are in the image now, and
+  `ExGoCD.Git` and the poller answer an error for a missing binary rather than
+  raising: a node that cannot clone a repo has something to report, not a reason to
+  take the caller's process down.
+* **The crash loop took the scheduler with it.** The poller is a Horde singleton;
+  crashing past the restart budget terminated the singleton supervisor, and the
+  task that starts those singletons runs once at boot — so the Scheduler was gone
+  for the life of the container. Every agent ping answered 500
+  (`no process: ExGoCD.Scheduler`), and `POST /api/pipelines/:name/schedule`
+  answered 500 with it. With the two fixes above, a fresh stack schedules a
+  pipeline and the bundled agent completes it: `demo #1`, stage `build`, job
+  `default`, Passed.
+* Known and not fixed: that one-shot starter task is fragile by construction. If
+  the Horde supervisor restarts for any other reason, the singletons are lost until
+  the node restarts. Replacing the task with a supervised starter is the fix; the
+  crash that exposed it is gone.
+
+Both READMEs were rewritten while doing this. The workspace README claimed "100%
+protocol compatibility", a WebSocket agent protocol that this agent does not use,
+and that "the original Java agent works with the Phoenix server" — none of it
+checkable here, all of it gone. What replaced it: the quickstart first, then what
+works with the evidence for it, and the compatibility limits stated as limits — the
+Go agent interoperates over GoCD's remoting API, the HTTP API is a subset (157 of
+181 documented endpoints), and the UI is a rewrite.
+
 ### Known noise: the sandbox says a connection was disconnected
 
 Most runs print one or two lines like
@@ -722,7 +764,7 @@ table: the agent speaks HTTP remoting, like a real GoCD agent
 (`agent/internal/remoting/`, `agent_remoting_controller.ex`, and no `websocket`
 string anywhere in the Go agent).
 
-`README.md` badges are hand-written and say 1276 tests and 27 Cypress specs.
+`README.md` badges are hand-written and say 1280 tests and 27 Cypress specs.
 Nothing regenerates them, so they will drift again.
 
 `scripts/check_doc_refs.exs` is the part that cannot drift: it fails when a

@@ -81,7 +81,10 @@ RUN --mount=type=cache,target=/root/.hex \
 FROM debian:bookworm-slim AS runner
 
 # Install runtime dependencies (libsctp1 silences ERTS SCTP warning in CI logs)
-RUN apt-get update -y && apt-get install -y libstdc++6 openssl ca-certificates curl postgresql-client libsctp1 && apt-get clean && rm -rf /var/lib/apt/lists/*
+# git and openssh-client: the server clones and polls materials and config repos.
+RUN apt-get update -y && \
+    apt-get install -y libstdc++6 openssl ca-certificates curl postgresql-client libsctp1 git openssh-client && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Set locale
 ENV LANG=C.UTF-8

@@ -37,6 +37,17 @@ defmodule ExGoCD.ReleaseTest do
     assert report =~ "historical runs"
   end
 
+  test "open mode can be kept by skipping the demo users" do
+    System.put_env("EX_GOCD_SKIP_USER_SEED", "1")
+    on_exit(fn -> System.delete_env("EX_GOCD_SKIP_USER_SEED") end)
+
+    report = TestSeeds.seed()
+
+    assert Repo.aggregate(Pipeline, :count) > 0
+    assert Repo.aggregate(ExGoCD.Accounts.User, :count) == 0
+    refute report =~ "Seeded user"
+  end
+
   test "running the seeds again changes nothing" do
     TestSeeds.seed()
     first = counts()
