@@ -60,6 +60,28 @@ defmodule ExGoCDWeb.NoPageCrashesTest do
     test "is shown every open page", %{conn: conn} do
       assert_all_mount(conn, @open_pages)
     end
+
+    test "is answered by a page that names something absent", %{conn: conn} do
+      assert_all_mount(conn, absent_paths())
+    end
+  end
+
+  # A page told to show something that is not there has to say so. Counters
+  # parse, names are ones nothing holds, ids are of the right shape.
+  defp absent_paths do
+    [
+      "/agents/#{Ecto.UUID.generate()}/job_run_history",
+      "/compare/absent",
+      "/compare/absent/1/with/2",
+      "/go/compare/absent/1/with/2",
+      "/materials/value_stream_map/0000000000000000/abc123",
+      "/pipeline/activity/absent",
+      "/pipelines/absent/1/config_diff",
+      "/pipelines/absent/1/build/1",
+      "/pipelines/value_stream_map/absent/1",
+      "/stage-duration/absent",
+      "/tab/build/detail/absent/1/build/1/compile"
+    ]
   end
 
   describe "an admin" do
@@ -79,20 +101,35 @@ defmodule ExGoCDWeb.NoPageCrashesTest do
     test "is shown every admin page and tab", %{conn: conn} do
       assert_all_mount(conn, @admin_pages)
     end
+
+    test "is answered by an admin page that names something absent", %{conn: conn} do
+      assert_all_mount(conn, admin_absent_paths())
+    end
   end
 
-  # Mounts each page, keeping a note of the ones that raise, so one run names all
-  # of them rather than the first.
+  defp admin_absent_paths do
+    [
+      "/admin/config_repos/#{Ecto.UUID.generate()}/edit",
+      "/admin/pipelines/absent/edit/definition"
+    ]
+  end
+
+  # Mounts each page, keeping a note of the ones that do not answer, so one run
+  # names all of them rather than the first. A page that sends the visitor
+  # elsewhere with a message has answered — that is how a page says the thing it
+  # was asked for is not there. A redirect with nothing to say has not.
   defp assert_all_mount(conn, paths) do
     offenders = paths |> Enum.map(&mount_result(conn, &1)) |> Enum.reject(&is_nil/1)
 
-    assert offenders == [], "pages that did not mount:\n" <> Enum.join(offenders, "\n")
+    assert offenders == [], "pages that did not answer:\n" <> Enum.join(offenders, "\n")
   end
 
   defp mount_result(conn, path) do
     case live(conn, path) do
       {:ok, _view, _html} -> nil
-      {:error, reason} -> "#{path} answered #{inspect(reason)}"
+      {:error, {:redirect, %{flash: %{"error" => _}}}} -> nil
+      {:error, {:live_redirect, %{flash: %{"error" => _}}}} -> nil
+      {:error, other} -> "#{path} answered #{inspect(other)}"
     end
   rescue
     error -> "#{path} raised #{inspect(error.__struct__)}: #{Exception.message(error)}"

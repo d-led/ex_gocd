@@ -9,6 +9,13 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLiveTest do
   alias ExGoCD.Repo
 
   describe "the external CI repository wizard" do
+    test "says so, rather than failing, when the id is not one it could hold", %{conn: conn} do
+      assert {:error, {:redirect, %{to: "/admin/config_repos", flash: flash}}} =
+               live(conn, ~p"/admin/config_repos/#{Ecto.UUID.generate()}/edit")
+
+      assert flash["error"] =~ "not found"
+    end
+
     test "asks for a repository before it goes on", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/admin/config_repos/new")
 

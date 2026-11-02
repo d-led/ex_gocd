@@ -49,7 +49,7 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
   end
 
   defp mount_edit(socket, id) do
-    case Repo.get(ConfigRepo, id) |> Repo.preload(:config_repo_files) do
+    case fetch_config_repo(id) do
       nil ->
         socket
         |> put_flash(:error, "Config repository not found.")
@@ -375,6 +375,16 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
       %{repo_url: "Must be a valid git URL (http/https/git@)"}
     else
       %{}
+    end
+  end
+
+  # The id in the URL comes from whoever typed it, and a repository id is a
+  # number; anything else cannot name one, and Ecto raises rather than answering
+  # nil for a value its key type cannot hold.
+  defp fetch_config_repo(id) do
+    case Integer.parse(to_string(id)) do
+      {number, ""} -> Repo.get(ConfigRepo, number) |> Repo.preload(:config_repo_files)
+      _ -> nil
     end
   end
 

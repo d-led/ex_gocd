@@ -14,8 +14,8 @@
 | Dimension | State | Evidence |
 | --- | --- | --- |
 | Code | 272 source files, compile warnings-as-errors clean | `mix compile --force --warnings-as-errors` |
-| ExUnit | **1208 tests, all green** | `mix test` |
-| Coverage | **59.8 %**; 37 modules at 0 % | `mix test.coverage` |
+| ExUnit | **1211 tests, all green** | `mix test` |
+| Coverage | **60.2 %**; 34 modules at 0 % | `mix test.coverage` |
 | Go agent | builds; tests pass in 3 of 10 packages (3,793 prod LOC / 599 test LOC); modules upgraded 2026-11-01 (otel 1.47, grpc 1.85) | `cd agent && go test ./...` |
 | Cypress | 27 specs on disk, **not executed in this session** | `ls cypress/e2e/*.cy.js` |
 | Static analysis | `scripts/quality-gate.sh` passes as a whole: 17 steps, 0 failures (format, compile, Sobelow, credo, doc references, test database, ExUnit, Go fmt/vet/golangci-lint/tests/gofmt/mod-tidy, jscpd, ESLint, TypeScript, Prettier, link checker). Two findings are kept and documented rather than ignored: the MD5 artifact checksums, which are the format a GoCD agent writes. `mix dialyzer` was run for the first time on 2026-11-02: 41 warnings then, 6 now. Six that went were dead branches that hid real faults, described below; eighteen were calls `VsmTracer.set_status` made to a one-argument form whose spec wants a status record, which now go through the documented `set_status(code, message)`; the rest were stale specs and one function with no callers. The six that remain are named rather than silenced: `k8s.ex:136`, a third-party inference about `K8s.Client.run/2` inside the `Task` that probes a cluster (the probe cannot be driven from a test because the fake provider is registered per process); `test_report.ex:107` and `:109`, Ecto changeset typing in the store path that `parse_and_store/2` tests exercise on three report formats; `materials/scm_client.ex:140`, `:141` and `:151`, an `author || "svn"` whose producer always supplies a binary. Three stale specs it found early are fixed too: two modules were referenced as `.t()` without defining one, and `material_filter`'s spec named an unaliased `Material`. `staticcheck` cannot serve either, its binary being older than the Go toolchain, and the gate now says that instead of blaming the code | see above |
@@ -433,6 +433,17 @@ counts when there is one, and an honest empty page when there is not.
 Pages need this sweep more than endpoints do: a page renders what several
 contexts return at once, so one nil or one missing field takes the whole page
 down rather than one response.
+
+The same sweep, pointed at pages that name something absent, found a
+twenty-first: `/admin/config_repos/:id/edit` raised `Ecto.Query.CastError` for an
+id that is not a number, because a config repository's key is an integer and
+`Repo.get/2` raises rather than answering nil for a value the key type cannot
+hold. It answers the way the page's own "not found" branch already did — a
+redirect to the list with a message — after checking the id can be one at all.
+Two other pages in that run looked like offenders and were not: the sweep counted
+every redirect as a failure, when a redirect carrying an error is precisely how a
+page says the thing it was asked for is not there. It now accepts that, and holds
+pages to raising nothing and redirecting with something to say.
 ### Known noise: the sandbox says a connection was disconnected
 
 Most runs print one or two lines like
@@ -456,7 +467,7 @@ table: the agent speaks HTTP remoting, like a real GoCD agent
 (`agent/internal/remoting/`, `agent_remoting_controller.ex`, and no `websocket`
 string anywhere in the Go agent).
 
-`README.md` badges are hand-written and say 1208 tests and 27 Cypress specs.
+`README.md` badges are hand-written and say 1211 tests and 27 Cypress specs.
 Nothing regenerates them, so they will drift again.
 
 `scripts/check_doc_refs.exs` is the part that cannot drift: it fails when a
