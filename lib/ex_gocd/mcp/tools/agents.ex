@@ -181,50 +181,54 @@ defmodule ExGoCD.Mcp.Tools.Agents do
   end
 
   defp show(args, _ctx) do
-    with {:ok, uuid} <- Args.required(args, "uuid"),
-         {:ok, runs} <- Args.integer(args, "runs", default: 10, min: 1, max: 50) do
-      case Agents.get_agent_by_uuid(uuid) do
-        nil ->
-          {:error, "Agent '#{uuid}' not found."}
-
-        agent ->
-          health = AgentHealths.latest_for_agent(uuid)
-
-          recent_runs =
-            AgentJobRuns.list_runs_for_agent(uuid)
-            |> Enum.sort_by(& &1.inserted_at, {:desc, DateTime})
-            |> Enum.take(runs)
-
-          structured = %{
-            "agent" => agent_map(agent),
-            "health" => health_map(health),
-            "runs" => Enum.map(recent_runs, &run_map/1)
-          }
-
-          text =
-            [
-              "#{agent.hostname || agent.uuid} · #{agent.state}#{if agent.disabled, do: " · disabled", else: ""}",
-              Render.kv([
-                {"uuid", agent.uuid},
-                {"ip", agent.ipaddress},
-                {"resources", agent.resources},
-                {"environments", agent.environments},
-                {"elastic agent id", agent.elastic_agent_id},
-                {"operating system", agent.operating_system},
-                {"free space", free_space(agent.free_space)},
-                {"last updated", Render.timestamp(agent.updated_at)}
-              ]),
-              health_text(structured["health"]),
-              runs_text(recent_runs)
-            ]
-            |> Enum.reject(&(&1 in [nil, ""]))
-            |> Enum.join("\n\n")
-
-          Tool.ok(text, structured)
-      end
-    else
+    case Args.all(args, uuid: :string, runs: {:integer, default: 10, min: 1, max: 50}) do
+      {:ok, request} -> show_agent(request)
       {:error, message} -> {:error, message}
     end
+  end
+
+  defp show_agent(request) do
+    case Agents.get_agent_by_uuid(request.uuid) do
+      nil -> {:error, "Agent '#{request.uuid}' not found."}
+      agent -> Tool.ok(agent_text(agent, request.runs), agent_view(agent, request.runs))
+    end
+  end
+
+  defp agent_view(agent, runs) do
+    %{
+      "agent" => agent_map(agent),
+      "health" => health_map(AgentHealths.latest_for_agent(agent.uuid)),
+      "runs" => Enum.map(recent_runs(agent.uuid, runs), &run_map/1)
+    }
+  end
+
+  defp agent_text(agent, runs) do
+    [
+      "#{agent.hostname || agent.uuid} · #{agent.state}#{disabled_note(agent)}",
+      Render.kv([
+        {"uuid", agent.uuid},
+        {"ip", agent.ipaddress},
+        {"resources", agent.resources},
+        {"environments", agent.environments},
+        {"elastic agent id", agent.elastic_agent_id},
+        {"operating system", agent.operating_system},
+        {"free space", free_space(agent.free_space)},
+        {"last updated", Render.timestamp(agent.updated_at)}
+      ]),
+      health_text(health_map(AgentHealths.latest_for_agent(agent.uuid))),
+      runs_text(recent_runs(agent.uuid, runs))
+    ]
+    |> Enum.reject(&(&1 in [nil, ""]))
+    |> Enum.join("\n\n")
+  end
+
+  defp disabled_note(%{disabled: true}), do: " · disabled"
+  defp disabled_note(_agent), do: ""
+
+  defp recent_runs(uuid, limit) do
+    AgentJobRuns.list_runs_for_agent(uuid)
+    |> Enum.sort_by(& &1.inserted_at, {:desc, DateTime})
+    |> Enum.take(limit)
   end
 
   defp update(args, ctx) do

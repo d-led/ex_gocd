@@ -382,37 +382,40 @@ defmodule ExGoCD.Mcp.Tools.Pipelines do
   end
 
   defp compare(args, _ctx) do
-    with {:ok, name} <- Args.required(args, "name"),
-         {:ok, from} <- Args.required_integer(args, "from"),
-         {:ok, to} <- Args.required_integer(args, "to") do
-      comparison = Pipelines.compare_instances(name, from, to)
-      structured = comparison_map(comparison)
-
-      text =
-        [
-          "#{name}: ##{from_text(from)} → ##{to}",
-          if(structured["config_changed"],
-            do: "The configuration changed between the two runs.",
-            else: "The configuration did not change between the two runs."
-          ),
-          "",
-          Render.table(
-            ["MATERIAL", "FROM", "TO"],
-            Enum.map(structured["materials"], fn material ->
-              [
-                material["url"] || material["type"],
-                material["from_revision"],
-                material["to_revision"]
-              ]
-            end)
-          )
-        ]
-        |> Enum.join("\n")
-
-      Tool.ok(text, structured)
-    else
+    case Args.all(args, name: :string, from: :integer, to: :integer) do
+      {:ok, request} -> compare_runs(request)
       {:error, message} -> {:error, message}
     end
+  end
+
+  defp compare_runs(request) do
+    comparison = Pipelines.compare_instances(request.name, request.from, request.to)
+    structured = comparison_map(comparison)
+
+    Tool.ok(compare_text(request, structured), structured)
+  end
+
+  defp compare_text(request, structured) do
+    [
+      "#{request.name}: ##{from_text(request.from)} → ##{request.to}",
+      config_change_note(structured["config_changed"]),
+      "",
+      Render.table(["MATERIAL", "FROM", "TO"], Enum.map(structured["materials"], &material_row/1))
+    ]
+    |> Enum.join("\n")
+  end
+
+  defp config_change_note(true), do: "The configuration changed between the two runs."
+
+  defp config_change_note(_unchanged),
+    do: "The configuration did not change between the two runs."
+
+  defp material_row(material) do
+    [
+      material["url"] || material["type"],
+      material["from_revision"],
+      material["to_revision"]
+    ]
   end
 
   # ── pipeline configuration rendering ───────────────────────────────

@@ -253,27 +253,32 @@ defmodule ExGoCD.Mcp.Tools.Administration do
   end
 
   defp refresh_config_repo(args, ctx) do
-    with {:ok, id} <- Args.required_integer(args, "id"),
+    with {:ok, request} <- Args.all(args, id: :integer),
          :ok <- Auth.require_admin(ctx.user, "refresh a config repository") do
-      case ConfigRepos.get_config_repo(id) do
-        nil ->
-          {:error, "Config repository #{id} not found."}
-
-        repository ->
-          case ConfigRepos.refresh_config_repo(repository) do
-            {:ok, _repository} ->
-              Tool.ok(
-                "Config repository #{id} (#{repository.url}) will be re-read by the poller. " <>
-                  "`gocd_config_repos` shows when it last parsed, and any error it reports.",
-                %{"id" => id, "refresh_requested" => true}
-              )
-
-            {:error, reason} ->
-              {:error, "Could not refresh config repository #{id}: #{reason}"}
-          end
-      end
+      refresh_repository(request.id)
     else
       {:error, message} -> {:error, message}
+    end
+  end
+
+  defp refresh_repository(id) do
+    case ConfigRepos.get_config_repo(id) do
+      nil -> {:error, "Config repository #{id} not found."}
+      repository -> request_refresh(id, repository)
+    end
+  end
+
+  defp request_refresh(id, repository) do
+    case ConfigRepos.refresh_config_repo(repository) do
+      {:ok, _repository} ->
+        Tool.ok(
+          "Config repository #{id} (#{repository.url}) will be re-read by the poller. " <>
+            "`gocd_config_repos` shows when it last parsed, and any error it reports.",
+          %{"id" => id, "refresh_requested" => true}
+        )
+
+      {:error, reason} ->
+        {:error, "Could not refresh config repository #{id}: #{reason}"}
     end
   end
 
