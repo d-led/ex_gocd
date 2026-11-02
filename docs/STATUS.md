@@ -14,11 +14,11 @@
 | Dimension | State | Evidence |
 | --- | --- | --- |
 | Code | 268 source files, compile warnings-as-errors clean | `git ls-files 'lib/**/*.ex'` |
-| ExUnit | **1529 tests, all green** | `mix test` |
-| Coverage | **65.9 %**; 27 modules at 0 % | `mix test.coverage` |
+| ExUnit | **1533 tests, all green** | `mix test` |
+| Coverage | **67.5 %** (11,333 of 16,778 lines); 27 modules at 0 % | `mix cover`, then `elixir scripts/coverage_total.exs` |
 | Go agent | builds; tests pass in 3 of 10 packages (3,793 prod LOC / 599 test LOC); modules upgraded 2026-11-01 (otel 1.47, grpc 1.85) | `cd agent && go test ./...` |
 | Cypress | 27 specs on disk, **not executed in this session** | `ls cypress/e2e/*.cy.js` |
-| Static analysis | `scripts/quality-gate.sh` passes as a whole: 17 steps, 0 failures (format, compile, Sobelow, credo, doc references, test database, ExUnit, Go fmt/vet/golangci-lint/tests/gofmt/mod-tidy, jscpd, ESLint, TypeScript, Prettier, link checker). Two findings are kept and documented rather than ignored: the MD5 artifact checksums, which are the format a GoCD agent writes. `mix dialyzer` was run for the first time on 2026-11-02: 41 warnings then, 6 now. Six that went were dead branches that hid real faults, described below; eighteen were calls `VsmTracer.set_status` made to a one-argument form whose spec wants a status record, which now go through the documented `set_status(code, message)`; the rest were stale specs and one function with no callers. The six that remain are named rather than silenced: `k8s.ex:136`, a third-party inference about `K8s.Client.run/2` inside the `Task` that probes a cluster (the probe cannot be driven from a test because the fake provider is registered per process); `test_report.ex:107` and `:109`, Ecto changeset typing in the store path that `parse_and_store/2` tests exercise on three report formats; `materials/scm_client.ex:140`, `:141` and `:151`, an `author || "svn"` whose producer always supplies a binary. Three stale specs it found early are fixed too: two modules were referenced as `.t()` without defining one, and `material_filter`'s spec named an unaliased `Material`. `staticcheck` cannot serve either, its binary being older than the Go toolchain, and the gate now says that instead of blaming the code | see above |
+| Static analysis | `scripts/quality-gate.sh` passes as a whole: 17 steps, 0 failures (format, compile, Sobelow, credo, doc references, test database, ExUnit, Go fmt/vet/golangci-lint/tests/gofmt/mod-tidy, jscpd, ESLint, TypeScript, Prettier, link checker). Two findings are kept and documented rather than ignored: the MD5 artifact checksums, which are the format a GoCD agent writes. `mix dialyzer` went from 41 warnings (2026-11-02, default flags) to none, and nothing was silenced to get there — see [Types and CRAP](#types-and-crap). `staticcheck` cannot serve either, its binary being older than the Go toolchain, and the gate now says that instead of blaming the code | see above |
 | CI | every commit through `ae8b54c` is green on Elixir CI, CodeQL and Sobelow, and two of those runs show the documentation check executing and printing `[PASS] documentation references resolve` in the `build` job. `5d74c99` and `8331faf` were still queued at hand-off; both pass the whole local gate | `gh run list` |
 | Security | **0 open Dependabot alerts**; `npm audit` 0 vulnerabilities | see above |
 | Dependencies | Hex and npm on their latest releases; Go modules not yet | `mix hex.outdated`, `npm outdated` |
@@ -38,7 +38,9 @@ means nothing currently *fails*; it does not mean the untested paths work.
 | --- | --- | --- | --- |
 | ExUnit | `mix test` | yes, already prepared | yes |
 | ExUnit, no database | `EX_GOCD_TEST_NO_DB=1 mix test` | no | no |
-| Coverage | `mix test.coverage` (Coveralls JSON) | yes, already prepared | no |
+| Coverage, against a floor | `mix cover` (fails under 65 %) | yes, already prepared | yes |
+| Coverage, the number | `elixir scripts/coverage_total.exs` (reads the export) | no | no |
+| Coverage, per module | `mix test.coverage` (Coveralls JSON) | yes, already prepared | no |
 | Go agent | `cd agent && go test ./...` | no | yes |
 | Cypress | `bash scripts/run_cypress.sh` | yes (server + agent) | separate workflow |
 | Everything static | `bash scripts/quality-gate.sh` | yes (runs `mix test` itself) | no |
