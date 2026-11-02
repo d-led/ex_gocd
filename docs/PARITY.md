@@ -15,7 +15,9 @@
 > **not** mean the behaviour is verified — that is what the coverage table in
 > STATUS.md is for. What can be checked without judgement is checked:
 > `scripts/check_doc_refs.exs` fails the quality gate if a source file, route or
-> internal link named here stops existing.
+> internal link named here stops existing, or if a module named here has nothing
+> in `lib/` referring to it. **(no test)** marks a module that exists, is wired
+> up, and that no test reaches.
 
 ---
 
@@ -99,7 +101,7 @@ via `ExGoCD.Plugin.Registry`, using libcluster gossip and `PLUGIN_SECRET`.
 |---------|-----|----------|-------------------|
 | Pipeline scheduling | ✅ | ✅ Dashboard + Activity + Config + Wizard | ✅ scheduler.ex |
 | Stages & Jobs | ✅ | ✅ StageDetails + JobDetails + Gantt | ✅ stage_status.ex |
-| Agents | ✅ CRUD + bulk | ✅ AgentsLive + JobHistory + JobRunDetail | ✅ agent_registry.ex |
+| Agents | ✅ CRUD + bulk | ✅ AgentsLive + JobHistory + JobRunDetail | ✅ agent_registry.ex (no test) |
 | VSM | ✅ pipeline + material routes | ✅ ValueStreamMapLive (all 5 phases) | ✅ vsm_tracer.ex |
 | Analytics | ✅ | ✅ AnalyticsLive (5 dashboard types) | ✅ snapshot_collector.ex |
 | Compare & Config Diff | ✅ | ✅ CompareLive + ConfigDiffLive | — |
@@ -142,7 +144,7 @@ via `ExGoCD.Plugin.Registry`, using libcluster gossip and `PLUGIN_SECRET`.
 | Dashboard Changes | — | ✅ material revisions dropdown | — |
 | Stage Overview Popup | — | ✅ job counts, states, rerun | — |
 | Tests tab | ✅ LiveView-native from Ecto (G1) | ✅ test_report.ex |
-| Docker Elastic Agent | ✅ container lifecycle, resource→image | ✅ docker_elastic_agent_scheduler.ex |
+| Docker Elastic Agent | ✅ container lifecycle, resource→image | ✅ docker_elastic_agent_scheduler.ex (no test) |
 | Artifact Cache | ✅ zip cache, LRU eviction, 200MB default | ✅ artifact_cache.ex |
 
 ### ✅ All gaps resolved (2026-07-08)

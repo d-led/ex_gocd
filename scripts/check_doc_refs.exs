@@ -2,6 +2,7 @@
 # Checks that what the documentation points at still exists.
 #
 #   * every source file and /api route named in docs/PARITY.md
+#   * every source file named there is wired to something else in lib/
 #   * every Elixir module named in docs/module_mapping.md
 #   * every relative markdown link in docs/ and README.md
 #
@@ -17,7 +18,8 @@ defmodule DocRefs do
     # this is run from.
     File.cd!(Path.expand("..", __DIR__))
 
-    problems = source_ref_problems() ++ named_module_problems() ++ link_problems()
+    problems =
+      source_ref_problems() ++ wiring_problems() ++ named_module_problems() ++ link_problems()
 
     case problems do
       [] ->
@@ -96,6 +98,35 @@ defmodule DocRefs do
     |> Enum.uniq()
     |> Enum.reject(&MapSet.member?(defined, &1))
     |> Enum.map(&{@module_mapping, &1, "no such module"})
+  end
+
+  # The table says a named module is "wired up", which is a second claim: the
+  # module exists, and something calls it. Two modules have been found where only
+  # the first was true — a deleted duplicate and a policy nothing asked — so the
+  # claim is checked rather than trusted.
+  defp wiring_problems do
+    sources = Path.wildcard("lib/**/*.ex") |> Enum.map(&{&1, File.read!(&1)})
+
+    @parity
+    |> File.read!()
+    |> table_cells()
+    |> Enum.flat_map(&(~r/[\w\/]+\.ex/ |> Regex.scan(&1) |> List.flatten()))
+    |> Enum.uniq()
+    |> Enum.map(&source_of(&1, sources))
+    |> Enum.reject(&is_nil/1)
+    |> Enum.reject(fn {file, _text} -> wired?(file, sources) end)
+    |> Enum.map(fn {file, _} -> {@parity, Path.basename(file), "nothing refers to this module"} end)
+  end
+
+  defp source_of(name, sources) do
+    Enum.find(sources, fn {file, _} -> Path.basename(file) == Path.basename(name) end)
+  end
+
+  defp wired?(file, sources) do
+    module = file |> File.read!() |> then(&Regex.run(~r/defmodule\s+([\w.]+)/, &1))
+    short = module |> List.last() |> String.split(".") |> List.last()
+
+    Enum.any?(sources, fn {other, text} -> other != file and String.contains?(text, short) end)
   end
 
   defp defined_modules do
