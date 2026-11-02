@@ -29,7 +29,7 @@ defmodule ExGoCDWeb.API.Admin.BackupConfigController do
         conn |> put_status(:created) |> json(backup_config_json(config))
 
       {:error, changeset} ->
-        conn |> put_status(:unprocessable_entity) |> json(%{errors: error_map(changeset)})
+        conn |> put_status(:unprocessable_entity) |> json(%{errors: format_errors(changeset)})
     end
   end
 
@@ -55,11 +55,5 @@ defmodule ExGoCDWeb.API.Admin.BackupConfigController do
       last_backup_at: c.last_backup_at,
       last_backup_status: c.last_backup_status
     }
-  end
-
-  defp error_map(changeset) do
-    Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
-      Enum.reduce(opts, msg, fn {k, v}, acc -> String.replace(acc, "%{#{k}}", to_string(v)) end)
-    end)
   end
 end

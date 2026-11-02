@@ -452,6 +452,15 @@ defmodule ExGoCDWeb.Router do
     get "/mailserver", MailserverConfigController, :show
   end
 
+  # api.go.cd documents the backup config under /go/api/config/backup; the
+  # /go/api/admin/config/backup routes above are ex_gocd's own spelling.
+  scope "/go/api/config", ExGoCDWeb.API.Admin do
+    pipe_through :admin_api
+    get "/backup", BackupConfigController, :show
+    post "/backup", BackupConfigController, :create
+    delete "/backup", BackupConfigController, :delete
+  end
+
   scope "/go/api/current_user", ExGoCDWeb.API do
     pipe_through :api
 
