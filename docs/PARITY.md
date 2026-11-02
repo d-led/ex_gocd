@@ -5,8 +5,11 @@
 > gaps resolved" claim from the 2026-07-08 audit is not repeated here, because
 > nothing in the code checks it.
 >
-> Counts last measured 2026-11-02: 1101 tests, 61 controllers, 22 LiveView
-> pages, 22 GenServers, 44 migrations.
+> Counts last measured 2026-11-02: 1104 tests (`mix test`), 81 controller files
+> under `lib/ex_gocd_web/controllers/` (`find … -name '*.ex' | wc -l`), 22
+> LiveView modules under `lib/ex_gocd_web/live/`, 22 modules calling
+> `use GenServer`, 45 migrations in `priv/repo/migrations/`. Each count means what
+> the command beside it says; none of them is a claim about behaviour.
 >
 > A ✅ below means the module named beside it exists and is wired up. It does
 > **not** mean the behaviour is verified — that is what the coverage table in

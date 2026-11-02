@@ -169,4 +169,47 @@ defmodule ExGoCD.K8sTest do
       assert {:error, :invalid_kubeconfig} = ExGoCD.K8s.extract_k3s_config("")
     end
   end
+
+  # Both of these ask Kubernetes for a state that may already hold. A pod that
+  # exists is what create_pod wanted; a pod that is gone is what delete_pod
+  # wanted. Kubernetes reports both as a reason string, not an atom.
+  describe "asking for a state that already holds" do
+    setup do
+      provider = K8s.Client.DynamicHTTPProvider
+      start_supervised!(provider)
+
+      {:ok, conn} =
+        ExGoCD.K8s.from_config(%{"server" => "https://k8s.test:6443", "token" => "tok"})
+
+      # The conn's default provider is baked in when the k8s library is compiled,
+      # so the fake has to be handed to this conn rather than configured.
+      %{conn: %{conn | http_provider: provider}}
+    end
+
+    test "a pod that already exists counts as created", %{conn: conn} do
+      refuse_with("AlreadyExists", "pods \"gocd-agent-1\" already exists")
+
+      assert {:ok, "gocd-agent-1"} =
+               ExGoCD.K8s.create_pod(conn, %{"metadata" => %{"name" => "gocd-agent-1"}})
+    end
+
+    test "a pod that is already gone counts as deleted", %{conn: conn} do
+      refuse_with("NotFound", "pods \"gocd-agent-1\" not found")
+
+      assert :ok = ExGoCD.K8s.delete_pod(conn, "gocd-agent-1")
+    end
+
+    test "anything else is still a failure", %{conn: conn} do
+      refuse_with("Forbidden", "pods is forbidden")
+
+      assert {:error, %{reason: "Forbidden"}} =
+               ExGoCD.K8s.create_pod(conn, %{"metadata" => %{"name" => "gocd-agent-1"}})
+    end
+  end
+
+  defp refuse_with(reason, message) do
+    K8s.Client.DynamicHTTPProvider.register(self(), fn _method, _uri, _body, _headers, _opts ->
+      {:error, %K8s.Client.APIError{reason: reason, message: message}}
+    end)
+  end
 end

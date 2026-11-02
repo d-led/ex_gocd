@@ -64,9 +64,16 @@ defmodule ExGoCD.K8s do
     operation = @k8s_client.create(resource)
 
     case @k8s_client.run(conn, operation) do
-      {:ok, _} -> {:ok, name}
-      {:error, %{reason: :already_exists}} -> {:ok, name}
-      {:error, reason} -> {:error, reason}
+      {:ok, _} ->
+        {:ok, name}
+
+      # A pod that already exists is the state that was asked for. The API names
+      # that reason "AlreadyExists", as a string.
+      {:error, %{reason: "AlreadyExists"}} ->
+        {:ok, name}
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -77,9 +84,15 @@ defmodule ExGoCD.K8s do
     operation = @k8s_client.delete("v1", "Pod", namespace: ns, name: pod_name)
 
     case @k8s_client.run(conn, operation) do
-      {:ok, _} -> :ok
-      {:error, %{reason: :not_found}} -> :ok
-      {:error, reason} -> {:error, reason}
+      {:ok, _} ->
+        :ok
+
+      # A pod that is already gone is the state that was asked for.
+      {:error, %{reason: "NotFound"}} ->
+        :ok
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 

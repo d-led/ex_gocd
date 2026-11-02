@@ -14,11 +14,11 @@
 | Dimension | State | Evidence |
 | --- | --- | --- |
 | Code | 275 modules, compile warnings-as-errors clean | `mix compile --force --warnings-as-errors` |
-| ExUnit | **1101 tests, all green** | `mix test` |
+| ExUnit | **1104 tests, all green** | `mix test` |
 | Coverage | **55.2 %** of 274 modules; 78 at 0 % | `mix test.coverage` |
 | Go agent | builds; tests pass in 3 of 10 packages (3,793 prod LOC / 599 test LOC); modules upgraded 2026-11-01 (otel 1.47, grpc 1.85) | `cd agent && go test ./...` |
 | Cypress | 27 specs on disk, **not executed in this session** | `ls cypress/e2e/*.cy.js` |
-| Static analysis | `scripts/quality-gate.sh` passes as a whole: 17 steps, 0 failures (format, compile, Sobelow, credo, doc references, test database, ExUnit, Go fmt/vet/golangci-lint/tests/gofmt/mod-tidy, jscpd, ESLint, TypeScript, Prettier, link checker). Two findings are kept and documented rather than ignored: the MD5 artifact checksums, which are the format a GoCD agent writes. `mix dialyzer` was run for the first time on 2026-11-02: 41 warnings remain, concentrated in `pipelines.ex` (8), `scheduler.ex` (8), `agent_channel.ex` (6) and `materials/scm_client.ex` (4), of kinds `call` (18), `no_return` (12), `pattern_match` (5), `guard_fail` (5) and `invalid_contract` (1). Three stale specs it found are fixed: two modules were referenced as `.t()` without defining one, and `material_filter`'s spec named an unaliased `Material`. `staticcheck` cannot serve either, its binary being older than the Go toolchain, and the gate now says that instead of blaming the code | see above |
+| Static analysis | `scripts/quality-gate.sh` passes as a whole: 17 steps, 0 failures (format, compile, Sobelow, credo, doc references, test database, ExUnit, Go fmt/vet/golangci-lint/tests/gofmt/mod-tidy, jscpd, ESLint, TypeScript, Prettier, link checker). Two findings are kept and documented rather than ignored: the MD5 artifact checksums, which are the format a GoCD agent writes. `mix dialyzer` was run for the first time on 2026-11-02: 41 warnings then, 39 now, concentrated in `pipelines.ex` (8), `scheduler.ex` (8), `agent_channel.ex` (6) and `materials/scm_client.ex` (4), of kinds `call` (18), `no_return` (12), `pattern_match` (3), `guard_fail` (5) and `invalid_contract` (1); the two that went were the dead branches described below. Three stale specs it found are fixed: two modules were referenced as `.t()` without defining one, and `material_filter`'s spec named an unaliased `Material`. `staticcheck` cannot serve either, its binary being older than the Go toolchain, and the gate now says that instead of blaming the code | see above |
 | CI | every commit through `ae8b54c` is green on Elixir CI, CodeQL and Sobelow, and two of those runs show the documentation check executing and printing `[PASS] documentation references resolve` in the `build` job. `5d74c99` and `8331faf` were still queued at hand-off; both pass the whole local gate | `gh run list` |
 | Security | **0 open Dependabot alerts**; `npm audit` 0 vulnerabilities | see above |
 | Dependencies | Hex and npm on their latest releases; Go modules not yet | `mix hex.outdated`, `npm outdated` |
@@ -225,6 +225,18 @@ only a filter set to "all" received anything. Cancellation dispatched nothing at
 all, and `cancelled` was not even in the list of events a filter could be created
 with. Both are fixed, with three tests that watch the mail.
 
+A seventh also came from dialyzer. `create_pod` and `delete_pod` were written to
+treat "it is already there" and "it is already gone" as the answer they were
+asked for, which is what makes a retried provisioning pass harmless. The branches
+that recognised those answers matched `reason: "AlreadyExists"` as an atom.
+`K8s.Client.APIError` carries the reason as a string, so neither branch could
+match: asking for a pod that existed returned an error, as did asking for one to
+be deleted when it was already gone. The Kubernetes agent's whole lifecycle
+worker therefore error-looped on its own retries. Fixed, with three tests that
+stand a fake HTTP provider behind the connection — a pod that exists counts as
+created, a pod that is gone counts as deleted, and any other refusal is still a
+failure.
+
 ### Known noise: the sandbox says a connection was disconnected
 
 Most runs print one or two lines like
@@ -248,7 +260,7 @@ table: the agent speaks HTTP remoting, like a real GoCD agent
 (`agent/internal/remoting/`, `agent_remoting_controller.ex`, and no `websocket`
 string anywhere in the Go agent).
 
-`README.md` badges are hand-written and say 1101 tests and 27 Cypress specs.
+`README.md` badges are hand-written and say 1104 tests and 27 Cypress specs.
 Nothing regenerates them, so they will drift again.
 
 `scripts/check_doc_refs.exs` is the part that cannot drift: it fails when a
