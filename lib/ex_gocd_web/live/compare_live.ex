@@ -324,13 +324,15 @@ defmodule ExGoCDWeb.CompareLive do
 
   defp format_time(nil), do: "—"
 
-  defp format_time(time) when is_binary(time) do
-    case DateTime.from_iso8601(time) do
-      {:ok, parsed, _} -> format_time(parsed)
-      _ -> time
-    end
-  end
+  defp format_time(time) when is_binary(time), do: time |> parsed_time() |> format_time()
 
   defp format_time(%DateTime{} = time), do: Calendar.strftime(time, "%d %b, %Y at %H:%M:%S UTC")
   defp format_time(_), do: "—"
+
+  defp parsed_time(text) do
+    case DateTime.from_iso8601(text) do
+      {:ok, parsed, _offset} -> parsed
+      {:error, _reason} -> text
+    end
+  end
 end

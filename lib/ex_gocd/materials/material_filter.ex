@@ -81,13 +81,24 @@ defmodule ExGoCD.Materials.MaterialFilter do
 
   # ── Helpers ───────────────────────────────────────────────────────────
 
-  defp extract_path(%{path: path}) when is_binary(path), do: path
-  defp extract_path(%{"path" => path}) when is_binary(path), do: path
-  defp extract_path(%{file_name: name}) when is_binary(name), do: name
-  defp extract_path(%{"file_name" => name}) when is_binary(name), do: name
-  defp extract_path(%{comment: comment}), do: extract_first_path_from_text(comment)
-  defp extract_path(%{"comment" => comment}), do: extract_first_path_from_text(comment)
-  defp extract_path(_), do: ""
+  defp extract_path(node) when is_map(node) do
+    cond do
+      value = text(node, :path) -> value
+      value = text(node, :file_name) -> value
+      value = text(node, :comment) -> extract_first_path_from_text(value)
+      true -> ""
+    end
+  end
+
+  defp extract_path(_node), do: ""
+
+  # The payload arrives from either side of JSON, so both key shapes are read.
+  defp text(node, key) do
+    case node[key] || node[to_string(key)] do
+      value when is_binary(value) -> value
+      _missing -> nil
+    end
+  end
 
   defp extract_first_path_from_text(text) when is_binary(text) do
     # Try to extract a file path from a commit message

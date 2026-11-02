@@ -293,22 +293,32 @@ defmodule ExGoCD.Mailer do
     "#{site_url()}/pipelines/#{pipeline}/#{p_ctr}/#{stage}/#{s_ctr}"
   end
 
-  defp event_color("Passes", _), do: "22c55e"
-  defp event_color("Fixed", _), do: "22c55e"
-  defp event_color("Fails", _), do: "ef4444"
-  defp event_color("Breaks", _), do: "ef4444"
-  defp event_color("Cancelled", _), do: "f59e0b"
-  defp event_color(_, "Passed"), do: "22c55e"
-  defp event_color(_, "Failed"), do: "ef4444"
-  defp event_color(_, "Cancelled"), do: "f59e0b"
-  defp event_color(_, _), do: "6b7280"
+  @event_colors %{
+    "Passes" => "22c55e",
+    "Fixed" => "22c55e",
+    "Fails" => "ef4444",
+    "Breaks" => "ef4444",
+    "Cancelled" => "f59e0b"
+  }
 
-  defp event_icon("Passes", _), do: "&#x2705;"
-  defp event_icon("Fixed", _), do: "&#x2705;"
-  defp event_icon("Fails", _), do: "&#x274C;"
-  defp event_icon("Breaks", _), do: "&#x274C;"
-  defp event_icon("Cancelled", _), do: "&#x26A0;"
-  defp event_icon(_, "Passed"), do: "&#x2705;"
-  defp event_icon(_, "Failed"), do: "&#x274C;"
-  defp event_icon(_, _), do: "&#x2139;"
+  @result_colors %{"Passed" => "22c55e", "Failed" => "ef4444", "Cancelled" => "f59e0b"}
+
+  @event_icons %{
+    "Passes" => "&#x2705;",
+    "Fixed" => "&#x2705;",
+    "Fails" => "&#x274C;",
+    "Breaks" => "&#x274C;",
+    "Cancelled" => "&#x26A0;"
+  }
+
+  @result_icons %{"Passed" => "&#x2705;", "Failed" => "&#x274C;"}
+
+  # The event names the change; the result names the state. Either decides the look.
+  defp event_color(event, result) do
+    Map.get(@event_colors, event) || Map.get(@result_colors, result) || "6b7280"
+  end
+
+  defp event_icon(event, result) do
+    Map.get(@event_icons, event) || Map.get(@result_icons, result) || "&#x2139;"
+  end
 end

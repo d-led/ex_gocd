@@ -284,13 +284,28 @@ defmodule ExGoCDWeb.AdminSchedulingLive do
 
   defp pinned_agent_reason(pinned, all_agents) do
     case Enum.find(all_agents, &(&1.uuid == pinned)) do
-      nil -> "Pinned to agent #{String.slice(pinned, 0, 8)}… which is not registered"
-      %{disabled: true, hostname: h} -> "Pinned to agent #{h} which is disabled"
-      %{state: "LostContact", hostname: h} -> "Pinned to agent #{h} which has lost contact"
-      %{state: "Building", hostname: h} -> "Pinned to agent #{h} which is currently building"
-      _ -> nil
+      nil -> unregistered_agent_reason(pinned)
+      agent -> unavailable_agent_reason(agent)
     end
   end
+
+  defp unregistered_agent_reason(pinned) do
+    "Pinned to agent #{String.slice(pinned, 0, 8)}… which is not registered"
+  end
+
+  defp unavailable_agent_reason(%{disabled: true, hostname: hostname}) do
+    "Pinned to agent #{hostname} which is disabled"
+  end
+
+  defp unavailable_agent_reason(%{state: "LostContact", hostname: hostname}) do
+    "Pinned to agent #{hostname} which has lost contact"
+  end
+
+  defp unavailable_agent_reason(%{state: "Building", hostname: hostname}) do
+    "Pinned to agent #{hostname} which is currently building"
+  end
+
+  defp unavailable_agent_reason(_agent), do: nil
 
   defp no_matching_agent_reason(job, all_agents) do
     job_resources = job[:resources] || job.resources || []

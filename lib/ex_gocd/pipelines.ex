@@ -398,13 +398,17 @@ defmodule ExGoCD.Pipelines do
     end
   end
 
-  defp material_type_to_atom("git"), do: :git
-  defp material_type_to_atom("dependency"), do: :pipeline
-  defp material_type_to_atom("svn"), do: :svn
-  defp material_type_to_atom("hg"), do: :hg
-  defp material_type_to_atom("p4"), do: :p4
-  defp material_type_to_atom("tfs"), do: :tfs
-  defp material_type_to_atom(_other), do: :unknown
+  # The material types the XML reader knows, and the domain's name for each.
+  @material_types %{
+    "git" => :git,
+    "dependency" => :pipeline,
+    "svn" => :svn,
+    "hg" => :hg,
+    "p4" => :p4,
+    "tfs" => :tfs
+  }
+
+  defp material_type_to_atom(type), do: Map.get(@material_types, type, :unknown)
 
   @doc """
   Cancels all stuck Scheduled/Building jobs. Returns count of cancelled jobs.

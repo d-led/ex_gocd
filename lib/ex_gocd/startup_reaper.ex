@@ -68,23 +68,25 @@ defmodule ExGoCD.StartupReaper do
     building_agents =
       Repo.all(from a in Agent, where: a.state == "Building" and a.deleted == false)
 
-    count =
-      Enum.reduce(building_agents, 0, fn agent, acc ->
-        if agent_has_no_active_jobs?(agent.uuid) do
-          agent
-          |> Agent.changeset(%{state: "Idle"})
-          |> Repo.update()
-          |> case do
-            {:ok, _} -> acc + 1
-            _ -> acc
-          end
-        else
-          acc
-        end
-      end)
-
-    count
+    Enum.reduce(building_agents, 0, fn agent, count ->
+      count + revert_if_idle(agent)
+    end)
   end
+
+  # A restart takes the jobs with it, so an agent still marked building has nothing running.
+  defp revert_if_idle(agent) do
+    if agent_has_no_active_jobs?(agent.uuid) do
+      agent
+      |> Agent.changeset(%{state: "Idle"})
+      |> Repo.update()
+      |> reverted_count()
+    else
+      0
+    end
+  end
+
+  defp reverted_count({:ok, _agent}), do: 1
+  defp reverted_count({:error, _changeset}), do: 0
 
   defp agent_has_no_active_jobs?(agent_uuid) do
     active_states = ["Scheduled", "Assigned", "Preparing", "Building", "Completing"]

@@ -3,6 +3,46 @@ defmodule ExGoCD.Mcp.ArgsTest do
 
   alias ExGoCD.Mcp.Args
 
+  describe "all/2" do
+    test "reads a whole tool call in one pass, each argument by the kind it declares" do
+      call = %{
+        "name" => "build",
+        "counter" => 2,
+        "limit" => "5",
+        "confirm" => "yes",
+        "resources" => "docker, linux",
+        "branch" => "main"
+      }
+
+      assert Args.all(call,
+               name: :string,
+               counter: :integer,
+               limit: {:integer, default: 10, max: 100},
+               confirm: :boolean,
+               resources: :strings,
+               branch: :optional
+             ) ==
+               {:ok,
+                %{
+                  name: "build",
+                  counter: 2,
+                  limit: 5,
+                  confirm: true,
+                  resources: ["docker", "linux"],
+                  branch: "main"
+                }}
+    end
+
+    test "the first argument that cannot be read is the one named" do
+      call = %{"counter" => "three"}
+
+      assert Args.all(call, name: :string, counter: :integer) ==
+               {:error, "`name` is required."}
+
+      assert Args.all(call, counter: :integer) == {:error, "`counter` must be an integer."}
+    end
+  end
+
   describe "required/2" do
     test "refuses a blank value" do
       assert Args.required(%{"name" => "  "}, "name") == {:error, "`name` is required."}

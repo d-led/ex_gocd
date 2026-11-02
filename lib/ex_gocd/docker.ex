@@ -140,11 +140,8 @@ defmodule ExGoCD.Docker do
   """
   def list_containers(labels \\ %{}, opts \\ []) do
     socket = Keyword.get(opts, :docker_socket, default_socket())
-    label_filter = Enum.map_join(labels, ",", fn {k, v} -> "#{k}=#{v}" end)
-    filters = %{label: [label_filter]} |> Jason.encode!()
-    query = if label_filter != "", do: "?filters=#{URI.encode(filters)}", else: ""
 
-    case req_get("/containers/json#{query}", socket) do
+    case req_get("/containers/json#{label_query(labels)}", socket) do
       {:ok, %{status: 200, body: containers}} ->
         {:ok, containers}
 
@@ -153,6 +150,14 @@ defmodule ExGoCD.Docker do
 
       {:error, reason} ->
         {:error, "Docker list failed: #{inspect(reason)}"}
+    end
+  end
+
+  # Docker takes its filters as one JSON query parameter; no labels, no parameter.
+  defp label_query(labels) do
+    case Enum.map_join(labels, ",", fn {key, value} -> "#{key}=#{value}" end) do
+      "" -> ""
+      filter -> "?filters=" <> URI.encode(Jason.encode!(%{label: [filter]}))
     end
   end
 

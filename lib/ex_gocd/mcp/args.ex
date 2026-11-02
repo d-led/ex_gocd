@@ -169,7 +169,8 @@ defmodule ExGoCD.Mcp.Args do
   @spec all(map(), keyword()) :: result(map())
   def all(args, specs) do
     Enum.reduce_while(specs, {:ok, %{}}, fn {key, kind}, {:ok, parsed} ->
-      case parse_one(args, key, kind) do
+      # Tool calls carry string keys; the answer keeps atoms, which tools read as fields.
+      case parse_one(args, to_string(key), kind) do
         {:ok, value} -> {:cont, {:ok, Map.put(parsed, key, value)}}
         {:error, message} -> {:halt, {:error, message}}
       end

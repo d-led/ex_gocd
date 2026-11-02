@@ -300,27 +300,27 @@ defmodule ExGoCD.K8s do
   end
 
   defp extract_pod_info(item) do
-    created = get_in(item, ["metadata", "creationTimestamp"])
-
-    created_at =
-      case created do
-        ts when is_binary(ts) ->
-          case DateTime.from_iso8601(ts) do
-            {:ok, dt, _} -> dt
-            _ -> nil
-          end
-
-        _ ->
-          nil
-      end
-
     %{
       name: get_in(item, ["metadata", "name"]),
       phase: get_in(item, ["status", "phase"]),
       host_ip: get_in(item, ["status", "hostIP"]),
       labels: get_in(item, ["metadata", "labels"]) || %{},
-      created_at: created_at
+      created_at: created_timestamp(item)
     }
+  end
+
+  defp created_timestamp(item) do
+    case get_in(item, ["metadata", "creationTimestamp"]) do
+      timestamp when is_binary(timestamp) -> parse_timestamp(timestamp)
+      _missing -> nil
+    end
+  end
+
+  defp parse_timestamp(timestamp) do
+    case DateTime.from_iso8601(timestamp) do
+      {:ok, datetime, _offset} -> datetime
+      {:error, _reason} -> nil
+    end
   end
 
   defp random_suffix, do: :crypto.strong_rand_bytes(4) |> Base.encode16(case: :lower)

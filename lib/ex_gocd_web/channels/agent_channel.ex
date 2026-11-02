@@ -178,23 +178,16 @@ defmodule ExGoCDWeb.AgentChannel do
 
   # Payload can be: top-level uuid; or full AgentRuntimeInfo with identifier.uuid (on join/ping).
   defp get_uuid(payload) when is_map(payload) do
-    cond do
-      uuid = payload["uuid"] ->
-        uuid
-
-      id = payload["identifier"] ->
-        if is_map(id) do
-          id["uuid"] || id["agent_uuid"] || nested_uuid(id["identifier"])
-        else
-          nil
-        end
-
-      true ->
-        nil
-    end || "unknown"
+    payload["uuid"] || identifier_uuid(payload["identifier"]) || "unknown"
   end
 
-  defp get_uuid(_), do: "unknown"
+  defp get_uuid(_payload), do: "unknown"
+
+  defp identifier_uuid(identifier) when is_map(identifier) do
+    identifier["uuid"] || identifier["agent_uuid"] || nested_uuid(identifier["identifier"])
+  end
+
+  defp identifier_uuid(_identifier), do: nil
 
   defp nested_uuid(nil), do: nil
   defp nested_uuid(id) when is_map(id), do: id["uuid"] || id["agent_uuid"]

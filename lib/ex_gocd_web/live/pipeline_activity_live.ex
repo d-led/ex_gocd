@@ -141,23 +141,22 @@ defmodule ExGoCDWeb.PipelineActivityLive do
     }
   end
 
-  defp map_modifications(rev) do
-    fp = fingerprint(rev)
+  defp map_modifications(revision_entry) do
+    fingerprint = fingerprint(revision_entry)
 
-    (rev["modifications"] || [])
-    |> Enum.map(fn mod ->
-      revision = mod["revision"] || "unknown"
-      raw_comment = mod["comment"] || ""
+    (revision_entry["modifications"] || [])
+    |> Enum.map(&modification(&1, fingerprint))
+  end
 
-      comment = clean_comment(raw_comment, revision)
+  defp modification(entry, fingerprint) do
+    revision = entry["revision"] || "unknown"
 
-      %{
-        revision: revision,
-        user: mod["username"] || "anonymous",
-        comment: comment,
-        fingerprint: fp
-      }
-    end)
+    %{
+      revision: revision,
+      user: entry["username"] || "anonymous",
+      comment: clean_comment(entry["comment"] || "", revision),
+      fingerprint: fingerprint
+    }
   end
 
   # What a material writes when it has nothing to say about a change.
