@@ -14,7 +14,7 @@
 | Dimension | State | Evidence |
 | --- | --- | --- |
 | Code | 268 source files, compile warnings-as-errors clean | `git ls-files 'lib/**/*.ex'` |
-| ExUnit | **1265 tests, all green** | `mix test` |
+| ExUnit | **1276 tests, all green** | `mix test` |
 | Coverage | **62.9 %**; 26 modules at 0 % | `mix test.coverage` |
 | Go agent | builds; tests pass in 3 of 10 packages (3,793 prod LOC / 599 test LOC); modules upgraded 2026-11-01 (otel 1.47, grpc 1.85) | `cd agent && go test ./...` |
 | Cypress | 27 specs on disk, **not executed in this session** | `ls cypress/e2e/*.cy.js` |
@@ -674,6 +674,31 @@ waiting time from it. `schedule_job/1` did not stamp one either. Both do now, an
 a test queues a job and opens the page — the page that is most interesting
 exactly when jobs are waiting was the one unusable then.
 
+Three more admin resources were documented at a path ex_gocd did not serve, and
+one of them answered 500 for a mistyped id as well.
+
+* The **auth config API** is documented at `/go/api/admin/security/auth_configs`
+  and was served at `/go/api/admin/auth_configs`; it had no test at all. Its id is
+  a uuid read with `Repo.get/2`, so `…/not-a-uuid` raised `Ecto.Query.CastError`
+  in `show`, `update` and `delete`. `AuthConfigs.get_config/1` answers `nil` for
+  something that is not a uuid now.
+* **Elastic cluster profiles** are documented at
+  `/go/api/admin/elastic/cluster_profiles` and were served at
+  `/api/admin/cluster_profiles`.
+* **Package repositories** are documented at `/go/api/admin/repositories` and were
+  served at `/api/admin/package_repositories`; same `CastError`, fixed the same way
+  in `PackageRepositories.get_repo/1`.
+
+Both spellings are served, because an alias that moves a client is worse than two
+paths. The documented ones are in both route trees, so the parity sweep still
+holds them to each other, and a new test names the resources we implement with the
+path api.go.cd gives them — `GET` each and require an answer — so the list is
+checked rather than remembered.
+
+A comparison of all 181 endpoints api.go.cd documents against the router finds 90
+with no route. Most are features this rewrite does not have; the ones above were
+features it had under other names.
+
 ### Known noise: the sandbox says a connection was disconnected
 
 Most runs print one or two lines like
@@ -697,7 +722,7 @@ table: the agent speaks HTTP remoting, like a real GoCD agent
 (`agent/internal/remoting/`, `agent_remoting_controller.ex`, and no `websocket`
 string anywhere in the Go agent).
 
-`README.md` badges are hand-written and say 1265 tests and 27 Cypress specs.
+`README.md` badges are hand-written and say 1276 tests and 27 Cypress specs.
 Nothing regenerates them, so they will drift again.
 
 `scripts/check_doc_refs.exs` is the part that cannot drift: it fails when a

@@ -417,6 +417,13 @@ defmodule ExGoCDWeb.Router do
     put "/security/roles/:role_name", RoleController, :update
     delete "/security/roles/:role_name", RoleController, :delete
 
+    # Auth config API (GoCD parity: /go/api/admin/security/auth_configs)
+    resources "/security/auth_configs", AuthConfigController, except: [:new, :edit]
+
+    # The same resources at the paths api.go.cd documents for them
+    resources "/elastic/cluster_profiles", ClusterProfileController, except: [:new, :edit]
+    resources "/repositories", PackageRepositoryController, except: [:new, :edit]
+
     # Encryption API (GoCD parity: POST /api/admin/encrypt)
     post "/encrypt", EncryptionController, :encrypt
   end
@@ -633,6 +640,13 @@ defmodule ExGoCDWeb.Router do
     post "/security/roles", RoleController, :create
     put "/security/roles/:role_name", RoleController, :update
     delete "/security/roles/:role_name", RoleController, :delete
+
+    # Auth config API (GoCD parity: /go/api/admin/security/auth_configs)
+    resources "/security/auth_configs", AuthConfigController, except: [:new, :edit]
+
+    # The same resources at the paths api.go.cd documents for them
+    resources "/elastic/cluster_profiles", ClusterProfileController, except: [:new, :edit]
+    resources "/repositories", PackageRepositoryController, except: [:new, :edit]
   end
 
   # GoCD internal agent remoting API (HTTP-based, used by official Go agent)

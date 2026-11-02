@@ -9,7 +9,20 @@ defmodule ExGoCD.PackageRepositories do
 
   def list_repos, do: Repo.all(PackageRepository)
   def get_repo!(id), do: Repo.get!(PackageRepository, id)
-  def get_repo(id), do: Repo.get(PackageRepository, id)
+
+  @doc """
+  Fetches a repository, or `nil` when no repository has that id.
+
+  The id arrives from a path, so it is whatever a caller typed; `Repo.get/2`
+  raises `Ecto.Query.CastError` for a word, which turns a mistyped path into a
+  500. A word simply names nothing.
+  """
+  def get_repo(id) do
+    case Ecto.UUID.cast(id) do
+      {:ok, uuid} -> Repo.get(PackageRepository, uuid)
+      :error -> nil
+    end
+  end
 
   def create_repo(attrs \\ %{}) do
     %PackageRepository{}
