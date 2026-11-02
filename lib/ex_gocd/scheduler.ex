@@ -442,22 +442,11 @@ defmodule ExGoCD.Scheduler do
   # Matches resources (subset) and environments. Consults AgentSelector plugin
   # if registered — the plugin can veto individual matches (e.g. corporate policy).
   defp find_matching_job(agent, queue) do
-    agent_resources = agent_resources(agent)
-    agent_envs = MapSet.new(agent.environments |> Enum.map(&String.downcase/1))
-
     selector = ExGoCD.Plugin.Registry.get(:agent_selector)
 
     idx =
       Enum.find_index(queue, fn spec ->
-        if is_binary(spec[:agent_uuid]) and spec[:agent_uuid] != "" do
-          spec[:agent_uuid] == agent.uuid
-        else
-          resources_match?(spec.resources || [], agent_resources) and
-            envs_match?(spec.environments || [], agent_envs)
-        end
-        |> then(fn matched? ->
-          matched? and plugin_approves?(selector, agent, spec)
-        end)
+        job_matches_agent?(spec, agent) and plugin_approves?(selector, agent, spec)
       end)
 
     if is_nil(idx) do
@@ -466,6 +455,34 @@ defmodule ExGoCD.Scheduler do
       job = Enum.at(queue, idx)
       rest = List.delete_at(queue, idx)
       {job, rest}
+    end
+  end
+
+  @doc """
+  True if `agent` may run `spec` on account of its constraints: the agent it is
+  pinned to, if any; then its resources, which must all be the agent's; then its
+  environments, which must agree — a job with none runs only on an agent that
+  belongs to none.
+
+  Names are compared without regard to case, as GoCD does. The agent-selector
+  plugin has its own say and is not consulted here.
+  """
+  @spec job_matches_agent?(map(), Agents.Agent.t()) :: boolean()
+  def job_matches_agent?(spec, agent) do
+    case pinned_agent_uuid(spec) do
+      nil ->
+        resources_match?(spec[:resources] || [], agent_resources(agent)) and
+          envs_match?(spec[:environments] || [], agent_envs(agent))
+
+      pinned ->
+        pinned == agent.uuid
+    end
+  end
+
+  defp pinned_agent_uuid(spec) do
+    case spec[:agent_uuid] do
+      uuid when is_binary(uuid) and uuid != "" -> uuid
+      _ -> nil
     end
   end
 
@@ -508,6 +525,10 @@ defmodule ExGoCD.Scheduler do
 
   defp agent_resources(agent) do
     MapSet.new((agent.resources || []) |> Enum.map(&String.downcase/1))
+  end
+
+  defp agent_envs(agent) do
+    MapSet.new((agent.environments || []) |> Enum.map(&String.downcase/1))
   end
 
   defp do_diagnose_pending_job(resources) do

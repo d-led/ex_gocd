@@ -31,22 +31,13 @@ defmodule ExGoCD.ElasticSchedulerHelpers do
   True if no IDLE static agent can handle this job — meaning an elastic
   agent should be provisioned. Checks idle agents only: if all matching
   agents are busy (Building), we still scale up.
+
+  A static agent counts as able to handle the job when the scheduler would give
+  the job to it, which is the same rule the scheduler assigns by.
   """
   def needs_elastic_agent?(job) do
-    resources = job[:resources] || job["resources"] || []
-    envs = job[:environments] || job["environments"] || []
-
-    idle =
-      Agents.list_idle_agents()
-      |> Enum.filter(fn agent ->
-        agent_resources = (agent.resources || []) |> Enum.map(&String.downcase/1)
-        req_resources = resources |> Enum.map(&String.downcase/1)
-
-        Enum.all?(req_resources, &(&1 in agent_resources)) and
-          (envs == [] or Enum.any?(envs, &(&1 in (agent.environments || []))))
-      end)
-
-    Enum.empty?(idle)
+    Agents.list_idle_agents()
+    |> Enum.all?(&(not Scheduler.job_matches_agent?(job, &1)))
   end
 
   @doc "Extracts a display name from a job map."

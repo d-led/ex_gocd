@@ -14,7 +14,7 @@
 | Dimension | State | Evidence |
 | --- | --- | --- |
 | Code | 275 modules, compile warnings-as-errors clean | `mix compile --force --warnings-as-errors` |
-| ExUnit | **1114 tests, all green** | `mix test` |
+| ExUnit | **1126 tests, all green** | `mix test` |
 | Coverage | **55.2 %** of 274 modules; 78 at 0 % | `mix test.coverage` |
 | Go agent | builds; tests pass in 3 of 10 packages (3,793 prod LOC / 599 test LOC); modules upgraded 2026-11-01 (otel 1.47, grpc 1.85) | `cd agent && go test ./...` |
 | Cypress | 27 specs on disk, **not executed in this session** | `ls cypress/e2e/*.cy.js` |
@@ -274,6 +274,20 @@ sites a dialyzer error. The spec of `low_space_agents/1` said `non_neg_integer()
 about an argument whose default is `nil`, and a `fetch_parent_ctx/1` with no
 callers passed a pid where the library wants a depth, so it could only ever
 raise; it is gone.
+
+An eleventh was found by asking what `ElasticSchedulerHelpers` does, a module
+nothing had ever called in a test. Whether a job needs an elastic agent is
+answered by comparing it against the idle static agents, and that comparison was
+written a second time here rather than taken from the scheduler. The two copies
+disagreed: this one compared environment names case-sensitively, ignored the
+agent a job is pinned to, and counted a job with no environments as handled by an
+agent that belongs to one. The last is the expensive one, because the scheduler
+will not assign a job with no environments to an agent that is in one: the job
+would be classed as "a static agent can do this" while no agent could, and wait
+forever without an elastic agent ever being provisioned. The rule now lives once,
+as `Scheduler.job_matches_agent?/2`, and the scheduler assigns by it and the
+elastic helpers ask with it. Twelve tests, three of which fail against the
+duplicated copies.
 ### Known noise: the sandbox says a connection was disconnected
 
 Most runs print one or two lines like
@@ -297,7 +311,7 @@ table: the agent speaks HTTP remoting, like a real GoCD agent
 (`agent/internal/remoting/`, `agent_remoting_controller.ex`, and no `websocket`
 string anywhere in the Go agent).
 
-`README.md` badges are hand-written and say 1114 tests and 27 Cypress specs.
+`README.md` badges are hand-written and say 1126 tests and 27 Cypress specs.
 Nothing regenerates them, so they will drift again.
 
 `scripts/check_doc_refs.exs` is the part that cannot drift: it fails when a
