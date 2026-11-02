@@ -5,7 +5,7 @@ transport, so an assistant can ask about a running GoCD server — what is
 configured, what ran, what is running now, why nothing is running, and what the
 numbers say — and act on it.
 
-It offers three things: **tools** (46 of them, below), **resources** (the
+It offers three things: **tools** (49 of them, below), **resources** (the
 documents a person would attach: the dashboard, the configuration XML, the audit
 trail, one pipeline's configuration) and **prompts** (the four workflows worth
 following in order). Completions offer the values that exist while an argument is
@@ -67,6 +67,14 @@ locked, schedulable, latest run), `gocd_pipeline_history`,
 
 **Acting on pipelines** — `gocd_trigger_pipeline`, `gocd_set_pipeline_paused`,
 `gocd_unlock_pipeline`, `gocd_comment_on_pipeline`.
+
+**Authoring pipelines** — `gocd_create_pipeline` (stages, jobs, tasks and
+materials in one transaction — a definition that is wrong in the third stage
+creates nothing), `gocd_update_pipeline` (the pipeline's own settings: group,
+label template, lock behaviour, paused, timer, parameters, variables),
+`gocd_delete_pipeline`. Rewriting an existing pipeline's stages is deliberately
+not offered: a stage's run history is keyed to the stage row, so that is a
+migration rather than an edit.
 
 **Stages** — `gocd_stage`, `gocd_stage_history`, `gocd_approve_stage`,
 `gocd_cancel_stage`, `gocd_rerun_failed_jobs`.

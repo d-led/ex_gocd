@@ -147,7 +147,7 @@ a reader should start at.
 
 | Claim | How to check it |
 | --- | --- |
-| 46 tools in 9 families, every one with a title, a description, a JSON schema and annotations | `mix run -e 'IO.puts ExGoCD.Mcp.Tools.count()'`; `test/ex_gocd/mcp/tools_test.exs` |
+| 49 tools in 10 families, every one with a title, a description, a JSON schema and annotations | `mix run -e 'IO.puts ExGoCD.Mcp.Tools.count()'`; `test/ex_gocd/mcp/tools_test.exs` |
 | 4 resources and 4 prompts, advertised in `initialize` | `test/ex_gocd_web/mcp/protocol_test.exs` |
 | Stateless: one JSON-RPC message in, one answer out; `GET` and `DELETE` answer 405 | `test/ex_gocd_web/controllers/mcp_controller_test.exs` |
 | A presented-and-wrong credential is a 401 carrying the authorization challenge; no credential is the guest, which is an administrator in open mode | same file, `describe "identity"` |

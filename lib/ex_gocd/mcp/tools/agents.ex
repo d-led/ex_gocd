@@ -10,7 +10,7 @@ defmodule ExGoCD.Mcp.Tools.Agents do
   """
 
   alias ExGoCD.{AgentHealths, AgentJobRuns, Agents, AuditLog.Events}
-  alias ExGoCD.Mcp.{Args, Auth, Render, Tool}
+  alias ExGoCD.Mcp.{Args, Auth, Changeset, Render, Tool}
 
   @names ~w(gocd_list_agents gocd_agent gocd_update_agent gocd_kill_agent_tasks)
 
@@ -270,14 +270,14 @@ defmodule ExGoCD.Mcp.Tools.Agents do
   defp apply_state(agent, :enabled) do
     case Agents.enable_agent(agent) do
       {:ok, agent} -> {:ok, agent}
-      {:error, changeset} -> {:error, changeset_message(changeset)}
+      {:error, changeset} -> {:error, Changeset.message(changeset)}
     end
   end
 
   defp apply_state(agent, :disabled) do
     case Agents.disable_agent(agent) do
       {:ok, agent} -> {:ok, agent}
-      {:error, changeset} -> {:error, changeset_message(changeset)}
+      {:error, changeset} -> {:error, Changeset.message(changeset)}
     end
   end
 
@@ -291,7 +291,7 @@ defmodule ExGoCD.Mcp.Tools.Agents do
 
     case Agents.update_agent(agent, attrs) do
       {:ok, agent} -> {:ok, agent}
-      {:error, changeset} -> {:error, changeset_message(changeset)}
+      {:error, changeset} -> {:error, Changeset.message(changeset)}
     end
   end
 
@@ -451,14 +451,4 @@ defmodule ExGoCD.Mcp.Tools.Agents do
 
   defp maybe_put(attrs, _key, nil), do: attrs
   defp maybe_put(attrs, key, value), do: Map.put(attrs, key, value)
-
-  defp changeset_message(%Ecto.Changeset{} = changeset) do
-    changeset
-    |> Ecto.Changeset.traverse_errors(fn {message, opts} ->
-      Enum.reduce(opts, message, fn {key, value}, acc ->
-        String.replace(acc, "%{#{key}}", to_string(value))
-      end)
-    end)
-    |> Enum.map_join("; ", fn {field, messages} -> "#{field}: #{Enum.join(messages, ", ")}" end)
-  end
 end
