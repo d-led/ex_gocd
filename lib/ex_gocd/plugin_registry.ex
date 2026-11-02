@@ -84,26 +84,8 @@ defmodule ExGoCD.Plugin.Registry do
 
   @impl true
   def handle_info({:plugin_register, slot, module, secret}, state) do
-    configured_secret = Map.get(state, :secret, "")
-
-    if slot in @slots and valid_secret?(configured_secret, secret) do
-      # Kept as a node, because that is what callers need to reach the plugin.
-      node = Node.self()
-
-      IO.puts("[PluginRegistry] Registered #{inspect(module)} as #{slot} from #{to_string(node)}")
-
-      ExGoCD.ClusterEventLog.record(:plugin_registered, %{
-        slot: slot,
-        module: module,
-        node: to_string(node)
-      })
-
-      state =
-        state
-        |> put_in([:slots, slot], module)
-        |> put_in([:nodes, slot], node)
-
-      {:noreply, state}
+    if accepted?(state, slot, secret) do
+      {:noreply, record_registration(state, slot, module)}
     else
       IO.warn("[PluginRegistry] Rejected #{inspect(module)} for #{slot}: invalid secret")
       {:noreply, state}
@@ -111,9 +93,7 @@ defmodule ExGoCD.Plugin.Registry do
   end
 
   def handle_info({:plugin_ui_links, slot, secret, links}, state) do
-    configured_secret = Map.get(state, :secret, "")
-
-    if slot in @slots and valid_secret?(configured_secret, secret) do
+    if accepted?(state, slot, secret) do
       {:noreply, put_in(state, [:ui_links, slot], links)}
     else
       {:noreply, state}
@@ -121,6 +101,27 @@ defmodule ExGoCD.Plugin.Registry do
   end
 
   def handle_info(_msg, state), do: {:noreply, state}
+
+  defp accepted?(state, slot, secret) do
+    slot in @slots and valid_secret?(Map.get(state, :secret, ""), secret)
+  end
+
+  # Kept as a node, because that is what callers need to reach the plugin.
+  defp record_registration(state, slot, module) do
+    node = Node.self()
+
+    IO.puts("[PluginRegistry] Registered #{inspect(module)} as #{slot} from #{to_string(node)}")
+
+    ExGoCD.ClusterEventLog.record(:plugin_registered, %{
+      slot: slot,
+      module: module,
+      node: to_string(node)
+    })
+
+    state
+    |> put_in([:slots, slot], module)
+    |> put_in([:nodes, slot], node)
+  end
 
   @impl true
   def handle_call({:get, slot}, _from, state) do

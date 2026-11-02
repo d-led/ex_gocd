@@ -122,73 +122,75 @@ defmodule ExGoCDWeb.GanttLive do
   end
 
   defp build_stage_data(instances, stage_name, pipeline_name) do
-    counters =
-      instances
-      |> Enum.map(& &1.counter)
-      |> Enum.sort()
-      |> Enum.uniq()
-
-    # For each counter, find latest Passed and latest Failed for this stage
-    # (matching GoCD: pick latest per counter+status, then unique by counter+status)
-    stage_rows =
-      instances
-      |> Enum.flat_map(fn inst ->
-        inst.stages
-        |> Enum.filter(&(&1.name == stage_name))
-        |> Enum.filter(&(&1.result in ["Passed", "Failed"]))
-        |> Enum.map(fn s ->
-          start_time = s.scheduled_at || s.created_time
-
-          duration =
-            if s.completed_at && start_time do
-              DateTime.diff(s.completed_at, start_time, :second)
-            else
-              0
-            end
-
-          %{
-            counter: inst.counter,
-            stage_counter: Map.get(s, :counter, 1) || 1,
-            result: s.result,
-            duration: max(duration, 0)
-          }
-        end)
-      end)
-
-    # Sort by counter then pick latest per counter+status (last wins)
-    sorted =
-      stage_rows
-      |> Enum.sort_by(&{&1.counter, &1.result})
-
-    # unique by counter+result, keeping last (latest stage run)
-    per_counter_status =
-      sorted
-      |> Enum.reverse()
-      |> Enum.uniq_by(&{&1.counter, &1.result})
-      |> Enum.reverse()
-
-    # Build series: for each counter, what's the Passed and Failed duration + stage_counter?
-    passed =
-      per_counter_status
-      |> Enum.filter(&(&1.result == "Passed"))
-      |> Map.new(&{&1.counter, &1})
-
-    failed =
-      per_counter_status
-      |> Enum.filter(&(&1.result == "Failed"))
-      |> Map.new(&{&1.counter, &1})
+    counters = counters_of(instances)
+    latest = instances |> stage_rows(stage_name) |> latest_per_status()
 
     %{
       pipeline_name: %{name: pipeline_name},
       stage_name: stage_name,
       counters: counters,
-      passed: Enum.map(counters, &Map.get(passed, &1)),
-      failed: Enum.map(counters, &Map.get(failed, &1)),
-      all_durations:
-        per_counter_status
-        |> Enum.map(& &1.duration)
-        |> Enum.reject(&(&1 == 0))
+      passed: series_for(latest, counters, "Passed"),
+      failed: series_for(latest, counters, "Failed"),
+      all_durations: durations_of(latest)
     }
+  end
+
+  defp counters_of(instances) do
+    instances
+    |> Enum.map(& &1.counter)
+    |> Enum.sort()
+    |> Enum.uniq()
+  end
+
+  # One row per finished run of this stage, across every pipeline counter.
+  defp stage_rows(instances, stage_name) do
+    Enum.flat_map(instances, fn instance ->
+      instance.stages
+      |> Enum.filter(&(&1.name == stage_name))
+      |> Enum.filter(&(&1.result in ["Passed", "Failed"]))
+      |> Enum.map(&stage_row(instance.counter, &1))
+    end)
+  end
+
+  defp stage_row(pipeline_counter, stage) do
+    %{
+      counter: pipeline_counter,
+      stage_counter: Map.get(stage, :counter, 1) || 1,
+      result: stage.result,
+      duration: stage_duration(stage)
+    }
+  end
+
+  defp stage_duration(stage) do
+    elapsed(stage.completed_at, stage.scheduled_at || stage.created_time)
+  end
+
+  defp elapsed(nil, _start), do: 0
+  defp elapsed(_completed, nil), do: 0
+  defp elapsed(completed, start), do: max(DateTime.diff(completed, start, :second), 0)
+
+  # GoCD plots the latest run of each status per counter, so the last one wins.
+  defp latest_per_status(rows) do
+    rows
+    |> Enum.sort_by(&{&1.counter, &1.result})
+    |> Enum.reverse()
+    |> Enum.uniq_by(&{&1.counter, &1.result})
+    |> Enum.reverse()
+  end
+
+  defp series_for(rows, counters, status) do
+    by_counter =
+      rows
+      |> Enum.filter(&(&1.result == status))
+      |> Map.new(&{&1.counter, &1})
+
+    Enum.map(counters, &Map.get(by_counter, &1))
+  end
+
+  defp durations_of(rows) do
+    rows
+    |> Enum.map(& &1.duration)
+    |> Enum.reject(&(&1 == 0))
   end
 
   # ── SVG Line Chart ────────────────────────────────────────────────────
@@ -201,102 +203,104 @@ defmodule ExGoCDWeb.GanttLive do
          failed: failed,
          all_durations: all_durations
        }) do
-    max_dur = if all_durations == [], do: 1, else: Enum.max(all_durations)
-    # Round up to nice scale
-    {y_max, unit} = nice_scale(max_dur)
+    {y_max, unit} = nice_scale(longest(all_durations))
+    passed_points = build_line(passed, counters, y_max)
+    failed_points = build_line(failed, counters, y_max)
 
-    n = length(counters)
-
-    svg_w = @chart_w + @margin_left + @margin_right
-    svg_h = @chart_h + @margin_top + @margin_bottom
-
-    # Chart area
-    plot_w = @chart_w
-    plot_h = @chart_h
-
-    x = fn i -> @margin_left + round(i / max(n - 1, 1) * plot_w) end
-    y = fn dur -> @margin_top + plot_h - round(dur / y_max * plot_h) end
-
-    # Grid lines
-    grid =
-      for tick <- 0..4 do
-        ty = @margin_top + round(tick / 4 * plot_h)
-        val = round(y_max * (1 - tick / 4))
-
-        [
-          ~s'<line x1="#{@margin_left}" y1="#{ty}" x2="#{@margin_left + plot_w}" y2="#{ty}" stroke="#e5e7eb" stroke-width="1"/>',
-          ~s'<text x="#{@margin_left - 4}" y="#{ty + 3}" font-size="9" fill="#9ca3af" text-anchor="end" font-family="monospace">#{format_tick(val, unit)}</text>'
-        ]
-      end
-      |> List.flatten()
-
-    # X-axis labels: every Nth counter
-    step = max(div(n, 6), 1)
-
-    x_labels =
-      counters
-      |> Enum.with_index()
-      |> Enum.filter(fn {_, i} -> rem(i, step) == 0 end)
-      |> Enum.map(fn {c, i} ->
-        ~s'<text x="#{x.(i)}" y="#{@margin_top + plot_h + 14}" font-size="9" fill="#9ca3af" text-anchor="middle" font-family="monospace">#{c}</text>'
-      end)
-
-    # Passed line
-    passed_points = build_line(passed, counters, n, x, y)
-    passed_line = build_polyline(passed_points, "#78C42D")
-
-    # Failed line
-    failed_points = build_line(failed, counters, n, x, y)
-    failed_line = build_polyline(failed_points, "#FA2D2D")
-
-    # DOT markers with links
-    passed_dots = build_dots(passed_points, "#78C42D", pipe_name, stage_name, counters)
-    failed_dots = build_dots(failed_points, "#FA2D2D", pipe_name, stage_name, counters)
-
-    # Axes
-    axes = [
-      ~s'<line x1="#{@margin_left}" y1="#{@margin_top}" x2="#{@margin_left}" y2="#{@margin_top + plot_h}" stroke="#d1d5db" stroke-width="1"/>',
-      ~s'<line x1="#{@margin_left}" y1="#{@margin_top + plot_h}" x2="#{@margin_left + plot_w}" y2="#{@margin_top + plot_h}" stroke="#d1d5db" stroke-width="1"/>'
+    parts = [
+      chart_grid(y_max, unit),
+      chart_axes(),
+      chart_x_labels(counters),
+      build_polyline(failed_points, "#FA2D2D"),
+      build_polyline(passed_points, "#78C42D"),
+      build_dots(failed_points, "#FA2D2D", pipe_name, stage_name),
+      build_dots(passed_points, "#78C42D", pipe_name, stage_name)
     ]
 
-    parts = [grid, axes, x_labels, failed_line, passed_line, failed_dots, passed_dots]
-
-    ~s'<svg viewBox="0 0 #{svg_w} #{svg_h}" width="100%" style="max-height:#{svg_h}px" xmlns="http://www.w3.org/2000/svg">\n#{Enum.join(parts, "\n")}\n</svg>'
+    ~s'<svg viewBox="0 0 #{@chart_w + @margin_left + @margin_right} #{svg_height()}" width="100%" style="max-height:#{svg_height()}px" xmlns="http://www.w3.org/2000/svg">\n#{Enum.join(parts, "\n")}\n</svg>'
   end
 
-  defp build_line(series, counters, _n, x, y) do
+  defp longest([]), do: 1
+  defp longest(durations), do: Enum.max(durations)
+
+  defp svg_height, do: @chart_h + @margin_top + @margin_bottom
+
+  defp chart_grid(y_max, unit) do
+    Enum.flat_map(0..4, &grid_line(&1, y_max, unit))
+  end
+
+  defp grid_line(tick, y_max, unit) do
+    ty = @margin_top + round(tick / 4 * @chart_h)
+    value = round(y_max * (1 - tick / 4))
+
+    [
+      ~s'<line x1="#{@margin_left}" y1="#{ty}" x2="#{@margin_left + @chart_w}" y2="#{ty}" stroke="#e5e7eb" stroke-width="1"/>',
+      ~s'<text x="#{@margin_left - 4}" y="#{ty + 3}" font-size="9" fill="#9ca3af" text-anchor="end" font-family="monospace">#{format_tick(value, unit)}</text>'
+    ]
+  end
+
+  defp chart_axes do
+    bottom = @margin_top + @chart_h
+
+    [
+      ~s'<line x1="#{@margin_left}" y1="#{@margin_top}" x2="#{@margin_left}" y2="#{bottom}" stroke="#d1d5db" stroke-width="1"/>',
+      ~s'<line x1="#{@margin_left}" y1="#{bottom}" x2="#{@margin_left + @chart_w}" y2="#{bottom}" stroke="#d1d5db" stroke-width="1"/>'
+    ]
+  end
+
+  # Label every sixth counter: enough to read the axis, few enough not to smear.
+  defp chart_x_labels(counters) do
+    count = length(counters)
+    step = max(div(count, 6), 1)
+
     counters
     |> Enum.with_index()
-    |> Enum.map(fn {c, i} ->
-      case Enum.at(series, i) do
-        nil -> nil
-        %{duration: dur, stage_counter: sc} -> {c, x.(i), y.(dur), dur, sc}
-      end
+    |> Enum.filter(fn {_counter, index} -> rem(index, step) == 0 end)
+    |> Enum.map(fn {counter, index} ->
+      ~s'<text x="#{chart_x(index, count)}" y="#{@margin_top + @chart_h + 14}" font-size="9" fill="#9ca3af" text-anchor="middle" font-family="monospace">#{counter}</text>'
+    end)
+  end
+
+  defp chart_x(index, count), do: @margin_left + round(index / max(count - 1, 1) * @chart_w)
+
+  defp chart_y(duration, y_max), do: @margin_top + @chart_h - round(duration / y_max * @chart_h)
+
+  defp build_line(series, counters, y_max) do
+    count = length(counters)
+
+    [counters, series]
+    |> Enum.zip()
+    |> Enum.with_index()
+    |> Enum.reject(fn {{_counter, row}, _index} -> is_nil(row) end)
+    |> Enum.map(fn {{counter, row}, index} ->
+      {counter, chart_x(index, count), chart_y(row.duration, y_max), row.duration,
+       row.stage_counter}
     end)
   end
 
   defp build_polyline(points, color) do
-    valid = Enum.filter(points, &(&1 != nil))
-
-    if length(valid) < 2 do
+    if length(points) < 2 do
       ""
     else
-      path = valid |> Enum.map(fn {_c, px, py, _dur, _sc} -> "#{px},#{py}" end) |> Enum.join(" ")
+      path =
+        points
+        |> Enum.map(fn {_counter, px, py, _dur, _sc} -> "#{px},#{py}" end)
+        |> Enum.join(" ")
 
       ~s'<polyline points="#{path}" fill="none" stroke="#{color}" stroke-width="2" stroke-linejoin="round"/>'
     end
   end
 
-  defp build_dots(points, color, pipe_name, stage_name, _counters) do
+  defp build_dots(points, color, pipe_name, stage_name) do
     points
-    |> Enum.filter(&(&1 != nil))
-    |> Enum.map(fn {counter, px, py, dur, stage_counter} ->
-      tooltip = format_duration(dur)
-      link = "/pipelines/#{pipe_name}/#{counter}/#{stage_name}/#{stage_counter}"
-
-      ~s'<a href="#{link}">\n  <circle cx="#{px}" cy="#{py}" r="4" fill="#{color}" stroke="#fff" stroke-width="1" opacity="0.9" style="cursor:pointer">\n    <title>##{counter} #{stage_name}/#{stage_counter} — #{tooltip}</title>\n  </circle>\n</a>'
-    end)
+    |> Enum.map(&dot(&1, color, pipe_name, stage_name))
     |> Enum.join("\n")
+  end
+
+  defp dot({counter, px, py, duration, stage_counter}, color, pipe_name, stage_name) do
+    link = "/pipelines/#{pipe_name}/#{counter}/#{stage_name}/#{stage_counter}"
+
+    ~s'<a href="#{link}">\n  <circle cx="#{px}" cy="#{py}" r="4" fill="#{color}" stroke="#fff" stroke-width="1" opacity="0.9" style="cursor:pointer">\n    <title>##{counter} #{stage_name}/#{stage_counter} — #{format_duration(duration)}</title>\n  </circle>\n</a>'
   end
 
   defp nice_scale(max_dur) when max_dur < 60, do: {max(max_dur, 10), :sec}

@@ -363,28 +363,40 @@ defmodule ExGoCD.Mcp.Tools.Pipelines do
   defp comment_note(comment), do: "\nComment: #{comment}"
 
   defp config_diff(args, _ctx) do
-    with {:ok, name} <- Args.required(args, "name"),
-         {:ok, counter} <- Args.required_integer(args, "counter") do
-      case Pipelines.config_diff(name, counter) do
-        {:ok, nil} ->
-          Tool.ok(
-            "No configuration change between #{name} ##{counter} and the run before it.",
-            %{"name" => name, "counter" => counter, "changed" => false}
-          )
-
-        {:ok, diff} ->
-          Tool.ok(
-            "The configuration changed between #{name} ##{counter} and the run before it:\n\n" <>
-              Render.truncate(inspect(diff, pretty: true, limit: :infinity), 4_000),
-            %{"name" => name, "counter" => counter, "changed" => true, "diff" => diff}
-          )
-
-        {:error, :instance_not_found} ->
-          {:error, instance_not_found(args)}
-      end
-    else
+    case Args.all(args, name: :string, counter: :integer) do
+      {:ok, request} -> diff_run(request)
       {:error, message} -> {:error, message}
     end
+  end
+
+  defp diff_run(request) do
+    case Pipelines.config_diff(request.name, request.counter) do
+      {:ok, nil} -> Tool.ok(unchanged_text(request), unchanged_payload(request))
+      {:ok, diff} -> Tool.ok(changed_text(request, diff), changed_payload(request, diff))
+      {:error, :instance_not_found} -> {:error, instance_not_found(%{"name" => request.name})}
+    end
+  end
+
+  defp unchanged_text(request) do
+    "No configuration change between #{request.name} ##{request.counter} and the run before it."
+  end
+
+  defp changed_text(request, diff) do
+    "The configuration changed between #{request.name} ##{request.counter} and the run before it:\n\n" <>
+      Render.truncate(inspect(diff, pretty: true, limit: :infinity), 4_000)
+  end
+
+  defp unchanged_payload(request) do
+    %{"name" => request.name, "counter" => request.counter, "changed" => false}
+  end
+
+  defp changed_payload(request, diff) do
+    %{
+      "name" => request.name,
+      "counter" => request.counter,
+      "changed" => true,
+      "diff" => diff
+    }
   end
 
   defp compare(args, _ctx) do

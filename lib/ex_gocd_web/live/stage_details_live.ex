@@ -67,39 +67,38 @@ defmodule ExGoCDWeb.StageDetailsLive do
   end
 
   def approve_stage(_params, socket) do
-    user = socket.assigns[:current_user]
-
-    pipeline_name = socket.assigns.pipeline_name
-    pipeline = ExGoCD.Pipelines.get_pipeline_by_name(pipeline_name)
-
-    env_ok =
-      ExGoCD.Policies.permit?(ExGoCD.Policies.EnvironmentPolicy, :trigger_pipeline, user)
-
-    group_ok =
-      ExGoCD.Policies.permit?(ExGoCD.Policies.PipelineGroupPolicy, :operate_pipeline, user,
-        pipeline_group: (pipeline && pipeline.group) || "default"
-      )
-
-    if env_ok and group_ok do
-      counter = socket.assigns.pipeline_counter
-      stage_name = socket.assigns.stage_name
-
-      case ExGoCD.Pipelines.approve_stage(pipeline_name, counter, stage_name) do
-        {:ok, _stage_instance} ->
-          stage =
-            get_stage_details(pipeline_name, counter, stage_name, socket.assigns.stage_counter)
-
-          {:noreply,
-           socket
-           |> put_flash(:info, "Stage approved successfully.")
-           |> assign(:stage, stage)}
-
-        {:error, reason} ->
-          {:noreply, put_flash(socket, :error, "Failed to approve stage: #{inspect(reason)}")}
-      end
+    if may_operate?(socket.assigns) do
+      {:noreply, approve(socket)}
     else
       {:noreply,
        put_flash(socket, :error, "You do not have operate permissions for this pipeline.")}
+    end
+  end
+
+  defp may_operate?(assigns) do
+    user = assigns[:current_user]
+    pipeline = ExGoCD.Pipelines.get_pipeline_by_name(assigns.pipeline_name)
+
+    ExGoCD.Policies.permit?(ExGoCD.Policies.EnvironmentPolicy, :trigger_pipeline, user) and
+      ExGoCD.Policies.permit?(ExGoCD.Policies.PipelineGroupPolicy, :operate_pipeline, user,
+        pipeline_group: (pipeline && pipeline.group) || "default"
+      )
+  end
+
+  defp approve(socket) do
+    %{pipeline_name: name, pipeline_counter: counter, stage_name: stage_name} = socket.assigns
+
+    case ExGoCD.Pipelines.approve_stage(name, counter, stage_name) do
+      {:ok, _stage_instance} ->
+        socket
+        |> put_flash(:info, "Stage approved successfully.")
+        |> assign(
+          :stage,
+          get_stage_details(name, counter, stage_name, socket.assigns.stage_counter)
+        )
+
+      {:error, reason} ->
+        put_flash(socket, :error, "Failed to approve stage: #{inspect(reason)}")
     end
   end
 

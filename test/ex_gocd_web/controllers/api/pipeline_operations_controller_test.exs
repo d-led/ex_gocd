@@ -291,6 +291,89 @@ defmodule ExGoCDWeb.API.PipelineOperationsControllerTest do
 
   # ── Helpers ──────────────────────────────────────────────────────────
 
+  describe "POST /api/pipelines/:pipeline_name/:counter/:stage_name/run" do
+    test "approves a stage that is waiting for approval", %{conn: conn} do
+      pipeline = seed_pipeline_with_material("test-api-approve")
+      instance = insert_instance(pipeline, 1)
+      insert_stage_run(instance, "build", "Awaiting")
+
+      conn = post(conn, ~p"/api/pipelines/#{pipeline.name}/1/build/run")
+
+      assert json_response(conn, 200)["message"] == "Stage 'build' approved successfully."
+      assert [%{state: state}] = waiting_stages(pipeline, "build")
+      refute state == "Awaiting"
+    end
+
+    test "refuses a stage that is not waiting for approval", %{conn: conn} do
+      pipeline = seed_pipeline_with_material("test-api-approve-not-waiting")
+      instance = insert_instance(pipeline, 1)
+      insert_stage_run(instance, "build", "Building")
+
+      conn = post(conn, ~p"/api/pipelines/#{pipeline.name}/1/build/run")
+
+      assert json_response(conn, 400)["error"] == "Stage 'build' is not awaiting approval."
+    end
+  end
+
+  describe "POST /api/pipelines/:pipeline_name/:counter/comment" do
+    test "keeps the comment on the run", %{conn: conn} do
+      pipeline = seed_pipeline_with_material("test-api-comment")
+      instance = insert_instance(pipeline, 1)
+
+      conn =
+        post(conn, ~p"/api/pipelines/#{pipeline.name}/1/comment", %{
+          "comment" => "flaky test, rerunning"
+        })
+
+      assert json_response(conn, 200)["message"] == "Comment added."
+
+      assert Repo.get!(Pipelines.PipelineInstance, instance.id).build_cause["comment"] ==
+               "flaky test, rerunning"
+    end
+
+    test "names the run it could not find", %{conn: conn} do
+      pipeline = seed_pipeline_with_material("test-api-comment-missing")
+      insert_instance(pipeline, 1)
+
+      conn = post(conn, ~p"/api/pipelines/#{pipeline.name}/9/comment", %{"comment" => "hello"})
+
+      assert json_response(conn, 404)["error"] ==
+               "Pipeline instance test-api-comment-missing/9 not found."
+    end
+  end
+
+  defp insert_instance(pipeline, counter) do
+    Repo.insert!(%Pipelines.PipelineInstance{
+      pipeline_id: pipeline.id,
+      counter: counter,
+      label: to_string(counter),
+      natural_order: counter * 1.0,
+      build_cause: %{}
+    })
+  end
+
+  defp insert_stage_run(instance, stage_name, state) do
+    Repo.insert!(%Pipelines.StageInstance{
+      pipeline_instance_id: instance.id,
+      name: stage_name,
+      counter: 1,
+      order_id: 1,
+      state: state,
+      result: "Unknown",
+      approval_type: "manual",
+      created_time: DateTime.utc_now() |> DateTime.truncate(:second)
+    })
+  end
+
+  defp waiting_stages(pipeline, stage_name) do
+    from(si in Pipelines.StageInstance,
+      join: pi in assoc(si, :pipeline_instance),
+      where: pi.pipeline_id == ^pipeline.id and si.name == ^stage_name,
+      select: %{state: si.state}
+    )
+    |> Repo.all()
+  end
+
   defp seed_pipeline_with_material(name, extra_attrs \\ %{}) do
     attrs = Map.merge(%{name: name, group: "test"}, extra_attrs)
     pipeline = Repo.insert!(struct(Pipelines.Pipeline, attrs))

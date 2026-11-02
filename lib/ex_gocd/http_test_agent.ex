@@ -197,43 +197,47 @@ defmodule ExGoCD.HTTPTestAgent do
   defp host_to_string(host) when is_binary(host), do: host
 
   defp register_agent(state) do
-    # 1. GET Token
     host_str = host_to_string(state.host)
-    token_url = "http://#{host_str}:#{state.port}/admin/agent/token?uuid=#{state.uuid}"
 
-    case Req.get(token_url) do
-      {:ok, %{status: 200, body: token}} ->
-        # 2. POST registration
-        reg_url = "http://#{host_str}:#{state.port}/admin/agent"
-
-        ip_addr =
-          case host_str do
-            "localhost" -> "127.0.0.1"
-            other -> other
-          end
-
-        form_data = [
-          uuid: state.uuid,
-          hostname: state.hostname,
-          ipAddress: ip_addr,
-          location: "./work-http",
-          operatingSystem: "Simulated HTTP",
-          usablespace: to_string(10 * 1024 * 1024 * 1024),
-          token: token,
-          supportsBuildCommandProtocol: "true",
-          agentAutoRegisterResources: Enum.join(state.resources || [], ","),
-          agentAutoRegisterEnvironments: Enum.join(state.environments || [], ",")
-        ]
-
-        case Req.post(reg_url, form: form_data) do
-          {:ok, %{status: 200}} -> {:ok, token}
-          other -> {:error, {:registration_post_failed, other}}
-        end
-
-      other ->
-        {:error, {:token_request_failed, other}}
+    with {:ok, token} <- fetch_token(state, host_str) do
+      post_registration(state, host_str, token)
     end
   end
+
+  defp fetch_token(state, host_str) do
+    case Req.get("http://#{host_str}:#{state.port}/admin/agent/token?uuid=#{state.uuid}") do
+      {:ok, %{status: 200, body: token}} -> {:ok, token}
+      other -> {:error, {:token_request_failed, other}}
+    end
+  end
+
+  defp post_registration(state, host_str, token) do
+    case Req.post("http://#{host_str}:#{state.port}/admin/agent",
+           form: registration_form(state, host_str, token)
+         ) do
+      {:ok, %{status: 200}} -> {:ok, token}
+      other -> {:error, {:registration_post_failed, other}}
+    end
+  end
+
+  defp registration_form(state, host_str, token) do
+    [
+      uuid: state.uuid,
+      hostname: state.hostname,
+      ipAddress: advertised_address(host_str),
+      location: "./work-http",
+      operatingSystem: "Simulated HTTP",
+      usablespace: to_string(10 * 1024 * 1024 * 1024),
+      token: token,
+      supportsBuildCommandProtocol: "true",
+      agentAutoRegisterResources: Enum.join(state.resources || [], ","),
+      agentAutoRegisterEnvironments: Enum.join(state.environments || [], ",")
+    ]
+  end
+
+  # The server cannot reach an agent back at "localhost", but it can at the loopback address.
+  defp advertised_address("localhost"), do: "127.0.0.1"
+  defp advertised_address(host_str), do: host_str
 
   defp connect_websocket(state) do
     host_tcp =

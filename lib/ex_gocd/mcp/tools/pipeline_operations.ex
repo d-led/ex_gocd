@@ -313,30 +313,39 @@ defmodule ExGoCD.Mcp.Tools.PipelineOperations do
     end
   end
 
-  defp trigger_error(name, :pipeline_not_found), do: "Pipeline '#{name}' not found."
+  # The reasons that read the same whatever the pipeline is called.
+  @nameless_reasons %{
+    :maintenance_mode => "The server is in maintenance mode: no pipeline can be triggered.",
+    :disk_space_critical => "The server's disk is critically low, so scheduling is stopped."
+  }
 
-  defp trigger_error(name, :pipeline_paused),
-    do: "'#{name}' is paused — unpause it with `gocd_set_pipeline_paused` first."
+  @named_reasons %{
+    :pipeline_not_found => "Pipeline '%{name}' not found.",
+    :pipeline_paused => "'%{name}' is paused — unpause it with `gocd_set_pipeline_paused` first.",
+    :pipeline_locked =>
+      "'%{name}' is locked by a failed run — `gocd_unlock_pipeline` releases it.",
+    :already_triggered =>
+      "'%{name}' was triggered moments ago; this is the trigger debounce, not a failure."
+  }
 
-  defp trigger_error(name, :pipeline_locked),
-    do: "'#{name}' is locked by a failed run — `gocd_unlock_pipeline` releases it."
+  defp trigger_error(name, {:unconfigured_variable, variable}) do
+    "'#{name}' does not declare a variable named `#{variable}`; trigger-time values may " <>
+      "only set variables the pipeline defines."
+  end
 
-  defp trigger_error(name, :already_triggered),
-    do: "'#{name}' was triggered moments ago; this is the trigger debounce, not a failure."
+  defp trigger_error(name, reason) do
+    reason
+    |> error_template()
+    |> String.replace("%{name}", name)
+  end
 
-  defp trigger_error(_name, :maintenance_mode),
-    do: "The server is in maintenance mode: no pipeline can be triggered."
+  defp error_template(reason) when is_map_key(@nameless_reasons, reason),
+    do: Map.fetch!(@nameless_reasons, reason)
 
-  defp trigger_error(_name, :disk_space_critical),
-    do: "The server's disk is critically low, so scheduling is stopped."
+  defp error_template(reason) when is_map_key(@named_reasons, reason),
+    do: Map.fetch!(@named_reasons, reason)
 
-  defp trigger_error(name, {:unconfigured_variable, variable}),
-    do:
-      "'#{name}' does not declare a variable named `#{variable}`; trigger-time values may " <>
-        "only set variables the pipeline defines."
-
-  defp trigger_error(name, reason),
-    do: "Could not trigger '#{name}': #{inspect(reason)}"
+  defp error_template(reason), do: "Could not trigger '%{name}': #{inspect(reason)}"
 
   defp pause_action(true), do: "pause a pipeline"
   defp pause_action(false), do: "unpause a pipeline"

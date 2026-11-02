@@ -443,24 +443,7 @@ defmodule ExGoCDWeb.DashboardLive do
   end
 
   defp build_stage_summary_map(pipeline_name, pipeline_counter, stage_name, pi, si) do
-    build_cause = pi.build_cause || %{}
-    triggered_by = build_cause["triggerMessage"] || "Triggered manually"
-    created_time = si.created_time || si.inserted_at
-
     jobs = si.job_instances || []
-
-    building_count =
-      Enum.count(
-        jobs,
-        &(&1.state in ["Scheduled", "Assigned", "Preparing", "Building", "Completing"])
-      )
-
-    passed_count = Enum.count(jobs, &(&1.state == "Completed" and &1.result == "Passed"))
-
-    failed_count =
-      Enum.count(jobs, &(&1.state == "Completed" and &1.result in ["Failed", "Cancelled"]))
-
-    mapped_jobs = Enum.map(jobs, &map_job_summary/1)
 
     %{
       pipeline_name: pipeline_name,
@@ -468,15 +451,29 @@ defmodule ExGoCDWeb.DashboardLive do
       stage_name: stage_name,
       stage_counter: si.counter,
       state: si.state,
-      triggered_by: triggered_by,
-      created_time: created_time,
+      triggered_by: triggered_by(pi),
+      created_time: si.created_time || si.inserted_at,
       duration: stage_duration(si),
-      building_count: building_count,
-      passed_count: passed_count,
-      failed_count: failed_count,
-      jobs: mapped_jobs
+      building_count: Enum.count(jobs, &building?/1),
+      passed_count: Enum.count(jobs, &passed?/1),
+      failed_count: Enum.count(jobs, &failed?/1),
+      jobs: Enum.map(jobs, &map_job_summary/1)
     }
   end
+
+  defp triggered_by(pipeline_instance) do
+    case pipeline_instance.build_cause || %{} do
+      %{"triggerMessage" => message} when is_binary(message) -> message
+      _ -> "Triggered manually"
+    end
+  end
+
+  defp building?(job),
+    do: job.state in ["Scheduled", "Assigned", "Preparing", "Building", "Completing"]
+
+  defp passed?(job), do: job.state == "Completed" and job.result == "Passed"
+
+  defp failed?(job), do: job.state == "Completed" and job.result in ["Failed", "Cancelled"]
 
   defp map_job_summary(ji) do
     %{
