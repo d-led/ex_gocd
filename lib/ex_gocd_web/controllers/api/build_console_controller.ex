@@ -15,20 +15,34 @@ defmodule ExGoCDWeb.API.BuildConsoleController do
   """
   def append(conn, %{"build_id" => build_id}) do
     case read_body(conn) do
-      {:ok, body, conn2} ->
-        masked = mask_secrets(body)
+      {:ok, body, conn} ->
+        append_text(conn, build_id, body)
 
-        case AgentJobRuns.append_console(build_id, masked) do
-          {:ok, _run} ->
-            send_resp(conn2, 204, "")
+      # The body is larger than one read, so the chunk the agent sent is larger
+      # than this endpoint accepts.
+      {:more, _partial, conn} ->
+        answer_error(conn, :error_413, 413)
 
-          {:error, :run_not_found} ->
-            conn2
-            |> put_status(404)
-            |> put_view(json: ExGoCDWeb.API.BuildConsoleJSON)
-            |> render(:error_404, %{})
-        end
+      {:error, _reason} ->
+        answer_error(conn, :error_400, 400)
     end
+  end
+
+  defp append_text(conn, build_id, body) do
+    case AgentJobRuns.append_console(build_id, mask_secrets(body)) do
+      {:ok, _run} ->
+        send_resp(conn, 204, "")
+
+      {:error, :run_not_found} ->
+        answer_error(conn, :error_404, 404)
+    end
+  end
+
+  defp answer_error(conn, template, status) do
+    conn
+    |> put_status(status)
+    |> put_view(json: ExGoCDWeb.API.BuildConsoleJSON)
+    |> render(template, %{})
   end
 
   @mask_patterns [
