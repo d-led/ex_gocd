@@ -5,7 +5,7 @@
 > gaps resolved" claim from the 2026-07-08 audit is not repeated here, because
 > nothing in the code checks it.
 >
-> Counts last measured 2026-11-02: 1428 tests (`mix test`), 77 controller files
+> Counts last measured 2026-11-02: 1440 tests (`mix test`), 77 controller files
 > under `lib/ex_gocd_web/controllers/` (`find … -name '*.ex' | wc -l`), 21
 > LiveView modules under `lib/ex_gocd_web/live/`, 22 modules calling
 > `use GenServer`, 45 migrations in `priv/repo/migrations/`. Each count means what
@@ -101,7 +101,7 @@ via `ExGoCD.Plugin.Registry`, using libcluster gossip and `PLUGIN_SECRET`.
 |---------|-----|----------|-------------------|
 | Pipeline scheduling | ✅ | ✅ Dashboard + Activity + Config + Wizard | ✅ scheduler.ex |
 | Stages & Jobs | ✅ | ✅ StageDetails + JobDetails + Gantt | ✅ stage_status.ex |
-| Agents | ✅ CRUD + bulk | ✅ AgentsLive + JobHistory + JobRunDetail | ✅ agent_registry.ex (no test) |
+| Agents | ✅ CRUD + bulk | ✅ AgentsLive + JobHistory + JobRunDetail | ✅ agent_registry.ex |
 | VSM | ✅ pipeline + material routes | ✅ ValueStreamMapLive (all 5 phases) | ✅ vsm_tracer.ex |
 | Analytics | ✅ | ✅ AnalyticsLive (5 dashboard types) | ✅ snapshot_collector.ex |
 | Compare & Config Diff | ✅ | ✅ CompareLive + ConfigDiffLive | — |
@@ -144,7 +144,7 @@ via `ExGoCD.Plugin.Registry`, using libcluster gossip and `PLUGIN_SECRET`.
 | Dashboard Changes | — | ✅ material revisions dropdown | — |
 | Stage Overview Popup | — | ✅ job counts, states, rerun | — |
 | Tests tab | ✅ LiveView-native from Ecto (G1) | ✅ test_report.ex |
-| Docker Elastic Agent | ✅ container lifecycle, resource→image | ✅ docker_elastic_agent_scheduler.ex (no test) |
+| Docker Elastic Agent | ✅ container lifecycle, resource→image | ✅ docker_elastic_agent_scheduler.ex |
 | Artifact Cache | ✅ zip cache, LRU eviction, 200MB default | ✅ artifact_cache.ex |
 
 ### ✅ All gaps resolved (2026-07-08)
