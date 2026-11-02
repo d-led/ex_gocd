@@ -21,9 +21,12 @@ defmodule ExGoCDWeb.Plugs.AdminApiPlugTest do
     test "allows unauthenticated guest in open mode", %{conn: _conn} do
       refute Accounts.admin_configured?()
 
-      # Even without any session data
+      # The admin pipeline fetches the session before this plug runs, so a conn
+      # that reaches it always has one; the property here is that an empty
+      # session still passes while no administrator is configured.
       conn =
         build_conn()
+        |> init_test_session(%{})
         |> AdminApiPlug.call(%{})
 
       refute conn.halted

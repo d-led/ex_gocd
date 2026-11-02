@@ -51,6 +51,11 @@ defmodule ExGoCD.ConfigVersion do
     |> Repo.all()
   end
 
+  @doc "Returns a specific version by id, or nil."
+  def get(id) do
+    Repo.get(__MODULE__, id)
+  end
+
   @doc "Returns a specific version by id."
   def get!(id) do
     Repo.get!(__MODULE__, id)

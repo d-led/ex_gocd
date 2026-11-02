@@ -45,6 +45,57 @@ defmodule ExGoCDWeb.Router do
     # Simple pipeline for raw file transfer without content negotiation or session dependencies
   end
 
+  # The MCP endpoint: one JSON-RPC message in, one answer out. Identity is
+  # resolved by `McpAuth`, which also knows how to refuse with the challenge a
+  # remote MCP client needs to start the OAuth flow by itself.
+  pipeline :mcp do
+    plug :accepts, ["json"]
+    plug :fetch_session
+    plug ExGoCDWeb.Plugs.AuthHeaderPlug
+    plug ExGoCDWeb.Plugs.McpAuth
+  end
+
+  # Discovery and registration are anonymous by design: they are what a client
+  # reads *before* it has a credential.
+  pipeline :mcp_public do
+    plug :accepts, ["json"]
+  end
+
+  scope "/", ExGoCDWeb do
+    pipe_through :mcp
+
+    post "/mcp", McpController, :handle
+    get "/mcp", McpController, :stream
+    delete "/mcp", McpController, :terminate
+  end
+
+  scope "/.well-known", ExGoCDWeb.Mcp do
+    pipe_through :mcp_public
+
+    get "/oauth-protected-resource", OAuthController, :protected_resource
+    # The form a client derives from the resource URL, `…/mcp`.
+    get "/oauth-protected-resource/mcp", OAuthController, :protected_resource
+    get "/oauth-authorization-server", OAuthController, :authorization_server
+  end
+
+  # Registration and the token exchange are machine-to-machine: no session, no
+  # CSRF token, no redirects.
+  scope "/oauth", ExGoCDWeb.Mcp do
+    pipe_through :mcp_public
+
+    post "/register", OAuthController, :register
+    post "/token", OAuthController, :token
+  end
+
+  # The consent step is a browser: it needs the session (or the identity a
+  # reverse proxy forwarded) and the CSRF token the form carries.
+  scope "/oauth", ExGoCDWeb.Mcp do
+    pipe_through :browser
+
+    get "/authorize", OAuthController, :authorize
+    post "/authorize", OAuthController, :approve
+  end
+
   scope "/", ExGoCDWeb do
     pipe_through :browser
 

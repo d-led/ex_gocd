@@ -1277,6 +1277,105 @@ defmodule ExGoCD.Pipelines do
   end
 
   @doc """
+  Counts the pipeline configs on this server.
+  """
+  @spec count_pipelines() :: non_neg_integer()
+  def count_pipelines, do: Repo.aggregate(Pipeline, :count)
+
+  @doc """
+  Gets one stage instance with its jobs, the pipeline instance and the pipeline
+  it belongs to. Returns nil when there is no such stage instance.
+
+  The read the stage page, the stage API and the MCP server all ask for.
+  """
+  @spec get_stage_instance(String.t(), integer(), String.t(), integer()) ::
+          StageInstance.t() | nil
+  def get_stage_instance(pipeline_name, pipeline_counter, stage_name, stage_counter)
+      when is_binary(pipeline_name) and is_integer(pipeline_counter) and is_binary(stage_name) and
+             is_integer(stage_counter) do
+    from(si in StageInstance,
+      join: pi in assoc(si, :pipeline_instance),
+      join: p in assoc(pi, :pipeline),
+      where:
+        p.name == ^pipeline_name and
+          pi.counter == ^pipeline_counter and
+          si.name == ^stage_name and
+          si.counter == ^stage_counter,
+      preload: [pipeline_instance: {pi, pipeline: p}, job_instances: :job],
+      limit: 1
+    )
+    |> Repo.one()
+  end
+
+  @doc """
+  Lists the instances of one stage of one pipeline, newest run first.
+  """
+  @spec list_stage_instances(String.t(), String.t(), keyword()) :: [StageInstance.t()]
+  def list_stage_instances(pipeline_name, stage_name, opts \\ [])
+      when is_binary(pipeline_name) and is_binary(stage_name) do
+    offset = Keyword.get(opts, :offset, 0)
+    limit = Keyword.get(opts, :limit, 25)
+
+    from(si in StageInstance,
+      join: pi in assoc(si, :pipeline_instance),
+      join: p in assoc(pi, :pipeline),
+      where: p.name == ^pipeline_name and si.name == ^stage_name,
+      order_by: [desc: pi.counter, desc: si.counter],
+      offset: ^offset,
+      limit: ^limit,
+      preload: [pipeline_instance: {pi, pipeline: p}]
+    )
+    |> Repo.all()
+  end
+
+  @doc """
+  Gets one job instance with the stage instance and pipeline it belongs to.
+  Returns nil when there is no such job instance.
+  """
+  @spec get_job_instance(String.t(), integer(), String.t(), integer(), String.t()) ::
+          JobInstance.t() | nil
+  def get_job_instance(pipeline_name, pipeline_counter, stage_name, stage_counter, job_name)
+      when is_binary(pipeline_name) and is_integer(pipeline_counter) and is_binary(stage_name) and
+             is_integer(stage_counter) and is_binary(job_name) do
+    from(ji in JobInstance,
+      join: si in assoc(ji, :stage_instance),
+      join: pi in assoc(si, :pipeline_instance),
+      join: p in assoc(pi, :pipeline),
+      where:
+        p.name == ^pipeline_name and
+          pi.counter == ^pipeline_counter and
+          si.name == ^stage_name and
+          si.counter == ^stage_counter and
+          ji.name == ^job_name,
+      preload: [stage_instance: {si, pipeline_instance: {pi, pipeline: p}}],
+      limit: 1
+    )
+    |> Repo.one()
+  end
+
+  @doc """
+  Lists the instances of one job of one pipeline, newest run first.
+  """
+  @spec list_job_instances(String.t(), String.t(), String.t(), keyword()) :: [JobInstance.t()]
+  def list_job_instances(pipeline_name, stage_name, job_name, opts \\ [])
+      when is_binary(pipeline_name) and is_binary(stage_name) and is_binary(job_name) do
+    offset = Keyword.get(opts, :offset, 0)
+    limit = Keyword.get(opts, :limit, 25)
+
+    from(ji in JobInstance,
+      join: si in assoc(ji, :stage_instance),
+      join: pi in assoc(si, :pipeline_instance),
+      join: p in assoc(pi, :pipeline),
+      where: p.name == ^pipeline_name and si.name == ^stage_name and ji.name == ^job_name,
+      order_by: [desc: pi.counter, desc: si.counter],
+      offset: ^offset,
+      limit: ^limit,
+      preload: [stage_instance: {si, pipeline_instance: {pi, pipeline: p}}]
+    )
+    |> Repo.all()
+  end
+
+  @doc """
   Gets the latest modification for a given material.
   """
   def get_latest_modification(material_id) do

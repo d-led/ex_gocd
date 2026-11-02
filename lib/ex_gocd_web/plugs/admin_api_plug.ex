@@ -34,11 +34,9 @@ defmodule ExGoCDWeb.Plugs.AdminApiPlug do
   end
 
   defp admin?(conn) do
-    # GoCD open mode: no admin configured → everyone is admin
-    not Accounts.admin_configured?() or
-      conn
-      |> get_session()
-      |> Accounts.get_current_user()
-      |> ExGoCD.Accounts.User.has_role?(:admin)
+    conn
+    |> get_session()
+    |> Accounts.get_current_user()
+    |> Accounts.admin?()
   end
 end

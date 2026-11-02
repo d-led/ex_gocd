@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Authorize #{@request.client.client_name || "an MCP client"} — GoCD</title>
+    <style>
+      body {
+        background: #f4f8f9;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: "Open Sans", "Helvetica Neue", helvetica, arial, sans-serif;
+        margin: 0;
+        color: #333;
+      }
+      .card {
+        background: white;
+        border: 1px solid #d6e0e2;
+        border-radius: 6px;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+        width: 100%;
+        max-width: 520px;
+        padding: 28px 32px;
+        box-sizing: border-box;
+      }
+      h1 {
+        font-size: 20px;
+        margin: 0 0 12px;
+      }
+      p {
+        line-height: 1.5;
+        margin: 0 0 12px;
+        font-size: 14px;
+      }
+      .who {
+        background: #eef4f5;
+        border-radius: 4px;
+        padding: 10px 12px;
+        font-size: 13px;
+        margin-bottom: 16px;
+      }
+      .actions {
+        display: flex;
+        gap: 10px;
+        justify-content: flex-end;
+        margin-top: 20px;
+      }
+      button {
+        font: inherit;
+        font-size: 14px;
+        padding: 8px 18px;
+        border-radius: 4px;
+        border: 1px solid transparent;
+        cursor: pointer;
+      }
+      .allow {
+        background: #1f7a1f;
+        color: white;
+      }
+      .deny {
+        background: white;
+        color: #444;
+        border-color: #b9c7ca;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <h1>Authorize {assigns.request.client.client_name || "an MCP client"}</h1>
+
+      <p class="who">
+        Signed in as <strong>{@user.display_name || @user.username}</strong>. {if @user.roles !=
+                                                                                    nil and
+                                                                                    "admin" in (@user.roles ||
+                                                                                                  []),
+                                                                                  do:
+                                                                                    "This account administers the server.",
+                                                                                  else:
+                                                                                    "This account acts with its own permissions."}
+      </p>
+
+      <p>
+        This client asks to act on <strong>this GoCD server</strong> as you: to read
+        pipelines, stages, jobs, agents and analytics, and — only where your account
+        may — to trigger, pause, approve and cancel work.
+      </p>
+
+      <p>
+        Approving issues an access token. It appears in your access tokens list as <em>“MCP client: {assigns.request.client.client_name || assigns.request.client.client_id}”</em>,
+        and revoking it there ends this client's access.
+      </p>
+
+      <form method="POST" action="/oauth/authorize">
+        <input type="hidden" name="_csrf_token" value={@csrf_token} />
+        <input type="hidden" name="response_type" value="code" />
+        <input type="hidden" name="client_id" value={@request.client.client_id} />
+        <input type="hidden" name="redirect_uri" value={@request.redirect_uri} />
+        <input type="hidden" name="code_challenge" value={@request.code_challenge} />
+        <input type="hidden" name="code_challenge_method" value="S256" />
+        <input type="hidden" name="scope" value={@request.scope || ""} />
+        <input type="hidden" name="state" value={@request.state || ""} />
+
+        <div class="actions">
+          <button class="deny" type="submit" name="decision" value="deny">Deny</button>
+          <button class="allow" type="submit" name="decision" value="approve">Allow</button>
+        </div>
+      </form>
+    </main>
+  </body>
+</html>

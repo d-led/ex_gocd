@@ -119,6 +119,16 @@ defmodule ExGoCD.Accounts do
   end
 
   @doc """
+  Whether this user may administer the server.
+
+  GoCD's open mode applies: a server with no administrator configured yet
+  treats every caller as one, so a fresh install is usable. Once an
+  administrator exists, only the `admin` role will do.
+  """
+  @spec admin?(User.t()) :: boolean()
+  def admin?(%User{} = user), do: not admin_configured?() or User.has_role?(user, :admin)
+
+  @doc """
   Returns the current user from the session, loading from the DB when available.
   """
   @spec get_current_user(map()) :: User.t()
@@ -278,22 +288,6 @@ defmodule ExGoCD.Accounts do
 
   defp repo_preload_user(nil), do: nil
   defp repo_preload_user(token), do: Repo.preload(token, :user)
-
-  @doc """
-  Verifies a username/password pair. Returns {:ok, user} or {:error, reason}.
-  Called by AuthProvider plugins via :erpc.call.
-  """
-  def verify_password(username, password) when is_binary(username) and is_binary(password) do
-    case get_user_by_username(username) do
-      nil ->
-        {:error, :not_found}
-
-      user ->
-        if Argon2.verify_pass(password, user.password_hash),
-          do: {:ok, user},
-          else: {:error, :invalid_password}
-    end
-  end
 
   # ── Pipeline Group Permissions ──────────────────────────────────────────
 

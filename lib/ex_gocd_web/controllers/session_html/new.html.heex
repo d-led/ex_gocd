@@ -215,6 +215,7 @@
           <% end %>
           <form method="POST" action="/auth/login">
             <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
+            <input type="hidden" name="return_to" value={@return_to || ""} />
             <div class="form-group">
               <label for="session_username">Username</label>
               <input
@@ -239,6 +240,7 @@
                     value={Phoenix.Controller.get_csrf_token()}
                   />
                   <input type="hidden" name="session[username]" value={user.username} />
+                  <input type="hidden" name="return_to" value={@return_to || ""} />
                   <button
                     type="submit"
                     class={"user-chip #{if "admin" in (user.roles || []), do: "admin", else: ""}"}

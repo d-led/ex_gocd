@@ -13,8 +13,8 @@ defmodule ExGoCDWeb.API.JobController do
   use ExGoCDWeb, :controller
 
   alias ExGoCD.AgentJobRuns
-  alias ExGoCD.Pipelines.JobInstance
-  alias ExGoCD.{Repo, Scheduler}
+  alias ExGoCD.Pipelines
+  alias ExGoCD.Scheduler
 
   def schedule(conn, params) do
     spec = Map.take(params, ~w(pipeline stage job resources environments))
@@ -44,23 +44,14 @@ defmodule ExGoCDWeb.API.JobController do
       }) do
     with {:ok, pipeline_counter} <- parse_counter(counter_str),
          {:ok, stage_counter} <- parse_counter(stage_counter_str) do
-      import Ecto.Query
-
       ji =
-        from(ji in JobInstance,
-          join: si in assoc(ji, :stage_instance),
-          join: pi in assoc(si, :pipeline_instance),
-          join: p in assoc(pi, :pipeline),
-          where:
-            p.name == ^pipeline_name and
-              pi.counter == ^pipeline_counter and
-              si.name == ^stage_name and
-              si.counter == ^stage_counter and
-              ji.name == ^job_name,
-          preload: [stage_instance: {si, pipeline_instance: {pi, pipeline: p}}],
-          limit: 1
+        Pipelines.get_job_instance(
+          pipeline_name,
+          pipeline_counter,
+          stage_name,
+          stage_counter,
+          job_name
         )
-        |> Repo.one()
 
       if is_nil(ji) do
         conn |> put_status(:not_found) |> json(%{message: "Job instance not found."})
@@ -102,21 +93,11 @@ defmodule ExGoCDWeb.API.JobController do
       }) do
     offset = parse_offset(conn.params["offset"])
 
-    import Ecto.Query
-
-    query =
-      from(ji in JobInstance,
-        join: si in assoc(ji, :stage_instance),
-        join: pi in assoc(si, :pipeline_instance),
-        join: p in assoc(pi, :pipeline),
-        where: p.name == ^pipeline_name and si.name == ^stage_name and ji.name == ^job_name,
-        order_by: [desc: pi.counter, desc: si.counter],
-        offset: ^offset,
-        limit: 25,
-        preload: [stage_instance: {si, pipeline_instance: {pi, pipeline: p}}]
+    instances =
+      Pipelines.list_job_instances(pipeline_name, stage_name, job_name,
+        offset: offset,
+        limit: 25
       )
-
-    instances = Repo.all(query)
 
     json(conn, %{
       jobs:

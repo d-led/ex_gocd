@@ -63,6 +63,58 @@ defmodule ExGoCD.AuditLog.Events do
     })
   end
 
+  @doc """
+  A pipeline's lock was released by hand.
+
+  Payload: none
+  """
+  @spec pipeline_unlocked(String.t(), String.t()) :: :ok
+  def pipeline_unlocked(actor, pipeline_name) do
+    emit("pipeline.unlocked", actor, "pipeline", pipeline_name, %{})
+  end
+
+  @doc """
+  A comment was added to a pipeline run.
+
+  Payload: counter, comment
+  """
+  @spec pipeline_commented(String.t(), String.t(), integer(), String.t()) :: :ok
+  def pipeline_commented(actor, pipeline_name, counter, comment) do
+    emit("pipeline.commented", actor, "pipeline", pipeline_name, %{
+      counter: counter,
+      comment: comment
+    })
+  end
+
+  @doc """
+  The failed jobs of a stage instance were re-run.
+
+  Payload: counter, stage, stage_counter, jobs
+  """
+  @spec stage_failed_jobs_rerun(
+          String.t(),
+          String.t(),
+          integer(),
+          String.t(),
+          integer(),
+          non_neg_integer()
+        ) :: :ok
+  def stage_failed_jobs_rerun(
+        actor,
+        pipeline_name,
+        pipeline_counter,
+        stage_name,
+        stage_counter,
+        count
+      ) do
+    emit("stage.failed_jobs_rerun", actor, "pipeline", pipeline_name, %{
+      counter: pipeline_counter,
+      stage: stage_name,
+      stage_counter: stage_counter,
+      jobs: count
+    })
+  end
+
   # ===========================================================================
   # Admin Events
   # ===========================================================================

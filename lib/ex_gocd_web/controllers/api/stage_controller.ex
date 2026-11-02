@@ -1,7 +1,7 @@
 defmodule ExGoCDWeb.API.StageController do
   use ExGoCDWeb, :controller
 
-  alias ExGoCD.{Pipelines, Repo}
+  alias ExGoCD.Pipelines
   alias ExGoCD.Pipelines.{JobInstance, StageInstance}
 
   defp get_actor(conn) do
@@ -24,26 +24,17 @@ defmodule ExGoCDWeb.API.StageController do
       }) do
     with {:ok, pipeline_counter} <- parse_counter(counter_str),
          {:ok, stage_counter} <- parse_counter(stage_counter_str) do
-      import Ecto.Query
+      case Pipelines.get_stage_instance(
+             pipeline_name,
+             pipeline_counter,
+             stage_name,
+             stage_counter
+           ) do
+        nil ->
+          conn |> put_status(:not_found) |> json(%{message: "Stage instance not found."})
 
-      si =
-        from(si in StageInstance,
-          join: pi in assoc(si, :pipeline_instance),
-          join: p in assoc(pi, :pipeline),
-          where:
-            p.name == ^pipeline_name and
-              pi.counter == ^pipeline_counter and
-              si.name == ^stage_name and
-              si.counter == ^stage_counter,
-          preload: [pipeline_instance: {pi, pipeline: p}, job_instances: :job],
-          limit: 1
-        )
-        |> Repo.one()
-
-      if is_nil(si) do
-        conn |> put_status(:not_found) |> json(%{message: "Stage instance not found."})
-      else
-        json(conn, stage_json(si))
+        si ->
+          json(conn, stage_json(si))
       end
     else
       {:error, :not_a_counter} -> not_a_counter(conn, "pipeline and stage counters")
@@ -56,19 +47,8 @@ defmodule ExGoCDWeb.API.StageController do
   def history(conn, %{"pipeline_name" => pipeline_name, "stage_name" => stage_name}) do
     offset = parse_offset(conn.params["offset"])
 
-    import Ecto.Query
-
     instances =
-      from(si in StageInstance,
-        join: pi in assoc(si, :pipeline_instance),
-        join: p in assoc(pi, :pipeline),
-        where: p.name == ^pipeline_name and si.name == ^stage_name,
-        order_by: [desc: pi.counter, desc: si.counter],
-        offset: ^offset,
-        limit: 25,
-        preload: [pipeline_instance: {pi, pipeline: p}]
-      )
-      |> Repo.all()
+      Pipelines.list_stage_instances(pipeline_name, stage_name, offset: offset, limit: 25)
 
     json(conn, %{
       stages:
