@@ -3,8 +3,12 @@ defmodule ExGoCD.Notifications do
   Context for notification filters — which pipeline events users want emails for.
 
   GoCD parity: StageEvent and PipelineEvent notification routing.
-  When a stage completes (Passes, Fails, Breaks, Fixed, Cancelled),
-  matching filters trigger email delivery via Swoosh.
+  When a stage completes, matching filters trigger email delivery via Swoosh.
+
+  The events are the words a filter stores, lowercase: `"passes"`, `"fails"`,
+  `"cancelled"`, and `"all"` for every event. `"breaks"` and `"fixed"` are
+  accepted by a filter but nothing dispatches them yet — they need the previous
+  result of the stage to tell a break from a plain failure.
   """
 
   import Ecto.Query, warn: false
@@ -27,7 +31,8 @@ defmodule ExGoCD.Notifications do
   Dispatches notifications for a stage event.
   Finds all filters matching the pipeline + stage + event and sends emails.
 
-  Events: "Passes", "Fails", "Breaks", "Fixed", "Cancelled", "All"
+  `event` is the word a filter stores: "passes", "fails", "cancelled". A filter
+  set to "all" matches every event.
   """
   def dispatch(pipeline_name, stage_name, event, stage_result, opts \\ []) do
     matched =

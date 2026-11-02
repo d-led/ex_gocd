@@ -477,9 +477,12 @@ defmodule ExGoCD.Pipelines do
     stage = Repo.get!(StageInstance, stage_instance_id) |> Repo.preload(:job_instances)
 
     if Enum.all?(stage.job_instances, &(&1.state in ["Completed", "Failed"])) do
-      stage
-      |> StageInstance.changeset(%{state: "Completed", result: "Cancelled"})
-      |> Repo.update!()
+      cancelled =
+        stage
+        |> StageInstance.changeset(%{state: "Completed", result: "Cancelled"})
+        |> Repo.update!()
+
+      notify_stage_event(cancelled, "cancelled")
     end
   end
 
@@ -678,7 +681,8 @@ defmodule ExGoCD.Pipelines do
         {:error, :not_found}
 
       si ->
-        cancel_stage_transaction(si)
+        cancelled = cancel_stage_transaction(si)
+        notify_stage_event(cancelled, "cancelled")
         Phoenix.PubSub.broadcast(ExGoCD.PubSub, "pipelines:updates", :pipelines_updated)
 
         ExGoCD.AuditLog.Events.stage_cancelled(
@@ -694,15 +698,21 @@ defmodule ExGoCD.Pipelines do
   end
 
   defp cancel_stage_transaction(si) do
-    Repo.transaction(fn ->
-      Repo.update!(StageInstance.changeset(si, %{state: "Cancelled", result: "Cancelled"}))
+    {:ok, cancelled} =
+      Repo.transaction(fn ->
+        stage =
+          Repo.update!(StageInstance.changeset(si, %{state: "Cancelled", result: "Cancelled"}))
 
-      Enum.each(si.job_instances, fn ji ->
-        if ji.state in ["Scheduled", "Assigned", "Preparing", "Building"] do
-          Repo.update!(JobInstance.changeset(ji, %{state: "Cancelled", result: "Cancelled"}))
-        end
+        Enum.each(si.job_instances, fn ji ->
+          if ji.state in ["Scheduled", "Assigned", "Preparing", "Building"] do
+            Repo.update!(JobInstance.changeset(ji, %{state: "Cancelled", result: "Cancelled"}))
+          end
+        end)
+
+        stage
       end)
-    end)
+
+    cancelled
   end
 
   @doc """
@@ -1916,28 +1926,21 @@ defmodule ExGoCD.Pipelines do
     end
   end
 
-  # GoCD parity: dispatch notifications when a stage completes.
-  # Maps stage result to notification event type.
-  defp dispatch_stage_notification(
-         pipeline_name,
-         stage_name,
-         result,
-         pipeline_counter,
-         stage_counter,
-         triggered_by
-       ) do
-    event =
-      case result do
-        "Passed" -> "Passes"
-        "Failed" -> "Fails"
-        "Cancelled" -> "Cancelled"
-        _ -> "All"
-      end
+  # Notifications are matched against the vocabulary a filter stores:
+  # "passes", "fails", "cancelled" (and "all"). Sending "Passes" here matched
+  # nothing, because every filter is stored lowercase.
+  defp notify_stage_event(%StageInstance{} = stage, event) do
+    stage = Repo.preload(stage, pipeline_instance: :pipeline)
+    pipeline_instance = stage.pipeline_instance
 
-    ExGoCD.Notifications.dispatch(pipeline_name, stage_name, event, result,
-      pipeline_counter: pipeline_counter,
-      stage_counter: stage_counter,
-      triggered_by: triggered_by
+    ExGoCD.Notifications.dispatch(
+      pipeline_instance.pipeline.name,
+      stage.name,
+      event,
+      stage.result,
+      pipeline_counter: pipeline_instance.counter,
+      stage_counter: stage.counter,
+      triggered_by: (pipeline_instance.build_cause || %{})["trigger_message"] || "triggered"
     )
   end
 
@@ -1962,16 +1965,9 @@ defmodule ExGoCD.Pipelines do
         pipeline = stage_loaded.pipeline_instance.pipeline
 
         # Dispatch notifications for stage completion (GoCD parity)
-        pi = stage_loaded.pipeline_instance
-        triggered_by = (pi.build_cause || %{})["trigger_message"] || "triggered"
-
-        dispatch_stage_notification(
-          pipeline.name,
-          stage.name,
-          stage_result,
-          pi.counter,
-          stage_loaded.counter,
-          triggered_by
+        notify_stage_event(
+          stage_loaded,
+          if(stage_result == "Passed", do: "passes", else: "fails")
         )
 
         if stage_result == "Failed" and pipeline.lock_behavior == "lockOnFailure" do

@@ -5,7 +5,7 @@ defmodule ExGoCD.Notifications.NotificationFilter do
   import Ecto.Changeset
 
   @primary_key {:id, :binary_id, autogenerate: true}
-  @valid_events ~w(breaks fixed fails passes all)
+  @valid_events ~w(breaks fixed fails passes cancelled all)
 
   schema "notification_filters" do
     field :pipeline_name, :string
