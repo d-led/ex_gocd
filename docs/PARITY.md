@@ -3,13 +3,10 @@
 > ⚠️ **This file is a map of intent, not a status report.** Status lives in
 > [STATUS.md](STATUS.md), which is measured. The "100 % feature parity / all
 > gaps resolved" claim from the 2026-07-08 audit is not repeated here, because
-> nothing in the code checks it.
->
-> Counts last measured 2026-11-02: 1452 tests (`mix test`), 77 controller files
-> under `lib/ex_gocd_web/controllers/` (`find … -name '*.ex' | wc -l`), 21
-> LiveView modules under `lib/ex_gocd_web/live/`, 22 modules calling
-> `use GenServer`, 45 migrations in `priv/repo/migrations/`. Each count means what
-> the command beside it says; none of them is a claim about behaviour.
+> nothing in the code checks it. Sizes are not written down: ask the command —
+> `mix test` for the suite, `elixir scripts/coverage_total.exs` for what no test
+> reaches, `find lib/ex_gocd_web/controllers -name '*.ex' | wc -l` for the
+> controller count.
 >
 > A ✅ below means the module named beside it exists and is wired up. It does
 > **not** mean the behaviour is verified — that is what the coverage table in
@@ -195,7 +192,7 @@ All internal navigation verified 2026-07-08.
 | `go vet ./...` | ✅ |
 | `go test ./...` | ✅ |
 | `golangci-lint run` | ✅ 0 issues |
-| Cypress E2E | 27 specs on disk, not run in this session |
+| Cypress E2E | specs on disk, not run by the gate (`ls cypress/e2e/*.cy.js`) |
 
 ---
 

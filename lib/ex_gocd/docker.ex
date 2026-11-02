@@ -38,7 +38,10 @@ defmodule ExGoCD.Docker do
           env :: %{String.t() => String.t()},
           opts :: keyword()
         ) :: {:ok, String.t()} | {:error, String.t()}
-  def create_container(image, env \\ %{}, opts \\ []) do
+  # `env` is guarded because it comes before the options: `create_container(image,
+  # docker_socket: socket)` would otherwise pass its options as environment and
+  # quietly talk to whichever daemon the machine has by default.
+  def create_container(image, env \\ %{}, opts \\ []) when is_map(env) do
     socket = Keyword.get(opts, :docker_socket, default_socket())
     memory = Keyword.get(opts, :memory, "2g")
     cpu = Keyword.get(opts, :cpu, "2.0")

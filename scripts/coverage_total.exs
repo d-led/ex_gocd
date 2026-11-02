@@ -20,38 +20,72 @@ defmodule CoverageTotal do
 
   defp report do
     # Imported modules are not cover-compiled, so they are listed separately.
-    # Dependencies are compiled into the same export; only our own code counts.
-    modules =
+    # Dependencies are compiled into the same export; only our own code counts,
+    # and the scaffolding under test/support measures the tests rather than the
+    # product.
+    counts =
       :cover.imported_modules()
-      |> Enum.filter(&String.starts_with?(Atom.to_string(&1), "Elixir.ExGoCD"))
+      |> Enum.filter(&own_code?/1)
+      |> Enum.reject(&test_support?/1)
+      |> Enum.map(fn module -> {module, count(module)} end)
 
-    {covered, relevant, untouched} =
-      Enum.reduce(modules, {0, 0, 0}, fn module, {covered, relevant, untouched} ->
-        {module_covered, module_relevant} = count(module)
-        {covered + module_covered, relevant + module_relevant, untouched + untouched(module_relevant, module_covered)}
-      end)
+    covered = counts |> Enum.map(fn {_module, {covered, _relevant}} -> covered end) |> Enum.sum()
+    relevant = counts |> Enum.map(fn {_module, {_covered, relevant}} -> relevant end) |> Enum.sum()
+
+    untouched =
+      counts
+      |> Enum.map(fn {module, {covered, relevant}} -> {relevant, covered, module} end)
+      |> Enum.filter(fn {relevant, covered, _module} -> relevant > 0 and covered == 0 end)
+      |> Enum.sort(:desc)
 
     IO.puts("covered lines: #{covered}")
     IO.puts("relevant lines: #{relevant}")
     IO.puts("coverage: #{percentage(covered, relevant)}")
-    IO.puts("modules with nothing covered: #{untouched}")
+    IO.puts("modules with nothing covered: #{length(untouched)}")
+
+    for {relevant, _covered, module} <- untouched do
+      IO.puts("  #{relevant} lines  #{inspect(module)}")
+    end
+  end
+
+  defp own_code?(module), do: String.starts_with?(Atom.to_string(module), "Elixir.ExGoCD")
+
+  # Compiled only for tests, and exercised by the tests it exists for. The names
+  # come from the directory because an imported module is not loaded, so it has
+  # no compile info to ask.
+  defp test_support?(module) do
+    name = module |> Atom.to_string() |> String.replace_prefix("Elixir.", "")
+    MapSet.member?(test_support_modules(), name)
+  end
+
+  defp test_support_modules do
+    "test/support/**/*.ex"
+    |> Path.wildcard()
+    |> Enum.flat_map(fn path ->
+      ~r/^defmodule ([\w.]+)/m
+      |> Regex.scan(File.read!(path), capture: :all_but_first)
+      |> List.flatten()
+    end)
+    |> MapSet.new()
   end
 
   defp count(module) do
     {:ok, lines} = :cover.analyse(module, :calls, :line)
 
-    Enum.reduce(lines, {0, 0}, fn {_line, calls}, {covered, relevant} ->
-      tally(calls, covered, relevant)
+    Enum.reduce(lines, {0, 0}, fn {line, calls}, {covered, relevant} ->
+      tally(line, calls, covered, relevant)
     end)
   end
 
-  # A line with no calls recorded is a line no test ran.
-  defp tally(calls, covered, relevant) when calls > 0, do: {covered + 1, relevant + 1}
-  defp tally(_calls, covered, relevant), do: {covered, relevant + 1}
+  # `:cover` files what a module runs when it loads — a `use`, a behaviour
+  # declaration — under line 0. A source file has no line 0, so that is a marker
+  # rather than a line, and counting it would make a module with nothing to cover
+  # look like a module no test reaches.
+  defp tally(0, _calls, covered, relevant), do: {covered, relevant}
 
-  defp untouched(0, _covered), do: 0
-  defp untouched(_relevant, 0), do: 1
-  defp untouched(_relevant, _covered), do: 0
+  # A line with no calls recorded is a line no test ran.
+  defp tally(_line, calls, covered, relevant) when calls > 0, do: {covered + 1, relevant + 1}
+  defp tally(_line, _calls, covered, relevant), do: {covered, relevant + 1}
 
   defp percentage(_covered, 0), do: "—"
   defp percentage(covered, relevant), do: "#{Float.round(covered / relevant * 100, 1)} %"

@@ -1,6 +1,6 @@
 # ex_gocd — Verified Status
 
-> Measured 2026-11-01 on `main`. Every number below was produced in this working
+> Measured 2026-11-02 on `main`. Every number below was produced in this working
 > tree, not copied from an earlier doc. Reproduce with the commands in each
 > section.
 >
@@ -13,16 +13,16 @@
 
 | Dimension | State | Evidence |
 | --- | --- | --- |
-| Code | 268 source files, compile warnings-as-errors clean | `git ls-files 'lib/**/*.ex'` |
-| ExUnit | **1533 tests, all green** | `mix test` |
-| Coverage | **67.5 %** (11,333 of 16,778 lines); 27 modules at 0 % | `mix cover`, then `elixir scripts/coverage_total.exs` |
-| Go agent | builds; tests pass in 3 of 10 packages (3,793 prod LOC / 599 test LOC); modules upgraded 2026-11-01 (otel 1.47, grpc 1.85) | `cd agent && go test ./...` |
-| Cypress | 27 specs on disk, **not executed in this session** | `ls cypress/e2e/*.cy.js` |
-| Static analysis | `scripts/quality-gate.sh` passes as a whole: 17 steps, 0 failures (format, compile, Sobelow, credo, doc references, test database, ExUnit, Go fmt/vet/golangci-lint/tests/gofmt/mod-tidy, jscpd, ESLint, TypeScript, Prettier, link checker). Two findings are kept and documented rather than ignored: the MD5 artifact checksums, which are the format a GoCD agent writes. `mix dialyzer` went from 41 warnings (2026-11-02, default flags) to none, and nothing was silenced to get there — see [Types and CRAP](#types-and-crap). `staticcheck` cannot serve either, its binary being older than the Go toolchain, and the gate now says that instead of blaming the code | see above |
-| CI | every commit through `ae8b54c` is green on Elixir CI, CodeQL and Sobelow, and two of those runs show the documentation check executing and printing `[PASS] documentation references resolve` in the `build` job. `5d74c99` and `8331faf` were still queued at hand-off; both pass the whole local gate | `gh run list` |
-| Security | **0 open Dependabot alerts**; `npm audit` 0 vulnerabilities | see above |
-| Dependencies | Hex and npm on their latest releases; Go modules not yet | `mix hex.outdated`, `npm outdated` |
-| Upstream | pulled to `gocd/gocd` `eb504a6a6b`; `api.go.cd` has no `source/` changes | see [Upstream delta](#upstream-delta) |
+| Code | compiles clean with warnings as errors | `mix compile --warnings-as-errors` |
+| ExUnit | green | `mix test` |
+| Coverage | above the floor in `mix.exs`; `scripts/coverage_total.exs` lists the modules no test reaches | `mix cover`, then `elixir scripts/coverage_total.exs` |
+| Go agent | builds; some packages still have no tests | `cd agent && go test ./...` |
+| Cypress | specs on disk, not run by the gate | `ls cypress/e2e/*.cy.js` |
+| Static analysis | `scripts/quality-gate.sh` passes as a whole (format, compile, Sobelow, credo, doc references, test database, ExUnit, Go checks, jscpd, ESLint, TypeScript, Prettier, link checker). Two findings are kept and documented rather than ignored: the MD5 artifact checksums, which are the format a GoCD agent writes. `staticcheck` cannot serve either, its binary being older than the Go toolchain, and the gate says that instead of blaming the code | see above |
+| CI | green on Elixir CI, CodeQL and Sobelow, with the documentation check running in the `build` job | `gh run list` |
+| Security | no open Dependabot alerts; `npm audit` clean | see above |
+| Dependencies | Hex and npm current; Go modules not yet | `mix hex.outdated`, `npm outdated` |
+| Upstream | pulled to the `gocd/gocd` commit named below; `api.go.cd` has no `source/` changes | see [Upstream delta](#upstream-delta) |
 
 The suite being green and the coverage being half the code are both true at
 once. Green
@@ -38,7 +38,7 @@ means nothing currently *fails*; it does not mean the untested paths work.
 | --- | --- | --- | --- |
 | ExUnit | `mix test` | yes, already prepared | yes |
 | ExUnit, no database | `EX_GOCD_TEST_NO_DB=1 mix test` | no | no |
-| Coverage, against a floor | `mix cover` (fails under 65 %) | yes, already prepared | yes |
+| Coverage, against a floor | `mix cover` (fails under the floor in `mix.exs`) | yes, already prepared | yes |
 | Coverage, the number | `elixir scripts/coverage_total.exs` (reads the export) | no | no |
 | Coverage, per module | `mix test.coverage` (Coveralls JSON) | yes, already prepared | no |
 | Go agent | `cd agent && go test ./...` | no | yes |
@@ -220,6 +220,46 @@ a config repo. The inner rescues are gone; `safe_section/1` already reports a
 broken section, and the snapshot test now asserts that no section reports
 `_error`. `scms` still returns `[]` because this build has no SCM table — a
 repository is named by the material that points at it.
+
+### Fixed: two modules at 0 % were a second copy of live controllers
+
+Coverage listed `ExGoCDWeb.BackupConfigController` and `ExGoCDWeb.BackupController`
+at 0 % even though their endpoints had six passing tests. The reason was that
+there were **two of each**: an older pair under `lib/ex_gocd_web/controllers/` and
+the routed pair under `lib/ex_gocd_web/controllers/api/admin/`. The router puts
+those paths inside `scope "/go/api/config", ExGoCDWeb.API.Admin`, so every
+backup request went to the namespaced controller and the older pair answered
+nothing — a stale copy that differed from the live one as well (200 with
+`insert_or_update` against 201, a 200 with a message against a 404). Nothing in
+`lib` or `test` referred to it. Both files are gone; the routed pair is what the
+tests exercise.
+
+### Fixed: the Docker client's tests were talking to the real daemon
+
+`ExGoCD.Docker` speaks HTTP over a Unix socket, so its first tests are the
+daemon: a stub under `test/support/docker_daemon_stub.ex` binds a socket, keeps
+the request for the test to inspect, and answers with the status and body the
+test asked for. Two things came out of writing that:
+
+| Fault | Effect |
+| --- | --- |
+| `create_container(image, env \\ %{}, opts \\ [])` put the socket option second | `create_container(image, docker_socket: socket)` silently passed its options **as the environment** and used the machine's default socket instead — the first test run against the stub reached a real Docker daemon and got `No such image: alpine:3.20` back |
+| `/_ping` answers `text/plain` | a stub that typed every reply as JSON made the client hand back a JSON decode error for the daemon's `OK` |
+
+The environment argument is guarded (`when is_map(env)`) so that mistake fails
+loudly rather than quietly selecting another daemon. Both real callers already
+pass a map.
+
+### Measuring
+
+Two entries in the old 0 % list were not code that needed tests. The modules
+under `test/support` are compiled only for tests and are exercised by the tests
+they exist for; `mix.exs` now lists them in `test_coverage: [ignore_modules: …]`,
+taken from the directory itself, and `scripts/coverage_total.exs` leaves them out
+the same way. A module whose only instrumented line is its own `defmodule` — or
+the `use` that generates nothing callable — has nothing to cover, which is what
+most of the remaining entries are. The script prints the modules with nothing
+covered and their size, so the list is the work queue rather than a number.
 
 ### Fixed: two 0 %-coverage pages were hiding four faults
 
@@ -837,7 +877,7 @@ is a list or `NotLoaded`, never nil; `svn log` answers an empty element, not a n
 author; an MCP tool that asked for a run that does not exist crashed instead of
 answering what it documents; and the pod probe passed `limit` as a path parameter,
 where the k8s client's own spec says it is a query parameter, so the probe asked
-for the whole pod list. `mix dialyzer` reports `Total errors: 0`.
+for the whole pod list. `mix dialyzer` reports no errors.
 
 `mix crap` scores every function by complexity squared by the coverage it lacks and
 fails above 30. `mix cover` replaced ExCoveralls, because built-in coverage can fail
@@ -845,8 +885,8 @@ under a floor and leaves the coverdata `mix crap` reads; ExCoveralls could do
 neither. The gate runs tests with coverage, then `mix complexity` (both trees), then
 dialyzer.
 
-The first CRAP run found **126 functions above 30**; it now finds none, and the
-worst score in either tree is exactly 30.00 (`mix complexity`).
+The first CRAP run found a long list above the threshold; it now finds none.
+`mix complexity` prints the worst score in either tree.
 
     PGHOST=127.0.0.1 PGPORT=5544 mix cover
     mix complexity
@@ -874,18 +914,15 @@ the topology diagram and the feature table: the agent speaks HTTP remoting, like
 real GoCD agent (`agent/internal/remoting/`, `agent_remoting_controller.ex`, and
 no `websocket` string anywhere in the Go agent).
 
-Counts elsewhere are written by hand — the test count and coverage in this file,
-the module count, the `README.md` figures — and nothing regenerates them, so they
-drift until someone re-measures with the command beside each.
+The docs carry no measured counts. Every claim names the command that produces
+it, so a number is never older than the question.
 
 `scripts/check_doc_refs.exs` is the part that cannot drift: it fails when a
 source file, an `/api` route, an Elixir module named in `module_mapping.md` or an
 internal link stops existing. It runs as a step in `scripts/quality-gate.sh` and
 in the `build` job of `.github/workflows/elixir.yml`, so a rename that leaves a
-doc behind now fails CI. All 36 references the feature table made resolved when
-it was added (2026-11-02), and so did every module the mapping names. It checks
-that the things a claim points at exist, not that the claim is true; that is the
-coverage table above.
+doc behind now fails CI. It checks that the things a claim points at exist, not
+that the claim is true; that is what the coverage and test commands are for.
 
 ### The agent WebSocket tree is not dead code — it was untested
 
@@ -970,11 +1007,10 @@ Reconstructed from the two indexed sessions for this workspace
 6. **Teach the XML the four plugin sections** if an external reader ever needs
    them, which first needs a way to know which plugin property is a secret.
 7. ~~**Make dialyzer and CRAP real gates.**~~ Done, both at zero: no type
-   warnings and nothing above 30 on either tree. What is left is the other half
-   of the same measurement — 67.5 % coverage with 27 modules at nothing. Raise
-   the floor in `mix.exs` as those modules get their first test, one module at a
-   time; `mix test.coverage` says which, and `elixir scripts/coverage_total.exs`
-   says where the total stands.
+   warnings and nothing above the threshold on either tree. The coverage half
+   has started — the floor in `mix.exs` rises as modules get their first test,
+   one module at a time, and `elixir scripts/coverage_total.exs` prints which
+   modules no test reaches.
 8. **Look at the 29 serial test files.** 14 of them mutate `System.put_env`,
    which is why they cannot run async. A process-scoped env helper would let
    most of them run in parallel and would stop the suite from being order

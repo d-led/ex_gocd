@@ -15,7 +15,13 @@ defmodule ExGoCD.MixProject do
       # Built-in coverage, so `mix test --cover --export-coverage default` leaves
       # the coverdata `mix crap` reads, and a run under the floor fails. ExCoveralls
       # was here before; it reports but cannot fail, and cannot feed CRAP.
-      test_coverage: [summary: [threshold: coverage_threshold()]],
+      test_coverage: [
+        summary: [threshold: coverage_threshold()],
+        # test/support is compiled only for tests and exercised by the tests it
+        # exists for, so counting it measures the scaffolding. Mix filters by
+        # module name rather than by path, so the names come from the directory.
+        ignore_modules: test_support_modules()
+      ],
       dialyzer: dialyzer()
     ]
   end
@@ -66,7 +72,20 @@ defmodule ExGoCD.MixProject do
 
   # The floor is where the suite is, rounded down: raising it is a decision, not a
   # side effect of adding tests.
-  defp coverage_threshold, do: 65
+  defp coverage_threshold, do: 67
+
+  defp test_support_modules do
+    "test/support/**/*.ex"
+    |> Path.wildcard()
+    |> Enum.flat_map(&modules_defined_in/1)
+  end
+
+  defp modules_defined_in(path) do
+    ~r/^defmodule ([\w.]+)/m
+    |> Regex.scan(File.read!(path), capture: :all_but_first)
+    |> List.flatten()
+    |> Enum.map(&Module.concat([&1]))
+  end
 
   # Specifies your project dependencies.
   #
