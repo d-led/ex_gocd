@@ -27,11 +27,16 @@ defmodule ExGoCD.ElasticAgentScheduler do
   alias ExGoCD.ElasticAgentProfiles.ElasticAgentProfile
   alias ExGoCD.ElasticSchedulerHelpers, as: H
   alias ExGoCD.K8s
-  alias ExGoCD.Scheduler
 
   @tick_ms 30_000
   @idle_timeout_seconds 300
   @max_events 50
+
+  @doc false
+  # Where the tick reads the jobs waiting to run. Scaling is a decision about that
+  # queue, so a test answers it instead of scheduling jobs into the running
+  # singleton.
+  def queue, do: Application.get_env(:ex_gocd, :elastic_scheduler_queue, ExGoCD.Scheduler)
 
   # ── Client API ────────────────────────────────────────────────────────────
 
@@ -102,9 +107,7 @@ defmodule ExGoCD.ElasticAgentScheduler do
         |> maintain_min_agents()
         |> reap_orphan_pods()
       rescue
-        e ->
-          log_event(state, :error, "Tick error: #{Exception.message(e)}")
-          state
+        e -> log_event(state, :error, "Tick error: #{Exception.message(e)}")
       end
 
     schedule_tick()
@@ -118,15 +121,14 @@ defmodule ExGoCD.ElasticAgentScheduler do
 
     Enum.reduce(pending_jobs, state, fn job, acc ->
       if needs_elastic_agent?(job) do
-        acc
-        |> maybe_create_pod(job)
-        |> tap(fn
-          %{pods: pods} when map_size(pods) > map_size(acc.pods) ->
-            log_event(acc, :info, "Created pod for job #{job_name(job)}")
+        before = map_size(acc.pods)
+        scaled = maybe_create_pod(acc, job)
 
-          _ ->
-            :ok
-        end)
+        if map_size(scaled.pods) > before do
+          log_event(scaled, :info, "Created pod for job #{job_name(job)}")
+        else
+          scaled
+        end
       else
         acc
       end
@@ -321,12 +323,10 @@ defmodule ExGoCD.ElasticAgentScheduler do
   # ── Job inspection ─────────────────────────────────────────────────────────
 
   defp get_pending_jobs do
-    case Scheduler.get_queue_state() do
+    case queue().get_queue_state() do
       %{in_memory_jobs: jobs} -> jobs
       _ -> []
     end
-  rescue
-    _ -> []
   end
 
   defp needs_elastic_agent?(job) do

@@ -10,6 +10,7 @@ defmodule ExGoCD.DockerElasticAgentSchedulerTest do
   """
   use ExGoCD.DataCase, async: false
 
+  alias ExGoCD.Agents
   alias ExGoCD.ClusterProfiles
   alias ExGoCD.DockerElasticAgentScheduler, as: Scheduler
   alias ExGoCD.ElasticAgentProfiles
@@ -78,11 +79,26 @@ defmodule ExGoCD.DockerElasticAgentSchedulerTest do
       end
     end
 
+    defmodule FakeQueue do
+      @moduledoc false
+      def get_queue_state do
+        case Process.get(:queue_answer, []) do
+          :unreachable -> raise "the queue is unreachable"
+          jobs -> %{in_memory_jobs: jobs}
+        end
+      end
+    end
+
     setup do
-      previous = Application.get_env(:ex_gocd, :docker_client)
-      Application.put_env(:ex_gocd, :docker_client, FakeDocker)
+      replace = fn key, value ->
+        previous = Application.get_env(:ex_gocd, key)
+        Application.put_env(:ex_gocd, key, value)
+        on_exit(fn -> Application.put_env(:ex_gocd, key, previous) end)
+      end
+
+      replace.(:docker_client, FakeDocker)
+      replace.(:elastic_scheduler_queue, FakeQueue)
       Process.put(:docker_reporter, self())
-      on_exit(fn -> Application.put_env(:ex_gocd, :docker_client, previous) end)
       :ok
     end
 
@@ -115,6 +131,57 @@ defmodule ExGoCD.DockerElasticAgentSchedulerTest do
 
       refute_received {:docker, {:stop, _, _}}
       assert Map.has_key?(new_state.containers, "healthy12345")
+    end
+
+    test "a queued job for resources no static agent has gets a container" do
+      {:ok, _profile} =
+        docker_profile("builders", %{"Resources" => ["docker"], "Image" => "agent:1"})
+
+      Process.put(:docker_create, :ok)
+      Process.put(:queue_answer, [%{job: "build", resources: ["docker"], environments: []}])
+
+      assert {:noreply, new_state} = Scheduler.handle_info(:tick, fresh_state())
+
+      assert [container] = Map.values(new_state.containers)
+      assert container.job_name == "build"
+      assert container.image == "agent:1"
+      cid = container.container_id
+      assert_received {:docker, {:start, ^cid, _opts}}
+      assert Enum.any?(new_state.events, &(&1.message == "Created container for job build"))
+    end
+
+    test "a job a static agent can already run gets no container" do
+      {:ok, _profile} =
+        docker_profile("builders", %{"Resources" => ["docker"], "Image" => "agent:1"})
+
+      Process.put(:docker_create, :ok)
+      Process.put(:queue_answer, [%{job: "build", resources: ["docker"], environments: []}])
+
+      {:ok, _agent} =
+        Agents.register_agent(%{
+          uuid: Ecto.UUID.generate(),
+          hostname: "static-host",
+          ipaddress: "10.0.0.9",
+          resources: ["docker"]
+        })
+
+      assert {:noreply, new_state} = Scheduler.handle_info(:tick, fresh_state())
+
+      assert new_state.containers == %{}
+      refute_received {:docker, {:create, _, _, _}}
+    end
+
+    test "a queue that cannot be read is reported, not hidden" do
+      {:ok, _profile} =
+        docker_profile("builders", %{"Resources" => ["docker"], "Image" => "agent:1"})
+
+      Process.put(:queue_answer, :unreachable)
+
+      assert {:noreply, new_state} = Scheduler.handle_info(:tick, fresh_state())
+
+      assert [%{level: :error, message: message} | _] = new_state.events
+      assert message =~ "Tick error"
+      assert message =~ "the queue is unreachable"
     end
 
     test "a profile that keeps standby agents gets that many created" do

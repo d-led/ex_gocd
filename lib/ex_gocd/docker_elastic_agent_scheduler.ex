@@ -37,6 +37,12 @@ defmodule ExGoCD.DockerElasticAgentScheduler do
   # one of its calls, so a test replaces it instead of needing a daemon.
   def docker, do: Application.get_env(:ex_gocd, :docker_client, Docker)
 
+  @doc false
+  # Where the tick reads the jobs waiting to run. Scaling is a decision about that
+  # queue, so a test answers it instead of scheduling jobs into the running
+  # singleton.
+  def queue, do: Application.get_env(:ex_gocd, :elastic_scheduler_queue, ExGoCD.Scheduler)
+
   # ── Client API ────────────────────────────────────────────────────────────
 
   def start_link(opts \\ []) do
@@ -101,9 +107,7 @@ defmodule ExGoCD.DockerElasticAgentScheduler do
         |> check_and_scale()
         |> maintain_min_agents()
       rescue
-        e ->
-          log_event(state, :error, "Tick error: #{Exception.message(e)}")
-          state
+        e -> log_event(state, :error, "Tick error: #{Exception.message(e)}")
       end
 
     schedule_tick()
@@ -123,19 +127,18 @@ defmodule ExGoCD.DockerElasticAgentScheduler do
     end
   end
 
-  defp maybe_scale_for_job(acc, job, profiles) do
+  defp maybe_scale_for_job(state, job, profiles) do
     if needs_docker_agent?(job) do
-      acc
-      |> maybe_create_container(job, profiles)
-      |> tap(fn
-        %{containers: cs} when map_size(cs) > map_size(acc.containers) ->
-          log_event(acc, :info, "Created container for job #{job_name(job)}")
+      before = map_size(state.containers)
+      scaled = maybe_create_container(state, job, profiles)
 
-        _ ->
-          :ok
-      end)
+      if map_size(scaled.containers) > before do
+        log_event(scaled, :info, "Created container for job #{job_name(job)}")
+      else
+        scaled
+      end
     else
-      acc
+      state
     end
   end
 
@@ -362,12 +365,10 @@ defmodule ExGoCD.DockerElasticAgentScheduler do
   end
 
   defp get_pending_jobs do
-    case ExGoCD.Scheduler.get_queue_state() do
+    case queue().get_queue_state() do
       %{in_memory_jobs: jobs} -> jobs
       _ -> []
     end
-  rescue
-    _ -> []
   end
 
   defp schedule_tick do
