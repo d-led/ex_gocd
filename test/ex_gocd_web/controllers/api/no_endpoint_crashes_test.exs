@@ -58,7 +58,7 @@ defmodule ExGoCDWeb.API.NoEndpointCrashesTest do
 
   describe "an unauthenticated caller" do
     test "is answered, not crashed, by every open endpoint", %{conn: conn} do
-      Enum.each(@open_paths, fn path -> assert_answered(conn, path) end)
+      assert_answered(conn, @open_paths)
     end
   end
 
@@ -77,14 +77,71 @@ defmodule ExGoCDWeb.API.NoEndpointCrashesTest do
     end
 
     test "is answered, not crashed, by every admin endpoint", %{conn: conn} do
-      Enum.each(@admin_paths, fn path -> assert_answered(conn, path) end)
+      assert_answered(conn, @admin_paths)
+    end
+
+    test "is answered, not crashed, when the thing named is not there", %{conn: conn} do
+      assert_answered(conn, absent_paths())
     end
   end
 
-  defp assert_answered(conn, path) do
-    conn = get(conn, path)
+  # Names that resolve to nothing, counters that parse, and ids of the right
+  # shape but unknown. A route that names something absent has to say so; what it
+  # must not do is fall over.
+  defp absent_paths do
+    uuid = Ecto.UUID.generate()
 
-    assert conn.status < 500,
-           "#{path} answered #{conn.status}: #{String.slice(conn.resp_body || "", 0, 200)}"
+    [
+      "/api/admin/artifact_stores/#{uuid}",
+      "/api/admin/auth_configs/#{uuid}",
+      "/api/admin/backups/999999",
+      "/api/admin/cluster_profiles/#{uuid}",
+      "/api/admin/elastic_agent_profiles/#{uuid}",
+      "/api/admin/environments/absent",
+      "/api/admin/package_repositories/#{uuid}",
+      "/api/admin/packages/#{uuid}",
+      "/api/admin/pipeline_groups/absent",
+      "/api/admin/pipelines/absent",
+      "/api/admin/plugin_settings/absent",
+      "/api/admin/secret_configs/#{uuid}",
+      "/api/admin/security/roles/absent",
+      "/api/admin/templates/absent",
+      "/api/agents/#{uuid}",
+      "/api/analytics/nonsense",
+      "/api/feeds/jobs/absent/1/absent/1/absent",
+      "/api/feeds/materials/absent/1/absent",
+      "/api/feeds/pipelines/absent/stages.xml",
+      "/api/feeds/stages/absent/1/absent/1",
+      "/api/jobs/absent/1/absent/1/absent",
+      "/api/jobs/absent/absent/absent/history",
+      "/api/pipelines/absent/1",
+      "/api/pipelines/absent/history",
+      "/api/pipelines/absent/status",
+      "/api/stages/absent/1/absent/1",
+      "/api/stages/absent/absent/history",
+      "/api/users/absent",
+      "/go/api/agent_health/#{uuid}",
+      "/go/api/agents/#{uuid}",
+      "/go/api/plugin_settings/absent",
+      "/go/api/scms/absent"
+    ]
+  end
+
+  # Collects every offender before failing, so one run names all of them rather
+  # than the first.
+  defp assert_answered(conn, paths) when is_list(paths) do
+    offenders = paths |> Enum.map(&answer(conn, &1)) |> Enum.reject(&is_nil/1)
+
+    assert offenders == [],
+           "endpoints that did not answer:\n" <> Enum.join(offenders, "\n")
+  end
+
+  defp answer(conn, path) do
+    case get(conn, path) do
+      %{status: status} when status < 500 -> nil
+      %{status: status} -> "#{path} answered #{status}"
+    end
+  rescue
+    error -> "#{path} raised #{inspect(error.__struct__)}: #{Exception.message(error)}"
   end
 end

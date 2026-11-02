@@ -14,8 +14,8 @@
 | Dimension | State | Evidence |
 | --- | --- | --- |
 | Code | 272 source files, compile warnings-as-errors clean | `mix compile --force --warnings-as-errors` |
-| ExUnit | **1196 tests, all green** | `mix test` |
-| Coverage | **58.8 %**; 38 modules at 0 % | `mix test.coverage` |
+| ExUnit | **1204 tests, all green** | `mix test` |
+| Coverage | **59.3 %**; 37 modules at 0 % | `mix test.coverage` |
 | Go agent | builds; tests pass in 3 of 10 packages (3,793 prod LOC / 599 test LOC); modules upgraded 2026-11-01 (otel 1.47, grpc 1.85) | `cd agent && go test ./...` |
 | Cypress | 27 specs on disk, **not executed in this session** | `ls cypress/e2e/*.cy.js` |
 | Static analysis | `scripts/quality-gate.sh` passes as a whole: 17 steps, 0 failures (format, compile, Sobelow, credo, doc references, test database, ExUnit, Go fmt/vet/golangci-lint/tests/gofmt/mod-tidy, jscpd, ESLint, TypeScript, Prettier, link checker). Two findings are kept and documented rather than ignored: the MD5 artifact checksums, which are the format a GoCD agent writes. `mix dialyzer` was run for the first time on 2026-11-02: 41 warnings then, 6 now. Six that went were dead branches that hid real faults, described below; eighteen were calls `VsmTracer.set_status` made to a one-argument form whose spec wants a status record, which now go through the documented `set_status(code, message)`; the rest were stale specs and one function with no callers. The six that remain are named rather than silenced: `k8s.ex:136`, a third-party inference about `K8s.Client.run/2` inside the `Task` that probes a cluster (the probe cannot be driven from a test because the fake provider is registered per process); `test_report.ex:107` and `:109`, Ecto changeset typing in the store path that `parse_and_store/2` tests exercise on three report formats; `materials/scm_client.ex:140`, `:141` and `:151`, an `author || "svn"` whose producer always supplies a binary. Three stale specs it found early are fixed too: two modules were referenced as `.t()` without defining one, and `material_filter`'s spec named an unaliased `Material`. `staticcheck` cannot serve either, its binary being older than the Go toolchain, and the gate now says that instead of blaming the code | see above |
@@ -396,6 +396,29 @@ through `Repo.get!` and raised; the context answers `{:error, :not_found}` for a
 id that is absent *or* not a uuid at all, which is what a mistyped one is. Six
 tests. The sweep also raised coverage from 57.9 % to 58.8 % on its own, because
 thirty-six controllers now answer at least once.
+
+That sweep was then pointed at routes that take a name or an id, asking each for
+something that is not there. Seven more faults fell out of one run. The materials
+feed, `/api/feeds/materials/:pipeline/:counter/:fingerprint`, raised before it
+could read a row: the query joined `Material` on `fingerprint` and on
+`pipeline_instance_id`, and `Material` has neither — its fingerprint is derived
+from type, url and branch by `Pipelines.material_fingerprint/1`, and it reaches a
+run through `pipeline_material_revisions`, many-to-many into pipelines. That is a
+nineteenth finding of the same shape as the pipeline instance API: an endpoint
+that had never produced a feed. Entries also read `mod.username` and
+`mod.inserted_at`, where a `Modification` carries `committer_name` and
+`modified_time`. The feed now queries revisions, filters by the derived
+fingerprint (it has no column to match on) and builds entries from the fields that
+exist; three tests state what it should say.
+
+The other six were admin `show` actions — artifact stores, auth configs, cluster
+profiles, elastic agent profiles, package repositories, secret configs — each
+fetching through `get_...!/1`, so an unknown id was a 500 with a stack trace. All
+six now answer 404 through `ControllerHelpers.not_found/3`, in `show`, `update`
+and `delete` alike, and their six private copies of a changeset-error formatter
+became `format_errors/1` from the same helper module. Three tests for the artifact
+stores cover the three actions; the sweep holds the other five controllers to the
+same answer.
 ### Known noise: the sandbox says a connection was disconnected
 
 Most runs print one or two lines like
@@ -419,7 +442,7 @@ table: the agent speaks HTTP remoting, like a real GoCD agent
 (`agent/internal/remoting/`, `agent_remoting_controller.ex`, and no `websocket`
 string anywhere in the Go agent).
 
-`README.md` badges are hand-written and say 1196 tests and 27 Cypress specs.
+`README.md` badges are hand-written and say 1204 tests and 27 Cypress specs.
 Nothing regenerates them, so they will drift again.
 
 `scripts/check_doc_refs.exs` is the part that cannot drift: it fails when a

@@ -286,53 +286,52 @@ defmodule ExGoCDWeb.FeedsController do
 
   @doc """
   GET /api/feeds/materials/:pipeline/:counter/:fingerprint.xml
-  Atom feed of material modifications for a pipeline run.
+  Atom feed of the material revisions a pipeline run was triggered with.
   """
   def material(conn, %{
         "pipeline" => pipeline_name,
         "counter" => counter,
         "fingerprint" => fingerprint
       }) do
-    alias ExGoCD.Pipelines.{Material, Modification}
+    case parse_counter(counter) do
+      {:ok, counter_i} ->
+        revisions = material_revisions(pipeline_name, counter_i, fingerprint)
+        send_material_feed(conn, pipeline_name, counter, fingerprint, revisions)
 
-    counter_i = String.to_integer(counter)
+      {:error, :not_a_counter} ->
+        conn
+        |> put_status(:bad_request)
+        |> send_resp(400, "Pipeline counter must be a whole number.")
+    end
+  end
 
-    mods =
-      Modification
-      |> Ecto.Query.join(:inner, [mod], mat in Material, on: mod.material_id == mat.id)
-      |> Ecto.Query.join(:inner, [mod, mat], pi in PipelineInstance,
-        on: mat.pipeline_instance_id == pi.id
-      )
-      |> Ecto.Query.join(:inner, [mod, mat, pi], p in ExGoCD.Pipelines.Pipeline,
-        on: pi.pipeline_id == p.id
-      )
-      |> Ecto.Query.where(
-        [mod, mat, pi, p],
-        p.name == ^pipeline_name and pi.counter == ^counter_i and mat.fingerprint == ^fingerprint
-      )
-      |> Ecto.Query.order_by(desc: :inserted_at)
-      |> Ecto.Query.limit(50)
-      |> Repo.all()
+  # A material's fingerprint is derived from its type, url and branch rather than
+  # stored, so it cannot be matched in the query; the revisions of one run are
+  # few, and the filter is applied to them.
+  defp material_revisions(pipeline_name, counter, fingerprint) do
+    import Ecto.Query
 
+    alias ExGoCD.Pipelines.PipelineMaterialRevision
+
+    from(pmr in PipelineMaterialRevision,
+      join: pi in assoc(pmr, :pipeline_instance),
+      join: p in assoc(pi, :pipeline),
+      where: p.name == ^pipeline_name and pi.counter == ^counter,
+      order_by: [desc: pmr.inserted_at],
+      limit: 50,
+      preload: [:material, :modification]
+    )
+    |> Repo.all()
+    |> Enum.filter(&(ExGoCD.Pipelines.material_fingerprint(&1.material) == fingerprint))
+  end
+
+  defp send_material_feed(conn, pipeline_name, counter, fingerprint, revisions) do
     base_url = "#{conn.scheme}://#{conn.host}:#{conn.port}"
     now = DateTime.utc_now() |> Calendar.strftime("%Y-%m-%dT%H:%M:%SZ")
 
     entries =
-      Enum.map(mods, fn mod ->
-        updated =
-          (mod.inserted_at && Calendar.strftime(mod.inserted_at, "%Y-%m-%dT%H:%M:%SZ")) || now
-
-        """
-        <entry>
-          <title>#{esc("#{mod.username}: #{mod.comment || "(no comment)"}")}</title>
-          <id>#{esc("urn:exgocd:modification:#{mod.id}")}</id>
-          <published>#{esc(updated)}</published>
-          <updated>#{esc(updated)}</updated>
-          <author><name>#{esc(mod.username || "unknown")}</name></author>
-          <content type="text">#{esc("Revision #{mod.revision}: #{mod.comment || "no comment"}")}</content>
-        </entry>
-        """
-      end)
+      revisions
+      |> Enum.map(&material_entry(&1, now))
       |> Enum.join("\n")
 
     xml =
@@ -346,6 +345,29 @@ defmodule ExGoCDWeb.FeedsController do
     conn
     |> put_resp_content_type("application/atom+xml")
     |> send_resp(200, xml)
+  end
+
+  # A modification carries the person who committed it and when, not a user name
+  # of its own.
+  defp material_entry(revision, now) do
+    mod = revision.modification
+    author = (mod && mod.committer_name) || "unknown"
+    comment = (mod && mod.comment) || "no comment"
+
+    updated =
+      (mod && mod.modified_time && Calendar.strftime(mod.modified_time, "%Y-%m-%dT%H:%M:%SZ")) ||
+        now
+
+    """
+    <entry>
+      <title>#{esc("#{author}: #{comment}")}</title>
+      <id>#{esc("urn:exgocd:modification:#{mod && mod.id}#{revision.revision}")}</id>
+      <published>#{esc(updated)}</published>
+      <updated>#{esc(updated)}</updated>
+      <author><name>#{esc(author)}</name></author>
+      <content type="text">#{esc("Revision #{revision.revision}: #{comment}")}</content>
+    </entry>
+    """
   end
 
   @doc """

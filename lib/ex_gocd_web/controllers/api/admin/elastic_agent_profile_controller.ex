@@ -9,8 +9,10 @@ defmodule ExGoCDWeb.API.Admin.ElasticAgentProfileController do
   end
 
   def show(conn, %{"id" => id}) do
-    profile = ElasticAgentProfiles.get_profile!(id)
-    render(conn, :show, profile: profile)
+    case ElasticAgentProfiles.get_profile(id) do
+      nil -> not_found(conn, "Elastic agent profile", id)
+      profile -> render(conn, :show, profile: profile)
+    end
   end
 
   def create(conn, %{"elastic_agent_profile" => params}) do
@@ -23,38 +25,39 @@ defmodule ExGoCDWeb.API.Admin.ElasticAgentProfileController do
       {:error, changeset} ->
         conn
         |> put_status(:unprocessable_entity)
-        |> json(%{errors: changeset_errors(changeset)})
+        |> json(%{errors: format_errors(changeset)})
     end
   end
 
   def update(conn, %{"id" => id, "elastic_agent_profile" => params}) do
-    profile = ElasticAgentProfiles.get_profile!(id)
+    case ElasticAgentProfiles.get_profile(id) do
+      nil ->
+        not_found(conn, "Elastic agent profile", id)
 
-    case ElasticAgentProfiles.update_profile(profile, params) do
-      {:ok, profile} ->
-        render(conn, :show, profile: profile)
+      profile ->
+        case ElasticAgentProfiles.update_profile(profile, params) do
+          {:ok, updated} ->
+            render(conn, :show, profile: updated)
 
-      {:error, changeset} ->
-        conn
-        |> put_status(:unprocessable_entity)
-        |> json(%{errors: changeset_errors(changeset)})
+          {:error, changeset} ->
+            conn
+            |> put_status(:unprocessable_entity)
+            |> json(%{errors: format_errors(changeset)})
+        end
     end
   end
 
   def delete(conn, %{"id" => id}) do
-    profile = ElasticAgentProfiles.get_profile!(id)
-    {:ok, _profile} = ElasticAgentProfiles.delete_profile(profile)
+    case ElasticAgentProfiles.get_profile(id) do
+      nil ->
+        not_found(conn, "Elastic agent profile", id)
 
-    conn
-    |> put_status(:no_content)
-    |> json(%{message: "Profile deleted"})
-  end
+      profile ->
+        {:ok, _profile} = ElasticAgentProfiles.delete_profile(profile)
 
-  defp changeset_errors(changeset) do
-    Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
-      Enum.reduce(opts, msg, fn {key, value}, acc ->
-        String.replace(acc, "%{#{key}}", to_string(value))
-      end)
-    end)
+        conn
+        |> put_status(:no_content)
+        |> json(%{message: "Profile deleted"})
+    end
   end
 end

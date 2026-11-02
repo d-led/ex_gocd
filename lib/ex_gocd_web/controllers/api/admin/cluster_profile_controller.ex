@@ -9,8 +9,10 @@ defmodule ExGoCDWeb.API.Admin.ClusterProfileController do
   end
 
   def show(conn, %{"id" => id}) do
-    profile = ClusterProfiles.get_profile!(id)
-    render(conn, :show, profile: profile)
+    case ClusterProfiles.get_profile(id) do
+      nil -> not_found(conn, "Cluster profile", id)
+      profile -> render(conn, :show, profile: profile)
+    end
   end
 
   def create(conn, %{"cluster_profile" => params}) do
@@ -23,38 +25,39 @@ defmodule ExGoCDWeb.API.Admin.ClusterProfileController do
       {:error, changeset} ->
         conn
         |> put_status(:unprocessable_entity)
-        |> json(%{errors: changeset_errors(changeset)})
+        |> json(%{errors: format_errors(changeset)})
     end
   end
 
   def update(conn, %{"id" => id, "cluster_profile" => params}) do
-    profile = ClusterProfiles.get_profile!(id)
+    case ClusterProfiles.get_profile(id) do
+      nil ->
+        not_found(conn, "Cluster profile", id)
 
-    case ClusterProfiles.update_profile(profile, params) do
-      {:ok, profile} ->
-        render(conn, :show, profile: profile)
+      profile ->
+        case ClusterProfiles.update_profile(profile, params) do
+          {:ok, updated} ->
+            render(conn, :show, profile: updated)
 
-      {:error, changeset} ->
-        conn
-        |> put_status(:unprocessable_entity)
-        |> json(%{errors: changeset_errors(changeset)})
+          {:error, changeset} ->
+            conn
+            |> put_status(:unprocessable_entity)
+            |> json(%{errors: format_errors(changeset)})
+        end
     end
   end
 
   def delete(conn, %{"id" => id}) do
-    profile = ClusterProfiles.get_profile!(id)
-    {:ok, _profile} = ClusterProfiles.delete_profile(profile)
+    case ClusterProfiles.get_profile(id) do
+      nil ->
+        not_found(conn, "Cluster profile", id)
 
-    conn
-    |> put_status(:no_content)
-    |> json(%{message: "Profile deleted"})
-  end
+      profile ->
+        {:ok, _profile} = ClusterProfiles.delete_profile(profile)
 
-  defp changeset_errors(changeset) do
-    Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
-      Enum.reduce(opts, msg, fn {key, value}, acc ->
-        String.replace(acc, "%{#{key}}", to_string(value))
-      end)
-    end)
+        conn
+        |> put_status(:no_content)
+        |> json(%{message: "Profile deleted"})
+    end
   end
 end

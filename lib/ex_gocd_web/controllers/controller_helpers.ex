@@ -52,4 +52,17 @@ defmodule ExGoCDWeb.ControllerHelpers do
   end
 
   def parse_counter(_value), do: {:error, :not_a_counter}
+
+  @doc """
+  Answers 404 for something asked for by an id nobody holds.
+
+  `what` names the thing in the message, so a client learns which id was wrong
+  without being handed a stack trace.
+  """
+  @spec not_found(Plug.Conn.t(), String.t(), String.t()) :: Plug.Conn.t()
+  def not_found(conn, what, id) do
+    conn
+    |> Plug.Conn.put_status(:not_found)
+    |> Phoenix.Controller.json(%{message: "#{what} '#{id}' not found."})
+  end
 end
