@@ -333,28 +333,34 @@ defmodule ExGoCD.Mcp.Tools.Pipelines do
 
   defp instance(args, _ctx) do
     with {:ok, name} <- Args.required(args, "name"),
-         {:ok, counter} <- Args.required_integer(args, "counter"),
-         instance when not is_nil(instance) <- Pipelines.get_pipeline_instance(name, counter) do
-      structured = PipelineView.instance(instance)
-
-      text =
-        [
-          "#{name} ##{counter}" <>
-            if(instance.label, do: " (#{instance.label})", else: ""),
-          "Status: #{structured["status"]} · scheduled #{structured["scheduled_at"]}",
-          "Trigger: #{Render.cell(structured["trigger"])}" <>
-            if(structured["comment"], do: "\nComment: #{structured["comment"]}", else: ""),
-          "",
-          PipelineView.stage_table(instance.stage_instances || [])
-        ]
-        |> Enum.join("\n")
-
-      Tool.ok(text, structured)
+         {:ok, counter} <- Args.required_integer(args, "counter") do
+      case Pipelines.get_pipeline_instance(name, counter) do
+        nil -> {:error, instance_not_found(args)}
+        found -> Tool.ok(instance_text(found, name, counter), PipelineView.instance(found))
+      end
     else
-      nil -> {:error, instance_not_found(args)}
       {:error, message} -> {:error, message}
     end
   end
+
+  defp instance_text(instance, name, counter) do
+    structured = PipelineView.instance(instance)
+
+    [
+      "#{name} ##{counter}" <> label_note(instance.label),
+      "Status: #{structured["status"]} · scheduled #{structured["scheduled_at"]}",
+      "Trigger: #{Render.cell(structured["trigger"])}" <> comment_note(structured["comment"]),
+      "",
+      PipelineView.stage_table(loaded(instance.stage_instances))
+    ]
+    |> Enum.join("\n")
+  end
+
+  defp label_note(nil), do: ""
+  defp label_note(label), do: " (#{label})"
+
+  defp comment_note(nil), do: ""
+  defp comment_note(comment), do: "\nComment: #{comment}"
 
   defp config_diff(args, _ctx) do
     with {:ok, name} <- Args.required(args, "name"),
@@ -660,8 +666,13 @@ defmodule ExGoCD.Mcp.Tools.Pipelines do
 
   defp latest_text(instance) do
     "Latest: #{PipelineView.instance_line(instance)}\n\n" <>
-      PipelineView.stage_table(instance.stage_instances || [])
+      PipelineView.stage_table(loaded(instance.stage_instances))
   end
+
+  # A preloaded association is a list; one that was left out is NotLoaded, which
+  # has no stages to show rather than no value.
+  defp loaded(stages) when is_list(stages), do: stages
+  defp loaded(_not_loaded), do: []
 
   defp not_found(args) do
     {:error, "Pipeline '#{args["name"]}' not found."}

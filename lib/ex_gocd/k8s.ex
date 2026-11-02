@@ -132,12 +132,15 @@ defmodule ExGoCD.K8s do
     ns = Keyword.get(opts, :namespace, "default")
     parent = self()
 
+    # `limit` is a query parameter, not a path parameter: put it where the API
+    # reads it, so the probe asks for one pod instead of the whole list.
+    operation =
+      @k8s_client.list("v1", "Pod", namespace: ns)
+      |> K8s.Operation.put_query_param(:limit, "1")
+
     task =
       Task.async(fn ->
-        path_params = [namespace: ns, limit: 1]
-        operation = @k8s_client.list("v1", "Pod", path_params)
-        result = @k8s_client.run(conn, operation)
-        send(parent, {:ping_result, result})
+        send(parent, {:ping_result, @k8s_client.run(conn, operation)})
       end)
 
     receive do
