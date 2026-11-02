@@ -33,6 +33,21 @@ defmodule ExGoCDWeb.API.Admin.NotificationFilterControllerTest do
              } =
                json_response(conn, 200)
     end
+
+    test "asks for a user_id when none is given", %{conn: conn} do
+      body = conn |> get("/api/admin/notification_filters") |> json_response(400)
+
+      assert body["message"] =~ "user_id"
+    end
+
+    test "answers a user_id that is not a number as a bad request", %{conn: conn} do
+      body =
+        conn
+        |> get("/api/admin/notification_filters?user_id=somebody")
+        |> json_response(400)
+
+      assert body["message"] =~ "whole number"
+    end
   end
 
   describe "POST /api/admin/notification_filters" do
@@ -64,9 +79,30 @@ defmodule ExGoCDWeb.API.Admin.NotificationFilterControllerTest do
 
       assert conn.status == 422
     end
+
+    test "says what is missing when the body has no filter in it", %{conn: conn} do
+      body = conn |> post("/api/admin/notification_filters", %{}) |> json_response(400)
+
+      assert body["message"] =~ "notification_filter"
+    end
   end
 
   describe "DELETE /api/admin/notification_filters/:id" do
+    test "says a filter it cannot find is missing", %{conn: conn} do
+      body =
+        conn
+        |> delete("/api/admin/notification_filters/#{Ecto.UUID.generate()}")
+        |> json_response(404)
+
+      assert body["message"] =~ "not found"
+    end
+
+    test "says an id that is not an id is missing", %{conn: conn} do
+      conn = delete(conn, "/api/admin/notification_filters/not-an-id")
+
+      assert conn.status == 404
+    end
+
     test "deletes a filter", %{conn: conn, user: user} do
       {:ok, filter} =
         ExGoCD.Notifications.create_filter(%{

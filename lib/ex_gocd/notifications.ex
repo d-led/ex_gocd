@@ -24,8 +24,20 @@ defmodule ExGoCD.Notifications do
     %NotificationFilter{} |> NotificationFilter.changeset(attrs) |> Repo.insert()
   end
 
-  @doc "Deletes a notification filter."
-  def delete_filter(id), do: Repo.get!(NotificationFilter, id) |> Repo.delete()
+  @doc """
+  Deletes a notification filter.
+
+  Answers `{:error, :not_found}` for an id nothing holds — including a value that
+  is not a uuid at all, which is what a caller passes when they mistype one.
+  """
+  def delete_filter(id) do
+    with {:ok, uuid} <- Ecto.UUID.cast(id),
+         %NotificationFilter{} = filter <- Repo.get(NotificationFilter, uuid) do
+      Repo.delete(filter)
+    else
+      _ -> {:error, :not_found}
+    end
+  end
 
   @doc """
   Dispatches notifications for a stage event.

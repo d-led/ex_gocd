@@ -14,8 +14,8 @@
 | Dimension | State | Evidence |
 | --- | --- | --- |
 | Code | 272 source files, compile warnings-as-errors clean | `mix compile --force --warnings-as-errors` |
-| ExUnit | **1182 tests, all green** | `mix test` |
-| Coverage | **57.9 %**; 66 modules at 0 % | `mix test.coverage` |
+| ExUnit | **1196 tests, all green** | `mix test` |
+| Coverage | **58.8 %**; 38 modules at 0 % | `mix test.coverage` |
 | Go agent | builds; tests pass in 3 of 10 packages (3,793 prod LOC / 599 test LOC); modules upgraded 2026-11-01 (otel 1.47, grpc 1.85) | `cd agent && go test ./...` |
 | Cypress | 27 specs on disk, **not executed in this session** | `ls cypress/e2e/*.cy.js` |
 | Static analysis | `scripts/quality-gate.sh` passes as a whole: 17 steps, 0 failures (format, compile, Sobelow, credo, doc references, test database, ExUnit, Go fmt/vet/golangci-lint/tests/gofmt/mod-tidy, jscpd, ESLint, TypeScript, Prettier, link checker). Two findings are kept and documented rather than ignored: the MD5 artifact checksums, which are the format a GoCD agent writes. `mix dialyzer` was run for the first time on 2026-11-02: 41 warnings then, 6 now. Six that went were dead branches that hid real faults, described below; eighteen were calls `VsmTracer.set_status` made to a one-argument form whose spec wants a status record, which now go through the documented `set_status(code, message)`; the rest were stale specs and one function with no callers. The six that remain are named rather than silenced: `k8s.ex:136`, a third-party inference about `K8s.Client.run/2` inside the `Task` that probes a cluster (the probe cannot be driven from a test because the fake provider is registered per process); `test_report.ex:107` and `:109`, Ecto changeset typing in the store path that `parse_and_store/2` tests exercise on three report formats; `materials/scm_client.ex:140`, `:141` and `:151`, an `author || "svn"` whose producer always supplies a binary. Three stale specs it found early are fixed too: two modules were referenced as `.t()` without defining one, and `material_filter`'s spec named an unaliased `Material`. `staticcheck` cannot serve either, its binary being older than the Go toolchain, and the gate now says that instead of blaming the code | see above |
@@ -379,6 +379,23 @@ Worth writing down beside these: dialyzer did not see either one. A struct that
 comes back from `Repo` reaches it as an opaque type, so a field read that cannot
 work is a runtime `KeyError` — exactly what a test that calls the endpoint finds
 and a type check cannot.
+
+Rather than look for more of those one at a time,
+`test/ex_gocd_web/controllers/api/no_endpoint_crashes_test.exs` now asks every
+parameterless GET endpoint in both API trees for an answer and fails if any of
+them returns a 5xx: thirty-six requests, fifteen open and twenty-one as an admin.
+It found the first of the eighteenth finding within a minute: the notification
+filter API read `user_id` out of the request as if it were always there, so a
+request without it raised `FunctionClauseError` — a 500 for a missing query
+parameter. It refuses with a 400 now, as it does for a `user_id` that is not a
+number.
+
+Two more of the same in that controller: a body without `notification_filter` in
+it raised the same way and now answers 400, and deleting an id nothing holds went
+through `Repo.get!` and raised; the context answers `{:error, :not_found}` for an
+id that is absent *or* not a uuid at all, which is what a mistyped one is. Six
+tests. The sweep also raised coverage from 57.9 % to 58.8 % on its own, because
+thirty-six controllers now answer at least once.
 ### Known noise: the sandbox says a connection was disconnected
 
 Most runs print one or two lines like
@@ -402,7 +419,7 @@ table: the agent speaks HTTP remoting, like a real GoCD agent
 (`agent/internal/remoting/`, `agent_remoting_controller.ex`, and no `websocket`
 string anywhere in the Go agent).
 
-`README.md` badges are hand-written and say 1182 tests and 27 Cypress specs.
+`README.md` badges are hand-written and say 1196 tests and 27 Cypress specs.
 Nothing regenerates them, so they will drift again.
 
 `scripts/check_doc_refs.exs` is the part that cannot drift: it fails when a

@@ -2,8 +2,16 @@ defmodule ExGoCDWeb.API.Admin.NotificationFilterController do
   use ExGoCDWeb, :controller
   alias ExGoCD.Notifications
 
-  def index(conn, %{"user_id" => user_id}) do
-    json(conn, %{data: Notifications.list_filters(String.to_integer(user_id))})
+  def index(conn, params) do
+    case parse_counter(params["user_id"]) do
+      {:ok, user_id} ->
+        json(conn, %{data: Notifications.list_filters(user_id)})
+
+      {:error, :not_a_counter} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{message: "A user_id that is a whole number is required."})
+    end
   end
 
   def create(conn, %{"notification_filter" => params}) do
@@ -16,9 +24,22 @@ defmodule ExGoCDWeb.API.Admin.NotificationFilterController do
     end
   end
 
+  def create(conn, _params) do
+    conn
+    |> put_status(:bad_request)
+    |> json(%{message: "A notification_filter is required."})
+  end
+
   def delete(conn, %{"id" => id}) do
-    {:ok, _} = Notifications.delete_filter(id)
-    conn |> json(%{message: "Filter deleted"})
+    case Notifications.delete_filter(id) do
+      {:ok, _filter} ->
+        json(conn, %{message: "Filter deleted"})
+
+      {:error, :not_found} ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{message: "Filter '#{id}' not found."})
+    end
   end
 
   defp changeset_errors(cs),
