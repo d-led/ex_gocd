@@ -1,5 +1,5 @@
 defmodule ExGoCDWeb.AdminOtelLiveTest do
-  use ExGoCDWeb.ConnCase, async: false
+  use ExGoCDWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
   alias ExGoCD.Accounts

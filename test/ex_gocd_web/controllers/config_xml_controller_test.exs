@@ -1,5 +1,5 @@
 defmodule ExGoCDWeb.ConfigXmlControllerTest do
-  use ExGoCDWeb.ConnCase, async: false
+  use ExGoCDWeb.ConnCase, async: true
 
   alias ExGoCD.ConfigSnapshot
   alias ExGoCD.ConfigVersion

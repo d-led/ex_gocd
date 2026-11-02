@@ -1,5 +1,5 @@
 defmodule ExGoCD.Policies.EnvironmentPolicyTest do
-  use ExGoCD.DataCase, async: false
+  use ExGoCD.DataCase, async: true
 
   alias ExGoCD.Accounts.Role
   alias ExGoCD.Accounts.User

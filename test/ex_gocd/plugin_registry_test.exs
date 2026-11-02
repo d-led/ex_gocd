@@ -1,5 +1,5 @@
 defmodule ExGoCD.Plugin.RegistryTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
 
   # Test plugin that implements AgentSelector — rejects GPU jobs for elastic agents
   defmodule TestCorpPolicy do

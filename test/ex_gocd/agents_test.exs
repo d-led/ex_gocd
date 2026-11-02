@@ -4,7 +4,7 @@ defmodule ExGoCD.AgentsTest do
   alias ExGoCD.Agents
   alias ExGoCD.Agents.Agent
 
-  @valid_uuid "550e8400-e29b-41d4-a716-446655440000"
+  @valid_uuid "550e8400-e29b-41d4-a716-446655500007"
   @another_uuid "650e8400-e29b-41d4-a716-446655440001"
 
   describe "register_agent/1" do

@@ -5,7 +5,7 @@ defmodule ExGoCDWeb.AgentsLivePermissionsTest do
   pin is that a signed-in viewer who presses the button changes nothing, and an
   admin who presses it changes the agent.
   """
-  use ExGoCDWeb.ConnCase, async: false
+  use ExGoCDWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
 

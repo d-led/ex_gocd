@@ -5,7 +5,7 @@ defmodule ExGoCDWeb.PluginLiveTest do
   that calls itself "active" when nothing is registered is worse than a page with
   nothing on it, so the status is read from the registry.
   """
-  use ExGoCDWeb.ConnCase, async: false
+  use ExGoCDWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
 

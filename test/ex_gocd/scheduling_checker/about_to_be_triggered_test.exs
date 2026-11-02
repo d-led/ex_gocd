@@ -4,7 +4,7 @@ defmodule ExGoCD.SchedulingChecker.AboutToBeTriggeredTest do
   Behaviour-driven: given a pipeline being triggered, a second trigger
   within the debounce window is rejected with :already_triggered.
   """
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
 
   alias ExGoCD.SchedulingChecker.{AboutToBeTriggered, TriggerMonitor}
 

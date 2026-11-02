@@ -426,7 +426,10 @@ defmodule ExGoCD.Scheduler do
       environments: get_val(spec, "environments", :environments, []),
       build_command: get_val(spec, "build_command", :build_command, nil),
       agent_uuid: get_val(spec, "agent_uuid", :agent_uuid, nil),
-      run_on_all_agents: get_val(spec, "run_on_all_agents", :run_on_all_agents, nil)
+      run_on_all_agents: get_val(spec, "run_on_all_agents", :run_on_all_agents, nil),
+      # What the scheduling page measures waiting time from; a queued job that
+      # carries no time of its own crashes that page.
+      inserted_at: DateTime.utc_now()
     }
 
     case Map.get(spec, "job_instance_id") || Map.get(spec, :job_instance_id) do
@@ -1394,7 +1397,10 @@ defmodule ExGoCD.Scheduler do
       resources: spec[:resources] || [],
       environments: spec[:environments] || [],
       agent_uuid: spec[:agent_uuid],
-      run_on_all_agents: spec[:run_on_all_agents] || false
+      run_on_all_agents: spec[:run_on_all_agents] || false,
+      # Not redacted: it is how long the job has waited, which is what the
+      # scheduling page shows.
+      inserted_at: spec[:inserted_at]
     }
   end
 end

@@ -37,9 +37,9 @@ defmodule ExGoCDWeb.ConnCase do
   setup tags do
     ExGoCD.DataCase.setup_sandbox(tags)
 
-    if Process.whereis(ExGoCD.Scheduler) do
-      ExGoCD.Scheduler.clear_queue()
-    end
+    # See ExGoCD.DataCase: an async test must not drive the shared Scheduler,
+    # which would query without an owned connection and die.
+    unless tags[:async], do: ExGoCD.DataCase.clear_scheduler_queue()
 
     on_exit(fn ->
       # An async test cannot lend its connection to the shared Scheduler, so it

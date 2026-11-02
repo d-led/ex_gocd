@@ -1,5 +1,5 @@
 defmodule ExGoCD.ConfigRestoreTest do
-  use ExGoCD.DataCase, async: false
+  use ExGoCD.DataCase, async: true
 
   alias ExGoCD.ArtifactStores.ArtifactStore
   alias ExGoCD.ConfigRepos.ConfigRepo

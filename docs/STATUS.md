@@ -14,8 +14,8 @@
 | Dimension | State | Evidence |
 | --- | --- | --- |
 | Code | 268 source files, compile warnings-as-errors clean | `git ls-files 'lib/**/*.ex'` |
-| ExUnit | **1264 tests, all green** | `mix test` |
-| Coverage | **62.8 %**; 26 modules at 0 % | `mix test.coverage` |
+| ExUnit | **1265 tests, all green** | `mix test` |
+| Coverage | **62.9 %**; 26 modules at 0 % | `mix test.coverage` |
 | Go agent | builds; tests pass in 3 of 10 packages (3,793 prod LOC / 599 test LOC); modules upgraded 2026-11-01 (otel 1.47, grpc 1.85) | `cd agent && go test ./...` |
 | Cypress | 27 specs on disk, **not executed in this session** | `ls cypress/e2e/*.cy.js` |
 | Static analysis | `scripts/quality-gate.sh` passes as a whole: 17 steps, 0 failures (format, compile, Sobelow, credo, doc references, test database, ExUnit, Go fmt/vet/golangci-lint/tests/gofmt/mod-tidy, jscpd, ESLint, TypeScript, Prettier, link checker). Two findings are kept and documented rather than ignored: the MD5 artifact checksums, which are the format a GoCD agent writes. `mix dialyzer` was run for the first time on 2026-11-02: 41 warnings then, 6 now. Six that went were dead branches that hid real faults, described below; eighteen were calls `VsmTracer.set_status` made to a one-argument form whose spec wants a status record, which now go through the documented `set_status(code, message)`; the rest were stale specs and one function with no callers. The six that remain are named rather than silenced: `k8s.ex:136`, a third-party inference about `K8s.Client.run/2` inside the `Task` that probes a cluster (the probe cannot be driven from a test because the fake provider is registered per process); `test_report.ex:107` and `:109`, Ecto changeset typing in the store path that `parse_and_store/2` tests exercise on three report formats; `materials/scm_client.ex:140`, `:141` and `:151`, an `author || "svn"` whose producer always supplies a binary. Three stale specs it found early are fixed too: two modules were referenced as `.t()` without defining one, and `material_filter`'s spec named an unaliased `Material`. `staticcheck` cannot serve either, its binary being older than the Go toolchain, and the gate now says that instead of blaming the code | see above |
@@ -637,6 +637,43 @@ admin in the database the admin API is deliberately open — GoCD's open mode,
 documented in the plug — so a database holding only a viewer would have answered
 every route.
 
+### The sandbox is configured the way Ecto documents it; the serial tests are serial for other reasons
+
+`pool: Ecto.Adapters.SQL.Sandbox` in `config/test.exs`, `mode(:manual)` in
+`test_helper.exs`, and one owner per test —
+`Sandbox.start_owner!(Repo, shared: not tags[:async])` with `stop_owner` in
+`on_exit`, which is the form the Ecto guide recommends now rather than the older
+`checkout`/`mode` pair. 119 test files run `async: true`; 29 run `async: false`.
+
+Those 29 were not held back by the sandbox but by three other things, and two of
+them were faults:
+
+* **The setup drove a global process from every test.** `Scheduler.clear_queue()`
+  ran in `setup` for async tests too, and an async test owns its connection
+  privately — so the call let the Scheduler query with no ownership, it died
+  inside the call, and every later caller died with it
+  (`DBConnection.OwnershipError`). It is guarded on both sides now: async tests
+  neither clear nor wait on that queue.
+* **Ten files registered agents under the same UUID**
+  (`550e8400-…-446655440000`), which only matters once two of them run at the
+  same time. Each file has its own now.
+* **Fourteen files mutate global environment** (`System.put_env`), and one test
+  driving the Mnesia-less remoting queue cannot share the VM with another. Those
+  still run serially; unblocking them means a configuration seam and a restartable
+  queue, not a sandbox change.
+
+Making the 22 files that were safe async took the serial part of the run from
+6.6–7.2 s to 5.4–5.8 s, over five seeds with no failures; wall clock is roughly
+12.1 s against 12.6 s, because the async part is the larger half already.
+
+The change found a real fault, which is the part that matters. `/admin/scheduling`
+crashed with `KeyError: key :inserted_at not found` whenever **any** job was
+waiting in the scheduler's queue: `redact_job_spec/1` built the diagnostics
+snapshot field by field and left the queue time out, while the template measured
+waiting time from it. `schedule_job/1` did not stamp one either. Both do now, and
+a test queues a job and opens the page — the page that is most interesting
+exactly when jobs are waiting was the one unusable then.
+
 ### Known noise: the sandbox says a connection was disconnected
 
 Most runs print one or two lines like
@@ -660,7 +697,7 @@ table: the agent speaks HTTP remoting, like a real GoCD agent
 (`agent/internal/remoting/`, `agent_remoting_controller.ex`, and no `websocket`
 string anywhere in the Go agent).
 
-`README.md` badges are hand-written and say 1264 tests and 27 Cypress specs.
+`README.md` badges are hand-written and say 1265 tests and 27 Cypress specs.
 Nothing regenerates them, so they will drift again.
 
 `scripts/check_doc_refs.exs` is the part that cannot drift: it fails when a

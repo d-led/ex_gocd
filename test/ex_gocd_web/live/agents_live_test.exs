@@ -5,7 +5,7 @@ defmodule ExGoCDWeb.AgentsLiveTest do
   alias ExGoCD.Accounts
   alias ExGoCD.Agents
 
-  @valid_uuid "550e8400-e29b-41d4-a716-446655440000"
+  @valid_uuid "550e8400-e29b-41d4-a716-446655500004"
 
   # Helper: creates a session map that get_current_user/1 will recognize as admin.
   defp admin_session do

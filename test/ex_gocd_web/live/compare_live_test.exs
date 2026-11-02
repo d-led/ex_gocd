@@ -1,5 +1,5 @@
 defmodule ExGoCDWeb.CompareLiveTest do
-  use ExGoCDWeb.ConnCase, async: false
+  use ExGoCDWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
 

@@ -16,7 +16,7 @@ defmodule ExGoCDWeb.JobDetailsLiveTest do
         job_name: "default",
         state: "Completed",
         result: "Passed",
-        agent_uuid: "550e8400-e29b-41d4-a716-446655440000",
+        agent_uuid: "550e8400-e29b-41d4-a716-446655500005",
         console_log:
           "line 1: build started\nline 2: https://github.com/d-led/ex_gocd\nline 3: build finished\n"
       })
@@ -135,7 +135,7 @@ defmodule ExGoCDWeb.JobDetailsLiveTest do
           job_name: "default",
           state: "Completed",
           result: "Passed",
-          agent_uuid: "550e8400-e29b-41d4-a716-446655440000",
+          agent_uuid: "550e8400-e29b-41d4-a716-446655500005",
           console_log:
             "##[fold]Setup\e[0m\ninstalling deps\n##[fold]Nested Section\nnested content\n##[endfold]\nmore setup\n##[endfold]\nfinal line\n"
         })
@@ -183,7 +183,7 @@ defmodule ExGoCDWeb.JobDetailsLiveTest do
           job_name: "default",
           state: "Completed",
           result: "Passed",
-          agent_uuid: "550e8400-e29b-41d4-a716-446655440000",
+          agent_uuid: "550e8400-e29b-41d4-a716-446655500005",
           console_log: log
         })
         |> Repo.insert()

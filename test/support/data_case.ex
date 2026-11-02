@@ -35,9 +35,10 @@ defmodule ExGoCD.DataCase do
   setup tags do
     ExGoCD.DataCase.setup_sandbox(tags)
 
-    if Process.whereis(ExGoCD.Scheduler) do
-      ExGoCD.Scheduler.clear_queue()
-    end
+    # An async test owns its connection privately, so a call to the shared
+    # Scheduler would let it query with no ownership and die on the spot,
+    # taking every later caller with it. Same reason as the `on_exit` below.
+    unless tags[:async], do: clear_scheduler_queue()
 
     on_exit(fn ->
       # An async test cannot lend its connection to the shared Scheduler, so it
@@ -47,6 +48,13 @@ defmodule ExGoCD.DataCase do
     end)
 
     :ok
+  end
+
+  @doc """
+  Empties the shared scheduler's queue, for the tests that may drive it.
+  """
+  def clear_scheduler_queue do
+    if Process.whereis(ExGoCD.Scheduler), do: ExGoCD.Scheduler.clear_queue()
   end
 
   @doc """

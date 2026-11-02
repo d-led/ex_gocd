@@ -10,7 +10,7 @@ defmodule ExGoCDWeb.AdminApiRequiresAdminTest do
   credential a missing credential. What the sweep holds every route to is that the
   caller is refused, so both answers count.
   """
-  use ExGoCDWeb.ConnCase, async: false
+  use ExGoCDWeb.ConnCase, async: true
 
   import Phoenix.ConnTest
 

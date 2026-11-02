@@ -1,5 +1,5 @@
 defmodule ExGoCDWeb.API.Admin.SystemAdminsControllerTest do
-  use ExGoCDWeb.ConnCase, async: false
+  use ExGoCDWeb.ConnCase, async: true
 
   alias ExGoCD.Accounts
 

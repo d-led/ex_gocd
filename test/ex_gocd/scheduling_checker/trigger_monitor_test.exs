@@ -5,7 +5,7 @@ defmodule ExGoCD.SchedulingChecker.TriggerMonitorTest do
   re-entry, already_triggered? returns correct state, mark_completed
   releases.
   """
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
 
   alias ExGoCD.SchedulingChecker.TriggerMonitor
 

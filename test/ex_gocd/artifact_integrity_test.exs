@@ -1,5 +1,5 @@
 defmodule ExGoCD.ArtifactIntegrityTest do
-  use ExGoCD.DataCase, async: false
+  use ExGoCD.DataCase, async: true
 
   alias ExGoCD.Pipelines
 

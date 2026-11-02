@@ -2,7 +2,7 @@
 # Tests for ConfigRepoController — cleanup_test_data action.
 
 defmodule ExGoCDWeb.API.ConfigRepoControllerTest do
-  use ExGoCDWeb.ConnCase, async: false
+  use ExGoCDWeb.ConnCase, async: true
 
   alias ExGoCD.{ConfigRepos.ConfigRepo, Repo}
 

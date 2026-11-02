@@ -1,5 +1,5 @@
 defmodule ExGoCD.ConfigSnapshotTest do
-  use ExGoCD.DataCase, async: false
+  use ExGoCD.DataCase, async: true
 
   alias ExGoCD.ClusterProfiles
   alias ExGoCD.ConfigSnapshot
@@ -8,7 +8,7 @@ defmodule ExGoCD.ConfigSnapshotTest do
 
   setup do
     # Clean up any pre-existing config versions from other test runs.
-    # With shared sandbox (async: false), previous tests may have left
+    # With shared sandbox (async: true), previous tests may have left
     # ConfigVersion rows that would cause snapshot deduplication to
     # return :unchanged prematurely.
     Repo.delete_all(ConfigVersion)

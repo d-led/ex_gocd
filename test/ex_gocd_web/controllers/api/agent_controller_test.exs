@@ -5,7 +5,7 @@ defmodule ExGoCDWeb.API.AgentControllerTest do
   alias ExGoCD.Agents.Agent
   alias ExGoCD.Repo
 
-  @valid_uuid "550e8400-e29b-41d4-a716-446655440000"
+  @valid_uuid "550e8400-e29b-41d4-a716-446655500002"
   @another_uuid "650e8400-e29b-41d4-a716-446655440001"
 
   setup do

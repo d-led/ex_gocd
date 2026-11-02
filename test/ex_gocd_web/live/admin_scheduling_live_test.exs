@@ -120,6 +120,18 @@ defmodule ExGoCDWeb.AdminSchedulingLiveTest do
       assert html =~ "test-pipe/1/build/1/compile"
     end
 
+    test "shows a job waiting in the scheduler's queue", %{conn: conn} do
+      ExGoCD.Scheduler.schedule_job(%{
+        "pipeline" => "queued",
+        "stage" => "build",
+        "job" => "compile"
+      })
+
+      {:ok, _view, html} = live(conn, ~p"/admin/scheduling")
+
+      assert html =~ "queued/1/build/1/compile"
+    end
+
     test "shows matching agents for a pending job", %{conn: conn} do
       pipeline = insert_pipeline("match-test")
 

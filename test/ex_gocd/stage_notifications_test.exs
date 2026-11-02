@@ -1,5 +1,5 @@
 defmodule ExGoCD.StageNotificationsTest do
-  use ExGoCD.DataCase, async: false
+  use ExGoCD.DataCase, async: true
 
   import ExGoCD.PipelinesFixtures
   import Swoosh.TestAssertions

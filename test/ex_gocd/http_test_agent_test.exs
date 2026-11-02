@@ -5,7 +5,7 @@ defmodule ExGoCD.HTTPTestAgentTest do
   alias ExGoCD.Agents.Agent
   alias ExGoCD.Repo
 
-  @agent_uuid "550e8400-e29b-41d4-a716-446655440000"
+  @agent_uuid "550e8400-e29b-41d4-a716-446655500008"
 
   setup do
     Repo.delete_all(Agent)

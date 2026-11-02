@@ -6,7 +6,7 @@ defmodule ExGoCD.SchedulerTest do
   alias ExGoCDWeb.AgentPresence
 
   @presence_topic "agent"
-  @uuid "550e8400-e29b-41d4-a716-446655440000"
+  @uuid "550e8400-e29b-41d4-a716-446655500010"
   @uuid_b "660e8400-e29b-41d4-a716-446655440001"
 
   setup do

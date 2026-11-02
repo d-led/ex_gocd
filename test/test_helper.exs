@@ -55,8 +55,9 @@ unless without_db? do
   TestDatabase.ensure_ready!()
 
   # :manual ownership. Each test checks out its own connection through
-  # ExGoCD.DataCase.setup_sandbox/1 and lends it to the background processes it
-  # needs via ExGoCD.Sandbox. Nothing is shared behind the test's back, so the
-  # data one test writes is invisible to any other and is rolled back with it.
+  # ExGoCD.DataCase.setup_sandbox/1 — shared with every process for a
+  # synchronous test, private to the test process for an async one. Nothing is
+  # shared behind the test's back, so the data one test writes is invisible to
+  # any other and is rolled back with it.
   Ecto.Adapters.SQL.Sandbox.mode(ExGoCD.Repo, :manual)
 end
