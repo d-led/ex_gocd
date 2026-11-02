@@ -1,33 +1,38 @@
 defmodule ExGoCD.DeliveryReview do
   @moduledoc """
-  The delivery principles, checked against a pipeline or a graph.
+  The flow a delivery pipeline has, checked against a pipeline or a graph.
 
-  Farley's *Continuous Delivery* — written alongside the Cruise/GoCD team — says
-  a deployment pipeline is the definitive statement on whether software is
-  releasable: if it passes, the build is safe to release, and that claim is only
-  worth something if the pipeline
+  This review is deliberately narrow: it is about **edges**. What depends on
+  what, what is passed along an edge and in which direction, whether an artifact
+  a pipeline fetches is one somebody promised to publish, where a pipeline runs,
+  and whether the fleet can run the shape its author drew. Those are properties
+  of the server's own model — pipelines, materials, artifacts, environments,
+  agents — so the server can assert them.
 
-    * **builds once** — one artifact is built and the same artifact is promoted,
-      not rebuilt per environment, because a rebuild is a different binary
-      nobody tested;
-    * **gives fast feedback** — the cheap verification runs first and runs
-      without a human standing in front of it, so a broken commit is known in
-      minutes rather than after someone approves a deploy;
-    * **tests in parallel** — a stage's jobs run at the same time on different
-      agents, while a job's tasks run one after another;
-    * **lives in version control** — the topology is code, reviewed with the
-      code, not a sequence of button presses on this server;
-    * **starts clean** — a stage that unpacks an artifact does so into a
-      directory that is not holding the previous run's files.
+  What a job *does* is not reviewed, and cannot be: a command, a script, a stage
+  with one task or with twenty, a gate before or after a stage, and whether the
+  configuration lives in a repository are the author's decisions. Judging them
+  from the outside would be guessing at intent; the server's job is to make the
+  flow correct and to say plainly what it cannot see.
 
-  Each finding here is one of those, with the fix that follows from it. Every
-  check is static — what a pipeline is made of, not what a run did — so this is
-  a design review and not a verdict on a build: it cannot say a test suite is
-  good, only that the pipeline is arranged so a bad one would be noticed.
+  The three questions it does ask, and the faults behind them:
 
-  The anti-patterns it names are the mirror image: a deploy that rebuilds, a gate
-  where feedback should be, a stage so serialised that feedback is slow by
-  construction, and a pipeline that exists nowhere but in one database.
+    * **what passes between pipelines** — a deploy that depends on a build *and*
+      checks out the same repository can rebuild what the build already built, so
+      what it ships is not the artifact that was tested; a pipeline others
+      depend on that publishes no artifacts leaves them nothing to take; a fetch
+      from a pipeline that is not a dependency takes whatever that pipeline last
+      produced rather than the build this run is for;
+    * **the shape the fleet can run** — a stage of jobs that only one agent can
+      take is a queue however it is drawn, and a fleet of one agent makes every
+      parallel stage serial;
+    * **where it runs** — a deploy that belongs to no environment is taken by the
+      default pool, with nothing isolating it and no environment to be promoted
+      through.
+
+  A finding is a fact about the configuration, never about a run: it can say the
+  flow is arranged so that what reaches production is what was tested, and it
+  says nothing about whether any of it works.
   """
 
   @type finding :: %{
@@ -40,14 +45,9 @@ defmodule ExGoCD.DeliveryReview do
   alias ExGoCD.{ConfigAudit, Pipelines}
 
   @principles %{
-    build_once: "Build once",
-    fast_feedback: "Fast feedback",
-    parallel_feedback: "Parallel feedback",
-    decomposition: "Explicit stages and jobs",
-    releasability: "Releasable by the pipeline itself",
-    as_code: "As code",
-    clean_environment: "Clean environment",
-    broken_pipeline: "A red pipeline comes first"
+    build_once: "What passes between pipelines",
+    parallel_feedback: "The shape the fleet can run",
+    environments: "Where it runs"
   }
 
   @doc "The principle labels, for grouping an answer."
@@ -77,23 +77,18 @@ defmodule ExGoCD.DeliveryReview do
     findings =
       Enum.flat_map(views, fn view ->
         build_once(view, views) ++
-          fast_feedback(view) ++
           parallel_feedback(view, context) ++
-          decomposition(view) ++
-          releasability(view, context) ++
-          as_code(view) ++
-          clean_environment(view) ++
-          broken_pipeline(view)
+          deploy_without_environment(view, context)
       end)
 
     findings ++ publishes_nothing(views) ++ fleet_findings(views, context)
   end
 
-  @doc "The same, about the design only — no fleet, no run history."
+  @doc "The same, about the design only — against no fleet and no stored configuration."
   @spec review([map()], [map()]) :: [finding()]
   def review(definitions, configured), do: review(definitions, configured, %{})
 
-  @doc "The same, over the configuration as it stands, with its fleet and its last runs."
+  @doc "The same, over the configuration as it stands, against its own fleet."
   @spec review() :: [finding()]
   def review do
     review([], Pipelines.list_pipelines(), %{
@@ -108,7 +103,6 @@ defmodule ExGoCD.DeliveryReview do
     %{
       name: definition.name,
       id: nil,
-      as_code?: true,
       materials: materials(definition.materials || []),
       stages: Enum.map(definition.stages || [], &stage_view/1)
     }
@@ -118,7 +112,6 @@ defmodule ExGoCD.DeliveryReview do
     %{
       name: pipeline.name,
       id: pipeline.id,
-      as_code?: pipeline.config_repo_id != nil,
       materials: materials(pipeline.materials || []),
       stages: Enum.map(pipeline.stages || [], &stage_view/1)
     }
@@ -142,8 +135,6 @@ defmodule ExGoCD.DeliveryReview do
   defp stage_view(stage) do
     %{
       name: stage.name,
-      approval_type: field(stage, :approval_type) || "success",
-      clean?: field(stage, :clean_working_directory) == true,
       jobs: Enum.map(stage.jobs || [], &job_view/1)
     }
   end
@@ -171,8 +162,6 @@ defmodule ExGoCD.DeliveryReview do
   defp task_view(task) do
     %{
       type: field(task, :type),
-      command: field(task, :command),
-      arguments: field(task, :arguments) || [],
       fetch: fetch_coordinates(task)
     }
   end
@@ -288,46 +277,6 @@ defmodule ExGoCD.DeliveryReview do
     end
   end
 
-  # Fast feedback: the first stage should answer "does this build work?" without
-  # waiting for a person, and most stages should not wait for one either.
-  defp fast_feedback(view) do
-    first_stage_gate(view) ++ too_many_gates(view)
-  end
-
-  defp first_stage_gate(%{stages: [%{approval_type: "manual"} = stage | _]} = view) do
-    [
-      finding(
-        :fast_feedback,
-        :manual_gate_first,
-        view.name,
-        "`#{view.name}` gates its first stage (`#{stage.name}`) on a person: nothing is " <>
-          "built or verified until someone approves, so feedback waits for a human " <>
-          "instead of a minute. Gate the stage that deploys, not the one that builds."
-      )
-    ]
-  end
-
-  defp first_stage_gate(_view), do: []
-
-  defp too_many_gates(view) do
-    manual = Enum.count(view.stages, &(&1.approval_type == "manual"))
-
-    if manual > 1 and manual * 2 > length(view.stages) do
-      [
-        finding(
-          :fast_feedback,
-          :gates_everywhere,
-          view.name,
-          "#{manual} of #{length(view.stages)} stages in `#{view.name}` need a person. " <>
-            "A gate belongs where a release decision is made, not on every step: the " <>
-            "rest of the pipeline could have run on its own."
-        )
-      ]
-    else
-      []
-    end
-  end
-
   # Parallel feedback: a stage's jobs run at the same time; a job's tasks do not.
   defp parallel_feedback(view, context) do
     stage_capacity(view, context)
@@ -423,82 +372,8 @@ defmodule ExGoCD.DeliveryReview do
     end
   end
 
-  # A pipeline is not a script with stages drawn around it: the value of splitting
-  # the work is that a failure names the part that failed.
-  defp decomposition(view) do
-    undivided_work(view) ++ shell_one_liners(view)
-  end
-
-  # Several commands in one job: they run in sequence, and a failure names the job
-  # rather than the step — the two complaints are the same shape, so it is one
-  # finding.
-  defp undivided_work(view) do
-    for stage <- view.stages,
-        [job] <- [stage.jobs],
-        steps = Enum.count(job.tasks, &(&1.type == "exec")),
-        steps >= 2 do
-      finding(
-        :decomposition,
-        :undivided_work,
-        view.name,
-        "`#{view.name}` is one stage with one job that runs #{steps} commands in " <>
-          "sequence: a failure names the job, not the step that broke, and the commands " <>
-          "run one after another where #{steps} jobs would run at the same time on " <>
-          "different agents."
-      )
-    end
-  end
-
-  defp shell_one_liners(view) do
-    for stage <- view.stages, job <- stage.jobs, task <- job.tasks, shell_one_liner?(task) do
-      finding(
-        :decomposition,
-        :shell_one_liner,
-        view.name,
-        "`#{view.name}` / `#{stage.name}` / `#{job.name}` runs a shell one-liner " <>
-          "(`#{Path.basename(task.command)} -c …`): every command inside it is one task " <>
-          "as far as the pipeline is concerned, so a failure is an exit code with no " <>
-          "name. Make each command a task of its own."
-      )
-    end
-  end
-
-  defp shell_one_liner?(%{type: "exec", command: command, arguments: arguments})
-       when is_binary(command) do
-    Path.basename(command) in ["sh", "bash", "zsh", "dash", "ksh"] and "-c" in arguments
-  end
-
-  defp shell_one_liner?(_task), do: false
-
-  # Releasable by the pipeline itself: a pipeline that ends at a gate leaves the
-  # decision, and whatever proves the release good, outside itself.
-  defp releasability(view, context) do
-    last_stage_gate(view) ++ deploy_without_environment(view, context)
-  end
-
-  defp last_stage_gate(%{stages: [_ | _] = stages} = view) do
-    case List.last(stages) do
-      %{approval_type: "manual"} = stage ->
-        [
-          finding(
-            :releasability,
-            :verification_outside_pipeline,
-            view.name,
-            "`#{view.name}` ends at a gate (`#{stage.name}`): the pipeline stops and a " <>
-              "person decides, so whatever proves the release good — a QA regression, a " <>
-              "smoke test — happens outside it and leaves no record that it passed. Put " <>
-              "that verification in a stage, and passing the pipeline is the release " <>
-              "decision."
-          )
-        ]
-
-      _automatic ->
-        []
-    end
-  end
-
-  defp last_stage_gate(_view), do: []
-
+  # Where it runs: a deploy that belongs to no environment is taken by the default
+  # pool, which is a statement about the fleet and not about the job's content.
   defp deploy_without_environment(view, %{environments: environments})
        when is_map(environments) do
     cond do
@@ -514,7 +389,7 @@ defmodule ExGoCD.DeliveryReview do
       true ->
         [
           finding(
-            :releasability,
+            :environments,
             :deploy_without_environment,
             view.name,
             "`#{view.name}` deploys but belongs to no environment, so the default pool " <>
@@ -526,69 +401,6 @@ defmodule ExGoCD.DeliveryReview do
   end
 
   defp deploy_without_environment(_view, _context), do: []
-
-  # A failing pipeline is falsification, not noise: two red runs in a row is the
-  # state a team is supposed to treat as the top priority.
-  defp broken_pipeline(%{id: nil}), do: []
-
-  defp broken_pipeline(%{id: id} = view) do
-    case Pipelines.list_pipeline_instances(id, limit: 2) do
-      [latest, previous] ->
-        if failed?(latest) and failed?(previous) do
-          [
-            finding(
-              :broken_pipeline,
-              :red_twice,
-              view.name,
-              "`#{view.name}` failed its last two runs (#{latest.counter} and " <>
-                "#{previous.counter}). A red pipeline is a statement that the last change " <>
-                "is not releasable: fix it or revert it before anything else, or it " <>
-                "becomes background noise nobody reads."
-            )
-          ]
-        else
-          []
-        end
-
-      _fewer ->
-        []
-    end
-  end
-
-  defp failed?(instance), do: Enum.any?(instance.stage_instances || [], &(&1.result == "Failed"))
-
-  defp as_code(view) do
-    if view.as_code? do
-      []
-    else
-      [
-        finding(
-          :as_code,
-          :not_in_config_repo,
-          view.name,
-          "`#{view.name}` is not in a config repository, so it exists only on this " <>
-            "server: nobody reviews a change to it, and it is not restored from the " <>
-            "code that it builds. Version it with the code."
-        )
-      ]
-    end
-  end
-
-  defp clean_environment(view) do
-    for stage <- view.stages,
-        not stage.clean?,
-        Enum.any?(stage.jobs, fn job -> Enum.any?(job.tasks, & &1.fetch) end) do
-      finding(
-        :clean_environment,
-        :dirty_before_fetch,
-        view.name,
-        "`#{view.name}` / `#{stage.name}` unpacks a fetched artifact into a working " <>
-          "directory it does not clean, so the previous run's files are still there " <>
-          "and a test can pass on a file nothing rebuilt. Turn on " <>
-          "`clean_working_directory` for the stage."
-      )
-    end
-  end
 
   # ── words ──────────────────────────────────────────────────────────
 

@@ -1,27 +1,26 @@
 defmodule ExGoCD.Mcp.Tools.Delivery do
   @moduledoc """
-  A design review against the principles a deployment pipeline exists to serve.
+  A review of the flow a delivery pipeline has, and of nothing else.
 
   `gocd_audit_config` asks whether anything can run the jobs, and
-  `gocd_validate_pipeline` asks whether the graph holds together. Neither asks
-  whether the pipeline is *any good*, which is a different question and the one
-  Farley's *Continuous Delivery* — written alongside the Cruise team that became
-  GoCD — answers with five properties:
+  `gocd_validate_pipeline` asks whether the graph holds together. This family asks
+  the third flow question: given what is configured and which agents exist, does
+  the *shape* hold?
 
-    * **build once** — the artifact is built once and promoted, so what reaches
-      production is what was tested;
-    * **fast feedback** — the first stage answers "does this work?" without a
-      person in front of it;
-    * **parallel feedback** — a stage's jobs run at the same time, so the answer
-      is minutes and not a queue;
-    * **as code** — the topology is reviewed with the code it builds;
-    * **clean environment** — a stage does not start on the last run's files.
+    * **what passes between pipelines** — a deploy that depends on a build and
+      also checks out the same repository can rebuild what was built, so what it
+      ships is not the artifact that was tested; a pipeline others depend on that
+      publishes nothing leaves them nothing to take; a `fetch` from a pipeline
+      that is not a dependency takes whatever was produced last;
+    * **the shape the fleet can run** — a stage of jobs that only one agent can
+      take is a queue however it is drawn, and a fleet of one agent makes every
+      parallel stage serial;
+    * **where it runs** — a deploy in no environment is taken by the default pool.
 
-  It is a static review: it can say the pipeline is arranged so a bad build would
-  be noticed, never that a build is good. The findings are the anti-patterns
-  worth naming — a deploy that rebuilds, a gate where feedback should be, a
-  stage serialised by construction, and a pipeline that exists nowhere but in one
-  database.
+  What a job does is the author's business and is deliberately not reviewed: the
+  commands, the number of stages, whether a stage is gated, and whether the
+  configuration lives in a repository are decisions the server cannot judge from
+  the outside. It says what it can assert about the edges, and stops there.
   """
 
   alias ExGoCD.{ConfigAudit, DeliveryReview, Pipelines}
@@ -35,18 +34,16 @@ defmodule ExGoCD.Mcp.Tools.Delivery do
       "name" => "gocd_review_delivery",
       "title" => "Review a pipeline against the delivery principles",
       "description" =>
-        "Reviews a pipeline, or a whole graph, against the properties a deployment " <>
-          "pipeline is supposed to have: build once (a deploy that rebuilds is not " <>
-          "deploying what was tested), fast feedback (a gate on the first stage means " <>
-          "feedback waits for a person), parallel feedback (tasks run one after another, " <>
-          "jobs do not — and a stage of jobs that only one agent can take is a queue " <>
-          "however it is drawn), explicit stages and jobs (a shell one-liner is a script " <>
-          "with a pipeline drawn around it), releasable by the pipeline itself (one that " <>
-          "ends at a gate leaves the real decision outside it; a deploy in no environment " <>
-          "runs on the default pool), as code, and a clean environment. For what is " <>
-          "configured it also reads the last runs: a pipeline that failed twice in a row " <>
-          "is a red pipeline, which comes before everything else. Writes nothing. With " <>
-          "no arguments it reviews the configuration as it stands.",
+        "Reviews the flow of a pipeline, or of a whole graph, and nothing else: what " <>
+          "depends on what, what is passed along those edges, and whether the fleet can " <>
+          "run the shape. Names a deploy that depends on a build and also checks out the " <>
+          "same repository (it can rebuild what was built, so it ships something nobody " <>
+          "tested), a pipeline others depend on that publishes no artifacts, a fetch from " <>
+          "a pipeline it does not depend on, a stage of jobs that only as many agents as " <>
+          "the fleet has can take at once, and a deploy in no environment. What a job " <>
+          "does — its commands, its stages, its gates, where its config is kept — is the " <>
+          "author's decision and is not reviewed. Writes nothing. With no arguments it " <>
+          "reviews the configuration as it stands.",
       "inputSchema" => %{
         "type" => "object",
         "properties" => %{
@@ -108,14 +105,13 @@ defmodule ExGoCD.Mcp.Tools.Delivery do
   end
 
   defp review_text([], []) do
-    "Nothing to report: the configuration follows the principles that can be " <>
-      "checked statically. Build once, fast feedback, parallel feedback, as code " <>
-      "and clean environments are all satisfied."
+    "Nothing to report: every edge holds. What depends on what, what is passed " <>
+      "along it, and whether the fleet can run the shape are all consistent."
   end
 
   defp review_text([], definitions) do
-    "#{length(definitions)} pipeline(s) reviewed; no findings. They build once, give " <>
-      "feedback early and in parallel, and start clean."
+    "#{length(definitions)} pipeline(s) reviewed; no findings. Their dependencies and " <>
+      "the artifacts they pass along hold together."
   end
 
   defp review_text(findings, _definitions) do

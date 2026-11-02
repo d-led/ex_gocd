@@ -1,7 +1,7 @@
 defmodule ExGoCD.Mcp.Tools.DeliveryTest do
   @moduledoc """
-  The review a person would give a pipeline before it is trusted: build once, fast
-  feedback, parallel feedback, as code, clean environment.
+  The flow review: what passes between pipelines, and whether the fleet can run the
+  shape. Not what the jobs do — that is the author's business.
   """
 
   use ExGoCD.DataCase, async: false
@@ -22,15 +22,15 @@ defmodule ExGoCD.Mcp.Tools.DeliveryTest do
       assert {:ok, %{text: text, structured: structured}} =
                Tools.call("gocd_review_delivery", %{"pipelines" => rebuild_graph()}, @reader)
 
-      assert text =~ "1 finding(s): 1 build once."
-      assert text =~ "Build once (1):"
+      assert text =~ "1 finding(s): 1 what passes between pipelines."
+      assert text =~ "What passes between pipelines (1):"
       assert text =~ "can rebuild what `build` already built"
 
       assert [%{"principle" => "build_once", "code" => "rebuilds_upstream"}] =
                Enum.filter(structured["findings"], &(&1["code"] == "rebuilds_upstream"))
     end
 
-    test "that follows the principles has nothing to report" do
+    test "that follows the flow has nothing to report" do
       assert {:ok, %{text: text, structured: structured}} =
                Tools.call("gocd_review_delivery", %{"pipelines" => good_graph()}, @reader)
 
@@ -51,15 +51,16 @@ defmodule ExGoCD.Mcp.Tools.DeliveryTest do
   end
 
   describe "the configuration as it stands" do
-    test "is reviewed when nothing is given, and a hand-made pipeline is not code" do
-      insert_pipeline_with_jobs("hand-made", 1)
+    test "is reviewed when nothing is given, and a deploy with no environment is named" do
+      {pipeline, _stage, _jobs} = insert_pipeline_with_jobs("deploy", 1)
+      attach_dependency(pipeline, "build")
 
       assert {:ok, %{text: text, structured: structured}} =
                Tools.call("gocd_review_delivery", %{}, @reader)
 
-      assert text =~ "As code"
-      assert text =~ "`hand-made` is not in a config repository"
-      assert Enum.any?(structured["findings"], &(&1["code"] == "not_in_config_repo"))
+      assert text =~ "Where it runs"
+      assert text =~ "`deploy` deploys but belongs to no environment"
+      assert Enum.any?(structured["findings"], &(&1["code"] == "deploy_without_environment"))
     end
   end
 
@@ -105,6 +106,20 @@ defmodule ExGoCD.Mcp.Tools.DeliveryTest do
       ])
 
     [build, deploy]
+  end
+
+  defp attach_dependency(pipeline, upstream) do
+    material =
+      ExGoCD.Repo.insert!(
+        %ExGoCD.Pipelines.Material{}
+        |> ExGoCD.Pipelines.Material.changeset(%{type: "dependency", url: upstream})
+      )
+
+    pipeline
+    |> ExGoCD.Repo.preload(:materials)
+    |> Ecto.Changeset.change()
+    |> Ecto.Changeset.put_assoc(:materials, [material])
+    |> ExGoCD.Repo.update!()
   end
 
   defp build do
