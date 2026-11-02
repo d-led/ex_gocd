@@ -47,6 +47,34 @@ defmodule ExGoCD.PipelinesFixtures do
   end
 
   @doc """
+  Inserts a pipeline with one stage whose jobs carry resources a test can compare
+  against an agent's.
+
+  `jobs` is a keyword list of job name to the resources the job asks for, e.g.
+  `compile: ["docker"]`. Each job gets one exec task, because a job with no tasks
+  is its own finding. Returns the pipeline.
+  """
+  def insert_pipeline_with_resources(name, jobs, opts \\ []) do
+    pipeline = insert_pipeline(name, opts)
+    stage = insert_stage(pipeline.id, "build")
+
+    Enum.each(jobs, fn {job_name, resources} ->
+      job =
+        Repo.insert!(
+          %Job{}
+          |> Job.changeset(%{name: to_string(job_name), stage_id: stage.id, resources: resources})
+        )
+
+      Repo.insert!(
+        %Task{}
+        |> Task.changeset(%{type: "exec", command: "make", job_id: job.id})
+      )
+    end)
+
+    pipeline
+  end
+
+  @doc """
   Inserts a pipeline with one stage and `job_count` jobs (each with an exec task).
   Returns `{pipeline, stage, jobs}` — pipeline is preloaded with `[stages: [jobs: :tasks]]`.
   """

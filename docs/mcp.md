@@ -5,7 +5,7 @@ transport, so an assistant can ask about a running GoCD server — what is
 configured, what ran, what is running now, why nothing is running, and what the
 numbers say — and act on it.
 
-It offers three things: **tools** (49 of them, below), **resources** (the
+It offers three things: **tools** (52 of them, below), **resources** (the
 documents a person would attach: the dashboard, the configuration XML, the audit
 trail, one pipeline's configuration) and **prompts** (the four workflows worth
 following in order). Completions offer the values that exist while an argument is
@@ -75,6 +75,22 @@ label template, lock behaviour, paused, timer, parameters, variables),
 `gocd_delete_pipeline`. Rewriting an existing pipeline's stages is deliberately
 not offered: a stage's run history is keyed to the stage row, so that is a
 migration rather than an edit.
+
+**Will it run?** — `gocd_audit_config`, `gocd_who_can_run`,
+`gocd_validate_pipeline`. This is the question the old `will_it_go_cd` asked of a
+`server.xml` and printed `<<<OOPS>>>` beside: a job nothing can take waits
+forever, and the two reasons are ordinary — no agent holds a resource it asks
+for, or the environments do not line up. Asked here, the answer comes from the
+server's own configuration and cannot be stale; asked of a definition that has
+not been created yet, it costs a sentence instead of a queue that never moves.
+`gocd_create_pipeline` reports the same verdict for what it just built.
+
+The environment half is the part people forget. GoCD's own rule
+(`managing_environments.md`): an agent in an environment takes only that
+environment's pipelines, and a pipeline in no environment goes only to agents in
+no environment — so a new pipeline in a fleet whose agents all live inside
+environments is taken by nobody until someone assigns it. The answer says that
+rather than leaving it to be discovered.
 
 **Stages** — `gocd_stage`, `gocd_stage_history`, `gocd_approve_stage`,
 `gocd_cancel_stage`, `gocd_rerun_failed_jobs`.

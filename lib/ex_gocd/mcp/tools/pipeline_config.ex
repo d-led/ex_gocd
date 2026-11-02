@@ -444,9 +444,12 @@ defmodule ExGoCD.Mcp.Tools.PipelineConfig do
 
       [stuck | _] ->
         "\nWill it run? Not yet — `#{stuck.stage}` / `#{stuck.job}`: #{stuck.verdict}. " <>
-          "#{stuck.advice || ""} `gocd_audit_config` shows the rest."
+          advice_phrase(stuck.advice) <> "`gocd_audit_config` shows the rest."
     end
   end
+
+  defp advice_phrase(nil), do: ""
+  defp advice_phrase(advice), do: advice <> " "
 
   defp will_run(nil), do: nil
 
