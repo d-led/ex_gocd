@@ -157,31 +157,43 @@ defmodule ExGoCDWeb.AdminK8sLive do
 
   def auto_parse_kubeconfig(%{"cluster" => %{"kubeconfig_yaml" => yaml}}, socket)
       when is_binary(yaml) and yaml != "" do
-    case ExGoCD.K8s.extract_k3s_config(yaml) do
-      {:ok, config} ->
-        current = socket.assigns.cluster_form
-        form_data = Map.put(current.data || %{}, :server_url, config["server"])
-        form_data = Map.put(form_data, :bearer_token, config["token"])
-        form_data = Map.put(form_data, :ca_cert, config["ca_cert"])
-        form_data = Map.put(form_data, :namespace, config["namespace"])
-        form_data = Map.put(form_data, :client_cert, config["client_cert"])
-        form_data = Map.put(form_data, :client_key, config["client_key"])
-        form_data = Map.put(form_data, :kubeconfig_parsed, true)
-
-        changeset =
-          %ClusterProfile{}
-          |> ClusterProfile.changeset(normalize_cluster_params(form_data))
-          |> Map.put(:action, :validate)
-
-        {:noreply, assign(socket, cluster_form: to_form(changeset))}
-
-      {:error, _} ->
-        {:noreply, socket}
-    end
+    {:noreply, parse_kubeconfig(socket, yaml)}
   end
 
   def auto_parse_kubeconfig(_params, socket) do
     {:noreply, socket}
+  end
+
+  # A kubeconfig that cannot be read leaves the form as the user typed it.
+  defp parse_kubeconfig(socket, yaml) do
+    case ExGoCD.K8s.extract_k3s_config(yaml) do
+      {:ok, config} -> assign_parsed_kubeconfig(socket, config)
+      {:error, _reason} -> socket
+    end
+  end
+
+  defp assign_parsed_kubeconfig(socket, config) do
+    form_data = socket.assigns.cluster_form.data || %{} |> Map.merge(kubeconfig_fields(config))
+
+    changeset =
+      %ClusterProfile{}
+      |> ClusterProfile.changeset(normalize_cluster_params(form_data))
+      |> Map.put(:action, :validate)
+
+    assign(socket, cluster_form: to_form(changeset))
+  end
+
+  # What the kubeconfig says about the cluster, in the form's own field names.
+  defp kubeconfig_fields(config) do
+    %{
+      server_url: config["server"],
+      bearer_token: config["token"],
+      ca_cert: config["ca_cert"],
+      namespace: config["namespace"],
+      client_cert: config["client_cert"],
+      client_key: config["client_key"],
+      kubeconfig_parsed: true
+    }
   end
 
   def validate_cluster(%{"cluster" => params}, socket) do

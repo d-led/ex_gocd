@@ -364,21 +364,24 @@ defmodule ExGoCD.Mcp.Tools.Server do
   defp diagnosis(nil), do: nil
 
   defp diagnosis(%{matching_agents: matching, non_matching_detail: detail} = result) do
-    header = "#{length(matching)} agent(s) can run a job with these resources"
+    lines =
+      ["#{length(matching)} agent(s) can run a job with these resources"] ++
+        Enum.map(matching, &matching_line/1) ++
+        Enum.map(detail, &missing_line/1) ++
+        connection_note(result)
 
-    matching_lines =
-      Enum.map(matching, fn agent -> "  ✓ #{agent.hostname || agent.uuid} (#{agent.uuid})" end)
-
-    missing_lines =
-      Enum.map(detail, fn agent ->
-        "  ✗ #{agent.hostname || agent.uuid} has #{Render.cell(agent.has)}, " <>
-          "missing #{Render.cell(agent.missing)}"
-      end)
-
-    connected = if result.any_agent_connected, do: "", else: "\n  No agent is connected at all."
-
-    Enum.join([header | matching_lines ++ missing_lines] ++ [connected], "\n")
+    Enum.join(lines, "\n")
   end
+
+  defp matching_line(agent), do: "  ✓ #{agent.hostname || agent.uuid} (#{agent.uuid})"
+
+  defp missing_line(agent) do
+    "  ✗ #{agent.hostname || agent.uuid} has #{Render.cell(agent.has)}, " <>
+      "missing #{Render.cell(agent.missing)}"
+  end
+
+  defp connection_note(%{any_agent_connected: true}), do: []
+  defp connection_note(_result), do: ["", "  No agent is connected at all."]
 
   defp resource(entry) do
     case {entry.resource_type, entry.resource_name} do

@@ -97,11 +97,18 @@ defmodule ExGoCD.Mcp.Identity do
   defp basic_credentials(encoded) do
     with {:ok, decoded} <- Base.decode64(encoded),
          [username, token] <- String.split(decoded, ":", parts: 2),
-         {:ok, %User{} = user} <- verify_token(token),
-         :ok <- same_user(username, user) do
+         {:ok, user} <- user_for(username, token) do
       {:ok, user}
     else
       _other -> {:error, :invalid_credentials}
+    end
+  end
+
+  # The password is the token's owner's own token, not any token.
+  defp user_for(username, token) do
+    with {:ok, %User{} = user} <- verify_token(token),
+         :ok <- same_user(username, user) do
+      {:ok, user}
     end
   end
 

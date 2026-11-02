@@ -184,17 +184,25 @@ defmodule ExGoCDWeb.CoreComponents do
                 multiple pattern placeholder readonly required rows size step)
 
   def input(%{field: %FormField{} = field} = assigns) do
-    errors = if Phoenix.Component.used_input?(field), do: field.errors, else: []
-
     assigns
     |> assign(field: nil, id: assigns.id || field.id)
-    |> assign(:errors, Enum.map(errors, &translate_error(&1)))
-    |> assign_new(:name, fn -> if assigns.multiple, do: field.name <> "[]", else: field.name end)
+    |> assign(:errors, translated_errors(field))
+    |> assign_new(:name, fn -> input_name(field, assigns.multiple) end)
     |> assign_new(:value, fn -> field.value end)
     |> input()
   end
 
   def input(assigns), do: render_input(assigns)
+
+  # An unused input's errors are not the user's business yet.
+  defp translated_errors(field) do
+    if Phoenix.Component.used_input?(field),
+      do: Enum.map(field.errors, &translate_error(&1)),
+      else: []
+  end
+
+  defp input_name(field, true), do: field.name <> "[]"
+  defp input_name(field, _multiple), do: field.name
 
   # What kind of input to draw. One function per kind, so the decision and the
   # markup that follows from it are not in the same row.

@@ -50,30 +50,53 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
 
   defp mount_edit(socket, id) do
     case fetch_config_repo(id) do
-      nil ->
-        socket
-        |> put_flash(:error, "Config repository not found.")
-        |> redirect(to: "/admin/config_repos")
-
-      config_repo ->
-        existing_files = config_repo.config_repo_files || []
-
-        socket
-        |> assign(:step, 1)
-        |> assign(:editing, true)
-        |> assign(:source_type, config_repo.source_type || "github_actions")
-        |> assign(:repo_url, config_repo.url || "")
-        |> assign(:branch, config_repo.branch || "main")
-        |> assign(:plugin_id, config_repo.plugin_id || "")
-        |> assign(:configuration, config_repo.configuration || %{})
-        |> assign(:errors, %{})
-        |> assign(:discovered_files, simulate_discovery(config_repo.source_type))
-        |> assign(:selected_paths, Enum.map(existing_files, & &1.path))
-        |> assign(:file_configs, build_file_configs_from_repo(existing_files))
-        |> assign(:config_repo, config_repo)
-        |> assign(:saved, false)
-        |> assign(:saving, false)
+      nil -> redirect_missing_repo(socket)
+      config_repo -> edit_existing_repo(socket, config_repo)
     end
+  end
+
+  defp redirect_missing_repo(socket) do
+    socket
+    |> put_flash(:error, "Config repository not found.")
+    |> redirect(to: "/admin/config_repos")
+  end
+
+  defp edit_existing_repo(socket, config_repo) do
+    existing_files = config_repo.config_repo_files || []
+
+    socket
+    |> assign(:step, 1)
+    |> assign(:editing, true)
+    |> assign_repo_fields(config_repo)
+    |> assign(:errors, %{})
+    |> assign(:discovered_files, simulate_discovery(config_repo.source_type))
+    |> assign(:selected_paths, Enum.map(existing_files, & &1.path))
+    |> assign(:file_configs, build_file_configs_from_repo(existing_files))
+    |> assign(:config_repo, config_repo)
+    |> assign(:saved, false)
+    |> assign(:saving, false)
+  end
+
+  # What an unset field shows, so the form is never empty or invalid.
+  @repo_field_defaults %{
+    source_type: "github_actions",
+    repo_url: "",
+    branch: "main",
+    plugin_id: "",
+    configuration: %{}
+  }
+
+  defp assign_repo_fields(socket, config_repo) do
+    %{
+      source_type: config_repo.source_type,
+      repo_url: config_repo.url,
+      branch: config_repo.branch,
+      plugin_id: config_repo.plugin_id,
+      configuration: config_repo.configuration
+    }
+    |> Enum.reduce(socket, fn {field, value}, form ->
+      assign(form, field, value || Map.fetch!(@repo_field_defaults, field))
+    end)
   end
 
   @default_file_config %{

@@ -138,12 +138,18 @@ defmodule ExGoCD.ConfigRepos.Poller do
 
   defp git_pull(dir) do
     # Fetch + reset to avoid merge conflicts (like GoCD's approach)
-    with {:ok, _} <- git(["-C", dir, "fetch", "origin"]),
-         {:ok, before} <- git(["-C", dir, "rev-parse", "HEAD"]),
+    with {:ok, before} <- local_revision(dir),
+         {:ok, _} <- git(["-C", dir, "fetch", "origin"]),
          {:ok, _} <- git(["-C", dir, "reset", "--hard", "origin/HEAD"]),
-         {:ok, after_rev} <- git(["-C", dir, "rev-parse", "HEAD"]) do
-      if String.trim(before) != String.trim(after_rev), do: {:changed, ""}, else: :unchanged
+         {:ok, after_revision} <- local_revision(dir) do
+      changed_or_not(before, after_revision)
     end
+  end
+
+  defp local_revision(dir), do: git(["-C", dir, "rev-parse", "HEAD"])
+
+  defp changed_or_not(before, after_revision) do
+    if String.trim(before) == String.trim(after_revision), do: :unchanged, else: {:changed, ""}
   end
 
   defp parse_repo(repo, dir) do
@@ -162,38 +168,39 @@ defmodule ExGoCD.ConfigRepos.Poller do
   # --- GoCD pipeline format (existing) ---
 
   defp parse_gocd_pipeline(repo, dir) do
-    patterns =
-      Application.get_env(:ex_gocd, :config_repo_patterns, [
-        "*.gocd.yaml",
-        "*.gocd.json",
-        "pipelines/*.yaml"
-      ])
+    case pipeline_files(dir) do
+      [] -> no_pipeline_files(repo, dir)
+      files -> refresh(repo, concatenated(files))
+    end
+  end
 
-    files =
-      Enum.flat_map(patterns, fn pattern ->
-        Path.wildcard(Path.join(dir, pattern))
-      end)
-      |> Enum.uniq()
+  @default_pipeline_patterns ["*.gocd.yaml", "*.gocd.json", "pipelines/*.yaml"]
 
-    if files == [] do
-      Logger.warning("[ConfigRepoPoller] No pipeline files found in #{dir}")
-      update_last_parsed(repo)
-      :ok
-    else
-      content =
-        Enum.map_join(files, "\n---\n", fn f ->
-          File.read!(f)
-        end)
+  defp pipeline_files(dir) do
+    :ex_gocd
+    |> Application.get_env(:config_repo_patterns, @default_pipeline_patterns)
+    |> Enum.flat_map(&Path.wildcard(Path.join(dir, &1)))
+    |> Enum.uniq()
+  end
 
-      case ConfigRepos.refresh_config_repo_with_content(repo, content) do
-        {:ok, count} ->
-          Logger.info("[ConfigRepoPoller] Parsed #{count} pipelines from repo #{repo.id}")
-          :ok
+  # One document per file, which is what the YAML reader expects.
+  defp concatenated(files), do: Enum.map_join(files, "\n---\n", &File.read!/1)
 
-        {:error, reason} ->
-          Logger.error("[ConfigRepoPoller] Parse failed for repo #{repo.id}: #{reason}")
-          :error
-      end
+  defp no_pipeline_files(repo, dir) do
+    Logger.warning("[ConfigRepoPoller] No pipeline files found in #{dir}")
+    update_last_parsed(repo)
+    :ok
+  end
+
+  defp refresh(repo, content) do
+    case ConfigRepos.refresh_config_repo_with_content(repo, content) do
+      {:ok, count} ->
+        Logger.info("[ConfigRepoPoller] Parsed #{count} pipelines from repo #{repo.id}")
+        :ok
+
+      {:error, reason} ->
+        Logger.error("[ConfigRepoPoller] Parse failed for repo #{repo.id}: #{reason}")
+        :error
     end
   end
 

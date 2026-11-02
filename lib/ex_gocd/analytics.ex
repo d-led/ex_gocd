@@ -543,6 +543,21 @@ defmodule ExGoCD.Analytics do
     |> Map.new()
   end
 
+  # A destination cuts the chain short; no downstream at all means just the source.
+  defp workflow_pipelines(source_pipeline, all_downstream, destination_pipeline)
+       when is_binary(destination_pipeline) do
+    if destination_pipeline in all_downstream do
+      [source_pipeline | take_until(all_downstream, destination_pipeline)]
+    else
+      workflow_pipelines(source_pipeline, all_downstream, nil)
+    end
+  end
+
+  defp workflow_pipelines(source_pipeline, [], _destination_pipeline), do: [source_pipeline]
+
+  defp workflow_pipelines(source_pipeline, all_downstream, _destination_pipeline),
+    do: [source_pipeline | all_downstream]
+
   # -- VSM Workflow Trends (Gantt parity with GoCD Analytics Plugin) --
 
   @doc """
@@ -565,21 +580,9 @@ defmodule ExGoCD.Analytics do
     # Get all pipelines in the VSM path (source → downstream chain)
     all_downstream = downstream_chain(source_pipeline)
 
-    # If destination specified, only include pipelines up to the destination
     pipelines_in_workflow =
-      cond do
-        destination_pipeline && destination_pipeline in all_downstream ->
-          [source_pipeline | take_until(all_downstream, destination_pipeline)]
+      workflow_pipelines(source_pipeline, all_downstream, destination_pipeline)
 
-        all_downstream != [] ->
-          [source_pipeline | all_downstream]
-
-        true ->
-          # No downstream deps — just show the source pipeline
-          [source_pipeline]
-      end
-
-    # Get source pipeline instances
     source_instances = fetch_instances_for_pipelines([source_pipeline], limit)
 
     # If we have more than just the source, also fetch downstream instances

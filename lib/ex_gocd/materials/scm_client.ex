@@ -184,19 +184,15 @@ defmodule ExGoCD.Materials.ScmClient do
       @doc false
       def build_svn_opts(%Material{} = mat) do
         tsc = mat.type_specific_config || %{}
-        username = mat.username
-        password = tsc["password"]
 
-        opts = []
-
-        opts =
-          if username && username != "", do: Keyword.put(opts, :username, username), else: opts
-
-        opts =
-          if password && password != "", do: Keyword.put(opts, :password, password), else: opts
-
-        opts
+        []
+        |> put_credential(:username, mat.username)
+        |> put_credential(:password, tsc["password"])
       end
+
+      # svn takes no empty credential: the flag without a value would wait for input.
+      defp put_credential(opts, _key, value) when value in [nil, ""], do: opts
+      defp put_credential(opts, key, value), do: Keyword.put(opts, key, value)
     end
 
     defmodule Hg do

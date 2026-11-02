@@ -318,27 +318,17 @@ defmodule ExGoCD.Scheduler do
   @impl true
   def handle_info({:assign_work_to_agent, agent_uuid, parent_ctx}, state) do
     VsmTracer.attach_ctx(parent_ctx)
-
-    new_state =
-      if connected?(agent_uuid) do
-        assign_work_if_exists(agent_uuid, state)
-      else
-        state
-      end
-
-    {:noreply, new_state}
+    {:noreply, assign_if_connected(agent_uuid, state)}
   end
 
   # Keep backward compat for messages sent without context (e.g. from tests)
   def handle_info({:assign_work_to_agent, agent_uuid}, state) do
-    new_state =
-      if connected?(agent_uuid) do
-        assign_work_if_exists(agent_uuid, state)
-      else
-        state
-      end
+    {:noreply, assign_if_connected(agent_uuid, state)}
+  end
 
-    {:noreply, new_state}
+  # An agent that is not connected cannot take the work, so the queue waits.
+  defp assign_if_connected(agent_uuid, state) do
+    if connected?(agent_uuid), do: assign_work_if_exists(agent_uuid, state), else: state
   end
 
   # Helpers & Matching Logic

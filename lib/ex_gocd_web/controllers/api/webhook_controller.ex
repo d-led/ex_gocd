@@ -171,42 +171,38 @@ defmodule ExGoCDWeb.API.WebhookController do
   # Shared webhook secret verifier for bitbucket endpoints
   defp verify_webhook_secret(conn) do
     case System.get_env("GOCD_WEBHOOK_SECRET") do
-      nil ->
-        true
-
-      "" ->
-        true
-
-      secret ->
-        # Bitbucket Server uses X-Hub-Signature header
-        signature =
-          List.first(get_req_header(conn, "x-hub-signature")) ||
-            List.first(get_req_header(conn, "x-hub-signature-256"))
-
-        if signature do
-          expected =
-            if String.starts_with?(signature, "sha256=") do
-              "sha256=" <> expected_sig = signature
-              raw_body = conn.assigns[:raw_body] || ""
-
-              actual_sig =
-                :crypto.mac(:hmac, :sha256, secret, raw_body) |> Base.encode16(case: :lower)
-
-              Plug.Crypto.secure_compare(actual_sig, expected_sig)
-            else
-              raw_body = conn.assigns[:raw_body] || ""
-
-              actual_sig =
-                :crypto.mac(:hmac, :sha1, secret, raw_body) |> Base.encode16(case: :lower)
-
-              Plug.Crypto.secure_compare(actual_sig, signature)
-            end
-
-          expected
-        else
-          false
-        end
+      secret when secret in [nil, ""] -> true
+      secret -> signature_matches?(conn, secret)
     end
+  end
+
+  # No signature at all is a webhook that was not signed, and that is not a match.
+  defp signature_matches?(conn, secret) do
+    case signature_header(conn) do
+      nil -> false
+      signature -> verify_signature(conn, secret, signature)
+    end
+  end
+
+  defp signature_header(conn) do
+    List.first(get_req_header(conn, "x-hub-signature")) ||
+      List.first(get_req_header(conn, "x-hub-signature-256"))
+  end
+
+  defp verify_signature(conn, secret, "sha256=" <> expected) do
+    compare_digest(conn, secret, expected, :sha256)
+  end
+
+  defp verify_signature(conn, secret, signature) do
+    compare_digest(conn, secret, signature, :sha1)
+  end
+
+  defp compare_digest(conn, secret, expected, algorithm) do
+    actual =
+      :crypto.mac(:hmac, algorithm, secret, conn.assigns[:raw_body] || "")
+      |> Base.encode16(case: :lower)
+
+    Plug.Crypto.secure_compare(actual, expected)
   end
 
   # ── Helpers ────────────────────────────────────────────────────────────────
@@ -279,25 +275,25 @@ defmodule ExGoCDWeb.API.WebhookController do
     end
   end
 
-  defp extract_bitbucket_server_url(params) do
-    case params do
-      %{"repository" => %{"links" => %{"clone" => clones}}} when is_list(clones) ->
-        Enum.find_value(clones, fn
-          %{"name" => "http", "href" => url} when is_binary(url) -> url
-          %{"name" => "ssh", "href" => url} when is_binary(url) -> url
-          _ -> nil
-        end)
-
-      %{"repository" => %{"links" => %{"self" => links}}} ->
-        Enum.find_value(List.wrap(links), fn
-          %{"href" => url} when is_binary(url) -> url
-          _ -> nil
-        end)
-
-      _ ->
-        nil
-    end
+  defp extract_bitbucket_server_url(%{"repository" => %{"links" => %{"clone" => clones}}})
+       when is_list(clones) do
+    Enum.find_value(clones, &clone_url/1)
   end
+
+  defp extract_bitbucket_server_url(%{"repository" => %{"links" => %{"self" => links}}}) do
+    Enum.find_value(List.wrap(links), &self_url/1)
+  end
+
+  defp extract_bitbucket_server_url(_params), do: nil
+
+  defp clone_url(%{"name" => name, "href" => url})
+       when name in ["http", "ssh"] and is_binary(url),
+       do: url
+
+  defp clone_url(_clone), do: nil
+
+  defp self_url(%{"href" => url}) when is_binary(url), do: url
+  defp self_url(_link), do: nil
 
   defp extract_bitbucket_cloud_url(params) do
     case params do

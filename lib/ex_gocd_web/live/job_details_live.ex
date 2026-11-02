@@ -365,8 +365,7 @@ defmodule ExGoCDWeb.JobDetailsLive do
                                                                          {acc, idx, stack,
                                                                           counter} ->
       parsed = parse_line(line_text, idx)
-      msg = parsed.message || ""
-      {line_type, fold_name} = detect_fold(msg)
+      {line_type, fold_name} = detect_fold(parsed.message)
 
       {new_stack, new_counter, line_record} =
         case line_type do
@@ -686,7 +685,6 @@ defmodule ExGoCDWeb.JobDetailsLive do
     ExGoCDWeb.ConsoleLogHelper.format_log(log)
   end
 
-  defp format_line_message(nil), do: nil
   defp format_line_message(msg), do: ExGoCDWeb.ConsoleLogHelper.format_log(msg)
 
   def failure_reason(job_instance) do

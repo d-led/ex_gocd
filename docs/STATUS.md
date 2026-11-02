@@ -829,12 +829,13 @@ reader does not take them for the regression they look like.
 key made of the lockfile), `:tools` joins the PLT because coverage calls `:cover`,
 `test/` and `lib/mix/tasks` are excluded because the job is about the application,
 and `:error_handling`, `:extra_return` and `:missing_return` are on. It went from
-41 warnings (2026-11-02, defaults) to 7 with those flags; 4 were fixed by making the
-types true (a fresh schema struct has a nil name; an association is a list or
-`NotLoaded`, never nil; `svn log` answers an empty element, not a nil author) and
-3 remain, named: `k8s.ex:136` (a third-party inference about `K8s.Client.run/2`
-inside a Task), `mcp/tools/analytics.ex:440` and `mcp/tools/pipelines.ex:348`,
-`:660`.
+41 warnings (2026-11-02, defaults) to 7 with those flags, and then to none. None
+of those fixes is a silence: a fresh schema struct has a nil name; an association
+is a list or `NotLoaded`, never nil; `svn log` answers an empty element, not a nil
+author; an MCP tool that asked for a run that does not exist crashed instead of
+answering what it documents; and the pod probe passed `limit` as a path parameter,
+where the k8s client's own spec says it is a query parameter, so the probe asked
+for the whole pod list. `mix dialyzer` reports `Total errors: 0`.
 
 `mix crap` scores every function by complexity squared by the coverage it lacks and
 fails above 30. `mix cover` replaced ExCoveralls, because built-in coverage can fail
@@ -842,16 +843,24 @@ under a floor and leaves the coverdata `mix crap` reads; ExCoveralls could do
 neither. The gate runs tests with coverage, then `mix complexity` (both trees), then
 dialyzer.
 
-The first CRAP run found **126 functions above 30**. The sweep so far (126 → 54) has been all subtraction — status
-tables instead of clause chains (`StageStatus`, the console log's ANSI codes, the
-dashboard's status dots and trigger failures, the VSM's material icons, the agents
-table's sort keys, the stage page's agent kinds), one `@handlers` table and one
-function per event instead of a 37-clause `handle_event/3` on the admin page (and
-the same in five other pages), and one default helper instead of a chain of `||`
-in the config XML, the mailer, the agent mock and the Docker client. What is left is the
-30–56 band: `plugin_registry.handle_info/2`, `mcp/tools/pipelines.config_diff/2`,
-`stage_details_live.approve_stage/2`, the two Gantt builders and the
-pipeline-operations controller's `comment/2` and `approve_stage/2`, all at 56.
+The first CRAP run found **126 functions above 30**; it now finds none, and the
+worst score in either tree is exactly 30.00 (`mix complexity`).
+
+    PGHOST=127.0.0.1 PGPORT=5544 mix cover
+    mix complexity
+
+The sweep was mostly subtraction — status tables instead of clause chains
+(`StageStatus`, the console log's ANSI codes, the dashboard's status dots and
+trigger failures, the VSM's material icons, the agents table's sort keys, the stage
+page's agent kinds, material types, event colours, agent states), one `@handlers`
+table and one function per event instead of a 37-clause `handle_event/3` on the
+admin page (and the same in five other pages), and one default helper instead of a
+chain of `||` in the config XML, the mailer, the agent mock and the Docker client.
+Where a function was already simple and simply untested, the answer was a test:
+the approve and comment pipeline endpoints, the stage-duration page, and
+`Args.all/2`, which turned up a live bug — it read the arguments of every MCP tool
+call by atom key, in a map JSON fills with strings, so six tools refused correct
+calls.
 
 ### Doc drift
 `docs/PARITY.md` opens by saying it is a map of intent rather than a status

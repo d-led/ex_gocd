@@ -40,45 +40,49 @@ defmodule ExGoCDWeb.AgentsLive do
 
   @impl true
   def handle_params(params, _uri, socket) do
-    agent_type =
-      case params["type"] do
-        "elastic" -> :elastic
-        "k8s_pods" -> :k8s_pods
-        _ -> :static
-      end
-
-    socket = assign(socket, agent_type: agent_type, selected_agents: MapSet.new())
+    agent_type = agent_type(params["type"])
 
     socket =
-      if agent_type == :k8s_pods do
-        socket
-        |> assign(tracked_pods: :loading, scheduler_events: [], cluster_statuses: :loading)
-        |> start_async(:load_tracked_pods, fn ->
-          profiles =
-            try do
-              ExGoCD.ClusterProfiles.list_profiles()
-            rescue
-              _ -> []
-            end
-
-          statuses =
-            try do
-              Map.new(profiles, fn p -> {p.id, ExGoCD.ClusterProfiles.check_connection(p)} end)
-            rescue
-              _ -> %{}
-            end
-
-          %{
-            pods: ExGoCD.ElasticAgentScheduler.tracked_pods(),
-            events: ExGoCD.ElasticAgentScheduler.recent_events(),
-            cluster_statuses: statuses
-          }
-        end)
-      else
-        socket
-      end
+      socket
+      |> assign(agent_type: agent_type, selected_agents: MapSet.new())
+      |> load_cluster_panels(agent_type)
 
     {:noreply, socket}
+  end
+
+  defp agent_type("elastic"), do: :elastic
+  defp agent_type("k8s_pods"), do: :k8s_pods
+  defp agent_type(_type), do: :static
+
+  # Only the pods tab needs the cluster, and it asks for it in the background.
+  defp load_cluster_panels(socket, :k8s_pods) do
+    socket
+    |> assign(tracked_pods: :loading, scheduler_events: [], cluster_statuses: :loading)
+    |> start_async(:load_tracked_pods, &cluster_panels/0)
+  end
+
+  defp load_cluster_panels(socket, _agent_type), do: socket
+
+  defp cluster_panels do
+    %{
+      pods: ExGoCD.ElasticAgentScheduler.tracked_pods(),
+      events: ExGoCD.ElasticAgentScheduler.recent_events(),
+      cluster_statuses: cluster_statuses()
+    }
+  end
+
+  # Cluster profiles and their connections are optional: an unavailable cluster
+  # shows as unreachable rather than breaking the page.
+  defp cluster_statuses do
+    Map.new(profiles(), &{&1.id, ExGoCD.ClusterProfiles.check_connection(&1)})
+  rescue
+    _error -> %{}
+  end
+
+  defp profiles do
+    ExGoCD.ClusterProfiles.list_profiles()
+  rescue
+    _error -> []
   end
 
   @impl true
@@ -900,16 +904,21 @@ defmodule ExGoCDWeb.AgentsLive do
 
   @text_sort_columns ~w(hostname working_dir operating_system ipaddress)
   @list_sort_columns ~w(resources environments)
-
-  defp sort_key(agent, column) when column in @text_sort_columns,
-    do: Map.get(agent, String.to_existing_atom(column)) || ""
-
-  defp sort_key(agent, column) when column in @list_sort_columns,
-    do: Enum.join(Map.get(agent, String.to_existing_atom(column)) || [], " ")
+  @sort_columns @text_sort_columns ++ @list_sort_columns
 
   defp sort_key(agent, "state"), do: status_text(Agents.effective_status(agent))
   defp sort_key(agent, "free_space"), do: agent.free_space || 0
-  defp sort_key(_agent, _), do: ""
+  defp sort_key(agent, column) when column in @sort_columns, do: field_sort_key(agent, column)
+  defp sort_key(_agent, _column), do: ""
+
+  # Resources and environments are lists; they sort as the words they hold.
+  defp field_sort_key(agent, column) do
+    case Map.get(agent, String.to_existing_atom(column)) do
+      nil -> ""
+      values when is_list(values) -> Enum.join(values, " ")
+      value -> value
+    end
+  end
 
   defp sort_icon_class(column, current_column, _order) when column != current_column,
     do: "fa fa-sort"

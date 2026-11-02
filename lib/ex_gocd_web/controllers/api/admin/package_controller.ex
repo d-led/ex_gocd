@@ -7,6 +7,9 @@ defmodule ExGoCDWeb.API.Admin.PackageController do
 
   alias ExGoCD.Packages
 
+  # A package may be posted wrapped in "package" or flat, and these fields may sit at either level.
+  @package_fields ~w(name package_repository_id package_type configuration)
+
   action_fallback ExGoCDWeb.FallbackController
 
   def index(conn, _params) do
@@ -23,23 +26,15 @@ defmodule ExGoCDWeb.API.Admin.PackageController do
   end
 
   def create(conn, %{"package" => package_params} = params) do
-    attrs =
-      Map.merge(
-        package_params,
-        Map.take(params, ~w(name package_repository_id package_type configuration))
-      )
-
-    case Packages.create_package(attrs) do
-      {:ok, package} ->
-        conn |> put_status(:created) |> json(package_json(package))
-
-      {:error, changeset} ->
-        conn |> put_status(:unprocessable_entity) |> json(%{errors: changeset_errors(changeset)})
-    end
+    package_params
+    |> Map.merge(Map.take(params, @package_fields))
+    |> create_package(conn)
   end
 
-  def create(conn, params) do
-    case Packages.create_package(params) do
+  def create(conn, params), do: create_package(params, conn)
+
+  defp create_package(attrs, conn) do
+    case Packages.create_package(attrs) do
       {:ok, package} ->
         conn |> put_status(:created) |> json(package_json(package))
 

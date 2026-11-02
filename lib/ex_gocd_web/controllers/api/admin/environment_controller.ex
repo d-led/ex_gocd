@@ -192,25 +192,28 @@ defmodule ExGoCDWeb.API.Admin.EnvironmentController do
 
   defp patch_env_vars(env, params) do
     case Map.get(params, "environment_variables") do
-      %{} = ops ->
-        to_add = Map.get(ops, "add", [])
-        to_remove = Map.get(ops, "remove", [])
-
-        filtered =
-          Enum.reject(env.environment_variables || [], fn var ->
-            n = Map.get(var, "name") || Map.get(var, :name)
-            n in to_remove
-          end)
-
-        filtered ++ to_add
-
-      list when is_list(list) ->
-        list
-
-      _ ->
-        env.environment_variables || []
+      %{} = ops -> apply_env_var_ops(env, ops)
+      list when is_list(list) -> list
+      _absent -> env.environment_variables || []
     end
   end
+
+  # A patch names what to drop and what to add; everything else stays.
+  defp apply_env_var_ops(env, ops) do
+    to_remove = Map.get(ops, "remove", [])
+
+    kept =
+      Enum.reject(
+        env.environment_variables || [],
+        &(&1 |> variable_name() |> in_removal?(to_remove))
+      )
+
+    kept ++ Map.get(ops, "add", [])
+  end
+
+  defp variable_name(variable), do: Map.get(variable, "name") || Map.get(variable, :name)
+
+  defp in_removal?(name, to_remove), do: name in to_remove
 
   defp translate_error({msg, opts}) do
     Enum.reduce(opts, msg, fn {key, value}, acc ->

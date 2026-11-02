@@ -2177,37 +2177,40 @@ defmodule ExGoCDWeb.AdminLive do
   end
 
   defp save_db_environment_ui(params, selected_pipelines, variables, socket) do
-    res =
-      if socket.assigns.env_modal_type == :create do
-        ExGoCD.Environments.create_environment(%{
-          "name" => params["name"],
-          "pipelines" => selected_pipelines,
-          "environment_variables" => variables
-        })
-      else
-        ExGoCD.Environments.update_environment(socket.assigns.selected_env, %{
-          "pipelines" => selected_pipelines,
-          "environment_variables" => variables
-        })
-      end
+    attrs = %{"pipelines" => selected_pipelines, "environment_variables" => variables}
 
-    case res do
-      {:ok, _env} ->
-        envs = fetch_environments_ui()
-
-        {:noreply,
-         socket
-         |> assign(:environments, envs)
-         |> assign(:show_env_modal, false)
-         |> put_flash(:info, "Environment saved successfully.")}
-
-      {:error, changeset} ->
-        error_msg =
-          Ecto.Changeset.traverse_errors(changeset, fn {msg, _} -> msg end)
-          |> Enum.map_join(", ", fn {k, v} -> "#{k}: #{v}" end)
-
-        {:noreply, put_flash(socket, :error, "Failed to save: #{error_msg}")}
+    case store_environment(socket, params, attrs) do
+      {:ok, _environment} -> environment_saved(socket)
+      {:error, changeset} -> environment_rejected(socket, changeset)
     end
+  end
+
+  defp store_environment(%{assigns: %{env_modal_type: :create}}, params, attrs) do
+    ExGoCD.Environments.create_environment(Map.put(attrs, "name", params["name"]))
+  end
+
+  defp store_environment(socket, _params, attrs) do
+    ExGoCD.Environments.update_environment(socket.assigns.selected_env, attrs)
+  end
+
+  defp environment_saved(socket) do
+    {:noreply,
+     socket
+     |> assign(:environments, fetch_environments_ui())
+     |> assign(:show_env_modal, false)
+     |> put_flash(:info, "Environment saved successfully.")}
+  end
+
+  defp environment_rejected(socket, changeset) do
+    {:noreply,
+     put_flash(socket, :error, "Failed to save: #{nested_changeset_message(changeset)}")}
+  end
+
+  # Environments carry nested pipeline changes, so their errors have to be walked.
+  defp nested_changeset_message(changeset) do
+    changeset
+    |> Ecto.Changeset.traverse_errors(fn {message, _opts} -> message end)
+    |> Enum.map_join(", ", fn {field, message} -> "#{field}: #{message}" end)
   end
 
   # --- UI Environments Helpers ---
