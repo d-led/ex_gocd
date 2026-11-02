@@ -969,3 +969,13 @@ Reconstructed from the two indexed sessions for this workspace
    build, vet and test clean.
 6. **Teach the XML the four plugin sections** if an external reader ever needs
    them, which first needs a way to know which plugin property is a secret.
+7. ~~**Make dialyzer and CRAP real gates.**~~ Done, both at zero: no type
+   warnings and nothing above 30 on either tree. What is left is the other half
+   of the same measurement — 67.5 % coverage with 27 modules at nothing. Raise
+   the floor in `mix.exs` as those modules get their first test, one module at a
+   time; `mix test.coverage` says which, and `elixir scripts/coverage_total.exs`
+   says where the total stands.
+8. **Look at the 29 serial test files.** 14 of them mutate `System.put_env`,
+   which is why they cannot run async. A process-scoped env helper would let
+   most of them run in parallel and would stop the suite from being order
+   dependent.
