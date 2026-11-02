@@ -193,32 +193,38 @@ defmodule ExGoCD.Mcp.Tools.Administration do
   end
 
   defp create_backup(_args, ctx) do
-    with :ok <- Auth.require_admin(ctx.user, "take a backup") do
-      case Backup.create() do
-        :ok ->
-          Events.backup_requested(ctx.user.username)
-
-          Tool.ok(
-            "A backup has started; it runs in the background. `gocd_backup_status` says how it went.",
-            %{"started" => true}
-          )
-
-        {:error, :already_running} ->
-          Tool.ok("A backup is already running.", %{"started" => false, "running" => true})
-      end
-    else
+    case Auth.require_admin(ctx.user, "take a backup") do
+      :ok -> start_backup(ctx)
       {:error, message} -> {:error, message}
+    end
+  end
+
+  defp start_backup(ctx) do
+    case Backup.create() do
+      :ok ->
+        Events.backup_requested(ctx.user.username)
+
+        Tool.ok(
+          "A backup has started; it runs in the background. `gocd_backup_status` says how it went.",
+          %{"started" => true}
+        )
+
+      {:error, :already_running} ->
+        Tool.ok("A backup is already running.", %{"started" => false, "running" => true})
     end
   end
 
   defp backup_status(_args, _ctx) do
     status = Backup.status()
 
-    Tool.ok(
-      "Backup: #{status.status}#{if status.message not in [nil, ""], do: " — #{status.message}", else: ""}",
-      %{"status" => status.status, "message" => status.message}
-    )
+    Tool.ok("Backup: #{status.status}#{message_suffix(status.message)}", %{
+      "status" => status.status,
+      "message" => status.message
+    })
   end
+
+  defp message_suffix(message) when message in [nil, ""], do: ""
+  defp message_suffix(message), do: " — #{message}"
 
   defp config_repos(_args, _ctx) do
     repositories = ConfigRepos.list_config_repos()

@@ -107,16 +107,15 @@ defmodule ExGoCD.Mcp.Tools.Config do
     )
   end
 
+  # One version is asked for by id; a listing is asked for by limit. Which of the
+  # two shapes the call is decides before the arguments are read.
   defp config_history(args, _ctx) do
-    with {:ok, limit} <- Args.integer(args, "limit", default: 20, min: 1, max: 200) do
-      case args["version"] do
-        nil ->
-          list_versions(limit)
+    if Map.has_key?(args, "version"), do: one_version(args), else: list_recent(args)
+  end
 
-        _present ->
-          one_version(args)
-      end
-    else
+  defp list_recent(args) do
+    case Args.integer(args, "limit", default: 20, min: 1, max: 200) do
+      {:ok, limit} -> list_versions(limit)
       {:error, message} -> {:error, message}
     end
   end

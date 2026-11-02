@@ -78,33 +78,39 @@ defmodule ExGoCDWeb.Mcp.OAuthController do
 
   @doc "GET /oauth/authorize — validate the request, then ask the reader."
   def authorize(conn, params) do
-    with {:ok, request} <- authorization_request(params) do
-      case Identity.session_user(conn) do
-        nil -> conn |> redirect(to: "/auth/login?return_to=" <> URI.encode_www_form(here(conn)))
-        user -> render_consent(conn, request, user)
-      end
-    else
+    case authorization_request(params) do
+      {:ok, request} -> consent_or_sign_in(conn, request)
       {:error, description} -> oauth_error(conn, 400, "invalid_request", description)
     end
   end
 
   @doc "POST /oauth/authorize — the reader's decision, approved or denied."
   def approve(conn, params) do
-    with {:ok, request} <- authorization_request(params) do
-      case Identity.session_user(conn) do
-        nil ->
-          oauth_error(
-            conn,
-            401,
-            "access_denied",
-            "The approval must come from a signed-in browser."
-          )
-
-        user ->
-          decide(conn, request, user, params["decision"])
-      end
-    else
+    case authorization_request(params) do
+      {:ok, request} -> decide_in_browser(conn, request, params["decision"])
       {:error, description} -> oauth_error(conn, 400, "invalid_request", description)
+    end
+  end
+
+  defp consent_or_sign_in(conn, request) do
+    case Identity.session_user(conn) do
+      nil -> conn |> redirect(to: "/auth/login?return_to=" <> URI.encode_www_form(here(conn)))
+      user -> render_consent(conn, request, user)
+    end
+  end
+
+  defp decide_in_browser(conn, request, decision) do
+    case Identity.session_user(conn) do
+      nil ->
+        oauth_error(
+          conn,
+          401,
+          "access_denied",
+          "The approval must come from a signed-in browser."
+        )
+
+      user ->
+        decide(conn, request, user, decision)
     end
   end
 
