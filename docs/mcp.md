@@ -138,17 +138,31 @@ they are the reason a pipeline is more than a list of stages:
 - **fast feedback** — a gate on the *first* stage means nothing is built or
   verified until a person clicks; most stages gated means the pipeline is a queue
   of approvals.
-- **parallel feedback** — three commands in one job run one after another; as
-  three jobs in the stage they run at once on different agents.
+- **parallel feedback** — three commands in one job run one after another, where
+  three jobs would run at once; and a stage of three jobs that only one agent can
+  take is a queue however it is drawn, so the review counts how many agents can
+  take those jobs at the same time and says when the stage runs in waves.
+- **explicit stages and jobs** — a shell one-liner (`bash -c …`) or several
+  commands in one job: the pipeline sees a single task, so a failure is an exit
+  code with no name, and nothing reports which step broke.
+- **releasable by the pipeline itself** — one that ends at a gate leaves the real
+  decision, and whatever proves the release good, outside it; a deploy that
+  belongs to no environment runs on the default pool with nothing to be promoted
+  through.
 - **as code** — a pipeline that belongs to no config repository exists only on
   this server: nobody reviews a change to it, and nothing restores it with the
   code it builds.
 - **clean environment** — a stage that unpacks a fetched artifact into a working
   directory it does not clean can pass on a file nothing rebuilt.
+- **a red pipeline comes first** — for what is configured, the review also reads
+  the last runs: two failures in a row is a red pipeline, which comes before
+  anything else on the team's list, because a failing pipeline is a statement
+  that the last change is not releasable.
 
-Every finding is static, a property of the configuration rather than of a run. It
-can say a pipeline is arranged so that a bad build would be noticed; it can never
-say a build is good.
+Everything but that last check is static — a property of the configuration. It
+can say a pipeline is arranged so that a bad build would be noticed, and that its
+parallel stages are only parallel if the fleet can widen them; it can never say a
+build is good.
 
 **Stages** — `gocd_stage`, `gocd_stage_history`, `gocd_approve_stage`,
 `gocd_cancel_stage`, `gocd_rerun_failed_jobs`.

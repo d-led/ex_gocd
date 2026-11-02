@@ -24,7 +24,7 @@ defmodule ExGoCD.Mcp.Tools.Delivery do
   database.
   """
 
-  alias ExGoCD.{DeliveryReview, Pipelines}
+  alias ExGoCD.{ConfigAudit, DeliveryReview, Pipelines}
   alias ExGoCD.Mcp.{Render, Tool}
   alias ExGoCD.Mcp.Tools.PipelineConfig
 
@@ -39,10 +39,14 @@ defmodule ExGoCD.Mcp.Tools.Delivery do
           "pipeline is supposed to have: build once (a deploy that rebuilds is not " <>
           "deploying what was tested), fast feedback (a gate on the first stage means " <>
           "feedback waits for a person), parallel feedback (tasks run one after another, " <>
-          "jobs do not), as code (a pipeline in no config repository exists only on this " <>
-          "server), and a clean environment (a fetch into a dirty directory can pass on " <>
-          "a file nothing rebuilt). Writes nothing. With no arguments it reviews the " <>
-          "configuration as it stands.",
+          "jobs do not — and a stage of jobs that only one agent can take is a queue " <>
+          "however it is drawn), explicit stages and jobs (a shell one-liner is a script " <>
+          "with a pipeline drawn around it), releasable by the pipeline itself (one that " <>
+          "ends at a gate leaves the real decision outside it; a deploy in no environment " <>
+          "runs on the default pool), as code, and a clean environment. For what is " <>
+          "configured it also reads the last runs: a pipeline that failed twice in a row " <>
+          "is a red pipeline, which comes before everything else. Writes nothing. With " <>
+          "no arguments it reviews the configuration as it stands.",
       "inputSchema" => %{
         "type" => "object",
         "properties" => %{
@@ -77,8 +81,8 @@ defmodule ExGoCD.Mcp.Tools.Delivery do
 
   defp review(args, _ctx) do
     with {:ok, definitions} <- definitions(args) do
-      configured = Pipelines.list_pipelines()
-      findings = reviewed(definitions, configured)
+      context = %{agents: ConfigAudit.fleet(), environments: ConfigAudit.environments()}
+      findings = reviewed(definitions, Pipelines.list_pipelines(), context)
       Tool.ok(review_text(findings, definitions), review_answer(findings))
     end
   end
@@ -93,13 +97,13 @@ defmodule ExGoCD.Mcp.Tools.Delivery do
     end
   end
 
-  defp reviewed([], configured), do: DeliveryReview.review([], configured)
+  defp reviewed([], configured, context), do: DeliveryReview.review([], configured, context)
 
-  defp reviewed(definitions, configured) do
+  defp reviewed(definitions, configured, context) do
     reviewed = definitions |> Enum.map(& &1.name) |> MapSet.new()
 
     definitions
-    |> DeliveryReview.review(configured)
+    |> DeliveryReview.review(configured, context)
     |> Enum.filter(&MapSet.member?(reviewed, &1.subject))
   end
 

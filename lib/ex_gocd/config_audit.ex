@@ -67,7 +67,7 @@ defmodule ExGoCD.ConfigAudit do
     pipelines = configured_pipelines()
     environments = pipeline_environments()
     jobs = Enum.flat_map(pipelines, &jobs_of(&1, environments))
-    verdicts = Enum.map(jobs, &{&1, fit(agents, &1.resources, &1.environments)})
+    verdicts = Enum.map(jobs, &{&1, fit_agents(agents, &1.resources, &1.environments)})
 
     findings =
       structural(pipelines) ++
@@ -108,7 +108,18 @@ defmodule ExGoCD.ConfigAudit do
   """
   @spec fit([String.t()], [String.t()]) :: %{runnable: [agent()], blocked: [map()]}
   def fit(resources, environments) when is_list(resources) and is_list(environments) do
-    fit(agents(), resources, environments)
+    fit_agents(agents(), resources, environments)
+  end
+
+  @doc """
+  The same question asked of a fleet the caller names, rather than the configured
+  one — enough to ask "could these jobs run at the same time?" about a fleet that
+  is not the one storing them.
+  """
+  @spec fit([String.t()], [String.t()], [agent()]) :: %{runnable: [agent()], blocked: [map()]}
+  def fit(resources, environments, agents)
+      when is_list(resources) and is_list(environments) and is_list(agents) do
+    fit_agents(agents, resources, environments)
   end
 
   @doc """
@@ -159,6 +170,18 @@ defmodule ExGoCD.ConfigAudit do
       do: "it is in #{quoted(agent)} and the pipeline is in #{quoted(pipeline)}"
 
   # ── the configuration as it stands ─────────────────────────────────
+
+  @doc """
+  The agents as these questions need them: their resources, the environments
+  they are in, and whether somebody switched them off. A design review asks the
+  same questions of a fleet it did not load itself.
+  """
+  @spec fleet() :: [agent()]
+  def fleet, do: agents()
+
+  @doc "Which environments each pipeline belongs to, by pipeline name."
+  @spec environments() :: %{String.t() => [String.t()]}
+  def environments, do: pipeline_environments()
 
   defp agents do
     Agents.list_agents()
@@ -213,7 +236,7 @@ defmodule ExGoCD.ConfigAudit do
 
   # ── the question ───────────────────────────────────────────────────
 
-  defp fit(agents, resources, environments) do
+  defp fit_agents(agents, resources, environments) do
     {runnable, blocked} =
       agents
       |> Enum.map(&{&1, obstacles(&1, resources, environments)})
@@ -407,7 +430,7 @@ defmodule ExGoCD.ConfigAudit do
   defp agent_findings(agent, jobs) do
     takes_something =
       Enum.any?(jobs, fn job ->
-        fit([agent], job.resources, job.environments).runnable != []
+        fit_agents([agent], job.resources, job.environments).runnable != []
       end)
 
     if takes_something do
@@ -426,7 +449,7 @@ defmodule ExGoCD.ConfigAudit do
   end
 
   defp job_verdict(agents, job) do
-    %{runnable: runnable, blocked: blocked} = fit(agents, job.resources, job.environments)
+    %{runnable: runnable, blocked: blocked} = fit_agents(agents, job.resources, job.environments)
 
     job
     |> Map.take([:pipeline, :stage, :job, :resources, :elastic_profile, :tasks])

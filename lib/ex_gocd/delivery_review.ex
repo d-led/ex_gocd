@@ -37,12 +37,17 @@ defmodule ExGoCD.DeliveryReview do
           message: String.t()
         }
 
+  alias ExGoCD.{ConfigAudit, Pipelines}
+
   @principles %{
     build_once: "Build once",
     fast_feedback: "Fast feedback",
     parallel_feedback: "Parallel feedback",
+    decomposition: "Explicit stages and jobs",
+    releasability: "Releasable by the pipeline itself",
     as_code: "As code",
-    clean_environment: "Clean environment"
+    clean_environment: "Clean environment",
+    broken_pipeline: "A red pipeline comes first"
   }
 
   @doc "The principle labels, for grouping an answer."
@@ -50,38 +55,59 @@ defmodule ExGoCD.DeliveryReview do
   def principles, do: @principles
 
   @doc """
-  Reviews pipelines described as definitions, or configured pipelines, or both.
+  Reviews pipelines described as definitions, or configured pipelines, or both,
+  against a fleet and a run history when the caller has them.
 
   Definitions are what `gocd_create_pipeline` reads; configured pipelines are the
-  rows, and only those can be judged on living in version control — a definition
-  about to be created is code by definition, and a row that no config repository
-  owns is a button press somebody made.
+  rows, and only those can be judged on living in version control or on their last
+  runs. `context` carries what a design question needs beyond the text:
+
+    * `:agents` — the fleet, so "these jobs run in parallel" can be checked
+      against how many agents can actually take them at once;
+    * `:environments` — which pipelines are in which environment, so a deploy
+      that belongs to none can be named.
+
+  With no context the review is about the design alone, and the checks that need
+  a fleet or a history say nothing rather than guessing.
   """
-  @spec review([map()], [map()]) :: [finding()]
-  def review(definitions, configured) do
+  @spec review([map()], [map()], map()) :: [finding()]
+  def review(definitions, configured, context) do
     views = Enum.map(configured, &configured_view/1) ++ Enum.map(definitions, &definition_view/1)
 
     findings =
       Enum.flat_map(views, fn view ->
         build_once(view, views) ++
           fast_feedback(view) ++
-          parallel_feedback(view) ++
+          parallel_feedback(view, context) ++
+          decomposition(view) ++
+          releasability(view, context) ++
           as_code(view) ++
-          clean_environment(view)
+          clean_environment(view) ++
+          broken_pipeline(view)
       end)
 
-    findings ++ publishes_nothing(views)
+    findings ++ publishes_nothing(views) ++ fleet_findings(views, context)
   end
 
-  @doc "The same, over the configuration as it stands."
+  @doc "The same, about the design only — no fleet, no run history."
+  @spec review([map()], [map()]) :: [finding()]
+  def review(definitions, configured), do: review(definitions, configured, %{})
+
+  @doc "The same, over the configuration as it stands, with its fleet and its last runs."
   @spec review() :: [finding()]
-  def review, do: review([], ExGoCD.Pipelines.list_pipelines())
+  def review do
+    review([], Pipelines.list_pipelines(), %{
+      agents: ConfigAudit.fleet(),
+      environments: ConfigAudit.environments()
+    })
+  end
 
   # ── the views ──────────────────────────────────────────────────────
 
   defp definition_view(definition) do
     %{
       name: definition.name,
+      id: nil,
       as_code?: true,
       materials: materials(definition.materials || []),
       stages: Enum.map(definition.stages || [], &stage_view/1)
@@ -91,6 +117,7 @@ defmodule ExGoCD.DeliveryReview do
   defp configured_view(pipeline) do
     %{
       name: pipeline.name,
+      id: pipeline.id,
       as_code?: pipeline.config_repo_id != nil,
       materials: materials(pipeline.materials || []),
       stages: Enum.map(pipeline.stages || [], &stage_view/1)
@@ -124,6 +151,7 @@ defmodule ExGoCD.DeliveryReview do
   defp job_view(job) do
     %{
       name: job.name,
+      resources: field(job, :resources) || [],
       artifacts: artifacts(job),
       tasks: Enum.map(field(job, :tasks) || [], &task_view/1)
     }
@@ -144,6 +172,7 @@ defmodule ExGoCD.DeliveryReview do
     %{
       type: field(task, :type),
       command: field(task, :command),
+      arguments: field(task, :arguments) || [],
       fetch: fetch_coordinates(task)
     }
   end
@@ -300,21 +329,233 @@ defmodule ExGoCD.DeliveryReview do
   end
 
   # Parallel feedback: a stage's jobs run at the same time; a job's tasks do not.
-  defp parallel_feedback(view) do
+  defp parallel_feedback(view, context) do
+    stage_capacity(view, context)
+  end
+
+  # Parallel in the design is only parallel in reality when the jobs can be given
+  # different agents: a stage of three docker jobs and one agent with docker is a
+  # queue with a parallel-looking diagram.
+  defp stage_capacity(view, %{agents: [_ | _] = agents} = context) do
     for stage <- view.stages,
-        [job] <- [stage.jobs],
-        tasks = Enum.count(job.tasks, &(&1.type == "exec")),
-        tasks >= 3 do
+        length(stage.jobs) > 1,
+        candidates = candidates(stage, view, agents, context),
+        Enum.all?(candidates, fn {_job, agents} -> agents != [] end),
+        not concurrent?(candidates) do
       finding(
         :parallel_feedback,
-        :serial_tasks,
+        :narrower_than_the_stage,
         view.name,
-        "`#{view.name}` / `#{stage.name}` / `#{job.name}` runs #{tasks} commands one " <>
-          "after another. Tasks are serial by definition, jobs are not: as #{tasks} " <>
-          "jobs of one task each they run at the same time on different agents."
+        "`#{view.name}` / `#{stage.name}` has #{length(stage.jobs)} jobs but at most " <>
+          "#{agents_needed(candidates)} agents can take them at the same time, so some " <>
+          "of them wait for the others: the stage takes as long as the waves it runs " <>
+          "in. Give more agents the resources those jobs ask for (#{resources_text(candidates)})."
       )
     end
   end
+
+  defp stage_capacity(_view, _context), do: []
+
+  defp fleet_findings(views, %{agents: [_] = [agent]}) do
+    [
+      finding(
+        :parallel_feedback,
+        :one_agent_fleet,
+        "the fleet",
+        "The fleet is one agent (`#{agent.hostname}`): every parallel stage in " <>
+          "#{length(views)} pipeline(s) is a queue, and the delivery time is the sum " <>
+          "of the parts rather than the longest of them."
+      )
+    ]
+  end
+
+  defp fleet_findings(_views, _context), do: []
+
+  defp candidates(stage, view, agents, context) do
+    environments = context |> Map.get(:environments, %{}) |> Map.get(view.name, [])
+
+    Enum.map(stage.jobs, fn job ->
+      {job, ConfigAudit.fit(job.resources, environments, agents).runnable}
+    end)
+  end
+
+  # Greedy, smallest candidate set first: exact for the shapes a stage has, and a
+  # fair answer to "can these run at once?" without pretending to be a scheduler.
+  defp concurrent?(candidates) do
+    candidates
+    |> Enum.sort_by(fn {_job, agents} -> length(agents) end)
+    |> Enum.reduce_while(MapSet.new(), fn {_job, agents}, taken ->
+      case Enum.find(agents, &(not MapSet.member?(taken, &1.hostname))) do
+        nil -> {:halt, :queued}
+        agent -> {:cont, MapSet.put(taken, agent.hostname)}
+      end
+    end)
+    |> then(fn
+      :queued -> false
+      _taken -> true
+    end)
+  end
+
+  # The number of agents the stage can actually keep busy at once.
+  defp agents_needed(candidates) do
+    candidates
+    |> Enum.sort_by(fn {_job, agents} -> length(agents) end)
+    |> Enum.reduce_while(MapSet.new(), fn {_job, agents}, taken ->
+      case Enum.find(agents, &(not MapSet.member?(taken, &1.hostname))) do
+        nil -> {:halt, MapSet.size(taken)}
+        agent -> {:cont, MapSet.put(taken, agent.hostname)}
+      end
+    end)
+    |> then(fn
+      count when is_integer(count) -> count
+      taken -> MapSet.size(taken)
+    end)
+  end
+
+  defp resources_text(candidates) do
+    candidates
+    |> Enum.flat_map(fn {job, _agents} -> job.resources end)
+    |> Enum.uniq()
+    |> Enum.sort()
+    |> case do
+      [] -> "(none)"
+      resources -> Enum.map_join(resources, ", ", &"`#{&1}`")
+    end
+  end
+
+  # A pipeline is not a script with stages drawn around it: the value of splitting
+  # the work is that a failure names the part that failed.
+  defp decomposition(view) do
+    undivided_work(view) ++ shell_one_liners(view)
+  end
+
+  # Several commands in one job: they run in sequence, and a failure names the job
+  # rather than the step — the two complaints are the same shape, so it is one
+  # finding.
+  defp undivided_work(view) do
+    for stage <- view.stages,
+        [job] <- [stage.jobs],
+        steps = Enum.count(job.tasks, &(&1.type == "exec")),
+        steps >= 2 do
+      finding(
+        :decomposition,
+        :undivided_work,
+        view.name,
+        "`#{view.name}` is one stage with one job that runs #{steps} commands in " <>
+          "sequence: a failure names the job, not the step that broke, and the commands " <>
+          "run one after another where #{steps} jobs would run at the same time on " <>
+          "different agents."
+      )
+    end
+  end
+
+  defp shell_one_liners(view) do
+    for stage <- view.stages, job <- stage.jobs, task <- job.tasks, shell_one_liner?(task) do
+      finding(
+        :decomposition,
+        :shell_one_liner,
+        view.name,
+        "`#{view.name}` / `#{stage.name}` / `#{job.name}` runs a shell one-liner " <>
+          "(`#{Path.basename(task.command)} -c …`): every command inside it is one task " <>
+          "as far as the pipeline is concerned, so a failure is an exit code with no " <>
+          "name. Make each command a task of its own."
+      )
+    end
+  end
+
+  defp shell_one_liner?(%{type: "exec", command: command, arguments: arguments})
+       when is_binary(command) do
+    Path.basename(command) in ["sh", "bash", "zsh", "dash", "ksh"] and "-c" in arguments
+  end
+
+  defp shell_one_liner?(_task), do: false
+
+  # Releasable by the pipeline itself: a pipeline that ends at a gate leaves the
+  # decision, and whatever proves the release good, outside itself.
+  defp releasability(view, context) do
+    last_stage_gate(view) ++ deploy_without_environment(view, context)
+  end
+
+  defp last_stage_gate(%{stages: [_ | _] = stages} = view) do
+    case List.last(stages) do
+      %{approval_type: "manual"} = stage ->
+        [
+          finding(
+            :releasability,
+            :verification_outside_pipeline,
+            view.name,
+            "`#{view.name}` ends at a gate (`#{stage.name}`): the pipeline stops and a " <>
+              "person decides, so whatever proves the release good — a QA regression, a " <>
+              "smoke test — happens outside it and leaves no record that it passed. Put " <>
+              "that verification in a stage, and passing the pipeline is the release " <>
+              "decision."
+          )
+        ]
+
+      _automatic ->
+        []
+    end
+  end
+
+  defp last_stage_gate(_view), do: []
+
+  defp deploy_without_environment(view, %{environments: environments})
+       when is_map(environments) do
+    cond do
+      view.id == nil ->
+        []
+
+      upstreams(view) == [] ->
+        []
+
+      Map.get(environments, view.name, []) != [] ->
+        []
+
+      true ->
+        [
+          finding(
+            :releasability,
+            :deploy_without_environment,
+            view.name,
+            "`#{view.name}` deploys but belongs to no environment, so the default pool " <>
+              "takes it: nothing isolates it from a build, and it has no environment of " <>
+              "its own to be promoted through. Put it in the environment it deploys to."
+          )
+        ]
+    end
+  end
+
+  defp deploy_without_environment(_view, _context), do: []
+
+  # A failing pipeline is falsification, not noise: two red runs in a row is the
+  # state a team is supposed to treat as the top priority.
+  defp broken_pipeline(%{id: nil}), do: []
+
+  defp broken_pipeline(%{id: id} = view) do
+    case Pipelines.list_pipeline_instances(id, limit: 2) do
+      [latest, previous] ->
+        if failed?(latest) and failed?(previous) do
+          [
+            finding(
+              :broken_pipeline,
+              :red_twice,
+              view.name,
+              "`#{view.name}` failed its last two runs (#{latest.counter} and " <>
+                "#{previous.counter}). A red pipeline is a statement that the last change " <>
+                "is not releasable: fix it or revert it before anything else, or it " <>
+                "becomes background noise nobody reads."
+            )
+          ]
+        else
+          []
+        end
+
+      _fewer ->
+        []
+    end
+  end
+
+  defp failed?(instance), do: Enum.any?(instance.stage_instances || [], &(&1.result == "Failed"))
 
   defp as_code(view) do
     if view.as_code? do

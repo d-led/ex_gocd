@@ -9,7 +9,7 @@ defmodule ExGoCD.DeliveryReviewTest do
 
   import ExGoCD.PipelinesFixtures
 
-  alias ExGoCD.DeliveryReview
+  alias ExGoCD.{DeliveryReview, Pipelines}
 
   describe "build once" do
     test "a deploy that checks out the build's repository can rebuild what it built" do
@@ -74,8 +74,8 @@ defmodule ExGoCD.DeliveryReviewTest do
         ]
       }
 
-      assert message(review([pipeline]), :serial_tasks) =~ "runs 3 commands one after another"
-      assert message(review([pipeline]), :serial_tasks) =~ "as 3 jobs of one task each"
+      assert message(review([pipeline]), :undivided_work) =~ "runs 3 commands in sequence"
+      assert message(review([pipeline]), :undivided_work) =~ "would run at the same time"
     end
 
     test "three jobs in the stage run at the same time" do
@@ -89,7 +89,7 @@ defmodule ExGoCD.DeliveryReviewTest do
         ]
       }
 
-      assert :serial_tasks not in codes(review([pipeline]))
+      assert :undivided_work not in codes(review([pipeline]))
     end
   end
 
@@ -121,9 +121,169 @@ defmodule ExGoCD.DeliveryReviewTest do
     end
   end
 
+  describe "explicit stages and jobs" do
+    test "a shell one-liner hides every command it runs inside one task" do
+      pipeline = %{
+        name: "compile",
+        materials: [git(app())],
+        stages: [
+          stage("build",
+            jobs: [
+              job("everything",
+                tasks: [
+                  %{
+                    type: "exec",
+                    command: "bash",
+                    arguments: ["-c", "make && make test"],
+                    run_if: "passed"
+                  }
+                ]
+              )
+            ]
+          )
+        ]
+      }
+
+      assert message(review([pipeline]), :shell_one_liner) =~
+               "runs a shell one-liner (`bash -c …`)"
+    end
+
+    test "a command that is a program, not a shell, is fine" do
+      pipeline = %{
+        name: "compile",
+        materials: [git(app())],
+        stages: [stage("build", jobs: [job("compile", tasks: [exec("make")]), job("lint")])]
+      }
+
+      assert :shell_one_liner not in codes(review([pipeline]))
+    end
+  end
+
+  describe "releasable by the pipeline itself" do
+    test "a pipeline that ends at a gate leaves the real decision outside" do
+      pipeline = %{
+        name: "release",
+        materials: [dependency("build")],
+        stages: [
+          stage("verify", jobs: [job("test")]),
+          stage("sign-off", approval: "manual", jobs: [job("ship")])
+        ]
+      }
+
+      assert message(review([pipeline]), :verification_outside_pipeline) =~
+               "ends at a gate (`sign-off`)"
+    end
+
+    test "a gate before the last stage is a release decision inside the pipeline" do
+      pipeline = %{
+        name: "release",
+        materials: [dependency("build")],
+        stages: [
+          stage("verify", jobs: [job("test")]),
+          stage("approve", approval: "manual", jobs: [job("check")]),
+          stage("deploy", jobs: [job("ship")])
+        ]
+      }
+
+      assert :verification_outside_pipeline not in codes(review([pipeline]))
+    end
+  end
+
+  describe "parallel feedback against the fleet" do
+    test "three docker jobs and one docker agent is a queue, however it is drawn" do
+      pipeline = three_docker_jobs()
+
+      findings = DeliveryReview.review([pipeline], [], %{agents: [agent("go-1", ["docker"])]})
+
+      assert message(findings, :narrower_than_the_stage) =~
+               "has 3 jobs but at most 1 agents can take them at the same time"
+    end
+
+    test "three docker jobs and three docker agents is what parallel looks like" do
+      pipeline = three_docker_jobs()
+
+      agents = [agent("go-1", ["docker"]), agent("go-2", ["docker"]), agent("go-3", ["docker"])]
+
+      assert :narrower_than_the_stage not in codes(
+               DeliveryReview.review([pipeline], [], %{agents: agents})
+             )
+    end
+
+    test "a fleet of one agent says so once, not once per stage" do
+      findings =
+        DeliveryReview.review([build(), deploy(materials: [dependency("build")])], [], %{
+          agents: [agent("go-1", ["docker"])]
+        })
+
+      assert [finding] = Enum.filter(findings, &(&1.code == :one_agent_fleet))
+      assert finding.message =~ "every parallel stage"
+    end
+  end
+
+  describe "a deploy without an environment" do
+    test "runs on the default pool and has nowhere to be promoted through" do
+      {pipeline, _stage, _jobs} = insert_pipeline_with_jobs("deploy", 1)
+      attach_dependency(pipeline, "build")
+
+      findings = DeliveryReview.review([], Pipelines.list_pipelines(), %{environments: %{}})
+
+      assert message(findings, :deploy_without_environment) =~
+               "deploys but belongs to no environment"
+    end
+  end
+
+  describe "a pipeline left red" do
+    test "two failed runs in a row is not background noise" do
+      {pipeline, _stage, _jobs} = insert_pipeline_with_jobs("build", 1)
+
+      for counter <- [1, 2] do
+        instance = insert_pipeline_instance(pipeline, counter)
+        insert_stage_instance(instance.id, "build", state: "Completed", result: "Failed")
+      end
+
+      findings = DeliveryReview.review([], Pipelines.list_pipelines(), %{})
+
+      assert message(findings, :red_twice) =~ "failed its last two runs"
+    end
+  end
+
   # ── the world ──────────────────────────────────────────────────────
 
   defp review(definitions), do: DeliveryReview.review(definitions, [])
+
+  defp agent(hostname, resources) do
+    %{uuid: hostname, hostname: hostname, resources: resources, environments: [], disabled: false}
+  end
+
+  defp three_docker_jobs do
+    %{
+      name: "test",
+      materials: [dependency("build")],
+      stages: [
+        stage("test",
+          jobs: [
+            job("unit", resources: ["docker"]),
+            job("integration", resources: ["docker"]),
+            job("acceptance", resources: ["docker"])
+          ]
+        )
+      ]
+    }
+  end
+
+  defp attach_dependency(pipeline, upstream) do
+    material =
+      ExGoCD.Repo.insert!(
+        %ExGoCD.Pipelines.Material{}
+        |> ExGoCD.Pipelines.Material.changeset(%{type: "dependency", url: upstream})
+      )
+
+    pipeline
+    |> ExGoCD.Repo.preload(:materials)
+    |> Ecto.Changeset.change()
+    |> Ecto.Changeset.put_assoc(:materials, [material])
+    |> ExGoCD.Repo.update!()
+  end
 
   defp codes(findings), do: Enum.map(findings, & &1.code)
 
@@ -187,6 +347,7 @@ defmodule ExGoCD.DeliveryReviewTest do
     %{
       name: name,
       artifacts: Keyword.get(opts, :artifacts, []),
+      resources: Keyword.get(opts, :resources, []),
       tasks: Keyword.get(opts, :tasks, [exec("make")])
     }
   end
