@@ -42,8 +42,8 @@ defmodule ExGoCD.ConfigRepos.GitHubActionsTranslator do
 
   defp translate_attrs(ir, selections) do
     prefix = Map.get(selections, :pipeline_name_prefix, "")
-    selected_jobs = get_in(selections, [:selected_jobs, "included"])
-    selected_triggers = get_in(selections, [:selected_triggers, "included"])
+    selected_jobs = TranslatorHelpers.chosen(selections, :selected_jobs)
+    selected_triggers = TranslatorHelpers.chosen(selections, :selected_triggers)
 
     stages = build_translate_stages(ir, selected_jobs)
     materials = build_materials(ir, selected_triggers)
@@ -136,7 +136,7 @@ defmodule ExGoCD.ConfigRepos.GitHubActionsTranslator do
 
   defp execute_act_attrs(ir, selections) do
     prefix = Map.get(selections, :pipeline_name_prefix, "")
-    selected_jobs = get_in(selections, [:selected_jobs, "included"])
+    selected_jobs = TranslatorHelpers.chosen(selections, :selected_jobs)
 
     stages =
       ir.jobs

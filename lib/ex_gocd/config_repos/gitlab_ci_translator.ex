@@ -40,7 +40,7 @@ defmodule ExGoCD.ConfigRepos.GitLabCITranslator do
 
   defp translate_attrs(ir, selections) do
     prefix = Map.get(selections, :pipeline_name_prefix, "")
-    selected_jobs = get_in(selections, [:selected_jobs, "included"])
+    selected_jobs = TranslatorHelpers.chosen(selections, :selected_jobs)
 
     stages = build_stages(ir, selected_jobs)
 
@@ -123,7 +123,7 @@ defmodule ExGoCD.ConfigRepos.GitLabCITranslator do
 
   defp execute_gitlab_attrs(ir, selections) do
     prefix = Map.get(selections, :pipeline_name_prefix, "")
-    selected_jobs = get_in(selections, [:selected_jobs, "included"])
+    selected_jobs = TranslatorHelpers.chosen(selections, :selected_jobs)
 
     stages =
       ir.jobs

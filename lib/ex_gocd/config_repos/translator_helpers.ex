@@ -26,6 +26,25 @@ defmodule ExGoCD.ConfigRepos.TranslatorHelpers do
   end
 
   @doc """
+  Reads what a selection chose from one of its lists.
+
+  A selection's lists reach here in two shapes: the list itself, as a
+  `ConfigRepoFileSelection` stores it, or a map with an `"included"` key. Either
+  way a list that names nothing means nothing was chosen, and a file nobody chose
+  anything from is translated whole rather than into nothing.
+  """
+  def chosen(selections, key) do
+    case Map.get(selections, key) do
+      nil -> nil
+      %{"included" => included} -> named(included)
+      list when is_list(list) -> named(list)
+    end
+  end
+
+  defp named([]), do: nil
+  defp named(names), do: names
+
+  @doc """
   Builds a skip-mode attributes map with only the pipeline name and empty stages/materials.
   """
   def skip_attrs(ir, selections) do
