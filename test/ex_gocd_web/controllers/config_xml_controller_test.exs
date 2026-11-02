@@ -6,6 +6,12 @@ defmodule ExGoCDWeb.ConfigXmlControllerTest do
   alias ExGoCD.Repo
   alias ExGoCD.SecretConfigs.SecretConfig
 
+  test "the admin page renders", %{conn: conn} do
+    body = conn |> get(~p"/admin/config_xml") |> html_response(200)
+
+    assert body =~ "Config XML"
+  end
+
   describe "reverting to a version" do
     test "restores what the XML cannot carry, from the same version's JSON", %{conn: conn} do
       {:ok, _secret} = create_secret_config("vault-terraform")

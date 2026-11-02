@@ -1,4 +1,4 @@
-# Quickstart: a server, a database, one connected agent and the demo pipelines.
+# Quickstart: a server, a database, a fleet of agents and the demo pipelines.
 #
 #   curl -fsSLO https://raw.githubusercontent.com/d-led/ex_gocd/main/docker-compose.quickstart.yml
 #   docker compose -f docker-compose.quickstart.yml up --build
@@ -66,21 +66,48 @@ services:
       retries: 30
       start_period: 90s
 
-  agent:
-    build: ./agent
+  # The agent variants published from this repository (see
+  # `.github/workflows/elixir.yml`): each carries the toolchains its name says.
+  # A pipeline asks for a resource and the agent that has it takes the job, so a
+  # fleet runs several pipelines at once instead of one agent walking through
+  # them. `docker` is deliberately nobody's resource — no variant can run docker,
+  # and an agent that advertises what it cannot deliver gets the job and fails it.
+  agent-elixir:
+    image: ghcr.io/d-led/ex_gocd-agent:rust-elixir
     depends_on:
       server:
         condition: service_healthy
     environment:
       AGENT_SERVER_URL: http://server:4000
       EX_GOCD_DEMO_COOKIE: ex-gocd-demo-cookie
-      # The demo pipelines ask for these; a job runs here when they match.
-      # No `docker`: this image has no docker CLI and no daemon socket, and an
-      # agent that advertises what it cannot deliver gets the job and fails it.
-      # Jobs that need docker stay queued, which is what GoCD does when no agent
-      # can take them.
-      AGENT_AUTO_REGISTER_RESOURCES: elixir,postgres
-      AGENT_WORK_DIR: /agent-work
+      AGENT_AUTO_REGISTER_RESOURCES: elixir,erlang,rust,postgres
+      AGENT_WORK_DIR: /agent-work/elixir
+    volumes:
+      - agent-work:/agent-work
+
+  agent-go:
+    image: ghcr.io/d-led/ex_gocd-agent:golang
+    depends_on:
+      server:
+        condition: service_healthy
+    environment:
+      AGENT_SERVER_URL: http://server:4000
+      EX_GOCD_DEMO_COOKIE: ex-gocd-demo-cookie
+      AGENT_AUTO_REGISTER_RESOURCES: go,golang
+      AGENT_WORK_DIR: /agent-work/go
+    volumes:
+      - agent-work:/agent-work
+
+  agent-node:
+    image: ghcr.io/d-led/ex_gocd-agent:standard
+    depends_on:
+      server:
+        condition: service_healthy
+    environment:
+      AGENT_SERVER_URL: http://server:4000
+      EX_GOCD_DEMO_COOKIE: ex-gocd-demo-cookie
+      AGENT_AUTO_REGISTER_RESOURCES: node,nodejs,python
+      AGENT_WORK_DIR: /agent-work/node
     volumes:
       - agent-work:/agent-work
 

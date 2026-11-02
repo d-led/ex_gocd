@@ -5,7 +5,7 @@ agent in Go. Same pipeline model, same remoting protocol the GoCD agent speaks.
 
 ## Run it
 
-Server, database, one connected agent and demo pipelines, in open mode — nobody logs
+Server, database, a fleet of agents and demo pipelines, in open mode — nobody logs
 in:
 
 ```bash
@@ -22,9 +22,18 @@ endpoint answers):
 ```bash
 scripts/demo-smoke.sh
 ```
-The stack is Postgres 18, the server, and the Go agent, which registers itself and
-picks up work. `EX_GOCD_SKIP_USER_SEED=1` is what keeps open mode: the seed script's
+The stack is Postgres 18, the server, and the published agent variants —
+`rust-elixir`, `golang` and `standard`, the images `.github/workflows/elixir.yml`
+builds — each advertising the resources its toolchains can serve, so several
+pipelines run at once. `EX_GOCD_SKIP_USER_SEED=1` is what keeps open mode: the seed script's
 demo users include an admin, and an admin in the database turns open mode off.
+
+A pipeline that asks for `docker` waits: no agent variant can run docker, and an
+agent that advertises what it cannot deliver would take the job and fail it.
+The pipelines themselves are this repository's own (`pipeline.gocd.yaml` via a
+config repo), so the ones whose jobs want a full CI toolchain run as far as the
+agent's toolchain allows — the demo is about scheduling work onto a fleet, not
+about a green board.
 
 Start from zero again with `docker compose -f docker-compose.quickstart.yml down -v`.
 

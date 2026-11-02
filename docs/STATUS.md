@@ -239,6 +239,12 @@ boot, so a broken demo fails on `up` instead of serving an empty 500 page, and
 `scripts/demo-smoke.sh` asks the running stack whether the page renders, an agent
 is registered, pipelines exist and the MCP endpoint answers.
 
+The quickstart runs the published agent variants (`rust-elixir`, `golang`,
+`standard`) rather than one built agent — the images `elixir.yml` already
+publishes for exactly this. Each advertises the resources its toolchain serves, so
+the fleet runs several pipelines at once; `docker` belongs to no variant, so a
+docker job waits instead of landing on an agent that cannot run it.
+
 ### Fixed: two modules at 0 % were a second copy of live controllers
 
 Coverage listed `ExGoCDWeb.BackupConfigController` and `ExGoCDWeb.BackupController`
