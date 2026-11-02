@@ -43,6 +43,66 @@ defmodule ExGoCD.DockerElasticAgentSchedulerTest do
     end
   end
 
+  describe "the tick, with the Docker client replaced" do
+    defmodule FakeDocker do
+      @moduledoc false
+      def stop_container(cid, opts), do: report({:stop, cid, opts})
+      def remove_container(cid, opts), do: report({:remove, cid, opts})
+      def default_socket, do: "unix:///fake.sock"
+
+      def create_container(_image, _env, _opts) do
+        report({:create, nil, []})
+        {:error, :unused}
+      end
+
+      def start_container(cid, opts), do: report({:start, cid, opts})
+
+      defp report(call) do
+        if pid = Process.get(:docker_reporter), do: send(pid, {:docker, call})
+        :ok
+      end
+    end
+
+    setup do
+      previous = Application.get_env(:ex_gocd, :docker_client)
+      Application.put_env(:ex_gocd, :docker_client, FakeDocker)
+      Process.put(:docker_reporter, self())
+      on_exit(fn -> Application.put_env(:ex_gocd, :docker_client, previous) end)
+      :ok
+    end
+
+    test "a container in error is stopped, removed and forgotten" do
+      state = %{
+        containers: %{"abcd1234efgh" => %{error: true, docker_socket: "unix:///x.sock"}},
+        events: [],
+        tick_timer: nil
+      }
+
+      assert {:noreply, new_state} = Scheduler.handle_info(:tick, state)
+
+      assert_received {:docker, {:stop, "abcd1234efgh", [docker_socket: "unix:///x.sock"]}}
+      assert_received {:docker, {:remove, "abcd1234efgh", [docker_socket: "unix:///x.sock"]}}
+      assert new_state.containers == %{}
+      assert [%{level: :info, message: message} | _] = new_state.events
+      assert message =~ "Deleted idle/error container"
+    end
+
+    test "a healthy new container is left alone" do
+      state = %{
+        containers: %{
+          "healthy12345" => %{error: false, created_at: DateTime.utc_now(), docker_socket: nil}
+        },
+        events: [],
+        tick_timer: nil
+      }
+
+      assert {:noreply, new_state} = Scheduler.handle_info(:tick, state)
+
+      refute_received {:docker, {:stop, _, _}}
+      assert Map.has_key?(new_state.containers, "healthy12345")
+    end
+  end
+
   describe "a scheduler with nothing running" do
     test "tracks no containers" do
       assert Scheduler.tracked_containers() == %{}

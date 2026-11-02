@@ -32,6 +32,11 @@ defmodule ExGoCD.DockerElasticAgentScheduler do
 
   @docker_plugin_id "cd.go.contrib.elastic-agent.docker"
 
+  @doc false
+  # The Docker client this scheduler drives. Every decision the tick makes ends in
+  # one of its calls, so a test replaces it instead of needing a daemon.
+  def docker, do: Application.get_env(:ex_gocd, :docker_client, Docker)
+
   # ── Client API ────────────────────────────────────────────────────────────
 
   def start_link(opts \\ []) do
@@ -79,8 +84,8 @@ defmodule ExGoCD.DockerElasticAgentScheduler do
     state =
       Enum.reduce(state.containers, state, fn {cid, info}, acc ->
         socket = info[:docker_socket]
-        Docker.stop_container(cid, docker_socket: socket)
-        Docker.remove_container(cid, docker_socket: socket)
+        docker().stop_container(cid, docker_socket: socket)
+        docker().remove_container(cid, docker_socket: socket)
         acc
       end)
 
@@ -166,7 +171,7 @@ defmodule ExGoCD.DockerElasticAgentScheduler do
       image = pick_image(profile, profile_resources)
       env = build_env(%{job: label, resources: profile_resources})
 
-      case Docker.create_container(image, env,
+      case docker().create_container(image, env,
              docker_socket: socket,
              memory: ElasticAgentProfile.max_memory(profile),
              cpu: ElasticAgentProfile.max_cpu(profile),
@@ -174,7 +179,7 @@ defmodule ExGoCD.DockerElasticAgentScheduler do
              labels: %{"profile" => profile.name}
            ) do
         {:ok, container_id} ->
-          Docker.start_container(container_id, docker_socket: socket)
+          docker().start_container(container_id, docker_socket: socket)
 
           track_container(acc, container_id, profile, %{
             job: label,
@@ -205,14 +210,14 @@ defmodule ExGoCD.DockerElasticAgentScheduler do
         socket = docker_socket_for_profile(profile)
         env = build_env(job)
 
-        case Docker.create_container(image, env,
+        case docker().create_container(image, env,
                docker_socket: socket,
                memory: ElasticAgentProfile.max_memory(profile),
                cpu: ElasticAgentProfile.max_cpu(profile),
                labels: %{"profile" => profile.name}
              ) do
           {:ok, container_id} ->
-            Docker.start_container(container_id, docker_socket: socket)
+            docker().start_container(container_id, docker_socket: socket)
             track_container(state, container_id, profile, Map.put(job, :docker_socket, socket))
 
           {:error, reason} ->
@@ -230,8 +235,8 @@ defmodule ExGoCD.DockerElasticAgentScheduler do
     state =
       Enum.reduce(to_delete, state, fn {cid, info}, acc ->
         socket = info[:docker_socket]
-        Docker.stop_container(cid, docker_socket: socket)
-        Docker.remove_container(cid, docker_socket: socket)
+        docker().stop_container(cid, docker_socket: socket)
+        docker().remove_container(cid, docker_socket: socket)
         log_event(acc, :info, "Deleted idle/error container: #{String.slice(cid, 0, 12)}")
       end)
 
@@ -320,7 +325,7 @@ defmodule ExGoCD.DockerElasticAgentScheduler do
   defp docker_socket_for_profile(profile) do
     # Docker profiles don't have a cluster profile — they use local Docker socket.
     # The socket can be overridden via the profile properties.
-    Map.get(profile.properties || %{}, "DockerSocket") || Docker.default_socket()
+    Map.get(profile.properties || %{}, "DockerSocket") || docker().default_socket()
   end
 
   defp enabled? do
