@@ -2392,7 +2392,7 @@ defmodule ExGoCDWeb.AdminLive do
     <div class="space-y-6">
       <!-- Search / Filter Panel -->
       <div class="bg-white rounded border border-[#d6e0e2] p-5 shadow-sm">
-        <form phx-change="search_audit_log" class="space-y-4">
+        <form id="audit-log-filters" phx-change="search_audit_log" class="space-y-4">
           <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
             <i class="fa fa-filter mr-1.5 text-[#943a9e]"></i>Filter Audit Events
           </h3>

@@ -1,4 +1,12 @@
 defmodule ExGoCDWeb.PluginLive do
+  @moduledoc """
+  The plugin dashboard: which agent-selector plugin is registered, and the
+  scheduling decisions the sample plugin publishes from its own node.
+
+  The decisions panel needs the sample scheduling plugin to be part of the
+  cluster. Without it the panel is empty, which is the state of a deployment
+  that uses no plugins at all.
+  """
   use ExGoCDWeb, :live_view
 
   @impl true
@@ -7,11 +15,13 @@ defmodule ExGoCDWeb.PluginLive do
       :timer.send_interval(5000, :refresh)
     end
 
+    plugin = ExGoCD.Plugin.Registry.get(:agent_selector)
+
     socket =
       socket
       |> assign(:decisions, fetch_decisions())
-      |> assign(:plugin_name, get_plugin_name())
-      |> assign(:plugin_status, "active")
+      |> assign(:plugin_name, plugin_name(plugin))
+      |> assign(:plugin_status, if(plugin, do: "active", else: "none"))
 
     {:ok, socket}
   end
@@ -39,12 +49,8 @@ defmodule ExGoCDWeb.PluginLive do
     _ -> []
   end
 
-  defp get_plugin_name do
-    case ExGoCD.Plugin.Registry.get(:agent_selector) do
-      nil -> "No agent_selector plugin registered"
-      mod -> "#{inspect(mod)} (AgentSelector)"
-    end
-  end
+  defp plugin_name(nil), do: "No agent_selector plugin registered"
+  defp plugin_name(mod), do: "#{inspect(mod)} (AgentSelector)"
 
   @impl true
   def render(assigns) do
@@ -59,10 +65,24 @@ defmodule ExGoCDWeb.PluginLive do
         </div>
         <div class="flex items-center gap-4">
           <span class="flex items-center gap-2 text-sm">
-            <span class="h-2.5 w-2.5 rounded-full bg-green-500 animate-pulse"></span>
-            {@plugin_name}
+            <span class={[
+              "h-2.5 w-2.5 rounded-full",
+              if(@plugin_status == "active",
+                do: "bg-green-500 animate-pulse",
+                else: "bg-slate-300"
+              )
+            ]}></span>
+            <span id="plugin-name">{@plugin_name}</span>
             <span class="text-slate-400">·</span>
-            <span class="text-green-600 font-medium">{@plugin_status}</span>
+            <span
+              id="plugin-status"
+              class={[
+                "font-medium",
+                if(@plugin_status == "active", do: "text-green-600", else: "text-slate-500")
+              ]}
+            >
+              {@plugin_status}
+            </span>
           </span>
           <span class="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded">
             /admin/plugins

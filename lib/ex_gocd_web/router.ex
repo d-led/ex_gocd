@@ -147,6 +147,13 @@ defmodule ExGoCDWeb.Router do
       live "/go/admin/elastic_agents", AdminK8sLive, :index
       live "/admin/observability", AdminOtelLive, :index
       live "/go/admin/observability", AdminOtelLive, :index
+
+      # One segment under /admin, like the tabs AdminLive serves, so it has to be
+      # declared before the :tab catch-all below; a route that comes later is
+      # never reached.
+      live "/admin/plugins", PluginLive, :index
+      live "/go/admin/plugins", PluginLive, :index
+
       live "/admin", AdminLive, :index
       live "/admin/:tab", AdminLive, :index
       live "/go/admin", AdminLive, :index
@@ -174,14 +181,6 @@ defmodule ExGoCDWeb.Router do
       live "/admin/config_repos/:id/edit", ExternalCIRepoWizardLive, :edit
       live "/go/admin/config_repos/new", ExternalCIRepoWizardLive, :index
       live "/go/admin/config_repos/:id/edit", ExternalCIRepoWizardLive, :edit
-
-      # Audit log
-      live "/admin/audit_log", AuditLogLive, :index
-
-      # Plugin demo dashboard
-      live "/admin/plugins", PluginLive, :index
-      live "/go/admin/plugins", PluginLive, :index
-      live "/go/admin/audit_log", AuditLogLive, :index
 
       # Config XML export/import
       get "/admin/config_xml", ConfigXmlController, :index

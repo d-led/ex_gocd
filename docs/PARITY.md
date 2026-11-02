@@ -5,8 +5,8 @@
 > gaps resolved" claim from the 2026-07-08 audit is not repeated here, because
 > nothing in the code checks it.
 >
-> Counts last measured 2026-11-02: 1135 tests (`mix test`), 79 controller files
-> under `lib/ex_gocd_web/controllers/` (`find … -name '*.ex' | wc -l`), 22
+> Counts last measured 2026-11-02: 1140 tests (`mix test`), 79 controller files
+> under `lib/ex_gocd_web/controllers/` (`find … -name '*.ex' | wc -l`), 21
 > LiveView modules under `lib/ex_gocd_web/live/`, 22 modules calling
 > `use GenServer`, 45 migrations in `priv/repo/migrations/`. Each count means what
 > the command beside it says; none of them is a claim about behaviour.
@@ -126,7 +126,7 @@ via `ExGoCD.Plugin.Registry`, using libcluster gossip and `PLUGIN_SECRET`.
 | Console Streaming | ✅ append API | ✅ JobDetailsLive | ✅ pub_sub.ex |
 | Artifacts | ✅ upload/download/browse | ✅ JobDetailsLive artifacts | ✅ artifact_cleanup.ex |
 | Test Reports | ✅ JUnit/NUnit/XUnit → DB | ✅ JobDetailsLive tests tab | ✅ test_report.ex |
-| Audit Log | — | ✅ AuditLogLive (search/filter) | ✅ audit_log.ex |
+| Audit Log | — | ✅ AdminLive's `audit_log` tab (search/filter) | ✅ audit_log.ex |
 | Scheduling Admin | — | ✅ AdminSchedulingLive | ✅ scheduling_checker.ex |
 | External CI Wizard | — | ✅ ExternalCIRepoWizardLive | ✅ config_repos/parser.ex |
 | Clustering | — | ✅ AdminLive cluster tab | ✅ libcluster+Horde |
