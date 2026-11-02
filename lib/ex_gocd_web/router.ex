@@ -306,12 +306,17 @@ defmodule ExGoCDWeb.Router do
 
     post "/stages/:pipeline_name/:pipeline_counter/:stage_name/cancel", StageController, :cancel
 
-    # User management (GoCD users v3)
-    get "/users", UserController, :index
-    get "/users/:username", UserController, :show
-    post "/users", UserController, :create
-    patch "/users/:username", UserController, :update
-    delete "/users/:username", UserController, :delete
+    # User management (GoCD users v3). Whoever may change this list may make
+    # themselves an admin, so it is admin-only — as in GoCD.
+    scope "/users" do
+      pipe_through :admin_api
+
+      get "/", UserController, :index
+      get "/:username", UserController, :show
+      post "/", UserController, :create
+      patch "/:username", UserController, :update
+      delete "/:username", UserController, :delete
+    end
 
     # Analytics
     get "/analytics", AnalyticsController, :index
@@ -513,12 +518,17 @@ defmodule ExGoCDWeb.Router do
     # Encryption API
     post "/admin/encrypt", Admin.EncryptionController, :encrypt
 
-    # User management (GoCD users v3)
-    get "/users", UserController, :index
-    get "/users/:username", UserController, :show
-    post "/users", UserController, :create
-    patch "/users/:username", UserController, :update
-    delete "/users/:username", UserController, :delete
+    # User management (GoCD users v3). Admin-only, for the reason given in the
+    # /api scope above.
+    scope "/users" do
+      pipe_through :admin_api
+
+      get "/", UserController, :index
+      get "/:username", UserController, :show
+      post "/", UserController, :create
+      patch "/:username", UserController, :update
+      delete "/:username", UserController, :delete
+    end
   end
 
   # GoCD-prefixed admin configuration APIs (parity: /go/api/admin/*)
