@@ -654,41 +654,40 @@ defmodule ExGoCDWeb.JobDetailsLive do
     state = job_instance[:state] || "Unknown"
     result = job_instance[:result] || "Unknown"
 
-    cond do
-      state == "Scheduled" and result == "Failed" ->
-        "Job was scheduled but never started. Check if an agent matching the required resources (#{job_resource_summary(job_instance)}) is available and enabled."
-
-      state == "Assigned" and result == "Failed" ->
-        "Job was assigned to an agent but failed to start. The agent may have lost connectivity or the working directory was invalid."
-
-      state == "Cancelled" ->
-        "Job was cancelled manually or by the system."
-
-      result == "Failed" ->
-        "Job completed with failure. Check the console log above for error details."
-
-      true ->
-        "Job state: #{state}, result: #{result}."
-    end
+    explain_job(state, result, job_instance)
   end
+
+  # What a person reading the page needs to know, by the state the job is in.
+  defp explain_job("Scheduled", "Failed", job) do
+    "Job was scheduled but never started. Check if an agent matching the required resources (#{job_resource_summary(job)}) is available and enabled."
+  end
+
+  defp explain_job("Assigned", "Failed", _job) do
+    "Job was assigned to an agent but failed to start. The agent may have lost connectivity or the working directory was invalid."
+  end
+
+  defp explain_job("Cancelled", _result, _job), do: "Job was cancelled manually or by the system."
+
+  defp explain_job(_state, "Failed", _job) do
+    "Job completed with failure. Check the console log above for error details."
+  end
+
+  defp explain_job(state, result, _job), do: "Job state: #{state}, result: #{result}."
 
   defp blank_as_none(""), do: "none"
   defp blank_as_none(joined), do: joined
 
   defp job_resource_summary(job_instance) do
-    # Try to get resources from the job config
-    job_name = job_instance[:name]
+    case job_instance[:name] do
+      nil -> "unknown"
+      job_name -> job_name |> resources_of_job() |> blank_as_none()
+    end
+  end
 
-    if job_name do
-      case ExGoCD.Repo.get_by(ExGoCD.Pipelines.Job, name: job_name) do
-        nil ->
-          "none"
-
-        job ->
-          Enum.join(job.resources || [], ", ") |> blank_as_none()
-      end
-    else
-      "unknown"
+  defp resources_of_job(job_name) do
+    case ExGoCD.Repo.get_by(ExGoCD.Pipelines.Job, name: job_name) do
+      nil -> ""
+      job -> Enum.join(job.resources || [], ", ")
     end
   end
 

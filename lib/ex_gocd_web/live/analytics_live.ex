@@ -712,86 +712,108 @@ defmodule ExGoCDWeb.AnalyticsLive do
     """
   end
 
+  # A stage-level Gantt: one row per run, a wait and a build bar per stage, and a
+  # time axis across the top. The geometry is worked out once and passed down.
   defp vsm_workflow_gantt_svg(wf) do
-    # Build a stage-level Gantt: for each pipeline instance, draw wait + build bars per stage
-    chart_w = 600
-    label_w = 100
-    row_h = 22
-    bar_h = 16
-
-    instances = wf.instances
-    total_dur = max(wf.total_duration_sec, 1)
-    n = length(instances)
-    svg_h = n * row_h + 30
-    svg_w = chart_w + label_w
-
-    now_x = fn time ->
-      label_w + round(DateTime.diff(time, wf.start_time, :second) / total_dur * chart_w)
-    end
+    geometry = %{
+      chart_w: 600,
+      label_w: 100,
+      row_h: 22,
+      bar_h: 16,
+      total_dur: max(wf.total_duration_sec, 1),
+      start_time: wf.start_time
+    }
 
     rows =
-      instances
+      wf.instances
       |> Enum.with_index()
-      |> Enum.map(fn {inst, i} ->
-        y = 20 + i * row_h
-        first_stage = inst.stages |> List.first()
-        last_stage = inst.stages |> List.last()
-
-        inst_start =
-          if first_stage && first_stage.scheduled_at,
-            do: now_x.(first_stage.scheduled_at),
-            else: label_w
-
-        inst_end =
-          if last_stage && last_stage.completed_at,
-            do: now_x.(last_stage.completed_at),
-            else: label_w + 2
-
-        _bar_w = max(inst_end - inst_start, 2)
-
-        label =
-          ~s'<text x="#{label_w - 4}" y="#{y + bar_h / 2 + 3}" font-size="10" fill="#374151" text-anchor="end" font-family="monospace" dominant-baseline="middle">#{inst.pipeline_name}</text>'
-
-        # Stage bars: wait (gray) + build (colored) per stage
-        stage_bars =
-          inst.stages
-          |> Enum.map(fn s ->
-            stage_start = (s.scheduled_at && now_x.(s.scheduled_at)) || inst_start
-            wait_end = stage_start + round(s.wait_time_sec / total_dur * chart_w)
-            build_end = (s.completed_at && now_x.(s.completed_at)) || stage_start + 2
-            color = if s.result == "Failed", do: "#ef4444", else: "#22c55e"
-
-            [
-              # Wait bar
-              ~s'<rect x="#{stage_start}" y="#{y + 2}" width="#{max(wait_end - stage_start, 0)}" height="#{bar_h - 4}" rx="2" fill="#e5e7eb"><title>#{s.name}: wait #{s.wait_time_sec}s</title></rect>',
-              # Build bar
-              ~s'<rect x="#{wait_end}" y="#{y + 2}" width="#{max(build_end - wait_end, 2)}" height="#{bar_h - 4}" rx="2" fill="#{color}" opacity="0.85"><title>#{s.name}: build #{s.build_time_sec}s (#{s.result})</title></rect>'
-            ]
-          end)
-          |> List.flatten()
-
-        [label | stage_bars]
-      end)
-      |> List.flatten()
-
-    # Time ticks
-    ticks =
-      for i <- 0..5 do
-        x = label_w + round(i * chart_w / 5)
-        tick_sec = round(i * total_dur / 5)
-
-        ~s'<text x="#{x}" y="12" font-size="8" fill="#9ca3af" text-anchor="middle" font-family="monospace">#{fmt_sec(tick_sec)}</text>'
-      end
+      |> Enum.flat_map(fn {instance, index} -> gantt_row(instance, index, geometry) end)
 
     svg = [
-      ~s'<svg viewBox="0 0 #{svg_w} #{svg_h}" width="100%" style="max-height:#{svg_h}px" xmlns="http://www.w3.org/2000/svg">',
-      ticks,
-      ~s'<line x1="#{label_w}" y1="0" x2="#{label_w}" y2="#{svg_h}" stroke="#e5e7eb" stroke-width="1"/>',
+      ~s'<svg viewBox="0 0 #{geometry.chart_w + geometry.label_w} #{gantt_height(wf, geometry)}" width="100%" style="max-height:#{gantt_height(wf, geometry)}px" xmlns="http://www.w3.org/2000/svg">',
+      gantt_ticks(geometry),
+      ~s'<line x1="#{geometry.label_w}" y1="0" x2="#{geometry.label_w}" y2="#{gantt_height(wf, geometry)}" stroke="#e5e7eb" stroke-width="1"/>',
       rows,
       "</svg>"
     ]
 
     {:safe, Enum.join(svg, "\n")}
+  end
+
+  defp gantt_height(wf, geometry), do: length(wf.instances) * geometry.row_h + 30
+
+  defp gantt_row(instance, index, geometry) do
+    y = 20 + index * geometry.row_h
+    run_start = run_start(instance, geometry)
+
+    [gantt_label(instance, y, geometry) | stage_bars(instance, y, run_start, geometry)]
+  end
+
+  # Where on the chart a moment falls.
+  defp x_at(time, geometry) do
+    geometry.label_w +
+      round(
+        DateTime.diff(time, geometry.start_time, :second) / geometry.total_dur * geometry.chart_w
+      )
+  end
+
+  defp run_start(instance, geometry) do
+    case List.first(instance.stages) do
+      %{scheduled_at: %DateTime{} = at} -> x_at(at, geometry)
+      _ -> geometry.label_w
+    end
+  end
+
+  defp gantt_label(instance, y, geometry) do
+    ~s'<text x="#{geometry.label_w - 4}" y="#{y + geometry.bar_h / 2 + 3}" font-size="10" fill="#374151" text-anchor="end" font-family="monospace" dominant-baseline="middle">#{instance.pipeline_name}</text>'
+  end
+
+  defp stage_bars(instance, y, run_start, geometry) do
+    Enum.flat_map(instance.stages, &stage_bar_pair(&1, y, run_start, geometry))
+  end
+
+  defp stage_bar_pair(stage, y, run_start, geometry) do
+    started = stage_start(stage, run_start, geometry)
+    waited = started + round(stage.wait_time_sec / geometry.total_dur * geometry.chart_w)
+    built = stage_build_end(stage, started, geometry)
+
+    [
+      wait_bar(stage, started, waited, y, geometry),
+      build_bar(stage, waited, built, y, geometry)
+    ]
+  end
+
+  defp stage_start(stage, run_start, geometry) do
+    case stage.scheduled_at do
+      %DateTime{} = at -> x_at(at, geometry)
+      _ -> run_start
+    end
+  end
+
+  defp stage_build_end(stage, started, geometry) do
+    case stage.completed_at do
+      %DateTime{} = at -> x_at(at, geometry)
+      _ -> started + 2
+    end
+  end
+
+  defp wait_bar(stage, from, to, y, geometry) do
+    ~s'<rect x="#{from}" y="#{y + 2}" width="#{max(to - from, 0)}" height="#{geometry.bar_h - 4}" rx="2" fill="#e5e7eb"><title>#{stage.name}: wait #{stage.wait_time_sec}s</title></rect>'
+  end
+
+  defp build_bar(stage, from, to, y, geometry) do
+    colour = if stage.result == "Failed", do: "#ef4444", else: "#22c55e"
+
+    ~s'<rect x="#{from}" y="#{y + 2}" width="#{max(to - from, 2)}" height="#{geometry.bar_h - 4}" rx="2" fill="#{colour}" opacity="0.85"><title>#{stage.name}: build #{stage.build_time_sec}s (#{stage.result})</title></rect>'
+  end
+
+  defp gantt_ticks(geometry) do
+    for i <- 0..5 do
+      x = geometry.label_w + round(i * geometry.chart_w / 5)
+      tick_sec = round(i * geometry.total_dur / 5)
+
+      ~s'<text x="#{x}" y="12" font-size="8" fill="#9ca3af" text-anchor="middle" font-family="monospace">#{fmt_sec(tick_sec)}</text>'
+    end
   end
 
   defp vsm_chart(assigns) do

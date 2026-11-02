@@ -41,37 +41,25 @@ defmodule ExGoCDWeb.ConfigDiffLive do
 
   # ── Diff Rendering Helpers ─────────────────────────────────────────────
 
-  defp flatten_diff(diff, prefix \\ []) do
-    case diff do
-      nil ->
-        []
+  defp flatten_diff(diff, prefix \\ [])
 
-      map when is_map(map) ->
-        Enum.flat_map(map, fn {key, change} ->
-          path = prefix ++ [to_string(key)]
+  defp flatten_diff(nil, _prefix), do: []
 
-          case change do
-            :equal ->
-              []
-
-            :added ->
-              [{:added, path, nil}]
-
-            :removed ->
-              [{:removed, path, nil}]
-
-            {:primitive_change, old_val, new_val} ->
-              [{:changed, path, old_val, new_val}]
-
-            nested when is_map(nested) ->
-              flatten_diff(nested, path)
-          end
-        end)
-
-      _ ->
-        []
-    end
+  defp flatten_diff(diff, prefix) when is_map(diff) do
+    Enum.flat_map(diff, fn {key, change} -> diff_entry(change, prefix ++ [to_string(key)]) end)
   end
+
+  defp flatten_diff(_other, _prefix), do: []
+
+  # One entry of the nested map: nothing, a side, a value, or another level.
+  defp diff_entry(:equal, _path), do: []
+  defp diff_entry(:added, path), do: [{:added, path, nil}]
+  defp diff_entry(:removed, path), do: [{:removed, path, nil}]
+
+  defp diff_entry({:primitive_change, old_value, new_value}, path),
+    do: [{:changed, path, old_value, new_value}]
+
+  defp diff_entry(nested, path) when is_map(nested), do: flatten_diff(nested, path)
 
   defp path_to_string(path), do: Enum.join(path, " → ")
 

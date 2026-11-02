@@ -778,13 +778,38 @@ defmodule ExGoCD.Pipelines do
   end
 
   defp resolve_proposed_dependency(material, acc) do
-    case get_latest_passed_instance(material.url) do
+    case latest_passed_instance(material) do
       nil ->
         {:halt, {:error, {:upstream_not_passed, material.url}}}
 
       pi ->
         {:cont, {:ok, Map.put(acc, material.id, {:pipeline, pi})}}
     end
+  end
+
+  # A material that names a stage is satisfied by the latest upstream instance
+  # whose *that* stage passed; the upstream may still be running the stages after
+  # it, and GoCD does not make the downstream wait for the whole pipeline.
+  defp latest_passed_instance(material) do
+    case material_stage_name(material) do
+      nil -> get_latest_passed_instance(material.url)
+      stage_name -> get_latest_instance_with_passed_stage(material.url, stage_name)
+    end
+  end
+
+  defp get_latest_instance_with_passed_stage(pipeline_name, stage_name) do
+    from(pi in PipelineInstance,
+      join: p in assoc(pi, :pipeline),
+      join: si in assoc(pi, :stage_instances),
+      where:
+        p.name == ^pipeline_name and si.name == ^stage_name and
+          si.state == "Completed" and si.result == "Passed",
+      order_by: [desc: pi.counter],
+      preload: [:pipeline, :stage_instances],
+      limit: 1
+    )
+    |> Repo.all()
+    |> List.first()
   end
 
   defp get_or_create_latest_modification(material) do
@@ -819,6 +844,14 @@ defmodule ExGoCD.Pipelines do
     else
       "HEAD"
     end
+  end
+
+  # "upstream/12", which is what GoCD shows as the revision of a dependency
+  # material. The pipeline is read here rather than by every caller: the instance
+  # may arrive from a query that preloaded it and from one that did not.
+  defp upstream_label(pipeline_instance) do
+    pipeline = Repo.preload(pipeline_instance, :pipeline).pipeline
+    "#{pipeline.name}/#{pipeline_instance.counter}"
   end
 
   defp get_latest_passed_instance(pipeline_name) do
@@ -1101,8 +1134,8 @@ defmodule ExGoCD.Pipelines do
              mod.committer_email || ""}
 
           {:pipeline, pi} ->
-            {"#{pi.pipeline.name}/#{pi.counter}",
-             "Triggered by upstream #{pi.pipeline.name}/#{pi.counter}", "gocd", ""}
+            label = upstream_label(pi)
+            {label, "Triggered by upstream #{label}", "gocd", ""}
 
           _ ->
             {"HEAD", "Triggered manually", "anonymous", ""}
@@ -1190,7 +1223,7 @@ defmodule ExGoCD.Pipelines do
               pipeline_instance_id: pipeline_instance_id,
               material_id: material_id,
               parent_pipeline_instance_id: pi.id,
-              revision: "#{pi.pipeline.name}/#{pi.counter}"
+              revision: upstream_label(pi)
             }
         end
 
@@ -2706,14 +2739,19 @@ defmodule ExGoCD.Pipelines do
     pipeline = pipeline_instance.pipeline
 
     stages = Enum.sort_by(pipeline.stages || [], & &1.id)
-    current_idx = Enum.find_index(stages, &(&1.name == stage_instance.name))
 
-    if current_idx && current_idx + 1 == length(stages) do
-      trigger_completed_downstreams(pipeline.name)
-    end
+    trigger_downstreams(
+      pipeline.name,
+      stage_instance.name,
+      last_stage?(stages, stage_instance.name)
+    )
   end
 
-  defp trigger_completed_downstreams(pipeline_name) do
+  # A dependency material names the upstream stage it watches, and that stage
+  # passing is what starts the downstream — not the end of the upstream pipeline
+  # as a whole, which for a three-stage build would be two stages too late. A
+  # material that names no stage keeps the older reading: it watches the end.
+  defp trigger_downstreams(pipeline_name, stage_name, upstream_finished?) do
     downstreams =
       Repo.all(
         from p in Pipeline,
@@ -2722,7 +2760,32 @@ defmodule ExGoCD.Pipelines do
           preload: [:materials, stages: :jobs]
       )
 
-    Enum.each(downstreams, &maybe_trigger_downstream(&1, pipeline_name))
+    downstreams
+    |> Enum.filter(&watches_stage?(&1, pipeline_name, stage_name, upstream_finished?))
+    |> Enum.each(&maybe_trigger_downstream(&1, pipeline_name))
+  end
+
+  defp last_stage?(stages, stage_name) do
+    case Enum.find_index(stages, &(&1.name == stage_name)) do
+      nil -> false
+      index -> index + 1 == length(stages)
+    end
+  end
+
+  defp watches_stage?(downstream, upstream_name, stage_name, upstream_finished?) do
+    downstream.materials
+    |> Enum.filter(&(&1.type == "dependency" and &1.url == upstream_name))
+    |> Enum.any?(fn material ->
+      case material_stage_name(material) do
+        nil -> upstream_finished?
+        ^stage_name -> true
+        _other -> false
+      end
+    end)
+  end
+
+  defp material_stage_name(material) do
+    (material.type_specific_config || %{})["stage_name"]
   end
 
   defp maybe_trigger_downstream(dp, upstream_name) do
@@ -2748,22 +2811,38 @@ defmodule ExGoCD.Pipelines do
     end
   end
 
-  # Checks whether all dependency materials for this pipeline have at least
-  # one completed (passed) stage instance.
+  # Checks whether every dependency material's own stage has a passed instance.
+  # Fan-in is only waiting for something meaningful when it waits on the stage
+  # the author named; a pipeline counts as having passed when the material has no
+  # stage and any of its stages has.
   defp all_dependencies_passed?(dp) do
-    deps = Repo.preload(dp, :materials).materials || []
-    dep_materials = Enum.filter(deps, &(&1.type == "dependency"))
+    dp
+    |> Repo.preload(:materials)
+    |> Map.get(:materials)
+    |> Enum.filter(&(&1.type == "dependency"))
+    |> Enum.all?(&dependency_passed?/1)
+  end
 
-    Enum.all?(dep_materials, fn dep_mat ->
-      upstream_name = dep_mat.url
-      # Check if there's at least one passed pipeline instance for this upstream
-      Repo.exists?(
-        from pi in PipelineInstance,
-          join: p in assoc(pi, :pipeline),
-          join: si in assoc(pi, :stage_instances),
-          where: p.name == ^upstream_name and si.state == "Completed" and si.result == "Passed"
-      )
-    end)
+  defp dependency_passed?(material) do
+    Repo.exists?(passed_instance_query(material_stage_name(material), material.url))
+  end
+
+  defp passed_instance_query(nil, upstream_name) do
+    from pi in PipelineInstance,
+      join: p in assoc(pi, :pipeline),
+      join: si in assoc(pi, :stage_instances),
+      where:
+        p.name == ^upstream_name and si.state == "Completed" and
+          si.result == "Passed"
+  end
+
+  defp passed_instance_query(stage_name, upstream_name) do
+    from pi in PipelineInstance,
+      join: p in assoc(pi, :pipeline),
+      join: si in assoc(pi, :stage_instances),
+      where:
+        p.name == ^upstream_name and si.name == ^stage_name and
+          si.state == "Completed" and si.result == "Passed"
   end
 
   # Emit OpenTelemetry telemetry events for pipeline triggers.

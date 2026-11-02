@@ -71,103 +71,123 @@ defmodule ExGoCD.HTTPTestAgent do
   end
 
   @impl true
-  def handle_info(:register_and_connect, state) do
+  def handle_info(:register_and_connect, state), do: connect(state)
+
+  def handle_info({:tcp, socket, data}, %{socket: socket} = state),
+    do: receive_data(socket, data, state)
+
+  def handle_info({:tcp_closed, socket}, %{socket: socket} = state),
+    do: connection_closed(socket, state)
+
+  def handle_info(:send_ping, state), do: heartbeat(state)
+
+  def handle_info({:run_simulated_build, build_id, console_url}, state),
+    do: run_simulated_build(build_id, console_url, state)
+
+  # ── What an incoming message means ─────────────────────────────────────────
+
+  defp connect(state) do
     case register_agent(state) do
-      {:ok, cookie} ->
-        Logger.info("[HTTPTestAgent] Registration successful. Cookie: #{cookie}")
-
-        case connect_websocket(state) do
-          {:ok, socket} ->
-            Logger.info("[HTTPTestAgent] TCP Socket connected. Sending WebSocket handshake...")
-            send_handshake(socket, state)
-
-            {:noreply,
-             %{state | cookie: cookie, socket: socket, buffer: <<>>, handshake_done: false}}
-
-          {:error, reason} ->
-            Logger.error(
-              "[HTTPTestAgent] TCP Socket connection failed: #{inspect(reason)}. Retrying in 2s..."
-            )
-
-            Process.send_after(self(), :register_and_connect, 2000)
-            {:noreply, state}
-        end
-
-      {:error, reason} ->
-        Logger.error("[HTTPTestAgent] Registration failed: #{inspect(reason)}. Retrying in 2s...")
-        Process.send_after(self(), :register_and_connect, 2000)
-        {:noreply, state}
+      {:ok, cookie} -> established(state, cookie)
+      {:error, reason} -> retry(state, "Registration failed", reason)
     end
   end
 
-  def handle_info({:tcp, socket, data}, %{socket: socket} = state) do
-    if state.handshake_done do
-      # Process binary frames
-      new_buffer = state.buffer <> data
-      {frames, remaining} = parse_frames(new_buffer, [])
+  defp established(state, cookie) do
+    Logger.info("[HTTPTestAgent] Registration successful. Cookie: #{cookie}")
 
-      new_state =
-        Enum.reduce(frames, state, fn frame, acc ->
-          handle_websocket_frame(frame, acc)
-        end)
+    case connect_websocket(state) do
+      {:ok, socket} -> handshake_started(state, cookie, socket)
+      {:error, reason} -> retry(state, "TCP Socket connection failed", reason)
+    end
+  end
 
-      {:noreply, %{new_state | buffer: remaining}}
+  defp handshake_started(state, cookie, socket) do
+    Logger.info("[HTTPTestAgent] TCP Socket connected. Sending WebSocket handshake...")
+    send_handshake(socket, state)
+
+    {:noreply, %{state | cookie: cookie, socket: socket, buffer: <<>>, handshake_done: false}}
+  end
+
+  defp retry(state, what, reason) do
+    Logger.error("[HTTPTestAgent] #{what}: #{inspect(reason)}. Retrying in 2s...")
+    Process.send_after(self(), :register_and_connect, 2000)
+    {:noreply, state}
+  end
+
+  # The socket answers the handshake once; after that everything is frames.
+  defp receive_data(_socket, data, %{handshake_done: true} = state), do: frame_data(data, state)
+  defp receive_data(socket, data, state), do: handshake_response(socket, data, state)
+
+  defp frame_data(data, state) do
+    {frames, remaining} = parse_frames(state.buffer <> data, [])
+
+    new_state =
+      Enum.reduce(frames, state, fn frame, acc -> handle_websocket_frame(frame, acc) end)
+
+    {:noreply, %{new_state | buffer: remaining}}
+  end
+
+  defp handshake_response(socket, data, state) do
+    if String.contains?(data, "101 Switching Protocols") do
+      handshake_accepted(socket, data, state)
     else
-      # Expect HTTP 101 Response
-      if String.contains?(data, "101 Switching Protocols") do
-        Logger.info("[HTTPTestAgent] WebSocket handshake successful!")
-        # Find where headers end
-        [_headers, body] = String.split(data, "\r\n\r\n", parts: 2)
-        # Send Join message
-        send_join(socket, state)
-        # Start heartbeat ping timer
-        ping_timer = schedule_ping(state.ping_interval)
-        {:noreply, %{state | handshake_done: true, buffer: body, ping_timer: ping_timer}}
-      else
-        Logger.error("[HTTPTestAgent] Invalid handshake response: #{data}")
-        :gen_tcp.close(socket)
-        send(self(), :register_and_connect)
-        {:noreply, %{state | socket: nil}}
-      end
+      handshake_refused(socket, data, state)
     end
   end
 
-  def handle_info({:tcp_closed, socket}, %{socket: socket} = state) do
+  defp handshake_accepted(socket, data, state) do
+    Logger.info("[HTTPTestAgent] WebSocket handshake successful!")
+
+    [_headers, body] = String.split(data, "\r\n\r\n", parts: 2)
+    send_join(socket, state)
+    ping_timer = schedule_ping(state.ping_interval)
+
+    {:noreply, %{state | handshake_done: true, buffer: body, ping_timer: ping_timer}}
+  end
+
+  defp handshake_refused(socket, data, state) do
+    Logger.error("[HTTPTestAgent] Invalid handshake response: #{data}")
+    :gen_tcp.close(socket)
+    send(self(), :register_and_connect)
+    {:noreply, %{state | socket: nil}}
+  end
+
+  defp connection_closed(_closed_socket, state) do
     Logger.warning("[HTTPTestAgent] WebSocket connection closed by server. Reconnecting in 2s...")
+
     if state.ping_timer, do: Process.cancel_timer(state.ping_timer)
     Process.send_after(self(), :register_and_connect, 2000)
     {:noreply, %{state | socket: nil, ping_timer: nil, handshake_done: false}}
   end
 
-  def handle_info(:send_ping, state) do
-    if state.socket && state.handshake_done do
-      send_ping(state.socket, state)
-      ping_timer = schedule_ping(state.ping_interval)
-      {:noreply, %{state | ping_timer: ping_timer}}
-    else
-      {:noreply, state}
-    end
+  defp heartbeat(%{socket: nil} = state), do: {:noreply, state}
+
+  defp heartbeat(%{handshake_done: false} = state), do: {:noreply, state}
+
+  defp heartbeat(state) do
+    send_ping(state.socket, state)
+    ping_timer = schedule_ping(state.ping_interval)
+    {:noreply, %{state | ping_timer: ping_timer}}
   end
 
-  def handle_info({:run_simulated_build, build_id, console_url}, state) do
+  defp run_simulated_build(build_id, console_url, state) do
     Logger.info("[HTTPTestAgent] Running simulated build tasks for: #{build_id}")
 
-    # 1. Report Preparing status
-    send_report(state.socket, state.uuid, build_id, "Preparing", "Building", nil)
-    post_log(console_url, "Preparing build workspace...\n")
+    report_progress(state, build_id, console_url, "Preparing", "Preparing build workspace...\n")
     Process.sleep(500)
-
-    # 2. Report Building status
-    send_report(state.socket, state.uuid, build_id, "Building", "Building", nil)
-    post_log(console_url, "Executing build task: mix test\n")
+    report_progress(state, build_id, console_url, "Building", "Executing build task: mix test\n")
     Process.sleep(500)
     post_log(console_url, "Build completed successfully.\n")
-
-    # 3. Report Completed status
     send_report(state.socket, state.uuid, build_id, "Completed", "Idle", "Passed")
 
     Logger.info("[HTTPTestAgent] Finished simulated build: #{build_id}")
     {:noreply, %{state | runtime_status: "Idle", current_build: nil}}
+  end
+
+  defp report_progress(state, build_id, console_url, stage, log_line) do
+    send_report(state.socket, state.uuid, build_id, stage, "Building", nil)
+    post_log(console_url, log_line)
   end
 
   # Helper Functions

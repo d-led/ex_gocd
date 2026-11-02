@@ -194,13 +194,23 @@ defmodule ExGoCDWeb.CoreComponents do
     |> input()
   end
 
-  def input(%{type: "hidden"} = assigns) do
+  def input(assigns), do: render_input(assigns)
+
+  # What kind of input to draw. One function per kind, so the decision and the
+  # markup that follows from it are not in the same row.
+  defp render_input(%{type: "hidden"} = assigns), do: hidden_input(assigns)
+  defp render_input(%{type: "checkbox"} = assigns), do: checkbox_input(assigns)
+  defp render_input(%{type: "select"} = assigns), do: select_input(assigns)
+  defp render_input(%{type: "textarea"} = assigns), do: textarea_input(assigns)
+  defp render_input(assigns), do: text_input(assigns)
+
+  defp hidden_input(assigns) do
     ~H"""
     <input type="hidden" id={@id} name={@name} value={@value} {@rest} />
     """
   end
 
-  def input(%{type: "checkbox"} = assigns) do
+  defp checkbox_input(assigns) do
     assigns =
       assign_new(assigns, :checked, fn ->
         Form.normalize_value("checkbox", assigns[:value])
@@ -233,7 +243,7 @@ defmodule ExGoCDWeb.CoreComponents do
     """
   end
 
-  def input(%{type: "select"} = assigns) do
+  defp select_input(assigns) do
     ~H"""
     <div class="fieldset mb-2">
       <label>
@@ -254,7 +264,7 @@ defmodule ExGoCDWeb.CoreComponents do
     """
   end
 
-  def input(%{type: "textarea"} = assigns) do
+  defp textarea_input(assigns) do
     ~H"""
     <div class="fieldset mb-2">
       <label>
@@ -275,7 +285,7 @@ defmodule ExGoCDWeb.CoreComponents do
   end
 
   # All other inputs text, datetime-local, url, password, etc. are handled here...
-  def input(assigns) do
+  defp text_input(assigns) do
     ~H"""
     <div class="fieldset mb-2">
       <label>
