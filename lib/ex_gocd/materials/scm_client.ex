@@ -159,15 +159,16 @@ defmodule ExGoCD.Materials.ScmClient do
         end
       end
 
-      defp parse_svn_date(nil), do: ExGoCD.Materials.ScmClient.now()
-      defp parse_svn_date(""), do: ExGoCD.Materials.ScmClient.now()
-
-      defp parse_svn_date(date_str) do
+      # svn reports a date as text, or something we cannot read; either way the
+      # material needs a timestamp, so "now" is the answer we have.
+      defp parse_svn_date(date_str) when is_binary(date_str) do
         case DateTime.from_iso8601(date_str) do
           {:ok, dt, _} -> dt
           _ -> ExGoCD.Materials.ScmClient.now()
         end
       end
+
+      defp parse_svn_date(_other), do: ExGoCD.Materials.ScmClient.now()
 
       @doc false
       def build_svn_opts(%Material{} = mat) do

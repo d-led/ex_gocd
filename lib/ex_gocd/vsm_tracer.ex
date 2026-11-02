@@ -101,8 +101,10 @@ defmodule ExGoCD.VsmTracer do
   `:ok` or `{:error, description}`. Safe no-op if no span is active.
   """
   @spec set_status(:ok | {:error, String.t()}) :: boolean()
-  def set_status(status) do
-    Tracer.set_status(status)
+  def set_status(:ok), do: Tracer.set_status(:ok, "")
+
+  def set_status({:error, description}) when is_binary(description) do
+    Tracer.set_status(:error, description)
   end
 
   @doc """
@@ -115,26 +117,14 @@ defmodule ExGoCD.VsmTracer do
   """
   @spec inject_context(map()) :: map()
   def inject_context(map) when is_map(map) do
-    ctx = :otel_ctx.get_current()
-
-    case :otel_tracer.current_span_ctx(ctx) do
-      :undefined ->
-        map
-
-      {:span_ctx, _version, trace_id, span_id, _parent_id, _flags, _tracestate, _is_recording,
-       _is_valid, _timestamp, _instrumentation_scope}
-      when is_binary(trace_id) and byte_size(trace_id) > 0 and
-             is_integer(span_id) and span_id > 0 ->
-        # Erlang OTel SDK: trace_id is 32-char hex string, span_id is integer.
-        # is_valid is always false — ignore it and build traceparent anyway.
-        span_hex =
-          Integer.to_string(span_id, 16) |> String.downcase() |> String.pad_leading(16, "0")
-
-        traceparent = "00-#{trace_id}-#{span_hex}-01"
-        Map.put(map, "traceparent", traceparent)
-
-      _ ->
-        map
-    end
+    # The propagator is what knows how a trace context is spelled, and it leaves
+    # the carrier alone when there is no span to speak of.
+    :otel_propagator_text_map.inject(
+      :otel_propagator_trace_context,
+      map,
+      fn key, value, carrier ->
+        Map.put(carrier, to_string(key), IO.iodata_to_binary(value))
+      end
+    )
   end
 end

@@ -310,7 +310,7 @@ defmodule ExGoCD.Agents do
   Lists active agents with disk space below the configured threshold.
   Default: 1024 MB (1 GB). Configurable via `LOW_SPACE_THRESHOLD_MB` env var.
   """
-  @spec low_space_agents(non_neg_integer()) :: [Agent.t()]
+  @spec low_space_agents(non_neg_integer() | nil) :: [Agent.t()]
   def low_space_agents(threshold_mb \\ nil) do
     threshold_mb = threshold_mb || low_space_threshold_mb()
 

@@ -41,16 +41,6 @@ defmodule ExGoCD.Otel do
     :ok
   end
 
-  @doc """
-  Fetches the parent trace context from the calling process.
-  Uses `opentelemetry_process_propagator` for contexts where OTP's built-in
-  propagation is insufficient (Task.async, Ecto preloads, cross-node calls
-  with older OTP versions).
-  """
-  def fetch_parent_ctx(pid \\ self()) do
-    OpentelemetryProcessPropagator.fetch_parent_ctx(pid, :"$callers")
-  end
-
   # Pipeline VSM tracing helpers (called from pipelines context)
   def vsm_tracer, do: :ex_gocd_vsm_tracer
 end

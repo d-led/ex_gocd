@@ -14,11 +14,11 @@
 | Dimension | State | Evidence |
 | --- | --- | --- |
 | Code | 275 modules, compile warnings-as-errors clean | `mix compile --force --warnings-as-errors` |
-| ExUnit | **1110 tests, all green** | `mix test` |
+| ExUnit | **1114 tests, all green** | `mix test` |
 | Coverage | **55.2 %** of 274 modules; 78 at 0 % | `mix test.coverage` |
 | Go agent | builds; tests pass in 3 of 10 packages (3,793 prod LOC / 599 test LOC); modules upgraded 2026-11-01 (otel 1.47, grpc 1.85) | `cd agent && go test ./...` |
 | Cypress | 27 specs on disk, **not executed in this session** | `ls cypress/e2e/*.cy.js` |
-| Static analysis | `scripts/quality-gate.sh` passes as a whole: 17 steps, 0 failures (format, compile, Sobelow, credo, doc references, test database, ExUnit, Go fmt/vet/golangci-lint/tests/gofmt/mod-tidy, jscpd, ESLint, TypeScript, Prettier, link checker). Two findings are kept and documented rather than ignored: the MD5 artifact checksums, which are the format a GoCD agent writes. `mix dialyzer` was run for the first time on 2026-11-02: 41 warnings then, 35 now, concentrated in `pipelines.ex` (8), `scheduler.ex` (6), `agent_channel.ex` (6) and `materials/scm_client.ex` (4), of kinds `call` (18), `no_return` (12), `guard_fail` (3), `pattern_match` (1) and `invalid_contract` (1); the six that went were the dead branches described below. Three stale specs it found are fixed: two modules were referenced as `.t()` without defining one, and `material_filter`'s spec named an unaliased `Material`. `staticcheck` cannot serve either, its binary being older than the Go toolchain, and the gate now says that instead of blaming the code | see above |
+| Static analysis | `scripts/quality-gate.sh` passes as a whole: 17 steps, 0 failures (format, compile, Sobelow, credo, doc references, test database, ExUnit, Go fmt/vet/golangci-lint/tests/gofmt/mod-tidy, jscpd, ESLint, TypeScript, Prettier, link checker). Two findings are kept and documented rather than ignored: the MD5 artifact checksums, which are the format a GoCD agent writes. `mix dialyzer` was run for the first time on 2026-11-02: 41 warnings then, 6 now. Six that went were dead branches that hid real faults, described below; eighteen were calls `VsmTracer.set_status` made to a one-argument form whose spec wants a status record, which now go through the documented `set_status(code, message)`; the rest were stale specs and one function with no callers. The six that remain are named rather than silenced: `k8s.ex:136`, a third-party inference about `K8s.Client.run/2` inside the `Task` that probes a cluster (the probe cannot be driven from a test because the fake provider is registered per process); `test_report.ex:107` and `:109`, Ecto changeset typing in the store path that `parse_and_store/2` tests exercise on three report formats; `materials/scm_client.ex:140`, `:141` and `:151`, an `author || "svn"` whose producer always supplies a binary. Three stale specs it found early are fixed too: two modules were referenced as `.t()` without defining one, and `material_filter`'s spec named an unaliased `Material`. `staticcheck` cannot serve either, its binary being older than the Go toolchain, and the gate now says that instead of blaming the code | see above |
 | CI | every commit through `ae8b54c` is green on Elixir CI, CodeQL and Sobelow, and two of those runs show the documentation check executing and printing `[PASS] documentation references resolve` in the `build` job. `5d74c99` and `8331faf` were still queued at hand-off; both pass the whole local gate | `gh run list` |
 | Security | **0 open Dependabot alerts**; `npm audit` 0 vulnerabilities | see above |
 | Dependencies | Hex and npm on their latest releases; Go modules not yet | `mix hex.outdated`, `npm outdated` |
@@ -258,7 +258,22 @@ traces. It now asks the library for the hex identifiers it already knows how to
 render, and three tests write a line inside a span and outside one; the one
 inside carries exactly the identifiers its `traceparent` named. A dead `uuid ||
 ""` in the agent audit log, which the same run flagged, is gone too.
-
+A tenth reads the span context the same wrong way, in
+`VsmTracer.inject_context/1`, which puts a `traceparent` on the work handed to an
+agent so the agent's spans hang under the pipeline that asked for them. It
+happened to work: the fields are shifted by one, and the shift left a
+32-character hex string in the slot the pattern called `trace_id` and an integer
+in the slot it called `span_id`, so the header it built was right for the wrong
+reason. It now asks the W3C propagator to spell the header, which is the only
+place that knows how; four tests hold it to what a caller can see — the
+traceparent names the span the call is inside, the caller's own keys survive, and
+outside a span the map is untouched. `set_status/1` is the same story from the
+other side: it passed a status record to a one-argument call where the library
+documents `set_status(code, message)`, which made every one of its eighteen call
+sites a dialyzer error. The spec of `low_space_agents/1` said `non_neg_integer()`
+about an argument whose default is `nil`, and a `fetch_parent_ctx/1` with no
+callers passed a pid where the library wants a depth, so it could only ever
+raise; it is gone.
 ### Known noise: the sandbox says a connection was disconnected
 
 Most runs print one or two lines like
@@ -282,7 +297,7 @@ table: the agent speaks HTTP remoting, like a real GoCD agent
 (`agent/internal/remoting/`, `agent_remoting_controller.ex`, and no `websocket`
 string anywhere in the Go agent).
 
-`README.md` badges are hand-written and say 1110 tests and 27 Cypress specs.
+`README.md` badges are hand-written and say 1114 tests and 27 Cypress specs.
 Nothing regenerates them, so they will drift again.
 
 `scripts/check_doc_refs.exs` is the part that cannot drift: it fails when a
