@@ -29,28 +29,27 @@ defmodule ExGoCD.Materials.ScmClient do
     @behaviour ExGoCD.Materials.ScmClient
 
     @impl true
-    def latest_revision(%Material{type: "git"} = mat) do
-      __MODULE__.Git.latest_revision(mat.url, mat.branch || "master")
-    end
+    # Which command answers for which kind of repository, and the branch it
+    # tracks when the material names none.
+    @clients %{
+      "git" => __MODULE__.Git,
+      "hg" => __MODULE__.Hg,
+      "p4" => __MODULE__.P4,
+      "tfs" => __MODULE__.Tfs
+    }
 
-    def latest_revision(%Material{type: "svn"} = mat) do
-      __MODULE__.Svn.latest_revision(mat)
-    end
+    @default_branches %{"git" => "master", "hg" => "default", "p4" => "main", "tfs" => "main"}
 
-    def latest_revision(%Material{type: "hg"} = mat) do
-      __MODULE__.Hg.latest_revision(mat.url, mat.branch || "default")
-    end
+    def latest_revision(%Material{type: "svn"} = mat), do: __MODULE__.Svn.latest_revision(mat)
 
-    def latest_revision(%Material{type: "p4"} = mat) do
-      __MODULE__.P4.latest_revision(mat.url, mat.branch || "main")
-    end
+    def latest_revision(%Material{type: type, url: url} = mat) do
+      case Map.fetch(@clients, type) do
+        {:ok, client} ->
+          client.latest_revision(url, mat.branch || Map.fetch!(@default_branches, type))
 
-    def latest_revision(%Material{type: "tfs"} = mat) do
-      __MODULE__.Tfs.latest_revision(mat.url, mat.branch || "main")
-    end
-
-    def latest_revision(%Material{type: other}) do
-      {:error, "unsupported material type: #{other}"}
+        :error ->
+          {:error, "unsupported material type: #{type}"}
+      end
     end
 
     # Inner type-specific implementations (called via __MODULE__ above)

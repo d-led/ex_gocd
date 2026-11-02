@@ -14,7 +14,7 @@
 | Dimension | State | Evidence |
 | --- | --- | --- |
 | Code | 268 source files, compile warnings-as-errors clean | `git ls-files 'lib/**/*.ex'` |
-| ExUnit | **1452 tests, all green** | `mix test` |
+| ExUnit | **1513 tests, all green** | `mix test` |
 | Coverage | **65.9 %**; 27 modules at 0 % | `mix test.coverage` |
 | Go agent | builds; tests pass in 3 of 10 packages (3,793 prod LOC / 599 test LOC); modules upgraded 2026-11-01 (otel 1.47, grpc 1.85) | `cd agent && go test ./...` |
 | Cypress | 27 specs on disk, **not executed in this session** | `ls cypress/e2e/*.cy.js` |
@@ -842,16 +842,16 @@ under a floor and leaves the coverdata `mix crap` reads; ExCoveralls could do
 neither. The gate runs tests with coverage, then `mix complexity` (both trees), then
 dialyzer.
 
-The first CRAP run found **126 functions above 30**. The sweep so far (126 → 87:
-48 in `lib/ex_gocd`, 39 in `lib/ex_gocd_web`) has been all subtraction — status
+The first CRAP run found **126 functions above 30**. The sweep so far (126 → 76) has been all subtraction — status
 tables instead of clause chains (`StageStatus`, the console log's ANSI codes, the
 dashboard's status dots and trigger failures, the VSM's material icons, the agents
 table's sort keys, the stage page's agent kinds), one `@handlers` table and one
 function per event instead of a 37-clause `handle_event/3` on the admin page (and
 the same in five other pages), and one default helper instead of a chain of `||`
 in the config XML, the mailer, the agent mock and the Docker client. The worst
-remaining are `http_test_agent.handle_info/2` (224), `pipelines.assign_job_instance/2`
-(132), and the analytics Gantt builder (210).
+remaining are two MCP tool handlers (`stages.history/2`, `jobs.schedule/2`, 110 each),
+`Svn.latest_revision/1` (110), the external-CI file config builder (110) and
+`crash_telemetry.handle_exception/4` (90).
 
 ### Doc drift
 `docs/PARITY.md` opens by saying it is a map of intent rather than a status
