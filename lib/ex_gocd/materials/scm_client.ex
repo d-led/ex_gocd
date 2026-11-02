@@ -103,31 +103,37 @@ defmodule ExGoCD.Materials.ScmClient do
       alias ExGoCD.Svn, as: SvnCmd
 
       def latest_revision(%Material{type: "svn"} = mat) do
-        svn_opts = build_svn_opts(mat)
-        url = mat.url
-        branch = mat.branch
+        url = effective_url(mat)
 
-        # Use branch as the full URL if specified, otherwise use url
-        effective_url = if branch && branch != "trunk" && branch != "", do: branch, else: url
-
-        case SvnCmd.info_revision(effective_url, svn_opts) do
-          {:ok, rev} ->
-            # Try to get richer info via svn log or svn info --xml
-            details = resolve_svn_details(effective_url, rev, svn_opts)
-
-            {:ok,
-             %{
-               revision: rev,
-               committer_name: details[:committer_name] || "svn",
-               committer_email: details[:committer_email] || "svn@scm.local",
-               comment: details[:comment] || "svn revision #{rev}",
-               modified_time: details[:modified_time] || ExGoCD.Materials.ScmClient.now()
-             }}
-
-          {:error, reason} ->
-            Logger.error("svn info failed for #{url}: #{inspect(reason)}")
-            {:error, :svn_command_failed}
+        case SvnCmd.info_revision(url, build_svn_opts(mat)) do
+          {:ok, rev} -> {:ok, revision_details(url, rev, build_svn_opts(mat))}
+          {:error, reason} -> svn_failed(mat.url, reason)
         end
+      end
+
+      # A branch is a URL of its own in SVN; "trunk" and empty mean the material's
+      # url already says which.
+      defp effective_url(%Material{branch: branch, url: url})
+           when branch in [nil, "", "trunk"],
+           do: url
+
+      defp effective_url(%Material{branch: branch}), do: branch
+
+      defp revision_details(url, rev, opts) do
+        details = resolve_svn_details(url, rev, opts)
+
+        %{
+          revision: rev,
+          committer_name: details[:committer_name] || "svn",
+          committer_email: details[:committer_email] || "svn@scm.local",
+          comment: details[:comment] || "svn revision #{rev}",
+          modified_time: details[:modified_time] || ExGoCD.Materials.ScmClient.now()
+        }
+      end
+
+      defp svn_failed(url, reason) do
+        Logger.error("svn info failed for #{url}: #{inspect(reason)}")
+        {:error, :svn_command_failed}
       end
 
       # `svn log` gives an empty element for a field it could not read, so empty

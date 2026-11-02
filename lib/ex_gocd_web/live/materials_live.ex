@@ -232,12 +232,18 @@ defmodule ExGoCDWeb.MaterialsLive do
 
   defp modification_view(mod) do
     %{
-      username: mod.username || mod.committer_name || "anonymous",
-      email: mod.email || mod.committer_email || "",
-      revision: mod.revision || "",
-      comment: mod.comment || "",
-      modified_time: mod.modified_time || mod.inserted_at
+      username: first_present([mod.username, mod.committer_name], "anonymous"),
+      email: first_present([mod.email, mod.committer_email], ""),
+      revision: first_present([mod.revision], ""),
+      comment: first_present([mod.comment], ""),
+      modified_time: first_present([mod.modified_time, mod.inserted_at], nil)
     }
+  end
+
+  # The first of these the material actually has; older rows keep the author in a
+  # different field than newer ones.
+  defp first_present(candidates, default) do
+    Enum.find(candidates, default, &(not is_nil(&1) and &1 != ""))
   end
 
   defp use_mock? do
