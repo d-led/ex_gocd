@@ -14,7 +14,7 @@
 | Dimension | State | Evidence |
 | --- | --- | --- |
 | Code | 268 source files, compile warnings-as-errors clean | `git ls-files 'lib/**/*.ex'` |
-| ExUnit | **1513 tests, all green** | `mix test` |
+| ExUnit | **1529 tests, all green** | `mix test` |
 | Coverage | **65.9 %**; 27 modules at 0 % | `mix test.coverage` |
 | Go agent | builds; tests pass in 3 of 10 packages (3,793 prod LOC / 599 test LOC); modules upgraded 2026-11-01 (otel 1.47, grpc 1.85) | `cd agent && go test ./...` |
 | Cypress | 27 specs on disk, **not executed in this session** | `ls cypress/e2e/*.cy.js` |
@@ -147,7 +147,7 @@ a reader should start at.
 
 | Claim | How to check it |
 | --- | --- |
-| 52 tools in 11 families, every one with a title, a description, a JSON schema and annotations | `mix run -e 'IO.puts ExGoCD.Mcp.Tools.count()'`; `test/ex_gocd/mcp/tools_test.exs` |
+| 53 tools in 12 families, every one with a title, a description, a JSON schema and annotations | `mix run -e 'IO.puts ExGoCD.Mcp.Tools.count()'`; `test/ex_gocd/mcp/tools_test.exs` |
 | 4 resources and 4 prompts, advertised in `initialize` | `test/ex_gocd_web/mcp/protocol_test.exs` |
 | Stateless: one JSON-RPC message in, one answer out; `GET` and `DELETE` answer 405 | `test/ex_gocd_web/controllers/mcp_controller_test.exs` |
 | A presented-and-wrong credential is a 401 carrying the authorization challenge; no credential is the guest, which is an administrator in open mode | same file, `describe "identity"` |
@@ -842,7 +842,7 @@ under a floor and leaves the coverdata `mix crap` reads; ExCoveralls could do
 neither. The gate runs tests with coverage, then `mix complexity` (both trees), then
 dialyzer.
 
-The first CRAP run found **126 functions above 30**. The sweep so far (126 → 76) has been all subtraction — status
+The first CRAP run found **126 functions above 30**. The sweep so far (126 → 73) has been all subtraction — status
 tables instead of clause chains (`StageStatus`, the console log's ANSI codes, the
 dashboard's status dots and trigger failures, the VSM's material icons, the agents
 table's sort keys, the stage page's agent kinds), one `@handlers` table and one

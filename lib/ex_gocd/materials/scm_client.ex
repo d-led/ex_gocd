@@ -269,39 +269,27 @@ defmodule ExGoCD.Materials.ScmClient do
     @moduledoc false
     @behaviour ExGoCD.Materials.ScmClient
 
+    @mock_revision %{
+      revision: "a1b2c3d4e5f67890123456789012345678901234",
+      committer_name: "Mock Committer",
+      committer_email: "mock@example.com",
+      comment: "Fix styling bugs",
+      modified_time: ~U[2026-06-13 12:00:00Z]
+    }
+
     @impl true
     def latest_revision(%Material{} = _mat) do
-      mock_value =
-        Application.get_env(:ex_gocd, :mock_scm_revision) ||
-          Application.get_env(:ex_gocd, :mock_git_revision)
-
-      case mock_value do
-        nil ->
-          {:ok,
-           %{
-             revision: "a1b2c3d4e5f67890123456789012345678901234",
-             committer_name: "Mock Committer",
-             committer_email: "mock@example.com",
-             comment: "Fix styling bugs",
-             modified_time: ~U[2026-06-13 12:00:00Z]
-           }}
-
-        {:error, reason} ->
-          {:error, reason}
-
-        {:ok, map} ->
-          {:ok, map}
-
-        sha when is_binary(sha) ->
-          {:ok,
-           %{
-             revision: sha,
-             committer_name: "Mock Committer",
-             committer_email: "mock@example.com",
-             comment: "Fix styling bugs",
-             modified_time: ~U[2026-06-13 12:00:00Z]
-           }}
+      case mock_value() do
+        nil -> {:ok, @mock_revision}
+        {:error, reason} -> {:error, reason}
+        {:ok, map} -> {:ok, map}
+        sha when is_binary(sha) -> {:ok, %{@mock_revision | revision: sha}}
       end
+    end
+
+    defp mock_value do
+      Application.get_env(:ex_gocd, :mock_scm_revision) ||
+        Application.get_env(:ex_gocd, :mock_git_revision)
     end
   end
 

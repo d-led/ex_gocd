@@ -32,37 +32,41 @@ defmodule ExGoCD.CrashTelemetry do
   end
 
   defp handle_exception(_event, _measurements, metadata, _config) do
-    kind = metadata[:kind]
-    reason = metadata[:reason]
-    stacktrace = metadata[:stacktrace]
+    ctx = :otel_ctx.get_current()
+    details = crash_details(metadata)
     conn = metadata[:conn]
 
-    ctx = :otel_ctx.get_current()
-    span_ctx = :otel_tracer.current_span_ctx(ctx)
+    # Audited whether or not a trace is recording: a crash is not a debugging aid.
+    ExGoCD.AuditLog.Events.server_crash(source_of(conn), details)
+    record_span_event(ctx, details)
+  end
 
-    # Audit the crash
-    crash_details = %{
-      "exception.kind" => inspect(kind),
-      "exception.message" => exception_message(reason),
-      "stacktrace" => stacktrace && Exception.format_stacktrace(stacktrace),
-      "http.method" => conn && conn.method,
-      "http.url" => conn && conn.request_path
+  defp crash_details(metadata) do
+    conn = metadata[:conn]
+
+    %{
+      "exception.kind" => inspect(metadata[:kind]),
+      "exception.message" => exception_message(metadata[:reason]),
+      "stacktrace" => formatted_stacktrace(metadata[:stacktrace]),
+      "http.method" => request_field(conn, :method),
+      "http.url" => request_field(conn, :request_path)
     }
+  end
 
-    source = if conn, do: "#{conn.method} #{conn.request_path}", else: "background"
-    ExGoCD.AuditLog.Events.server_crash(source, crash_details)
+  defp formatted_stacktrace(nil), do: nil
+  defp formatted_stacktrace(stacktrace), do: Exception.format_stacktrace(stacktrace)
 
-    # Only record OTel span event if there's an active recording span
-    case span_ctx do
-      {:span_ctx, _version, _trace_id, _span_id, _parent_id, _flags, _tracestate,
-       true = _is_recording, true = _is_valid, _timestamp, _instrumentation_scope} ->
-        details = %{
-          "exception.kind" => inspect(kind),
-          "exception.message" => exception_message(reason),
-          "http.method" => conn && conn.method,
-          "http.url" => conn && conn.request_path
-        }
+  defp request_field(nil, _field), do: nil
+  defp request_field(conn, field), do: Map.get(conn, field)
 
+  defp source_of(nil), do: "background"
+  defp source_of(conn), do: "#{conn.method} #{conn.request_path}"
+
+  # Only record a span event if there is an active recording span to put it on.
+  defp record_span_event(ctx, details) do
+    case :otel_tracer.current_span_ctx(ctx) do
+      {:span_ctx, _version, _trace_id, _span_id, _parent_id, _flags, _tracestate, true, true,
+       _timestamp, _instrumentation_scope} ->
         :otel_span.add_event(:otel_tracer.current_span_ctx(ctx), "exception", details)
 
       _ ->

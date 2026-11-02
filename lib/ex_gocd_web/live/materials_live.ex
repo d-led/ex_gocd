@@ -215,27 +215,29 @@ defmodule ExGoCDWeb.MaterialsLive do
     |> String.slice(0, 16)
   end
 
-  defp get_latest_modification(mat) do
-    if mat.type in ["git", "hg", "svn", "p4", "tfs", "pluggable_scm", "dependency"] do
-      # Mock materials from test may not have :id — return nil in that case.
-      if is_nil(Map.get(mat, :id)) do
-        nil
-      else
-        case ExGoCD.Pipelines.get_latest_modification(mat.id) do
-          nil ->
-            nil
+  @versioned_types ~w(git hg svn p4 tfs pluggable_scm dependency)
 
-          mod ->
-            %{
-              username: mod.username || mod.committer_name || "anonymous",
-              email: mod.email || mod.committer_email || "",
-              revision: mod.revision || "",
-              comment: mod.comment || "",
-              modified_time: mod.modified_time || mod.inserted_at
-            }
-        end
-      end
+  # The latest change a material has, or nothing when it has no history to show
+  # (mock materials in tests carry no id).
+  defp get_latest_modification(mat) do
+    if mat.type in @versioned_types and Map.get(mat, :id), do: latest_modification_of(mat.id)
+  end
+
+  defp latest_modification_of(material_id) do
+    case ExGoCD.Pipelines.get_latest_modification(material_id) do
+      nil -> nil
+      modification -> modification_view(modification)
     end
+  end
+
+  defp modification_view(mod) do
+    %{
+      username: mod.username || mod.committer_name || "anonymous",
+      email: mod.email || mod.committer_email || "",
+      revision: mod.revision || "",
+      comment: mod.comment || "",
+      modified_time: mod.modified_time || mod.inserted_at
+    }
   end
 
   defp use_mock? do

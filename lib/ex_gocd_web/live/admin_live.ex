@@ -1953,26 +1953,27 @@ defmodule ExGoCDWeb.AdminLive do
     {:noreply, load_audit_log(socket, %{})}
   end
 
-  defp load_audit_log(socket, filters) do
-    entries =
-      if use_mock?() do
-        mock = ExGoCD.MockData.audit_log_entries()
+  # The mock log is filtered in memory, the way the query filters in SQL.
+  defp mock_audit_entries(filters) do
+    ExGoCD.MockData.audit_log_entries()
+    |> Enum.filter(&audit_entry_matches?(&1, filters))
+  end
 
-        if filters == %{} do
-          mock
-        else
-          Enum.filter(mock, fn e ->
-            (is_nil(filters[:actor]) || filters[:actor] == "" ||
-               String.contains?(String.downcase(e.actor), String.downcase(filters[:actor]))) &&
-              (is_nil(filters[:action]) || filters[:action] == "" ||
-                 String.contains?(e.action, filters[:action])) &&
-              (is_nil(filters[:resource_type]) || filters[:resource_type] == "" ||
-                 String.contains?(e.resource_type, filters[:resource_type]))
-          end)
-        end
-      else
-        AuditLog.search(filters)
-      end
+  defp audit_entry_matches?(entry, filters) do
+    text_matches?(entry.actor, filters[:actor]) and
+      text_matches?(entry.action, filters[:action]) and
+      text_matches?(entry.resource_type, filters[:resource_type])
+  end
+
+  defp text_matches?(_value, nil), do: true
+  defp text_matches?(_value, ""), do: true
+
+  defp text_matches?(value, filter) do
+    String.contains?(String.downcase(to_string(value)), String.downcase(filter))
+  end
+
+  defp load_audit_log(socket, filters) do
+    entries = if use_mock?(), do: mock_audit_entries(filters), else: AuditLog.search(filters)
 
     socket
     |> assign(:audit_log_entries, entries)

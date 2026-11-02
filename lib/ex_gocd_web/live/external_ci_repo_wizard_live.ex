@@ -76,21 +76,35 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
     end
   end
 
-  defp build_file_configs_from_repo(existing_files) do
-    Map.new(existing_files, fn f ->
-      selection =
-        Repo.get_by(ExGoCD.ConfigRepos.ConfigRepoFileSelection,
-          config_repo_file_id: f.id
-        )
+  @default_file_config %{
+    mode: "translate",
+    selected_jobs: [],
+    selected_triggers: [],
+    overrides: %{}
+  }
+  @selection_fields [:mode, :selected_jobs, :selected_triggers, :overrides]
 
-      {f.path,
-       %{
-         mode: (selection && selection.mode) || "translate",
-         selected_jobs: (selection && selection.selected_jobs) || [],
-         selected_triggers: (selection && selection.selected_triggers) || [],
-         overrides: (selection && selection.overrides) || %{}
-       }}
-    end)
+  defp build_file_configs_from_repo(existing_files) do
+    Map.new(existing_files, fn file -> {file.path, file_config(file)} end)
+  end
+
+  defp file_config(file) do
+    Map.merge(@default_file_config, chosen_config(selection_of(file.id)))
+  end
+
+  defp selection_of(file_id) do
+    Repo.get_by(ExGoCD.ConfigRepos.ConfigRepoFileSelection, config_repo_file_id: file_id)
+  end
+
+  defp chosen_config(nil), do: %{}
+
+  # What someone chose for this file, without the fields they left empty.
+  defp chosen_config(selection) do
+    selection
+    |> Map.from_struct()
+    |> Map.take(@selection_fields)
+    |> Enum.reject(fn {_field, value} -> is_nil(value) end)
+    |> Map.new()
   end
 
   # ── Events ─────────────────────────────────────────────────────────────────
