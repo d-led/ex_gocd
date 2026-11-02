@@ -1040,11 +1040,23 @@ Reconstructed from the two indexed sessions for this workspace
 6. **Teach the XML the four plugin sections** if an external reader ever needs
    them, which first needs a way to know which plugin property is a secret.
 7. ~~**Make dialyzer and CRAP real gates.**~~ Done, both at zero: no type
-   warnings and nothing above the threshold on either tree. The coverage half
-   has started — the floor in `mix.exs` rises as modules get their first test,
-   one module at a time, and `elixir scripts/coverage_total.exs` prints which
-   modules no test reaches.
-8. **Look at the 29 serial test files.** 14 of them mutate `System.put_env`,
-   which is why they cannot run async. A process-scoped env helper would let
-   most of them run in parallel and would stop the suite from being order
-   dependent.
+   warnings and nothing above the threshold on either tree, and the coverage
+   floor is a gate again — `mix test.coverage` fails the run under it, which it
+   had stopped doing. What is left of the coverage list is not work a test can
+   do: `ExGoCD.Release` is `Ecto.Migrator` plumbing that needs a scratch database
+   to exercise, and the rest are modules whose only lines are compile-time
+   (`defmodule`, `use`, `embed_templates`) and can never be "called".
+8. **Look at the serial test files.** The reason most of them cannot run async is
+   that they mutate `System.put_env`, which is global. A process-scoped helper is
+   only honest if the *reads* go through it too — the code under test calls
+   `System.get_env` directly, so a lock in the test still races with any other
+   test reading the environment. Doing this properly means the product taking its
+   configuration as an argument instead of reading the environment at call time.
+9. **Decide about a docker-capable demo agent.** The quickstart's dogfood
+   pipelines ask for the `docker` resource ("`docker info`", "`docker version`",
+   "`docker run alpine echo`"), and no published agent variant carries the docker
+   CLI, so those jobs wait — which is truthful but not a full demo. Making them
+   run needs `docker-cli` in one variant's package list and the host's docker
+   socket mounted into that agent; the second half gives the demo container
+   root-equivalent access to the host daemon, so it is a decision rather than a
+   detail.
