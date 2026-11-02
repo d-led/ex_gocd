@@ -957,23 +957,17 @@ defmodule ExGoCDWeb.DashboardLive do
 
   defp format_change_time(time_str) when is_binary(time_str) do
     case DateTime.from_iso8601(time_str) do
-      {:ok, dt, _} ->
-        now = DateTime.utc_now()
-        diff = DateTime.diff(now, dt, :second)
-
-        cond do
-          diff < 60 -> "just now"
-          diff < 3600 -> "#{div(diff, 60)}m ago"
-          diff < 86_400 -> "#{div(diff, 3600)}h ago"
-          true -> String.slice(time_str, 0, 10)
-        end
-
-      _ ->
-        String.slice(time_str, 0, 10)
+      {:ok, time, _} -> relative_age(DateTime.diff(DateTime.utc_now(), time, :second), time_str)
+      _ -> String.slice(time_str, 0, 10)
     end
   end
 
   defp format_change_time(_), do: ""
+
+  defp relative_age(seconds, _time_str) when seconds < 60, do: "just now"
+  defp relative_age(seconds, _time_str) when seconds < 3600, do: "#{div(seconds, 60)}m ago"
+  defp relative_age(seconds, _time_str) when seconds < 86_400, do: "#{div(seconds, 3600)}h ago"
+  defp relative_age(_seconds, time_str), do: String.slice(time_str, 0, 10)
 
   # Status dot — CSS class for coloured circle indicator
   def status_dot_class(job) do

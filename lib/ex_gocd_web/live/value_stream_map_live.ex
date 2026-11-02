@@ -104,16 +104,19 @@ defmodule ExGoCDWeb.ValueStreamMapLive do
 
   # ── Material type icon helpers ──────────────────────────────────────────
 
-  defp material_icon("git"), do: "fa-brands fa-git"
-  defp material_icon("hg"), do: "fa-solid fa-code-fork"
-  defp material_icon("svn"), do: "fa-solid fa-database"
-  defp material_icon("p4"), do: "fa-solid fa-terminal"
-  defp material_icon("tfs"), do: "fa-brands fa-windows"
-  defp material_icon("dependency"), do: "fa-solid fa-diagram-project"
-  defp material_icon("package"), do: "fa-solid fa-box"
-  defp material_icon("plugin"), do: "fa-solid fa-plug"
-  defp material_icon("pluggable_scm"), do: "fa-solid fa-plug"
-  defp material_icon(_), do: "fa-solid fa-code-branch"
+  @material_icons %{
+    "git" => "fa-brands fa-git",
+    "hg" => "fa-solid fa-code-fork",
+    "svn" => "fa-solid fa-database",
+    "p4" => "fa-solid fa-terminal",
+    "tfs" => "fa-brands fa-windows",
+    "dependency" => "fa-solid fa-diagram-project",
+    "package" => "fa-solid fa-box",
+    "plugin" => "fa-solid fa-plug",
+    "pluggable_scm" => "fa-solid fa-plug"
+  }
+
+  defp material_icon(type), do: Map.get(@material_icons, type, "fa-solid fa-code-branch")
 
   defp material_icon_bg("dependency"), do: "bg-purple-50 text-purple-600"
   defp material_icon_bg("package"), do: "bg-amber-50 text-amber-600"

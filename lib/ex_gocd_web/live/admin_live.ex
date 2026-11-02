@@ -2107,11 +2107,17 @@ defmodule ExGoCDWeb.AdminLive do
   defp map_variables_for_modal(vars) do
     Enum.map(vars || [], fn var ->
       %{
-        "name" => var["name"] || var[:name],
-        "value" => var["value"] || var[:value] || var["encrypted_value"] || var[:encrypted_value],
-        "secure" => var["secure"] || var[:secure] || false
+        "name" => field(var, ["name"]),
+        "value" => field(var, ["value", "encrypted_value"]),
+        "secure" => field(var, ["secure"]) || false
       }
     end)
+  end
+
+  # Config reaches a page as string-keyed maps from the XML and atom-keyed maps
+  # from the forms; the first key that has something is the value.
+  defp field(map, keys) do
+    Enum.find_value(keys, fn key -> Map.get(map, key) || Map.get(map, String.to_atom(key)) end)
   end
 
   defp parse_save_env_variables(vars_params) do

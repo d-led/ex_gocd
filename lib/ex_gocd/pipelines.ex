@@ -1465,6 +1465,15 @@ defmodule ExGoCD.Pipelines do
     (instance.build_cause || %{})["configSnapshot"]
   end
 
+  defp revision_summary(nil), do: %{revision: "N/A", modifications: []}
+
+  defp revision_summary(revision) do
+    modifications = revision["modifications"] || []
+    latest = List.first(modifications) || %{}
+
+    %{revision: latest["revision"] || "Unknown", modifications: modifications}
+  end
+
   defp extract_revision_info(nil, _material_id), do: %{revision: "N/A", modifications: []}
 
   defp extract_revision_info(instance, material_id) do
@@ -1478,17 +1487,7 @@ defmodule ExGoCD.Pipelines do
         to_string(mat_id) == to_string(material_id)
       end)
 
-    if found do
-      mods = found["modifications"] || []
-      latest_mod = List.first(mods) || %{}
-
-      %{
-        revision: latest_mod["revision"] || "Unknown",
-        modifications: mods
-      }
-    else
-      %{revision: "N/A", modifications: []}
-    end
+    revision_summary(found)
   end
 
   @doc """

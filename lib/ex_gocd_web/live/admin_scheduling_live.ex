@@ -118,15 +118,22 @@ defmodule ExGoCDWeb.AdminSchedulingLive do
     end)
   end
 
+  # The first of the fields an error can carry, in the order that says the most
+  # about what went wrong.
   defp format_error_message(entry) do
     detail = entry.details || %{}
-    payload = detail["payload"] || detail[:payload] || %{}
+    payload = Map.get(detail, "payload") || Map.get(detail, :payload) || %{}
 
-    payload["exception.message"] ||
-      payload[:exception] ||
-      detail["error"] ||
-      detail["message"] ||
-      format_map(detail)
+    first_present([
+      {payload, "exception.message"},
+      {payload, :exception},
+      {detail, "error"},
+      {detail, "message"}
+    ]) || format_map(detail)
+  end
+
+  defp first_present(candidates) do
+    Enum.find_value(candidates, fn {map, key} -> Map.get(map, key) end)
   end
 
   defp format_map(map) when is_map(map) and map_size(map) > 0 do
