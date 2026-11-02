@@ -625,10 +625,12 @@ Cypress.Commands.add("hoverOnArrowBetween", (sourceLabel, targetLabel) => {
     vsmNodeId(targetLabel).then((tgtId) => {
       // The graph is a LiveView patch away from replacing the arrow it drew a
       // moment ago, so the element is waited for in the current DOM: a
-      // mouseenter fired on a detached node highlights nothing.
+      // mouseenter fired on a detached node highlights nothing. `exist`, not
+      // `be.visible` — Cypress reads visibility off offset dimensions, which an
+      // SVG path does not have.
       cy.get(vsmArrowSelector(srcId, tgtId))
         .first()
-        .should("be.visible")
+        .should("exist")
         .trigger("mouseenter", { force: true });
     });
   });
@@ -723,7 +725,7 @@ Cypress.Commands.add(
       vsmNodeId(targetLabel).then((tgtId) => {
         cy.get(vsmArrowSelector(srcId, tgtId))
           .first()
-          .should("be.visible")
+          .should("exist")
           .trigger("mouseleave", { force: true });
       });
     });

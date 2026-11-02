@@ -14,7 +14,9 @@ module.exports = defineConfig({
     specPattern: "cypress/e2e/**/*.cy.{js,jsx,ts,tsx}",
     excludeSpecPattern: ["**/screenshot*.cy.js"],
     video: false,
-    screenshotOnRunFailure: false,
+    // A failure that leaves no picture is a failure nobody can diagnose from the
+    // log alone — which is what happened to the VSM hover test.
+    screenshotOnRunFailure: true,
     screenshotsFolder: "cypress/screenshots",
     viewportWidth: 1280,
     viewportHeight: 720,
