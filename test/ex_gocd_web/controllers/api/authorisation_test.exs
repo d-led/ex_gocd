@@ -11,8 +11,8 @@ defmodule ExGoCDWeb.API.AuthorisationTest do
   """
   use ExGoCDWeb.ConnCase, async: true
 
-  alias ExGoCD.Agents
   alias ExGoCD.Accounts
+  alias ExGoCD.Agents
 
   setup do
     {:ok, admin} =

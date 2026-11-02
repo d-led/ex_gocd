@@ -22,29 +22,31 @@ defmodule ExGoCDWeb.API.StageController do
         "stage_name" => stage_name,
         "stage_counter" => stage_counter_str
       }) do
-    pipeline_counter = String.to_integer(counter_str)
-    stage_counter = String.to_integer(stage_counter_str)
+    with {:ok, pipeline_counter} <- parse_counter(counter_str),
+         {:ok, stage_counter} <- parse_counter(stage_counter_str) do
+      import Ecto.Query
 
-    import Ecto.Query
+      si =
+        from(si in StageInstance,
+          join: pi in assoc(si, :pipeline_instance),
+          join: p in assoc(pi, :pipeline),
+          where:
+            p.name == ^pipeline_name and
+              pi.counter == ^pipeline_counter and
+              si.name == ^stage_name and
+              si.counter == ^stage_counter,
+          preload: [pipeline_instance: {pi, pipeline: p}, job_instances: :job],
+          limit: 1
+        )
+        |> Repo.one()
 
-    si =
-      from(si in StageInstance,
-        join: pi in assoc(si, :pipeline_instance),
-        join: p in assoc(pi, :pipeline),
-        where:
-          p.name == ^pipeline_name and
-            pi.counter == ^pipeline_counter and
-            si.name == ^stage_name and
-            si.counter == ^stage_counter,
-        preload: [pipeline_instance: {pi, pipeline: p}, job_instances: :job],
-        limit: 1
-      )
-      |> Repo.one()
-
-    if is_nil(si) do
-      conn |> put_status(:not_found) |> json(%{message: "Stage instance not found."})
+      if is_nil(si) do
+        conn |> put_status(:not_found) |> json(%{message: "Stage instance not found."})
+      else
+        json(conn, stage_json(si))
+      end
     else
-      json(conn, stage_json(si))
+      {:error, :not_a_counter} -> not_a_counter(conn, "pipeline and stage counters")
     end
   end
 
@@ -93,19 +95,30 @@ defmodule ExGoCDWeb.API.StageController do
         "pipeline_counter" => counter_str,
         "stage_name" => stage_name
       }) do
-    pipeline_counter = String.to_integer(counter_str)
     actor = get_actor(conn)
     remote_ip = get_remote_ip(conn)
 
-    case Pipelines.cancel_stage(pipeline_name, pipeline_counter, stage_name,
-           actor: actor,
-           remote_ip: remote_ip
-         ) do
+    case parse_counter(counter_str) do
+      {:ok, pipeline_counter} ->
+        cancel_stage(conn, pipeline_name, pipeline_counter, stage_name,
+          actor: actor,
+          remote_ip: remote_ip
+        )
+
+      {:error, :not_a_counter} ->
+        not_a_counter(conn, "pipeline counter")
+    end
+  end
+
+  defp cancel_stage(conn, pipeline_name, pipeline_counter, stage_name, opts) do
+    case Pipelines.cancel_stage(pipeline_name, pipeline_counter, stage_name, opts) do
       {:ok, _} ->
         json(conn, %{message: "Stage '#{stage_name}' cancelled."})
 
       {:error, reason} ->
-        conn |> put_status(:unprocessable_entity) |> json(%{message: "Cancel failed: #{reason}"})
+        conn
+        |> put_status(:unprocessable_entity)
+        |> json(%{message: "Cancel failed: #{reason}"})
     end
   end
 
@@ -116,22 +129,41 @@ defmodule ExGoCDWeb.API.StageController do
         "stage_name" => stage_name,
         "stage_counter" => stage_counter_str
       }) do
-    pipeline_counter = String.to_integer(counter_str)
-    stage_counter = String.to_integer(stage_counter_str)
+    with {:ok, pipeline_counter} <- parse_counter(counter_str),
+         {:ok, stage_counter} <- parse_counter(stage_counter_str) do
+      case Pipelines.rerun_failed_jobs(
+             pipeline_name,
+             pipeline_counter,
+             stage_name,
+             stage_counter
+           ) do
+        {:ok, count} ->
+          json(conn, %{
+            message: "Re-running #{count} failed job(s) in stage '#{stage_name}'."
+          })
 
-    case Pipelines.rerun_failed_jobs(pipeline_name, pipeline_counter, stage_name, stage_counter) do
-      {:ok, count} ->
-        json(conn, %{message: "Re-running #{count} failed job(s) in stage '#{stage_name}'."})
+        {:error, :stage_not_found} ->
+          conn |> put_status(:not_found) |> json(%{message: "Stage not found."})
 
-      {:error, :stage_not_found} ->
-        conn |> put_status(:not_found) |> json(%{message: "Stage not found."})
+        {:error, :no_failed_jobs} ->
+          conn
+          |> put_status(:unprocessable_entity)
+          |> json(%{message: "No failed jobs to re-run."})
 
-      {:error, :no_failed_jobs} ->
-        conn |> put_status(:unprocessable_entity) |> json(%{message: "No failed jobs to re-run."})
-
-      {:error, reason} ->
-        conn |> put_status(:unprocessable_entity) |> json(%{message: "Re-run failed: #{reason}"})
+        {:error, reason} ->
+          conn
+          |> put_status(:unprocessable_entity)
+          |> json(%{message: "Re-run failed: #{reason}"})
+      end
+    else
+      {:error, :not_a_counter} -> not_a_counter(conn, "pipeline and stage counters")
     end
+  end
+
+  defp not_a_counter(conn, what) do
+    conn
+    |> put_status(:bad_request)
+    |> json(%{message: "#{String.capitalize(what)} must be whole numbers."})
   end
 
   defp stage_json(%StageInstance{} = si) do

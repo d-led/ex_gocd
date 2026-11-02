@@ -35,4 +35,21 @@ defmodule ExGoCDWeb.ControllerHelpers do
       :error -> 0
     end
   end
+
+  @doc """
+  Reads a counter from a path as a whole non-negative number.
+
+  A path is whatever the caller typed, so `String.to_integer/1` there turns a
+  typo into a crash. `{:error, :not_a_counter}` lets the action answer with a bad
+  request instead.
+  """
+  @spec parse_counter(term()) :: {:ok, non_neg_integer()} | {:error, :not_a_counter}
+  def parse_counter(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {n, ""} when n >= 0 -> {:ok, n}
+      _ -> {:error, :not_a_counter}
+    end
+  end
+
+  def parse_counter(_value), do: {:error, :not_a_counter}
 end
