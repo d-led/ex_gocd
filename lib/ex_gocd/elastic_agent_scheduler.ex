@@ -246,10 +246,19 @@ defmodule ExGoCD.ElasticAgentScheduler do
 
     state =
       Enum.reduce(to_delete, state, fn {pod_name, info}, acc ->
-        conn = build_k8s_conn_from_pod(info)
         namespace = info[:namespace] || "default"
-        k8s().delete_pod(conn, pod_name, namespace: namespace)
-        log_event(acc, :info, "Deleted idle/error pod: #{pod_name}")
+
+        # A pod whose cluster profile has been removed has nowhere to be deleted
+        # from; forgetting it is all that is left. Handing the client a nil
+        # connection would instead fail the whole tick.
+        case build_k8s_conn_from_pod(info) do
+          nil ->
+            log_event(acc, :warning, "Forgetting pod #{pod_name}: its cluster profile is gone")
+
+          conn ->
+            k8s().delete_pod(conn, pod_name, namespace: namespace)
+            log_event(acc, :info, "Deleted idle/error pod: #{pod_name}")
+        end
       end)
 
     %{state | pods: Map.new(remaining)}

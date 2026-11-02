@@ -114,28 +114,8 @@ defmodule ExGoCDWeb.AdminLiveTest do
       assert page_title(view) =~ "GoCD Administration - Security"
     end
 
-    test "toggles maintenance mode on click", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/admin")
-
-      # Initially disabled
-      refute render(view) =~ "Enabled (Read-only)"
-
-      # Enable it
-      view
-      |> element("button", "Enable")
-      |> render_click()
-
-      assert render(view) =~ "Enabled (Read-only)"
-      assert render(view) =~ "entered maintenance mode"
-
-      # Disable it
-      view
-      |> element("button", "Disable")
-      |> render_click()
-
-      refute render(view) =~ "Enabled (Read-only)"
-      assert render(view) =~ "left maintenance mode"
-    end
+    # The maintenance mode toggle is in its own synchronous file: it flips a flag
+    # the whole server shares, so it cannot run beside other tests.
 
     test "performs database configuration backup", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/admin/server")

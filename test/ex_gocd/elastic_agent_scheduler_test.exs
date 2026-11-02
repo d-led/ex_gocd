@@ -186,6 +186,20 @@ defmodule ExGoCD.ElasticAgentSchedulerTest do
       assert Enum.any?(new_state.events, &(&1.message =~ "Deleted idle/error pod"))
     end
 
+    test "a pod whose cluster profile is gone is forgotten, not deleted" do
+      state = %{
+        pods: %{"pod-orphaned" => %{error: true, cluster_name: "removed", namespace: "ci"}},
+        events: [],
+        tick_timer: nil
+      }
+
+      assert {:noreply, new_state} = ElasticAgentScheduler.handle_info(:tick, state)
+
+      refute_received {:k8s, {:delete, _, _, _}}
+      assert new_state.pods == %{}
+      assert Enum.any?(new_state.events, &(&1.message =~ "its cluster profile is gone"))
+    end
+
     test "a pod the cluster still has but nothing tracks is reaped" do
       {:ok, _profile} = kubernetes_profile("builders", %{"Image" => "gocd-agent:1"})
 
