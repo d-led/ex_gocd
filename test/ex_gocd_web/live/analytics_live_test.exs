@@ -62,6 +62,33 @@ defmodule ExGoCDWeb.AnalyticsLiveTest do
     end
   end
 
+  describe "the agents tab" do
+    test "shows the newest snapshot of the agent fleet", %{conn: conn} do
+      %ExGoCD.Analytics.AgentSnapshot{}
+      |> Ecto.Changeset.change(%{
+        total: 7,
+        idle: 5,
+        building: 2,
+        disabled: 0,
+        lost_contact: 0,
+        elastic: 1
+      })
+      |> ExGoCD.Repo.insert!()
+
+      {:ok, _view, html} = live(conn, ~p"/analytics/agents")
+
+      assert html =~ "Idle"
+      assert html =~ "Building"
+      assert html =~ "Elastic"
+    end
+
+    test "opens with nothing to report when no snapshot has been taken", %{conn: conn} do
+      {:ok, _view, html} = live(conn, ~p"/analytics/agents")
+
+      assert html =~ "Agents"
+    end
+  end
+
   defp run_that_waited(pipeline_name, opts) do
     {:ok, _pipeline} = Pipelines.create_pipeline(%{name: pipeline_name, group: "test"})
     started_at = DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.add(-3600, :second)

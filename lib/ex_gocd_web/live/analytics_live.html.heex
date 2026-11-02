@@ -38,7 +38,7 @@
     <% "pipeline_detail" -> %>
       <.pipeline_detail_tab detail={@pipeline_detail} pipeline_name={@selected_pipeline} />
     <% "agents" -> %>
-      <.agents_tab stats={@agent_stats} />
+      <.agents_tab stats={@agent_stats} latest_snapshot={@latest_snapshot} />
     <% "vsm" -> %>
       <.vsm_tab data={@vsm_data} pipeline_name={@selected_pipeline} vsm_workflow={@vsm_workflow} />
     <% _ -> %>
