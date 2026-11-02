@@ -9,6 +9,12 @@ defmodule ExGoCDWeb.API.NoEndpointCrashesTest do
   compiled, dialyzer was content, and only a request could tell. The list is the
   parameterless GET routes of both API trees; routes that take a path parameter
   are covered by their own controllers' tests.
+
+  An empty database is the easiest instance to answer, and it hides what only
+  data reaches: `/api/admin/scms` listed nothing without crashing and answered
+  500 as soon as an SCM existed, and `/api/admin/scms/:id` answered the SCM at
+  the requested offset rather than the one with that id. So each sweep runs
+  twice, once empty and once seeded.
   """
   use ExGoCDWeb.ConnCase, async: true
 
@@ -82,6 +88,30 @@ defmodule ExGoCDWeb.API.NoEndpointCrashesTest do
 
     test "is answered, not crashed, when the thing named is not there", %{conn: conn} do
       ExGoCD.Sweep.assert_all_answered(absent_paths(), &get(conn, &1))
+    end
+  end
+
+  describe "an admin, on a seeded instance" do
+    setup %{conn: conn} do
+      ExGoCD.TestSeeds.seed()
+
+      {:ok, admin} =
+        Accounts.create_user(%{
+          username: "seeded-admin-#{System.unique_integer([:positive])}",
+          display_name: "Admin",
+          roles: ["admin"],
+          status: "Active"
+        })
+
+      %{conn: log_in_as(conn, admin.username)}
+    end
+
+    test "is answered, not crashed, by every admin endpoint", %{conn: conn} do
+      ExGoCD.Sweep.assert_all_answered(@admin_paths, &get(conn, &1))
+    end
+
+    test "is answered, not crashed, by every open endpoint", %{conn: conn} do
+      ExGoCD.Sweep.assert_all_answered(@open_paths, &get(conn, &1))
     end
   end
 

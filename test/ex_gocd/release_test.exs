@@ -12,17 +12,16 @@ defmodule ExGoCD.ReleaseTest do
 
   alias ExGoCD.Pipelines.Pipeline
   alias ExGoCD.Repo
-
-  @seeds "priv/repo/seeds.exs"
+  alias ExGoCD.TestSeeds
 
   test "the seeds run on an empty database" do
-    seed()
+    TestSeeds.seed()
 
     assert Repo.aggregate(Pipeline, :count) > 0
   end
 
   test "the seeds make no fake runs unless mock data was asked for" do
-    report = ExUnit.CaptureIO.capture_io(fn -> seed() end)
+    report = TestSeeds.seed()
 
     assert Repo.aggregate(ExGoCD.Pipelines.PipelineInstance, :count) == 0
     refute report =~ "historical runs", "the report claims runs that were not made"
@@ -32,24 +31,19 @@ defmodule ExGoCD.ReleaseTest do
     System.put_env("USE_MOCK_DATA", "true")
     on_exit(fn -> System.delete_env("USE_MOCK_DATA") end)
 
-    report = ExUnit.CaptureIO.capture_io(fn -> seed() end)
+    report = TestSeeds.seed()
 
     assert Repo.aggregate(ExGoCD.Pipelines.PipelineInstance, :count) > 0
     assert report =~ "historical runs"
   end
 
   test "running the seeds again changes nothing" do
-    seed()
+    TestSeeds.seed()
     first = counts()
 
-    seed()
+    TestSeeds.seed()
 
     assert counts() == first
-  end
-
-  defp seed do
-    {result, _bindings} = Code.eval_file(@seeds)
-    result
   end
 
   defp counts do

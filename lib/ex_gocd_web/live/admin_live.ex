@@ -256,7 +256,7 @@ defmodule ExGoCDWeb.AdminLive do
               <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 text-xs">
                 <i class="fa fa-search"></i>
               </span>
-              <form phx-change="search_pipelines">
+              <form phx-change="search_pipelines" id="admin-pipeline-search-form">
                 <input
                   type="text"
                   name="query"

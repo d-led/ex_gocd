@@ -13,9 +13,9 @@
 
 | Dimension | State | Evidence |
 | --- | --- | --- |
-| Code | 272 source files, compile warnings-as-errors clean | `mix compile --force --warnings-as-errors` |
-| ExUnit | **1225 tests, all green** | `mix test` |
-| Coverage | **61.7 %**; 32 modules at 0 % | `mix test.coverage` |
+| Code | 268 source files, compile warnings-as-errors clean | `git ls-files 'lib/**/*.ex'` |
+| ExUnit | **1236 tests, all green** | `mix test` |
+| Coverage | **62.3 %**; 30 modules at 0 % | `mix test.coverage` |
 | Go agent | builds; tests pass in 3 of 10 packages (3,793 prod LOC / 599 test LOC); modules upgraded 2026-11-01 (otel 1.47, grpc 1.85) | `cd agent && go test ./...` |
 | Cypress | 27 specs on disk, **not executed in this session** | `ls cypress/e2e/*.cy.js` |
 | Static analysis | `scripts/quality-gate.sh` passes as a whole: 17 steps, 0 failures (format, compile, Sobelow, credo, doc references, test database, ExUnit, Go fmt/vet/golangci-lint/tests/gofmt/mod-tidy, jscpd, ESLint, TypeScript, Prettier, link checker). Two findings are kept and documented rather than ignored: the MD5 artifact checksums, which are the format a GoCD agent writes. `mix dialyzer` was run for the first time on 2026-11-02: 41 warnings then, 6 now. Six that went were dead branches that hid real faults, described below; eighteen were calls `VsmTracer.set_status` made to a one-argument form whose spec wants a status record, which now go through the documented `set_status(code, message)`; the rest were stale specs and one function with no callers. The six that remain are named rather than silenced: `k8s.ex:136`, a third-party inference about `K8s.Client.run/2` inside the `Task` that probes a cluster (the probe cannot be driven from a test because the fake provider is registered per process); `test_report.ex:107` and `:109`, Ecto changeset typing in the store path that `parse_and_store/2` tests exercise on three report formats; `materials/scm_client.ex:140`, `:141` and `:151`, an `author || "svn"` whose producer always supplies a binary. Three stale specs it found early are fixed too: two modules were referenced as `.t()` without defining one, and `material_filter`'s spec named an unaliased `Material`. `staticcheck` cannot serve either, its binary being older than the Go toolchain, and the gate now says that instead of blaming the code | see above |
@@ -497,6 +497,47 @@ pipelines, stages, jobs, materials or users — the "safe to run twice" its own
 docstring promises. The script is evaluated in the test's sandbox rather than
 through `Release.seed/0`, which opens its own connection and would commit.
 
+Running the seeds also gave the endpoint sweep a database with something in it,
+and that is where the SCM endpoints turned out to be broken.
+`api/scm_controller.ex` built each SCM's pipeline list from a field named
+`pipeline_group`, which a pipeline does not have — the field is `group`. Every
+pipeline has an SCM, so the listing raised `KeyError` and answered 500 on any
+instance that had ever had one; the sweep had never seen it because an empty
+database returns an empty list without building an SCM at all. Both sweeps now
+run twice, once empty and once seeded, and the seeded one was checked by putting
+the `KeyError` back: it names the endpoint and the field.
+
+`GET /api/admin/scms/:id` was wrong in a quieter way: it used the id as a
+position, `Enum.at(materials, id)`. So the SCM with id 1 was answered for id 2,
+the highest id was answered with 404, and a path that was not a number raised in
+`String.to_integer/1`. It finds by id now, and answers 404 for an id no material
+holds. Five tests hold the pair: an SCM is answered by its own id wherever it
+sits, it names the pipelines that use it, a listed SCM is listed once with every
+pipeline that uses it, and both a non-numeric id and an unknown one are missing
+rather than a crash.
+
+`PUT /api/admin/pipeline_groups/:name` was routed and had no action to dispatch
+to, so every rename raised `UndefinedFunctionError`; `resources` declares the
+route and nothing checked that the controller answers it. It renames the group
+and moves its pipelines in one statement now, reads the new name from
+`{"group": {"name": ...}}` because a body key `name` is overwritten by the
+path, answers 404 for a group nobody made and 422 for a body that names nothing.
+Three tests.
+
+Two controllers were routed nowhere at all and are deleted: `ExGoCDWeb.SCMController`
+and `ExGoCDWeb.PipelineGroupController`, both shadowed by `ExGoCDWeb.API.*`
+modules with the same names. The routes always resolved to the API ones, which is
+why a sweep could not see the difference; the deleted pipeline-group controller
+also moved its pipelines to a group called `"default"` where the rest of the
+application uses `"defaultGroup"`.
+
+Two LiveView forms had no id — the pipeline wizard and the admin pipeline
+search — and form recovery is what an id buys: without one, a reconnect loses
+what was typed. LiveView warns about it, in test runs only, thirty-one times per
+run. Both have ids now, and `forms_test.exs` reads every `.ex` and `.heex` under
+`lib/ex_gocd_web` and fails on a `phx-change` form without one, so the warning
+cannot come back unnoticed.
+
 ### Known noise: the sandbox says a connection was disconnected
 
 Most runs print one or two lines like
@@ -520,7 +561,7 @@ table: the agent speaks HTTP remoting, like a real GoCD agent
 (`agent/internal/remoting/`, `agent_remoting_controller.ex`, and no `websocket`
 string anywhere in the Go agent).
 
-`README.md` badges are hand-written and say 1225 tests and 27 Cypress specs.
+`README.md` badges are hand-written and say 1236 tests and 27 Cypress specs.
 Nothing regenerates them, so they will drift again.
 
 `scripts/check_doc_refs.exs` is the part that cannot drift: it fails when a

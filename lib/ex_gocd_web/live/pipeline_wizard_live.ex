@@ -95,7 +95,7 @@ defmodule ExGoCDWeb.PipelineWizardLive do
           </div>
 
           <div class="p-6">
-            <form phx-submit="next_step" phx-change="validate_form">
+            <form phx-submit="next_step" phx-change="validate_form" id="pipeline-wizard-form">
               <%= case @step do %>
                 <% 1 -> %>
                   <div class="space-y-4">
