@@ -4,7 +4,7 @@
 plugin extensibility, built-in observability, and a Go-powered agent.
 
 [![Quality Gate](https://img.shields.io/badge/quality-17%2F17-brightgreen)]()
-[![Tests](https://img.shields.io/badge/tests-1104%20passed-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-1107%20passed-brightgreen)]()
 [![Cypress](https://img.shields.io/badge/e2e-27%20specs-brightgreen)]()
 
 ---

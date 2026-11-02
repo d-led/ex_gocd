@@ -471,27 +471,33 @@ defmodule ExGoCD.Scheduler do
 
   defp plugin_approves?(nil, _agent, _spec), do: true
 
-  defp plugin_approves?(mod, agent, _spec) do
-    # Plugin module lives on a remote node — call via :erpc
+  defp plugin_approves?(mod, agent, spec) do
     case ExGoCD.Plugin.Registry.node_for(:agent_selector) do
-      nil ->
-        true
-
-      node ->
-        node_atom =
-          cond do
-            is_atom(node) -> node
-            is_binary(node) -> String.to_atom(node)
-          end
-
-        case :erpc.call(node_atom, mod, :select_agent, [[agent], []], 2000) do
-          {uuid, _reason} when is_binary(uuid) and byte_size(uuid) > 0 -> true
-          uuid when is_binary(uuid) and byte_size(uuid) > 0 -> true
-          _ -> true
-        end
+      nil -> true
+      node -> approves?(ask_selector(node, mod, agent, spec), agent)
     end
-  rescue
-    _ -> true
+  end
+
+  # The plugin may live on another node, so it is asked where it lives.
+  defp ask_selector(node, mod, agent, spec) do
+    :erpc.call(node, mod, :select_candidates, [[agent], spec, []], 2_000)
+  catch
+    kind, reason -> {:error, {kind, reason}}
+  end
+
+  defp approves?({:ok, candidates}, agent),
+    do: Enum.any?(candidates, &(&1.uuid == agent.uuid))
+
+  defp approves?({:reject, _reason}, _agent), do: false
+
+  # A policy plugin that fails must not stop the queue.
+  defp approves?({:error, reason}, agent) do
+    Logger.warning(
+      "Agent selector failed for #{agent.uuid}, allowing the agent: #{inspect(reason)}",
+      agent_uuid: agent.uuid
+    )
+
+    true
   end
 
   defp resources_match?(resources, agent_resources) do

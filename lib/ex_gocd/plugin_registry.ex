@@ -52,7 +52,7 @@ defmodule ExGoCD.Plugin.Registry do
   @doc """
   Returns the node where the plugin for the given slot is registered.
   """
-  @spec node_for(atom()) :: String.t() | nil
+  @spec node_for(atom()) :: node() | nil
   def node_for(slot) when slot in @slots do
     GenServer.call(__MODULE__, {:node_for, slot})
   end
@@ -87,9 +87,16 @@ defmodule ExGoCD.Plugin.Registry do
     configured_secret = Map.get(state, :secret, "")
 
     if slot in @slots and valid_secret?(configured_secret, secret) do
-      node = to_string(Node.self())
-      IO.puts("[PluginRegistry] Registered #{inspect(module)} as #{slot} from #{node}")
-      ExGoCD.ClusterEventLog.record(:plugin_registered, %{slot: slot, module: module, node: node})
+      # Kept as a node, because that is what callers need to reach the plugin.
+      node = Node.self()
+
+      IO.puts("[PluginRegistry] Registered #{inspect(module)} as #{slot} from #{to_string(node)}")
+
+      ExGoCD.ClusterEventLog.record(:plugin_registered, %{
+        slot: slot,
+        module: module,
+        node: to_string(node)
+      })
 
       state =
         state
