@@ -68,7 +68,7 @@ has to configure.
 | OpenTelemetry traces and metrics, Jaeger, Grafana | wired; dashboards in `grafana/` |
 | Plugins: agent selectors, auth providers, notification sinks, org hierarchy | wired through a plugin registry |
 | RBAC: roles, per-environment policies, personal access tokens, encryption | working, tested |
-| MCP server: 52 tools, 4 resources and 4 prompts over `POST /mcp`, with its own OAuth round trip | working, tested |
+| MCP server: 53 tools, 4 resources and 4 prompts over `POST /mcp`, with its own OAuth round trip | working, tested |
 
 What is measured and what is not is in [docs/STATUS.md](docs/STATUS.md), including the
 modules no test reaches. Feature-by-feature detail, with the GoCD class each module

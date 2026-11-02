@@ -5,7 +5,7 @@ transport, so an assistant can ask about a running GoCD server — what is
 configured, what ran, what is running now, why nothing is running, and what the
 numbers say — and act on it.
 
-It offers three things: **tools** (52 of them, below), **resources** (the
+It offers three things: **tools** (53 of them, below), **resources** (the
 documents a person would attach: the dashboard, the configuration XML, the audit
 trail, one pipeline's configuration) and **prompts** (the four workflows worth
 following in order). Completions offer the values that exist while an argument is
@@ -122,6 +122,33 @@ environment's pipelines, and a pipeline in no environment goes only to agents in
 no environment — so a new pipeline in a fleet whose agents all live inside
 environments is taken by nobody until someone assigns it. The answer says that
 rather than leaving it to be discovered.
+
+**Reviewing delivery** — `gocd_review_delivery`. Not a correctness check but a
+design review: given `definition`, `pipelines`, or nothing at all (the
+configuration as it stands), it names where a pipeline breaks one of the
+properties a deployment pipeline exists to have. These are Farley's, from
+*Continuous Delivery* — written with the team whose Cruise became GoCD — and
+they are the reason a pipeline is more than a list of stages:
+
+- **build once** — a deploy that depends on a build *and* checks out the same
+  repository can rebuild, so what it ships is not the artifact that was tested; a
+  pipeline others depend on that publishes no artifacts gives them nothing to
+  fetch; a `fetch` from a pipeline this one does not depend on takes whatever was
+  last produced rather than the build this run is for.
+- **fast feedback** — a gate on the *first* stage means nothing is built or
+  verified until a person clicks; most stages gated means the pipeline is a queue
+  of approvals.
+- **parallel feedback** — three commands in one job run one after another; as
+  three jobs in the stage they run at once on different agents.
+- **as code** — a pipeline that belongs to no config repository exists only on
+  this server: nobody reviews a change to it, and nothing restores it with the
+  code it builds.
+- **clean environment** — a stage that unpacks a fetched artifact into a working
+  directory it does not clean can pass on a file nothing rebuilt.
+
+Every finding is static, a property of the configuration rather than of a run. It
+can say a pipeline is arranged so that a bad build would be noticed; it can never
+say a build is good.
 
 **Stages** — `gocd_stage`, `gocd_stage_history`, `gocd_approve_stage`,
 `gocd_cancel_stage`, `gocd_rerun_failed_jobs`.
