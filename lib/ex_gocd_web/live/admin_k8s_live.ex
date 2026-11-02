@@ -102,8 +102,36 @@ defmodule ExGoCDWeb.AdminK8sLive do
 
   # ── Cluster Profile actions ───────────────────────────────────────────────
 
+  # Every event this page answers, and the function that answers it. One
+  # function per event keeps each decision small enough to read and to test;
+  # the table is the only place the list of them exists.
+  @handlers %{
+    "open_cluster_modal" => :open_cluster_modal,
+    "close_cluster_modal" => :close_cluster_modal,
+    "auto_parse_kubeconfig" => :auto_parse_kubeconfig,
+    "validate_cluster" => :validate_cluster,
+    "save_cluster" => :save_cluster,
+    "delete_cluster" => :delete_cluster,
+    "recheck_cluster" => :recheck_cluster,
+    "redetect_k3s" => :redetect_k3s,
+    "open_agent_modal" => :open_agent_modal,
+    "close_agent_modal" => :close_agent_modal,
+    "validate_agent" => :validate_agent,
+    "save_agent" => :save_agent,
+    "delete_agent" => :delete_agent,
+    "reap_stale_agents" => :reap_stale_agents,
+    "reap_all_k8s_agents" => :reap_all_k8s_agents
+  }
+
   @impl true
-  def handle_event("open_cluster_modal", %{"id" => id}, socket) do
+  def handle_event(event, params, socket) do
+    case Map.fetch(@handlers, event) do
+      {:ok, handler} -> apply(__MODULE__, handler, [params, socket])
+      :error -> {:noreply, socket}
+    end
+  end
+
+  def open_cluster_modal(%{"id" => id}, socket) do
     profile = ClusterProfiles.get_profile!(id)
 
     {:noreply,
@@ -114,7 +142,7 @@ defmodule ExGoCDWeb.AdminK8sLive do
      )}
   end
 
-  def handle_event("open_cluster_modal", _params, socket) do
+  def open_cluster_modal(_params, socket) do
     {:noreply,
      assign(socket,
        show_cluster_modal: true,
@@ -123,11 +151,11 @@ defmodule ExGoCDWeb.AdminK8sLive do
      )}
   end
 
-  def handle_event("close_cluster_modal", _params, socket) do
+  def close_cluster_modal(_params, socket) do
     {:noreply, assign(socket, show_cluster_modal: false, editing_cluster: nil)}
   end
 
-  def handle_event("auto_parse_kubeconfig", %{"cluster" => %{"kubeconfig_yaml" => yaml}}, socket)
+  def auto_parse_kubeconfig(%{"cluster" => %{"kubeconfig_yaml" => yaml}}, socket)
       when is_binary(yaml) and yaml != "" do
     case ExGoCD.K8s.extract_k3s_config(yaml) do
       {:ok, config} ->
@@ -152,11 +180,11 @@ defmodule ExGoCDWeb.AdminK8sLive do
     end
   end
 
-  def handle_event("auto_parse_kubeconfig", _params, socket) do
+  def auto_parse_kubeconfig(_params, socket) do
     {:noreply, socket}
   end
 
-  def handle_event("validate_cluster", %{"cluster" => params}, socket) do
+  def validate_cluster(%{"cluster" => params}, socket) do
     changeset =
       %ClusterProfile{}
       |> ClusterProfile.changeset(normalize_cluster_params(params))
@@ -165,7 +193,7 @@ defmodule ExGoCDWeb.AdminK8sLive do
     {:noreply, assign(socket, cluster_form: to_form(changeset))}
   end
 
-  def handle_event("save_cluster", %{"cluster" => params}, socket) do
+  def save_cluster(%{"cluster" => params}, socket) do
     attrs = normalize_cluster_params(params)
 
     result =
@@ -205,7 +233,7 @@ defmodule ExGoCDWeb.AdminK8sLive do
     end
   end
 
-  def handle_event("delete_cluster", %{"id" => id}, socket) do
+  def delete_cluster(%{"id" => id}, socket) do
     profile = ClusterProfiles.get_profile!(id)
     ClusterProfiles.delete_profile(profile)
 
@@ -218,7 +246,7 @@ defmodule ExGoCDWeb.AdminK8sLive do
      |> put_flash(:info, "Cluster profile deleted.")}
   end
 
-  def handle_event("recheck_cluster", %{"id" => id}, socket) do
+  def recheck_cluster(%{"id" => id}, socket) do
     # Mark as checking
     socket =
       put_in(socket.assigns.connection_status, Map.put(socket.assigns.connection_status, id, nil))
@@ -235,7 +263,7 @@ defmodule ExGoCDWeb.AdminK8sLive do
     end
   end
 
-  def handle_event("redetect_k3s", _params, socket) do
+  def redetect_k3s(_params, socket) do
     case ClusterProfiles.auto_detect_k3s() do
       {:ok, _profile} ->
         profiles = ClusterProfiles.list_profiles()
@@ -253,10 +281,7 @@ defmodule ExGoCDWeb.AdminK8sLive do
     end
   end
 
-  # ── Elastic Agent Profile actions ─────────────────────────────────────────
-
-  @impl true
-  def handle_event("open_agent_modal", %{"id" => id}, socket) do
+  def open_agent_modal(%{"id" => id}, socket) do
     profile = ElasticAgentProfiles.get_profile!(id)
 
     {:noreply,
@@ -267,16 +292,16 @@ defmodule ExGoCDWeb.AdminK8sLive do
      )}
   end
 
-  def handle_event("open_agent_modal", _params, socket) do
+  def open_agent_modal(_params, socket) do
     {:noreply,
      assign(socket, show_agent_modal: true, editing_agent: nil, agent_form: empty_agent_form())}
   end
 
-  def handle_event("close_agent_modal", _params, socket) do
+  def close_agent_modal(_params, socket) do
     {:noreply, assign(socket, show_agent_modal: false, editing_agent: nil)}
   end
 
-  def handle_event("validate_agent", %{"agent" => params}, socket) do
+  def validate_agent(%{"agent" => params}, socket) do
     changeset =
       %ElasticAgentProfile{}
       |> ElasticAgentProfile.changeset(normalize_agent_params(params))
@@ -285,7 +310,7 @@ defmodule ExGoCDWeb.AdminK8sLive do
     {:noreply, assign(socket, agent_form: to_form(changeset))}
   end
 
-  def handle_event("save_agent", %{"agent" => params}, socket) do
+  def save_agent(%{"agent" => params}, socket) do
     attrs = normalize_agent_params(params)
 
     result =
@@ -310,7 +335,7 @@ defmodule ExGoCDWeb.AdminK8sLive do
     end
   end
 
-  def handle_event("delete_agent", %{"id" => id}, socket) do
+  def delete_agent(%{"id" => id}, socket) do
     profile = ElasticAgentProfiles.get_profile!(id)
     ElasticAgentProfiles.delete_profile(profile)
 
@@ -320,7 +345,7 @@ defmodule ExGoCDWeb.AdminK8sLive do
      |> put_flash(:info, "Agent profile deleted.")}
   end
 
-  def handle_event("reap_stale_agents", _params, socket) do
+  def reap_stale_agents(_params, socket) do
     count = ExGoCD.Agents.reap_stale_agents()
 
     {:noreply,
@@ -332,7 +357,7 @@ defmodule ExGoCDWeb.AdminK8sLive do
      |> put_flash(:info, "Reaped #{count} stale/deleted agent(s).")}
   end
 
-  def handle_event("reap_all_k8s_agents", _params, socket) do
+  def reap_all_k8s_agents(_params, socket) do
     {agent_count, _} = ExGoCD.Agents.reap_k8s_agents()
     pod_count = ExGoCD.ElasticAgentScheduler.delete_all_pods()
 

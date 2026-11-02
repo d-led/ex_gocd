@@ -95,12 +95,38 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
 
   # ── Events ─────────────────────────────────────────────────────────────────
 
+  # Every event this page answers, and the function that answers it. One
+  # function per event keeps each decision small enough to read and to test;
+  # the table is the only place the list of them exists.
+  @handlers %{
+    "set_source_type" => :set_source_type,
+    "step1_next" => :step1_next,
+    "step2_all" => :step2_all,
+    "step2_none" => :step2_none,
+    "step2_toggle" => :step2_toggle,
+    "set_file_mode" => :set_file_mode,
+    "toggle_file_job" => :toggle_file_job,
+    "step3_next" => :step3_next,
+    "save_all" => :save_all,
+    "prev_step" => :prev_step,
+    "jump_to" => :jump_to,
+    "cancel" => :cancel,
+    "step2_continue" => :step2_continue
+  }
+
   @impl true
-  def handle_event("set_source_type", %{"source_type" => st}, socket) do
+  def handle_event(event, params, socket) do
+    case Map.fetch(@handlers, event) do
+      {:ok, handler} -> apply(__MODULE__, handler, [params, socket])
+      :error -> {:noreply, socket}
+    end
+  end
+
+  def set_source_type(%{"source_type" => st}, socket) do
     {:noreply, assign(socket, :source_type, st)}
   end
 
-  def handle_event("step1_next", %{"repo_url" => url, "branch" => branch}, socket) do
+  def step1_next(%{"repo_url" => url, "branch" => branch}, socket) do
     url = String.trim(url)
     branch = String.trim(branch)
     errors = validate_step1(url, branch)
@@ -112,16 +138,16 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
     end
   end
 
-  def handle_event("step2_all", _params, socket) do
+  def step2_all(_params, socket) do
     all_paths = Enum.map(socket.assigns.discovered_files, & &1.path)
     advance_to_step3(socket, all_paths)
   end
 
-  def handle_event("step2_none", _params, socket) do
+  def step2_none(_params, socket) do
     advance_to_step3(socket, [])
   end
 
-  def handle_event("step2_toggle", %{"path" => path}, socket) do
+  def step2_toggle(%{"path" => path}, socket) do
     discovered = socket.assigns.discovered_files
     # Toggle selection in a temporary assign
     current_selected = socket.assigns[:selected_paths] || Enum.map(discovered, & &1.path)
@@ -136,8 +162,7 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
     {:noreply, assign(socket, :selected_paths, updated)}
   end
 
-  def handle_event("set_file_mode", %{"path" => path, "mode" => mode}, socket)
-      when mode in @valid_modes do
+  def set_file_mode(%{"path" => path, "mode" => mode}, socket) when mode in @valid_modes do
     file_configs =
       Map.update!(socket.assigns.file_configs, path, fn cfg ->
         Map.put(cfg, :mode, mode)
@@ -146,7 +171,7 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
     {:noreply, assign(socket, :file_configs, file_configs)}
   end
 
-  def handle_event("toggle_file_job", %{"path" => path, "job" => job}, socket) do
+  def toggle_file_job(%{"path" => path, "job" => job}, socket) do
     file_configs =
       Map.update!(socket.assigns.file_configs, path, fn cfg ->
         jobs = cfg.selected_jobs
@@ -157,11 +182,11 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
     {:noreply, assign(socket, :file_configs, file_configs)}
   end
 
-  def handle_event("step3_next", _params, socket) do
+  def step3_next(_params, socket) do
     {:noreply, assign(socket, :step, 4)}
   end
 
-  def handle_event("save_all", _params, socket) do
+  def save_all(_params, socket) do
     config_repo = socket.assigns.config_repo
     socket = assign(socket, :saving, true)
 
@@ -179,12 +204,12 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
     end
   end
 
-  def handle_event("prev_step", _params, socket) do
+  def prev_step(_params, socket) do
     step = max(socket.assigns.step - 1, 1)
     {:noreply, assign(socket, :step, step)}
   end
 
-  def handle_event("jump_to", %{"step" => step_str}, socket) do
+  def jump_to(%{"step" => step_str}, socket) do
     step = String.to_integer(step_str)
     # Only allow jumping to completed or current steps
     max_step = socket.assigns.step
@@ -192,11 +217,11 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
     {:noreply, assign(socket, :step, target)}
   end
 
-  def handle_event("cancel", _params, socket) do
+  def cancel(_params, socket) do
     {:noreply, redirect(socket, to: "/admin/config_repos")}
   end
 
-  def handle_event("step2_continue", _params, socket) do
+  def step2_continue(_params, socket) do
     selected =
       socket.assigns[:selected_paths] || Enum.map(socket.assigns.discovered_files, & &1.path)
 

@@ -114,13 +114,41 @@ defmodule ExGoCDWeb.AgentsLive do
     {:noreply, assign(socket, pending_scheduled: count)}
   end
 
+  # Every event this page answers, and the function that answers it. One
+  # function per event keeps each decision small enough to read and to test;
+  # the table is the only place the list of them exists.
+  @handlers %{
+    "refresh_agents" => :refresh_agents,
+    "toggle_select" => :toggle_select,
+    "toggle_select_all" => :toggle_select_all,
+    "clean_disabled" => :clean_disabled,
+    "clean_lost" => :clean_lost,
+    "clean_test" => :clean_test,
+    "switch_tab" => :switch_tab,
+    "filter" => :filter,
+    "sort" => :sort,
+    "bulk_delete" => :bulk_delete,
+    "bulk_enable" => :bulk_enable,
+    "bulk_disable" => :bulk_disable,
+    "enable" => :enable,
+    "disable" => :disable,
+    "schedule_test_job" => :schedule_test_job,
+    "delete" => :delete
+  }
+
   @impl true
-  def handle_event("refresh_agents", _params, socket) do
+  def handle_event(event, params, socket) do
+    case Map.fetch(@handlers, event) do
+      {:ok, handler} -> apply(__MODULE__, handler, [params, socket])
+      :error -> {:noreply, socket}
+    end
+  end
+
+  def refresh_agents(_params, socket) do
     {:noreply, update_agents_list(socket)}
   end
 
-  @impl true
-  def handle_event("toggle_select", %{"uuid" => uuid}, socket) do
+  def toggle_select(%{"uuid" => uuid}, socket) do
     if socket.assigns[:is_user_admin] do
       selected =
         if MapSet.member?(socket.assigns.selected_agents, uuid) do
@@ -135,7 +163,7 @@ defmodule ExGoCDWeb.AgentsLive do
     end
   end
 
-  def handle_event("toggle_select_all", _params, socket) do
+  def toggle_select_all(_params, socket) do
     if socket.assigns[:is_user_admin] do
       agent_uuids = Enum.map(socket.assigns.agents, & &1.uuid) |> MapSet.new()
 
@@ -152,7 +180,7 @@ defmodule ExGoCDWeb.AgentsLive do
     end
   end
 
-  def handle_event("clean_disabled", _params, socket) do
+  def clean_disabled(_params, socket) do
     if socket.assigns[:is_user_admin] do
       count = Agents.clean_disabled_agents()
 
@@ -166,7 +194,7 @@ defmodule ExGoCDWeb.AgentsLive do
     end
   end
 
-  def handle_event("clean_lost", _params, socket) do
+  def clean_lost(_params, socket) do
     if socket.assigns[:is_user_admin] do
       count = Agents.clean_lost_agents()
 
@@ -180,7 +208,7 @@ defmodule ExGoCDWeb.AgentsLive do
     end
   end
 
-  def handle_event("clean_test", _params, socket) do
+  def clean_test(_params, socket) do
     if socket.assigns[:is_user_admin] do
       count = Agents.clean_test_agents()
 
@@ -194,15 +222,15 @@ defmodule ExGoCDWeb.AgentsLive do
     end
   end
 
-  def handle_event("switch_tab", %{"type" => type}, socket) do
+  def switch_tab(%{"type" => type}, socket) do
     {:noreply, push_patch(socket, to: ~p"/agents?type=#{type}")}
   end
 
-  def handle_event("filter", %{"value" => value}, socket) do
+  def filter(%{"value" => value}, socket) do
     {:noreply, assign(socket, filter: String.trim(value))}
   end
 
-  def handle_event("sort", %{"column" => column}, socket) do
+  def sort(%{"column" => column}, socket) do
     {sort_column, sort_order} =
       if socket.assigns.sort_column == column do
         order = if socket.assigns.sort_order == :asc, do: :desc, else: :asc
@@ -214,7 +242,7 @@ defmodule ExGoCDWeb.AgentsLive do
     {:noreply, assign(socket, sort_column: sort_column, sort_order: sort_order)}
   end
 
-  def handle_event("bulk_delete", _params, socket) do
+  def bulk_delete(_params, socket) do
     if socket.assigns[:is_user_admin] do
       Enum.each(socket.assigns.selected_agents, fn uuid ->
         Agents.delete_agent(uuid)
@@ -229,7 +257,7 @@ defmodule ExGoCDWeb.AgentsLive do
     end
   end
 
-  def handle_event("bulk_enable", _params, socket) do
+  def bulk_enable(_params, socket) do
     if socket.assigns[:is_user_admin] do
       Enum.each(socket.assigns.selected_agents, fn uuid ->
         Agents.enable_agent(uuid)
@@ -244,7 +272,7 @@ defmodule ExGoCDWeb.AgentsLive do
     end
   end
 
-  def handle_event("bulk_disable", _params, socket) do
+  def bulk_disable(_params, socket) do
     if socket.assigns[:is_user_admin] do
       Enum.each(socket.assigns.selected_agents, fn uuid ->
         Agents.disable_agent(uuid)
@@ -259,7 +287,7 @@ defmodule ExGoCDWeb.AgentsLive do
     end
   end
 
-  def handle_event("enable", %{"uuid" => uuid}, socket) do
+  def enable(%{"uuid" => uuid}, socket) do
     if socket.assigns[:is_user_admin] do
       case Agents.enable_agent(uuid) do
         {:ok, _agent} ->
@@ -273,7 +301,7 @@ defmodule ExGoCDWeb.AgentsLive do
     end
   end
 
-  def handle_event("disable", %{"uuid" => uuid}, socket) do
+  def disable(%{"uuid" => uuid}, socket) do
     if socket.assigns[:is_user_admin] do
       case Agents.disable_agent(uuid) do
         {:ok, _agent} ->
@@ -287,7 +315,7 @@ defmodule ExGoCDWeb.AgentsLive do
     end
   end
 
-  def handle_event("schedule_test_job", _params, socket) do
+  def schedule_test_job(_params, socket) do
     if socket.assigns[:is_user_admin] do
       result =
         Scheduler.schedule_job(%{
@@ -311,7 +339,7 @@ defmodule ExGoCDWeb.AgentsLive do
     end
   end
 
-  def handle_event("delete", %{"uuid" => uuid}, socket) do
+  def delete(%{"uuid" => uuid}, socket) do
     if socket.assigns[:is_user_admin] do
       case Agents.delete_agent(uuid) do
         {:ok, _} ->
@@ -864,14 +892,17 @@ defmodule ExGoCDWeb.AgentsLive do
     Enum.sort_by(agents, fn agent -> sort_key(agent, column) end, order)
   end
 
-  defp sort_key(agent, "hostname"), do: agent.hostname || ""
-  defp sort_key(agent, "working_dir"), do: agent.working_dir || ""
-  defp sort_key(agent, "operating_system"), do: agent.operating_system || ""
-  defp sort_key(agent, "ipaddress"), do: agent.ipaddress || ""
+  @text_sort_columns ~w(hostname working_dir operating_system ipaddress)
+  @list_sort_columns ~w(resources environments)
+
+  defp sort_key(agent, column) when column in @text_sort_columns,
+    do: Map.get(agent, String.to_existing_atom(column)) || ""
+
+  defp sort_key(agent, column) when column in @list_sort_columns,
+    do: Enum.join(Map.get(agent, String.to_existing_atom(column)) || [], " ")
+
   defp sort_key(agent, "state"), do: status_text(Agents.effective_status(agent))
   defp sort_key(agent, "free_space"), do: agent.free_space || 0
-  defp sort_key(agent, "resources"), do: Enum.join(agent.resources || [], " ")
-  defp sort_key(agent, "environments"), do: Enum.join(agent.environments || [], " ")
   defp sort_key(_agent, _), do: ""
 
   defp sort_icon_class(column, current_column, _order) when column != current_column,

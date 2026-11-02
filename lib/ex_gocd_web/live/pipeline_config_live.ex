@@ -1065,13 +1065,39 @@ defmodule ExGoCDWeb.PipelineConfigLive do
 
   # --- Event Handlers ---
 
+  # Every event this page answers, and the function that answers it. One
+  # function per event keeps each decision small enough to read and to test;
+  # the table is the only place the list of them exists.
+  @handlers %{
+    "clear_flash" => :clear_flash,
+    "save_general" => :save_general,
+    "save_stage" => :save_stage,
+    "save_job" => :save_job,
+    "open_add_modal" => :open_add_modal,
+    "close_modal" => :close_modal,
+    "open_edit_task" => :open_edit_task,
+    "open_edit_material" => :open_edit_material,
+    "delete_stage" => :delete_stage,
+    "delete_job" => :delete_job,
+    "delete_material" => :delete_material,
+    "delete_task" => :delete_task,
+    "move_task" => :move_task,
+    "save_modal" => :save_modal
+  }
+
   @impl true
-  def handle_event("clear_flash", _params, socket) do
+  def handle_event(event, params, socket) do
+    case Map.fetch(@handlers, event) do
+      {:ok, handler} -> apply(__MODULE__, handler, [params, socket])
+      :error -> {:noreply, socket}
+    end
+  end
+
+  def clear_flash(_params, socket) do
     {:noreply, assign(socket, :flash_info, nil)}
   end
 
-  @impl true
-  def handle_event("save_general", params, socket) do
+  def save_general(params, socket) do
     group = params["group"]
     label_template = params["label_template"]
     lock_behavior = params["lock_behavior"]
@@ -1114,8 +1140,7 @@ defmodule ExGoCDWeb.PipelineConfigLive do
     end
   end
 
-  @impl true
-  def handle_event("save_stage", params, socket) do
+  def save_stage(params, socket) do
     name = params["name"]
     approval_type = params["approval_type"] || "success"
     stage = socket.assigns.active_stage
@@ -1144,8 +1169,7 @@ defmodule ExGoCDWeb.PipelineConfigLive do
     end
   end
 
-  @impl true
-  def handle_event("save_job", params, socket) do
+  def save_job(params, socket) do
     name = params["name"]
     resources = params["resources"] || ""
     run_on_all_agents = params["run_on_all_agents"]
@@ -1197,10 +1221,7 @@ defmodule ExGoCDWeb.PipelineConfigLive do
     end
   end
 
-  # --- Modal Controls ---
-
-  @impl true
-  def handle_event("open_add_modal", %{"type" => type}, socket) do
+  def open_add_modal(%{"type" => type}, socket) do
     modal_type = String.to_existing_atom(type)
 
     {:noreply,
@@ -1210,8 +1231,7 @@ defmodule ExGoCDWeb.PipelineConfigLive do
      |> assign(:modal_form, %{"type" => "exec", "command" => "", "arguments" => ""})}
   end
 
-  @impl true
-  def handle_event("close_modal", _params, socket) do
+  def close_modal(_params, socket) do
     {:noreply,
      socket
      |> assign(:show_add_modal, false)
@@ -1219,8 +1239,7 @@ defmodule ExGoCDWeb.PipelineConfigLive do
      |> assign(:modal_form, %{})}
   end
 
-  @impl true
-  def handle_event("open_edit_task", %{"id" => id}, socket) do
+  def open_edit_task(%{"id" => id}, socket) do
     task = Pipelines.get_task(id)
 
     {:noreply,
@@ -1235,8 +1254,7 @@ defmodule ExGoCDWeb.PipelineConfigLive do
      })}
   end
 
-  @impl true
-  def handle_event("open_edit_material", %{"id" => id}, socket) do
+  def open_edit_material(%{"id" => id}, socket) do
     # Fetch material
     material = Repo.get(Material, id)
 
@@ -1251,8 +1269,7 @@ defmodule ExGoCDWeb.PipelineConfigLive do
      })}
   end
 
-  @impl true
-  def handle_event("delete_stage", %{"id" => id}, socket) do
+  def delete_stage(%{"id" => id}, socket) do
     stage = Repo.get(Stage, id)
 
     if stage do
@@ -1267,8 +1284,7 @@ defmodule ExGoCDWeb.PipelineConfigLive do
      |> assign(:flash_info, "Stage was deleted successfully.")}
   end
 
-  @impl true
-  def handle_event("delete_job", %{"id" => id}, socket) do
+  def delete_job(%{"id" => id}, socket) do
     job = Repo.get(Job, id)
 
     if job do
@@ -1283,8 +1299,7 @@ defmodule ExGoCDWeb.PipelineConfigLive do
      |> assign(:flash_info, "Job was deleted successfully.")}
   end
 
-  @impl true
-  def handle_event("delete_material", %{"id" => id}, socket) do
+  def delete_material(%{"id" => id}, socket) do
     material = Repo.get(Material, id)
 
     if material do
@@ -1306,8 +1321,7 @@ defmodule ExGoCDWeb.PipelineConfigLive do
      |> assign(:flash_info, "Material removed successfully.")}
   end
 
-  @impl true
-  def handle_event("delete_task", %{"id" => id}, socket) do
+  def delete_task(%{"id" => id}, socket) do
     task = Repo.get(Task, id)
 
     if task do
@@ -1320,8 +1334,7 @@ defmodule ExGoCDWeb.PipelineConfigLive do
      |> assign(:flash_info, "Task deleted successfully.")}
   end
 
-  @impl true
-  def handle_event("move_task", %{"id" => id, "dir" => dir}, socket) do
+  def move_task(%{"id" => id, "dir" => dir}, socket) do
     task = Repo.get!(Task, id)
     job = Pipelines.get_job(task.job_id)
 
@@ -1352,8 +1365,7 @@ defmodule ExGoCDWeb.PipelineConfigLive do
      |> assign(:flash_info, "Task reordered successfully.")}
   end
 
-  @impl true
-  def handle_event("save_modal", params, socket) do
+  def save_modal(params, socket) do
     case save_modal_result(params, socket) do
       {:ok, updated_socket} ->
         {:noreply, updated_socket}

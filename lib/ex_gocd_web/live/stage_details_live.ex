@@ -50,8 +50,23 @@ defmodule ExGoCDWeb.StageDetailsLive do
     end
   end
 
+  # Every event this page answers, and the function that answers it. One
+  # function per event keeps each decision small enough to read and to test;
+  # the table is the only place the list of them exists.
+  @handlers %{
+    "approve_stage" => :approve_stage,
+    "select_tab" => :select_tab
+  }
+
   @impl true
-  def handle_event("approve_stage", _params, socket) do
+  def handle_event(event, params, socket) do
+    case Map.fetch(@handlers, event) do
+      {:ok, handler} -> apply(__MODULE__, handler, [params, socket])
+      :error -> {:noreply, socket}
+    end
+  end
+
+  def approve_stage(_params, socket) do
     user = socket.assigns[:current_user]
 
     pipeline_name = socket.assigns.pipeline_name
@@ -88,8 +103,7 @@ defmodule ExGoCDWeb.StageDetailsLive do
     end
   end
 
-  @impl true
-  def handle_event("select_tab", %{"tab" => tab}, socket) do
+  def select_tab(%{"tab" => tab}, socket) do
     {:noreply, assign(socket, :active_tab, tab)}
   end
 
@@ -287,19 +301,23 @@ defmodule ExGoCDWeb.StageDetailsLive do
     )
   end
 
-  defp classify_agent(nil, _plugin, _wd, resources) do
-    cond do
-      "k8s" in resources -> "k8s"
-      "docker" in resources -> "docker"
-      true -> "regular"
-    end
+  # A static agent is what its resources let it do; an elastic one is what started
+  # it, which the working directory or the plugin name says.
+  defp classify_agent(nil, _plugin, _wd, resources), do: static_kind(resources)
+
+  defp classify_agent(_elastic_id, plugin, wd, _resources),
+    do: elastic_kind(String.downcase(wd <> " " <> plugin))
+
+  defp static_kind(resources) do
+    Enum.find(["k8s", "docker"], "regular", &(&1 in resources))
   end
 
-  defp classify_agent(_elastic_id, plugin, wd, _resources) do
-    cond do
-      String.contains?(wd, "k8s") or String.contains?(plugin, "kubernetes") -> "k8s-elastic"
-      String.contains?(wd, "docker") or String.contains?(plugin, "docker") -> "docker-elastic"
-      true -> "elastic"
+  defp elastic_kind(started_by) do
+    case Enum.find([{"k8s", "k8s-elastic"}, {"docker", "docker-elastic"}], fn {needle, _kind} ->
+           String.contains?(started_by, needle)
+         end) do
+      {_needle, kind} -> kind
+      nil -> "elastic"
     end
   end
 

@@ -41,26 +41,52 @@ defmodule ExGoCDWeb.DashboardLive do
      |> load_pipelines()}
   end
 
+  # Every event this page answers, and the function that answers it. One
+  # function per event keeps each decision small enough to read and to test;
+  # the table is the only place the list of them exists.
+  @handlers %{
+    "search" => :search,
+    "toggle_dropdown" => :toggle_dropdown,
+    "close_dropdown" => :close_dropdown,
+    "select_grouping" => :select_grouping,
+    "trigger_pipeline" => :trigger_pipeline,
+    "show_pause_modal" => :show_pause_modal,
+    "close_pause_modal" => :close_pause_modal,
+    "toggle_changes" => :toggle_changes,
+    "pause_pipeline" => :pause_pipeline,
+    "unpause_pipeline" => :unpause_pipeline,
+    "show_stage_summary" => :show_stage_summary,
+    "close_stage_summary" => :close_stage_summary,
+    "toggle_job_selection" => :toggle_job_selection,
+    "rerun_failed_jobs" => :rerun_failed_jobs,
+    "rerun_selected_jobs" => :rerun_selected_jobs,
+    "approve_stage" => :approve_stage
+  }
+
   @impl true
-  def handle_event("search", %{"value" => search_text}, socket) do
+  def handle_event(event, params, socket) do
+    case Map.fetch(@handlers, event) do
+      {:ok, handler} -> apply(__MODULE__, handler, [params, socket])
+      :error -> {:noreply, socket}
+    end
+  end
+
+  def search(%{"value" => search_text}, socket) do
     {:noreply,
      socket
      |> assign(:search_text, search_text)
      |> load_pipelines()}
   end
 
-  @impl true
-  def handle_event("toggle_dropdown", _params, socket) do
+  def toggle_dropdown(_params, socket) do
     {:noreply, assign(socket, :dropdown_open, !socket.assigns.dropdown_open)}
   end
 
-  @impl true
-  def handle_event("close_dropdown", _params, socket) do
+  def close_dropdown(_params, socket) do
     {:noreply, assign(socket, :dropdown_open, false)}
   end
 
-  @impl true
-  def handle_event("select_grouping", %{"scheme" => scheme}, socket) do
+  def select_grouping(%{"scheme" => scheme}, socket) do
     params = %{"group_by" => scheme}
 
     params =
@@ -79,8 +105,7 @@ defmodule ExGoCDWeb.DashboardLive do
      |> load_pipelines()}
   end
 
-  @impl true
-  def handle_event("trigger_pipeline", %{"name" => name}, socket) do
+  def trigger_pipeline(%{"name" => name}, socket) do
     user = socket.assigns[:current_user]
 
     if ExGoCD.Policies.permit?(ExGoCD.Policies.EnvironmentPolicy, :trigger_pipeline, user) do
@@ -93,8 +118,7 @@ defmodule ExGoCDWeb.DashboardLive do
     end
   end
 
-  @impl true
-  def handle_event("show_pause_modal", %{"name" => name}, socket) do
+  def show_pause_modal(%{"name" => name}, socket) do
     user = socket.assigns[:current_user]
 
     case ExGoCD.Policies.permit?(ExGoCD.Policies.EnvironmentPolicy, :trigger_pipeline, user) do
@@ -111,8 +135,7 @@ defmodule ExGoCDWeb.DashboardLive do
     end
   end
 
-  @impl true
-  def handle_event("close_pause_modal", _params, socket) do
+  def close_pause_modal(_params, socket) do
     {:noreply,
      socket
      |> assign(:show_pause_modal, false)
@@ -120,15 +143,13 @@ defmodule ExGoCDWeb.DashboardLive do
      |> assign(:pause_cause_input, "")}
   end
 
-  @impl true
-  def handle_event("toggle_changes", %{"name" => name}, socket) do
+  def toggle_changes(%{"name" => name}, socket) do
     current = socket.assigns.show_changes_for
     next = if current == name, do: nil, else: name
     {:noreply, assign(socket, :show_changes_for, next)}
   end
 
-  @impl true
-  def handle_event("pause_pipeline", %{"pause_cause" => cause}, socket) do
+  def pause_pipeline(%{"pause_cause" => cause}, socket) do
     pipeline_name = socket.assigns.active_pause_pipeline
     user = socket.assigns[:current_user]
 
@@ -164,8 +185,7 @@ defmodule ExGoCDWeb.DashboardLive do
     end
   end
 
-  @impl true
-  def handle_event("unpause_pipeline", %{"name" => name}, socket) do
+  def unpause_pipeline(%{"name" => name}, socket) do
     user = socket.assigns[:current_user]
 
     case ExGoCD.Policies.permit?(ExGoCD.Policies.EnvironmentPolicy, :trigger_pipeline, user) do
@@ -195,9 +215,7 @@ defmodule ExGoCDWeb.DashboardLive do
     end
   end
 
-  @impl true
-  def handle_event(
-        "show_stage_summary",
+  def show_stage_summary(
         %{"pipeline" => pipeline_name, "stage" => stage_name, "counter" => counter_str},
         socket
       ) do
@@ -210,13 +228,11 @@ defmodule ExGoCDWeb.DashboardLive do
      |> assign(:selected_jobs, MapSet.new())}
   end
 
-  @impl true
-  def handle_event("close_stage_summary", _params, socket) do
+  def close_stage_summary(_params, socket) do
     {:noreply, assign(socket, :active_stage_summary, nil)}
   end
 
-  @impl true
-  def handle_event("toggle_job_selection", %{"job" => job_name}, socket) do
+  def toggle_job_selection(%{"job" => job_name}, socket) do
     selected = socket.assigns.selected_jobs
 
     new_selected =
@@ -229,8 +245,7 @@ defmodule ExGoCDWeb.DashboardLive do
     {:noreply, assign(socket, :selected_jobs, new_selected)}
   end
 
-  @impl true
-  def handle_event("rerun_failed_jobs", _params, socket) do
+  def rerun_failed_jobs(_params, socket) do
     summary = socket.assigns.active_stage_summary
 
     if summary do
@@ -266,8 +281,7 @@ defmodule ExGoCDWeb.DashboardLive do
     end
   end
 
-  @impl true
-  def handle_event("rerun_selected_jobs", _params, socket) do
+  def rerun_selected_jobs(_params, socket) do
     summary = socket.assigns.active_stage_summary
     selected = socket.assigns.selected_jobs |> MapSet.to_list()
 
@@ -300,9 +314,7 @@ defmodule ExGoCDWeb.DashboardLive do
     end
   end
 
-  @impl true
-  def handle_event(
-        "approve_stage",
+  def approve_stage(
         %{"pipeline" => pipeline_name, "counter" => counter_str, "stage" => stage_name},
         socket
       ) do
@@ -361,42 +373,34 @@ defmodule ExGoCDWeb.DashboardLive do
       {:error, Exception.message(e)}
   end
 
+  # Every answer a trigger can come back with, as the sentence the dashboard shows.
+  @trigger_messages %{
+    pipeline_not_found: {:error, "Pipeline '%{name}' not found."},
+    already_triggered: {:error, "Pipeline '%{name}' was just triggered — wait a moment."},
+    about_to_be_triggered: {:error, "Pipeline '%{name}' was just triggered — wait a moment."},
+    pipeline_paused: {:error, "Pipeline '%{name}' is paused. Unpause first."},
+    pipeline_locked: {:error, "Pipeline '%{name}' is locked. Unlock first."},
+    stage_active: {:error, "Pipeline '%{name}' has an active run in progress."},
+    disk_space: {:error, "Cannot trigger — insufficient disk space on the server."},
+    maintenance_mode: {:error, "Server is in maintenance mode. Cannot trigger pipelines."},
+    fan_in_mismatch:
+      {:error, "Cannot trigger — dependency revision mismatch. Verify upstream pipelines."},
+    filter_ignored:
+      {:warning, "No changes to trigger — all modified files are ignored by material filter."}
+  }
+
   defp trigger_flash_message(name, {:ok, _}), do: {:info, "Pipeline #{name} triggered."}
+  defp trigger_flash_message(name, {:error, reason}), do: trigger_failure(name, reason)
 
-  defp trigger_flash_message(name, {:error, :pipeline_not_found}),
-    do: {:error, "Pipeline '#{name}' not found."}
-
-  defp trigger_flash_message(name, {:error, :already_triggered}),
-    do: {:error, "Pipeline '#{name}' was just triggered — wait a moment."}
-
-  defp trigger_flash_message(name, {:error, :about_to_be_triggered}),
-    do: {:error, "Pipeline '#{name}' was just triggered — wait a moment."}
-
-  defp trigger_flash_message(name, {:error, :pipeline_paused}),
-    do: {:error, "Pipeline '#{name}' is paused. Unpause first."}
-
-  defp trigger_flash_message(name, {:error, :pipeline_locked}),
-    do: {:error, "Pipeline '#{name}' is locked. Unlock first."}
-
-  defp trigger_flash_message(name, {:error, :stage_active}),
-    do: {:error, "Pipeline '#{name}' has an active run in progress."}
-
-  defp trigger_flash_message(_name, {:error, :disk_space}),
-    do: {:error, "Cannot trigger — insufficient disk space on the server."}
-
-  defp trigger_flash_message(_name, {:error, :maintenance_mode}),
-    do: {:error, "Server is in maintenance mode. Cannot trigger pipelines."}
-
-  defp trigger_flash_message(_name, {:error, :fan_in_mismatch}),
-    do: {:error, "Cannot trigger — dependency revision mismatch. Verify upstream pipelines."}
-
-  defp trigger_flash_message(_name, {:error, :filter_ignored}),
-    do: {:warning, "No changes to trigger — all modified files are ignored by material filter."}
-
-  defp trigger_flash_message(_name, {:error, reason}) when is_binary(reason),
+  defp trigger_failure(_name, reason) when is_binary(reason),
     do: {:error, "Trigger failed: #{String.slice(reason, 0, 200)}"}
 
-  defp trigger_flash_message(_name, {:error, _}), do: {:error, "Trigger failed."}
+  defp trigger_failure(name, reason) do
+    case Map.get(@trigger_messages, reason) do
+      {level, sentence} -> {level, String.replace(sentence, "%{name}", name)}
+      nil -> {:error, "Trigger failed."}
+    end
+  end
 
   # Fetch details helper
   defp fetch_stage_summary_details(pipeline_name, pipeline_counter, stage_name) do

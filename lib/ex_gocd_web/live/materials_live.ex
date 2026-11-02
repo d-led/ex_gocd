@@ -33,16 +33,37 @@ defmodule ExGoCDWeb.MaterialsLive do
      |> load_materials()}
   end
 
+  # Every event this page answers, and the function that answers it. One
+  # function per event keeps each decision small enough to read and to test;
+  # the table is the only place the list of them exists.
+  @handlers %{
+    "search" => :search,
+    "toggle_material" => :toggle_material,
+    "trigger_update" => :trigger_update,
+    "show_usages" => :show_usages,
+    "show_modifications" => :show_modifications,
+    "close_modal" => :close_modal,
+    "search_modifications" => :search_modifications,
+    "mod_prev_page" => :mod_prev_page,
+    "mod_next_page" => :mod_next_page
+  }
+
   @impl true
-  def handle_event("search", %{"value" => search_text}, socket) do
+  def handle_event(event, params, socket) do
+    case Map.fetch(@handlers, event) do
+      {:ok, handler} -> apply(__MODULE__, handler, [params, socket])
+      :error -> {:noreply, socket}
+    end
+  end
+
+  def search(%{"value" => search_text}, socket) do
     {:noreply,
      socket
      |> assign(:search_text, search_text)
      |> load_materials()}
   end
 
-  @impl true
-  def handle_event("toggle_material", %{"fingerprint" => fingerprint}, socket) do
+  def toggle_material(%{"fingerprint" => fingerprint}, socket) do
     expanded = socket.assigns.expanded_materials
 
     new_expanded =
@@ -55,8 +76,7 @@ defmodule ExGoCDWeb.MaterialsLive do
     {:noreply, assign(socket, :expanded_materials, new_expanded)}
   end
 
-  @impl true
-  def handle_event("trigger_update", %{"fingerprint" => fingerprint}, socket) do
+  def trigger_update(%{"fingerprint" => fingerprint}, socket) do
     material = Enum.find(socket.assigns.materials, &(&1.fingerprint == fingerprint))
 
     if material do
@@ -68,8 +88,7 @@ defmodule ExGoCDWeb.MaterialsLive do
     end
   end
 
-  @impl true
-  def handle_event("show_usages", %{"fingerprint" => fingerprint}, socket) do
+  def show_usages(%{"fingerprint" => fingerprint}, socket) do
     material = Enum.find(socket.assigns.materials, &(&1.fingerprint == fingerprint))
 
     if material do
@@ -82,8 +101,7 @@ defmodule ExGoCDWeb.MaterialsLive do
     end
   end
 
-  @impl true
-  def handle_event("show_modifications", %{"fingerprint" => fingerprint}, socket) do
+  def show_modifications(%{"fingerprint" => fingerprint}, socket) do
     material = Enum.find(socket.assigns.materials, &(&1.fingerprint == fingerprint))
 
     if material do
@@ -98,8 +116,7 @@ defmodule ExGoCDWeb.MaterialsLive do
     end
   end
 
-  @impl true
-  def handle_event("close_modal", _params, socket) do
+  def close_modal(_params, socket) do
     {:noreply,
      socket
      |> assign(:show_usages_modal, false)
@@ -107,22 +124,19 @@ defmodule ExGoCDWeb.MaterialsLive do
      |> assign(:active_material, nil)}
   end
 
-  @impl true
-  def handle_event("search_modifications", %{"value" => search_text}, socket) do
+  def search_modifications(%{"value" => search_text}, socket) do
     {:noreply,
      socket
      |> assign(:mod_search_text, search_text)
      |> assign(:mod_page_index, 0)}
   end
 
-  @impl true
-  def handle_event("mod_prev_page", _params, socket) do
+  def mod_prev_page(_params, socket) do
     new_index = max(0, socket.assigns.mod_page_index - 1)
     {:noreply, assign(socket, :mod_page_index, new_index)}
   end
 
-  @impl true
-  def handle_event("mod_next_page", _params, socket) do
+  def mod_next_page(_params, socket) do
     new_index = socket.assigns.mod_page_index + 1
     {:noreply, assign(socket, :mod_page_index, new_index)}
   end

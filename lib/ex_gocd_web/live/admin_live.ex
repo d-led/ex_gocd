@@ -1376,8 +1376,58 @@ defmodule ExGoCDWeb.AdminLive do
 
   # --- Event Handlers ---
 
+  # Every event this page answers, and the function that answers it. One
+  # function per event keeps each decision small enough to read and to test;
+  # the table is the only place the list of them exists.
+  @handlers %{
+    "trigger_config_repo" => :trigger_config_repo,
+    "sync_config_repo" => :sync_config_repo,
+    "delete_config_repo" => :delete_config_repo,
+    "clear_flash" => :clear_flash,
+    "toggle_maintenance_mode" => :toggle_maintenance_mode,
+    "trigger_backup" => :trigger_backup,
+    "search_pipelines" => :search_pipelines,
+    "toggle_create_modal" => :toggle_create_modal,
+    "create_pipeline_group" => :create_pipeline_group,
+    "delete_pipeline_group" => :delete_pipeline_group,
+    "delete_pipeline" => :delete_pipeline,
+    "add_pipeline_to_group" => :add_pipeline_to_group,
+    "open_add_user_modal" => :open_add_user_modal,
+    "open_edit_user_roles_modal" => :open_edit_user_roles_modal,
+    "close_user_modal" => :close_user_modal,
+    "save_user" => :save_user,
+    "toggle_user_status" => :toggle_user_status,
+    "delete_user" => :delete_user,
+    "open_add_env_modal" => :open_add_env_modal,
+    "close_env_modal" => :close_env_modal,
+    "open_edit_env_modal" => :open_edit_env_modal,
+    "add_env_var_row" => :add_env_var_row,
+    "remove_env_var_row" => :remove_env_var_row,
+    "toggle_var_secure" => :toggle_var_secure,
+    "delete_environment_ui" => :delete_environment_ui,
+    "save_environment_ui" => :save_environment_ui,
+    "cleanup_stuck_jobs" => :cleanup_stuck_jobs,
+    "reconcile_stale_stages" => :reconcile_stale_stages,
+    "reset_pipeline" => :reset_pipeline,
+    "save_mailhost_config" => :save_mailhost_config,
+    "open_template_form" => :open_template_form,
+    "close_template_form" => :close_template_form,
+    "edit_template" => :edit_template,
+    "save_template" => :save_template,
+    "delete_template" => :delete_template,
+    "search_audit_log" => :search_audit_log,
+    "reset_audit_log_filters" => :reset_audit_log_filters
+  }
+
   @impl true
-  def handle_event("trigger_config_repo", %{"id" => id}, socket) do
+  def handle_event(event, params, socket) do
+    case Map.fetch(@handlers, event) do
+      {:ok, handler} -> apply(__MODULE__, handler, [params, socket])
+      :error -> {:noreply, socket}
+    end
+  end
+
+  def trigger_config_repo(%{"id" => id}, socket) do
     id = String.to_integer(id)
 
     case ConfigRepos.get_config_repo(id) do
@@ -1401,8 +1451,7 @@ defmodule ExGoCDWeb.AdminLive do
     end
   end
 
-  @impl true
-  def handle_event("sync_config_repo", %{"id" => id}, socket) do
+  def sync_config_repo(%{"id" => id}, socket) do
     id = String.to_integer(id)
 
     case ConfigRepos.get_config_repo(id) do
@@ -1423,8 +1472,7 @@ defmodule ExGoCDWeb.AdminLive do
     end
   end
 
-  @impl true
-  def handle_event("delete_config_repo", %{"id" => id}, socket) do
+  def delete_config_repo(%{"id" => id}, socket) do
     id = String.to_integer(id)
 
     case ConfigRepos.get_config_repo(id) do
@@ -1442,13 +1490,11 @@ defmodule ExGoCDWeb.AdminLive do
     end
   end
 
-  @impl true
-  def handle_event("clear_flash", _params, socket) do
+  def clear_flash(_params, socket) do
     {:noreply, assign(socket, :flash_info, nil)}
   end
 
-  @impl true
-  def handle_event("toggle_maintenance_mode", _params, socket) do
+  def toggle_maintenance_mode(_params, socket) do
     current = MaintenanceMode.enabled?()
 
     {_status, message} =
@@ -1466,8 +1512,7 @@ defmodule ExGoCDWeb.AdminLive do
      |> assign(:flash_info, message)}
   end
 
-  @impl true
-  def handle_event("trigger_backup", _params, socket) do
+  def trigger_backup(_params, socket) do
     case safe_backup_create() do
       :ok ->
         Process.send_after(self(), :refresh_backup_status, 1500)
@@ -1497,8 +1542,7 @@ defmodule ExGoCDWeb.AdminLive do
     end
   end
 
-  @impl true
-  def handle_event("search_pipelines", %{"query" => query}, socket) do
+  def search_pipelines(%{"query" => query}, socket) do
     cleaned = String.trim(query)
 
     filtered =
@@ -1516,13 +1560,11 @@ defmodule ExGoCDWeb.AdminLive do
      |> assign(:filtered_groups, filtered)}
   end
 
-  @impl true
-  def handle_event("toggle_create_modal", _params, socket) do
+  def toggle_create_modal(_params, socket) do
     {:noreply, assign(socket, :show_create_modal, !socket.assigns.show_create_modal)}
   end
 
-  @impl true
-  def handle_event("create_pipeline_group", %{"name" => name}, socket) do
+  def create_pipeline_group(%{"name" => name}, socket) do
     cleaned = String.trim(name)
     existing_group = Enum.find(socket.assigns.pipeline_groups, &(&1.name == cleaned))
 
@@ -1548,8 +1590,7 @@ defmodule ExGoCDWeb.AdminLive do
     end
   end
 
-  @impl true
-  def handle_event("delete_pipeline_group", %{"name" => name}, socket) do
+  def delete_pipeline_group(%{"name" => name}, socket) do
     socket.assigns.pipeline_groups
     |> Enum.find(&(&1.name == name))
     |> maybe_delete_group_pipelines()
@@ -1565,8 +1606,7 @@ defmodule ExGoCDWeb.AdminLive do
      |> assign(:flash_info, "Pipeline group '#{name}' was deleted.")}
   end
 
-  @impl true
-  def handle_event("delete_pipeline", %{"name" => name}, socket) do
+  def delete_pipeline(%{"name" => name}, socket) do
     case Pipelines.delete_pipeline_by_name(name) do
       {:ok, _} ->
         groups = fetch_pipeline_groups(socket.assigns.empty_groups)
@@ -1582,13 +1622,11 @@ defmodule ExGoCDWeb.AdminLive do
     end
   end
 
-  @impl true
-  def handle_event("add_pipeline_to_group", %{"group" => group_name}, socket) do
+  def add_pipeline_to_group(%{"group" => group_name}, socket) do
     {:noreply, push_navigate(socket, to: "/go/admin/pipelines/new?group=#{group_name}")}
   end
 
-  @impl true
-  def handle_event("open_add_user_modal", _params, socket) do
+  def open_add_user_modal(_params, socket) do
     {:noreply,
      socket
      |> assign(:show_user_modal, true)
@@ -1598,8 +1636,7 @@ defmodule ExGoCDWeb.AdminLive do
      |> assign(:user_errors, %{})}
   end
 
-  @impl true
-  def handle_event("open_edit_user_roles_modal", %{"id" => id}, socket) do
+  def open_edit_user_roles_modal(%{"id" => id}, socket) do
     user = Accounts.get_user!(id)
 
     {:noreply,
@@ -1614,8 +1651,7 @@ defmodule ExGoCDWeb.AdminLive do
      |> assign(:user_errors, %{})}
   end
 
-  @impl true
-  def handle_event("close_user_modal", _params, socket) do
+  def close_user_modal(_params, socket) do
     {:noreply,
      socket
      |> assign(:show_user_modal, false)
@@ -1625,8 +1661,7 @@ defmodule ExGoCDWeb.AdminLive do
      |> assign(:user_errors, %{})}
   end
 
-  @impl true
-  def handle_event("save_user", params, socket) do
+  def save_user(params, socket) do
     roles = params["roles"] || []
 
     case socket.assigns.user_modal_type do
@@ -1635,8 +1670,7 @@ defmodule ExGoCDWeb.AdminLive do
     end
   end
 
-  @impl true
-  def handle_event("toggle_user_status", %{"id" => id}, socket) do
+  def toggle_user_status(%{"id" => id}, socket) do
     user = Accounts.get_user!(id)
     new_status = if user.status == "Active", do: "Disabled", else: "Active"
 
@@ -1654,8 +1688,7 @@ defmodule ExGoCDWeb.AdminLive do
     end
   end
 
-  @impl true
-  def handle_event("delete_user", %{"id" => id}, socket) do
+  def delete_user(%{"id" => id}, socket) do
     user = Accounts.get_user!(id)
 
     case Accounts.delete_user(user) do
@@ -1672,10 +1705,7 @@ defmodule ExGoCDWeb.AdminLive do
     end
   end
 
-  # --- UI Environments Event Handlers ---
-
-  @impl true
-  def handle_event("open_add_env_modal", _params, socket) do
+  def open_add_env_modal(_params, socket) do
     available = load_available_pipelines()
 
     {:noreply,
@@ -1689,8 +1719,7 @@ defmodule ExGoCDWeb.AdminLive do
      |> assign(:available_pipelines, available)}
   end
 
-  @impl true
-  def handle_event("close_env_modal", _params, socket) do
+  def close_env_modal(_params, socket) do
     {:noreply,
      socket
      |> assign(:show_env_modal, false)
@@ -1698,8 +1727,7 @@ defmodule ExGoCDWeb.AdminLive do
      |> assign(:selected_env, nil)}
   end
 
-  @impl true
-  def handle_event("open_edit_env_modal", %{"name" => name}, socket) do
+  def open_edit_env_modal(%{"name" => name}, socket) do
     case ExGoCD.Environments.get_environment_by_name(name) do
       nil ->
         {:noreply, put_flash(socket, :error, "Environment not found.")}
@@ -1721,23 +1749,20 @@ defmodule ExGoCDWeb.AdminLive do
     end
   end
 
-  @impl true
-  def handle_event("add_env_var_row", _params, socket) do
+  def add_env_var_row(_params, socket) do
     vars =
       socket.assigns.env_form_variables ++ [%{"name" => "", "value" => "", "secure" => false}]
 
     {:noreply, assign(socket, :env_form_variables, vars)}
   end
 
-  @impl true
-  def handle_event("remove_env_var_row", %{"index" => idx_str}, socket) do
+  def remove_env_var_row(%{"index" => idx_str}, socket) do
     idx = String.to_integer(idx_str)
     vars = List.delete_at(socket.assigns.env_form_variables, idx)
     {:noreply, assign(socket, :env_form_variables, vars)}
   end
 
-  @impl true
-  def handle_event("toggle_var_secure", %{"index" => idx_str}, socket) do
+  def toggle_var_secure(%{"index" => idx_str}, socket) do
     idx = String.to_integer(idx_str)
 
     vars =
@@ -1749,8 +1774,7 @@ defmodule ExGoCDWeb.AdminLive do
     {:noreply, assign(socket, :env_form_variables, vars)}
   end
 
-  @impl true
-  def handle_event("delete_environment_ui", %{"name" => name}, socket) do
+  def delete_environment_ui(%{"name" => name}, socket) do
     if System.get_env("USE_MOCK_DATA") == "true" do
       envs = Enum.reject(socket.assigns.environments, &(&1.name == name))
 
@@ -1775,8 +1799,7 @@ defmodule ExGoCDWeb.AdminLive do
     end
   end
 
-  @impl true
-  def handle_event("save_environment_ui", params, socket) do
+  def save_environment_ui(params, socket) do
     selected_pipelines = Map.get(params, "pipelines", [])
     variables = parse_save_env_variables(Map.get(params, "variables", %{}))
 
@@ -1787,16 +1810,14 @@ defmodule ExGoCDWeb.AdminLive do
     end
   end
 
-  @impl true
-  def handle_event("cleanup_stuck_jobs", _, socket) do
+  def cleanup_stuck_jobs(_, socket) do
     count = Pipelines.cleanup_stuck_jobs()
     remote_ip = live_remote_ip(socket)
     Events.admin_cleanup_stuck_jobs(socket.assigns.current_user.username, count, remote_ip)
     {:noreply, socket |> put_flash(:info, "Cancelled #{count} stuck jobs.")}
   end
 
-  @impl true
-  def handle_event("reconcile_stale_stages", _, socket) do
+  def reconcile_stale_stages(_, socket) do
     count = Pipelines.reconcile_stale_stages()
 
     {:noreply,
@@ -1804,8 +1825,7 @@ defmodule ExGoCDWeb.AdminLive do
      |> put_flash(:info, "Fixed #{count} stale stage(s).")}
   end
 
-  @impl true
-  def handle_event("reset_pipeline", %{"name" => name}, socket) do
+  def reset_pipeline(%{"name" => name}, socket) do
     case Pipelines.reset_pipeline(name) do
       {:ok, _} ->
         Events.admin_reset_pipeline(socket.assigns.current_user.username, name)
@@ -1816,10 +1836,7 @@ defmodule ExGoCDWeb.AdminLive do
     end
   end
 
-  # ── Template event handlers ──────────────────────────────────────────
-
-  @impl true
-  def handle_event("save_mailhost_config", params, socket) do
+  def save_mailhost_config(params, socket) do
     {:noreply,
      socket
      |> put_flash(
@@ -1828,8 +1845,7 @@ defmodule ExGoCDWeb.AdminLive do
      )}
   end
 
-  @impl true
-  def handle_event("open_template_form", _params, socket) do
+  def open_template_form(_params, socket) do
     {:noreply,
      socket
      |> assign(:show_template_form, true)
@@ -1838,8 +1854,7 @@ defmodule ExGoCDWeb.AdminLive do
      |> assign(:template_editing, nil)}
   end
 
-  @impl true
-  def handle_event("close_template_form", _params, socket) do
+  def close_template_form(_params, socket) do
     {:noreply,
      socket
      |> assign(:show_template_form, false)
@@ -1847,8 +1862,7 @@ defmodule ExGoCDWeb.AdminLive do
      |> assign(:template_editing, nil)}
   end
 
-  @impl true
-  def handle_event("edit_template", %{"name" => name}, socket) do
+  def edit_template(%{"name" => name}, socket) do
     {:noreply,
      socket
      |> assign(:show_template_form, true)
@@ -1857,8 +1871,7 @@ defmodule ExGoCDWeb.AdminLive do
      |> assign(:template_editing, name)}
   end
 
-  @impl true
-  def handle_event("save_template", %{"name" => name}, socket) do
+  def save_template(%{"name" => name}, socket) do
     editing = socket.assigns.template_editing
 
     result =
@@ -1895,8 +1908,7 @@ defmodule ExGoCDWeb.AdminLive do
     end
   end
 
-  @impl true
-  def handle_event("delete_template", %{"name" => name}, socket) do
+  def delete_template(%{"name" => name}, socket) do
     case Pipelines.get_template_by_name(name) do
       nil ->
         {:noreply, socket |> put_flash(:error, "Template '#{name}' not found.")}
@@ -1922,11 +1934,7 @@ defmodule ExGoCDWeb.AdminLive do
     end
   end
 
-  # --- Audit Log handlers ---
-
-  @impl true
-  def handle_event(
-        "search_audit_log",
+  def search_audit_log(
         %{
           "actor" => actor,
           "action" => action,
@@ -1941,8 +1949,7 @@ defmodule ExGoCDWeb.AdminLive do
     {:noreply, load_audit_log(socket, filters)}
   end
 
-  @impl true
-  def handle_event("reset_audit_log_filters", _params, socket) do
+  def reset_audit_log_filters(_params, socket) do
     {:noreply, load_audit_log(socket, %{})}
   end
 
