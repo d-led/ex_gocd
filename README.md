@@ -35,6 +35,15 @@ config repo), so the ones whose jobs want a full CI toolchain run as far as the
 agent's toolchain allows — the demo is about scheduling work onto a fleet, not
 about a green board.
 
+To run those docker jobs too, opt in. The extra agent carries the docker CLI and
+gets your daemon's socket, which means anything running in it can start a
+container as root on your machine:
+
+```bash
+DOCKER_SOCKET="$HOME/.docker/run/docker.sock" \
+  docker compose -f docker-compose.quickstart.yml --profile docker up --build
+```
+
 Start from zero again with `docker compose -f docker-compose.quickstart.yml down -v`.
 
 ## Run it natively

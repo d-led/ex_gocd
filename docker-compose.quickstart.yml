@@ -111,6 +111,30 @@ services:
     volumes:
       - agent-work:/agent-work
 
+  # Opt in with `docker compose --profile docker up`: this agent carries the
+  # docker CLI and gets the host's daemon socket, so the demo's dogfood docker
+  # jobs (`docker info`, `docker run alpine echo`) run instead of waiting.
+  #
+  # Read this before enabling it: the socket is the daemon. Anything running in
+  # this agent can start a container as root on your machine, which is what CI
+  # already does and is not what everyone wants on a laptop.
+  agent-docker:
+    image: ghcr.io/d-led/ex_gocd-agent:full
+    profiles: ["docker"]
+    depends_on:
+      server:
+        condition: service_healthy
+    environment:
+      AGENT_SERVER_URL: http://server:4000
+      EX_GOCD_DEMO_COOKIE: ex-gocd-demo-cookie
+      AGENT_AUTO_REGISTER_RESOURCES: docker
+      AGENT_WORK_DIR: /agent-work/docker
+    volumes:
+      - agent-work:/agent-work
+      # DOCKER_SOCKET overrides the path for a setup that keeps the daemon
+      # somewhere else (Docker Desktop on macOS: ~/.docker/run/docker.sock).
+      - "${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock"
+
 volumes:
   db:
   agent-work:

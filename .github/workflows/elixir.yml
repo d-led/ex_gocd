@@ -248,7 +248,7 @@ jobs:
               echo "pkgs=build-base openssl-dev python3 nodejs npm" >> $GITHUB_OUTPUT
               ;;
             full)
-              echo "pkgs=build-base openssl-dev python3 nodejs npm openjdk21-jdk subversion clang rust cargo dotnet8-sdk" >> $GITHUB_OUTPUT
+              echo "pkgs=build-base openssl-dev python3 nodejs npm openjdk21-jdk subversion clang rust cargo dotnet8-sdk docker-cli" >> $GITHUB_OUTPUT
               ;;
             rust-elixir)
               echo "pkgs=rust cargo elixir erlang build-base openssl-dev zlib-dev" >> $GITHUB_OUTPUT

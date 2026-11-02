@@ -1052,11 +1052,8 @@ Reconstructed from the two indexed sessions for this workspace
    `System.get_env` directly, so a lock in the test still races with any other
    test reading the environment. Doing this properly means the product taking its
    configuration as an argument instead of reading the environment at call time.
-9. **Decide about a docker-capable demo agent.** The quickstart's dogfood
-   pipelines ask for the `docker` resource ("`docker info`", "`docker version`",
-   "`docker run alpine echo`"), and no published agent variant carries the docker
-   CLI, so those jobs wait — which is truthful but not a full demo. Making them
-   run needs `docker-cli` in one variant's package list and the host's docker
-   socket mounted into that agent; the second half gives the demo container
-   root-equivalent access to the host daemon, so it is a decision rather than a
-   detail.
+9. ~~**Decide about a docker-capable demo agent.**~~ Decided: opt-in. The `full`
+   agent variant now carries `docker-cli`, and the quickstart has an `agent-docker`
+   service behind `profiles: ["docker"]`, so plain `up` behaves as before and
+   `--profile docker` runs the dogfood docker jobs. The socket it mounts is the
+   daemon, so it stays a profile and the README says what that means.
