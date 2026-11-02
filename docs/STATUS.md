@@ -14,8 +14,8 @@
 | Dimension | State | Evidence |
 | --- | --- | --- |
 | Code | 268 source files, compile warnings-as-errors clean | `git ls-files 'lib/**/*.ex'` |
-| ExUnit | **1448 tests, all green** | `mix test` |
-| Coverage | **64.9 %**; 27 modules at 0 % | `mix test.coverage` |
+| ExUnit | **1452 tests, all green** | `mix test` |
+| Coverage | **65.9 %**; 27 modules at 0 % | `mix test.coverage` |
 | Go agent | builds; tests pass in 3 of 10 packages (3,793 prod LOC / 599 test LOC); modules upgraded 2026-11-01 (otel 1.47, grpc 1.85) | `cd agent && go test ./...` |
 | Cypress | 27 specs on disk, **not executed in this session** | `ls cypress/e2e/*.cy.js` |
 | Static analysis | `scripts/quality-gate.sh` passes as a whole: 17 steps, 0 failures (format, compile, Sobelow, credo, doc references, test database, ExUnit, Go fmt/vet/golangci-lint/tests/gofmt/mod-tidy, jscpd, ESLint, TypeScript, Prettier, link checker). Two findings are kept and documented rather than ignored: the MD5 artifact checksums, which are the format a GoCD agent writes. `mix dialyzer` was run for the first time on 2026-11-02: 41 warnings then, 6 now. Six that went were dead branches that hid real faults, described below; eighteen were calls `VsmTracer.set_status` made to a one-argument form whose spec wants a status record, which now go through the documented `set_status(code, message)`; the rest were stale specs and one function with no callers. The six that remain are named rather than silenced: `k8s.ex:136`, a third-party inference about `K8s.Client.run/2` inside the `Task` that probes a cluster (the probe cannot be driven from a test because the fake provider is registered per process); `test_report.ex:107` and `:109`, Ecto changeset typing in the store path that `parse_and_store/2` tests exercise on three report formats; `materials/scm_client.ex:140`, `:141` and `:151`, an `author || "svn"` whose producer always supplies a binary. Three stale specs it found early are fixed too: two modules were referenced as `.t()` without defining one, and `material_filter`'s spec named an unaliased `Material`. `staticcheck` cannot serve either, its binary being older than the Go toolchain, and the gate now says that instead of blaming the code | see above |
@@ -135,6 +135,29 @@ generate → `from_xml/1` round trip and an idempotent second import.
 `feeds_controller_test.exs` the Atom feeds. `config_xml_controller_test.exs`
 covers the revert itself: that it restores a secret config, which only the JSON
 holds, and that it refuses a version with no stored XML.
+
+---
+
+## The MCP server
+
+`POST /mcp` is a Model Context Protocol server over the Streamable HTTP
+transport: 42 tools, 4 resources and 4 prompts, each one reading the same context
+the dashboard, the JSON API and the admin pages read. [mcp.md](mcp.md) is the page
+a reader should start at.
+
+| Claim | How to check it |
+| --- | --- |
+| 42 tools in 9 families, every one with a title, a description, a JSON schema and annotations | `mix run -e 'IO.puts ExGoCD.Mcp.Tools.count()'`; `test/ex_gocd/mcp/tools_test.exs` |
+| 4 resources and 4 prompts, advertised in `initialize` | `test/ex_gocd_web/mcp/protocol_test.exs` |
+| Stateless: one JSON-RPC message in, one answer out; `GET` and `DELETE` answer 405 | `test/ex_gocd_web/controllers/mcp_controller_test.exs` |
+| A presented-and-wrong credential is a 401 carrying the authorization challenge; no credential is the guest, which is an administrator in open mode | same file, `describe "identity"` |
+| The OAuth round trip works end to end — metadata, self-registration, consent, PKCE S256, and a token `/mcp` then accepts | `test/ex_gocd_web/controllers/mcp/oauth_controller_test.exs` |
+| An MCP token *is* a GoCD personal access token, so revoking it is the existing revoke button | `ExGoCD.Mcp.OAuth.mint_access_token/2`; `test/ex_gocd/mcp/oauth_test.exs` |
+
+Not measured: no real MCP client (VS Code, Claude Desktop, `mcp-remote`) was
+driven against it in this session. The protocol is exercised one message at a
+time by the tests above, which is not the same thing, and is what a first manual
+run should check.
 
 ---
 
@@ -774,6 +797,20 @@ first two are now the returned state, and the third is gone — a queue that can
 be read becomes a `Tick error` event. `ElasticAgentScheduler` (the Kubernetes one)
 had all three, from the same copy, and no longer does.
 
+`ElasticAgentScheduler` itself got the same seam (`k8s/0`, `:k8s_client`), which
+is what a cluster cannot help with: a queued job becomes the pod its profile
+describes (image, memory limit, profile label, namespace from the cluster
+profile); a job a static agent can already run does not; with no profile
+configured the reason is logged; a cluster that answers 403 is logged rather than
+tracked; a pod in error is deleted; and a pod the cluster still has but nothing
+tracks is reaped after ten minutes. 80.1 % of its lines, from 4.3 %.
+
+What those tests replaced was worse than nothing: a describe that created a
+profile and then asserted the getters returned what it had just written, and two
+that called the live singleton and asserted its maps were empty — true only
+because nothing else had run yet. The admin calls are now given a state a test
+owns.
+
 ### Known noise: the sandbox says a connection was disconnected
 
 Most runs print one or two lines like
@@ -788,17 +825,18 @@ of them, and the Scheduler keeps working. They are recorded here so that a later
 reader does not take them for the regression they look like.
 
 ### Doc drift
-`docs/PARITY.md` now opens by saying it is a map of intent rather than a status
-report, and it carries no counts: the ones it had were 1004 tests, 67
-controllers, 23 LiveView pages, 20 GenServers, 42 migrations and 22 Cypress
-specs, all measured 2026-07-08 and all stale. Its claim that the Go agent speaks
-WebSocket was wrong, in the stack table, the topology diagram and the feature
-table: the agent speaks HTTP remoting, like a real GoCD agent
-(`agent/internal/remoting/`, `agent_remoting_controller.ex`, and no `websocket`
-string anywhere in the Go agent).
+`docs/PARITY.md` opens by saying it is a map of intent rather than a status
+report. The counts it used to carry were 1004 tests, 67 controllers, 23 LiveView
+pages, 20 GenServers, 42 migrations and 22 Cypress specs, all measured 2026-07-08
+and all stale; it now carries the two it uses, dated, with the command beside
+them. Its claim that the Go agent speaks WebSocket was wrong, in the stack table,
+the topology diagram and the feature table: the agent speaks HTTP remoting, like a
+real GoCD agent (`agent/internal/remoting/`, `agent_remoting_controller.ex`, and
+no `websocket` string anywhere in the Go agent).
 
-`README.md` badges are hand-written and say 1448 tests and 27 Cypress specs.
-Nothing regenerates them, so they will drift again.
+Counts elsewhere are written by hand — the test count and coverage in this file,
+the module count, the `README.md` figures — and nothing regenerates them, so they
+drift until someone re-measures with the command beside each.
 
 `scripts/check_doc_refs.exs` is the part that cannot drift: it fails when a
 source file, an `/api` route, an Elixir module named in `module_mapping.md` or an

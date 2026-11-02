@@ -38,6 +38,11 @@ defmodule ExGoCD.ElasticAgentScheduler do
   # singleton.
   def queue, do: Application.get_env(:ex_gocd, :elastic_scheduler_queue, ExGoCD.Scheduler)
 
+  @doc false
+  # The Kubernetes client this scheduler drives. Every decision the tick makes ends
+  # in one of its calls, so a test replaces it instead of needing a cluster.
+  def k8s, do: Application.get_env(:ex_gocd, :k8s_client, K8s)
+
   # ── Client API ────────────────────────────────────────────────────────────
 
   def start_link(opts \\ []) do
@@ -88,7 +93,7 @@ defmodule ExGoCD.ElasticAgentScheduler do
         namespace = info[:namespace] || "default"
 
         if conn do
-          K8s.delete_pod(conn, pod_name, namespace: namespace)
+          k8s().delete_pod(conn, pod_name, namespace: namespace)
         end
 
         acc
@@ -184,7 +189,7 @@ defmodule ExGoCD.ElasticAgentScheduler do
         []
       )
 
-    case K8s.create_pod(conn, pod_spec, namespace: ClusterProfile.namespace(cluster)) do
+    case k8s().create_pod(conn, pod_spec, namespace: ClusterProfile.namespace(cluster)) do
       {:ok, pod_name} ->
         state
         |> track_pod(pod_name, profile, cluster, %{job: label, resources: []})
@@ -219,7 +224,7 @@ defmodule ExGoCD.ElasticAgentScheduler do
         else
           namespace = ClusterProfile.namespace(cluster_profile)
 
-          case K8s.create_pod(conn, pod_spec, namespace: namespace) do
+          case k8s().create_pod(conn, pod_spec, namespace: namespace) do
             {:ok, pod_name} ->
               track_pod(state, pod_name, agent_profile, cluster_profile, job)
 
@@ -240,7 +245,7 @@ defmodule ExGoCD.ElasticAgentScheduler do
       Enum.reduce(to_delete, state, fn {pod_name, info}, acc ->
         conn = build_k8s_conn_from_pod(info)
         namespace = info[:namespace] || "default"
-        K8s.delete_pod(conn, pod_name, namespace: namespace)
+        k8s().delete_pod(conn, pod_name, namespace: namespace)
         log_event(acc, :info, "Deleted idle/error pod: #{pod_name}")
       end)
 
@@ -276,7 +281,7 @@ defmodule ExGoCD.ElasticAgentScheduler do
   end
 
   defp list_and_reap(state, conn, namespace, known_pod_names) do
-    case K8s.list_pods(conn, namespace: namespace) do
+    case k8s().list_pods(conn, namespace: namespace) do
       {:ok, pods} ->
         Enum.reduce(pods, state, fn pod, acc ->
           pod_name = pod.name
@@ -284,7 +289,7 @@ defmodule ExGoCD.ElasticAgentScheduler do
           if pod.labels["app"] == "gocd-elastic-agent" and
                not MapSet.member?(known_pod_names, pod_name) and
                pod_age_seconds(pod) > 600 do
-            K8s.delete_pod(conn, pod_name, namespace: namespace)
+            k8s().delete_pod(conn, pod_name, namespace: namespace)
             log_event(acc, :info, "Reaped orphan pod #{pod_name} (age: #{pod_age_seconds(pod)}s)")
           else
             acc
@@ -464,7 +469,7 @@ defmodule ExGoCD.ElasticAgentScheduler do
     kubeconfig = ClusterProfile.kubeconfig_yaml(cluster_profile)
 
     if kubeconfig && kubeconfig != "" do
-      case K8s.from_kubeconfig(kubeconfig) do
+      case k8s().from_kubeconfig(kubeconfig) do
         {:ok, conn} -> conn
         {:error, _} -> build_from_fields(cluster_profile)
       end
@@ -483,7 +488,7 @@ defmodule ExGoCD.ElasticAgentScheduler do
       "client_key" => ClusterProfile.client_key(cluster_profile)
     }
 
-    case K8s.from_config(config) do
+    case k8s().from_config(config) do
       {:ok, conn} -> conn
       {:error, _} -> nil
     end

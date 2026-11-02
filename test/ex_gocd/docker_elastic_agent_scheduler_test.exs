@@ -20,6 +20,61 @@ defmodule ExGoCD.DockerElasticAgentSchedulerTest do
     %ElasticAgentProfile{id: Ecto.UUID.generate(), properties: properties}
   end
 
+  defmodule FakeDocker do
+    @moduledoc false
+    def stop_container(cid, opts), do: report({:stop, cid, opts})
+    def remove_container(cid, opts), do: report({:remove, cid, opts})
+    def default_socket, do: "unix:///fake.sock"
+
+    # A test decides whether the daemon accepts a container by putting `:ok` (a
+    # fresh id per call) or an error tuple under :docker_create. Declining by
+    # default keeps a tick that finds queued jobs from quietly adding containers.
+    def create_container(image, env, opts) do
+      report({:create, image, env, opts})
+
+      case Process.get(:docker_create, {:error, :denied}) do
+        :ok -> {:ok, fresh_container_id()}
+        error -> error
+      end
+    end
+
+    def start_container(cid, opts), do: report({:start, cid, opts})
+
+    defp report(call) do
+      if pid = Process.get(:docker_reporter), do: send(pid, {:docker, call})
+      :ok
+    end
+
+    defp fresh_container_id do
+      count = Process.get(:docker_container_count, 0) + 1
+      Process.put(:docker_container_count, count)
+      "container#{count}"
+    end
+  end
+
+  defmodule FakeQueue do
+    @moduledoc false
+    def get_queue_state do
+      case Process.get(:queue_answer, []) do
+        :unreachable -> raise "the queue is unreachable"
+        jobs -> %{in_memory_jobs: jobs}
+      end
+    end
+  end
+
+  setup do
+    replace = fn key, value ->
+      previous = Application.get_env(:ex_gocd, key)
+      Application.put_env(:ex_gocd, key, value)
+      on_exit(fn -> Application.put_env(:ex_gocd, key, previous) end)
+    end
+
+    replace.(:docker_client, FakeDocker)
+    replace.(:elastic_scheduler_queue, FakeQueue)
+    Process.put(:docker_reporter, self())
+    :ok
+  end
+
   describe "pick_image/2" do
     test "takes the image of the first resource the profile maps" do
       profile =
@@ -47,61 +102,6 @@ defmodule ExGoCD.DockerElasticAgentSchedulerTest do
   end
 
   describe "the tick, with the Docker client replaced" do
-    defmodule FakeDocker do
-      @moduledoc false
-      def stop_container(cid, opts), do: report({:stop, cid, opts})
-      def remove_container(cid, opts), do: report({:remove, cid, opts})
-      def default_socket, do: "unix:///fake.sock"
-
-      # A test decides whether the daemon accepts a container by putting `:ok` (a
-      # fresh id per call) or an error tuple under :docker_create. Declining by
-      # default keeps a tick that finds queued jobs from quietly adding containers.
-      def create_container(image, env, opts) do
-        report({:create, image, env, opts})
-
-        case Process.get(:docker_create, {:error, :denied}) do
-          :ok -> {:ok, fresh_container_id()}
-          error -> error
-        end
-      end
-
-      def start_container(cid, opts), do: report({:start, cid, opts})
-
-      defp report(call) do
-        if pid = Process.get(:docker_reporter), do: send(pid, {:docker, call})
-        :ok
-      end
-
-      defp fresh_container_id do
-        count = Process.get(:docker_container_count, 0) + 1
-        Process.put(:docker_container_count, count)
-        "container#{count}"
-      end
-    end
-
-    defmodule FakeQueue do
-      @moduledoc false
-      def get_queue_state do
-        case Process.get(:queue_answer, []) do
-          :unreachable -> raise "the queue is unreachable"
-          jobs -> %{in_memory_jobs: jobs}
-        end
-      end
-    end
-
-    setup do
-      replace = fn key, value ->
-        previous = Application.get_env(:ex_gocd, key)
-        Application.put_env(:ex_gocd, key, value)
-        on_exit(fn -> Application.put_env(:ex_gocd, key, previous) end)
-      end
-
-      replace.(:docker_client, FakeDocker)
-      replace.(:elastic_scheduler_queue, FakeQueue)
-      Process.put(:docker_reporter, self())
-      :ok
-    end
-
     test "a container in error is stopped, removed and forgotten" do
       state = %{
         containers: %{"abcd1234efgh" => %{error: true, docker_socket: "unix:///x.sock"}},
@@ -249,17 +249,44 @@ defmodule ExGoCD.DockerElasticAgentSchedulerTest do
     end
   end
 
-  describe "a scheduler with nothing running" do
-    test "tracks no containers" do
-      assert Scheduler.tracked_containers() == %{}
+  describe "what the admin view asks for" do
+    setup do
+      container = %{
+        container_id: "container1",
+        profile_name: "builders",
+        job_name: "build",
+        docker_socket: "unix:///fake.sock"
+      }
+
+      %{state: %{containers: %{"container1" => container}, events: [], tick_timer: nil}}
     end
 
-    test "has no events to report" do
-      assert Scheduler.recent_events() == []
+    test "names the containers it tracks", %{state: state} do
+      assert {:reply, containers, ^state} = Scheduler.handle_call(:tracked_containers, nil, state)
+      assert Map.keys(containers) == ["container1"]
     end
 
-    test "deleting all containers deletes none" do
-      assert Scheduler.delete_all_containers() == 0
+    test "names the events it logged", %{state: state} do
+      logged = %{state | events: [%{level: :info, message: "Deleted idle/error container"}]}
+
+      assert {:reply, [event], ^logged} = Scheduler.handle_call(:recent_events, nil, logged)
+      assert event.message == "Deleted idle/error container"
+    end
+
+    test "deleting everything stops and removes each container and says how many", %{
+      state: state
+    } do
+      assert {:reply, 1, emptied} = Scheduler.handle_call(:delete_all_containers, nil, state)
+
+      assert_received {:docker, {:stop, "container1", _opts}}
+      assert_received {:docker, {:remove, "container1", _opts}}
+      assert emptied.containers == %{}
+    end
+
+    test "deleting everything when nothing is tracked says none", %{} do
+      empty = %{containers: %{}, events: [], tick_timer: nil}
+
+      assert {:reply, 0, ^empty} = Scheduler.handle_call(:delete_all_containers, nil, empty)
     end
   end
 end
