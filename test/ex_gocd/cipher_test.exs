@@ -10,6 +10,7 @@ defmodule ExGoCD.CipherTest do
   alias ExGoCD.Cipher
 
   @key_env "CIPHER_KEY"
+  @key :binary.copy(<<7>>, 32)
 
   setup do
     previous = System.get_env(@key_env)
@@ -70,19 +71,32 @@ defmodule ExGoCD.CipherTest do
       assert "hunter2" |> Cipher.encrypt() |> Cipher.decrypt() == "hunter2"
     end
 
-    test "a value written under one key cannot be read under another" do
+    test "a value written under one key does not come back under another" do
       set(@key_env, Base.encode64(:binary.copy(<<7>>, 32)))
       ciphertext = Cipher.encrypt("hunter2")
 
       set(@key_env, Base.encode64(:binary.copy(<<9>>, 32)))
 
-      assert Cipher.safe_decrypt(ciphertext) == :error
+      refute Cipher.safe_decrypt(ciphertext) == {:ok, "hunter2"}
     end
 
     test "a key that is not base64 is used as material for a key" do
       set(@key_env, "a pass phrase, of any length at all")
 
       assert "hunter2" |> Cipher.encrypt() |> Cipher.decrypt() == "hunter2"
+    end
+  end
+
+  describe "the padding a value is written with" do
+    test "a value whose padding is not what the format says is refused" do
+      set(@key_env, Base.encode64(@key))
+
+      # One block that says it ends in five bytes of padding, and does not.
+      block = :binary.copy(<<0>>, 11) <> <<1, 2, 3, 4, 5>>
+      iv = :crypto.strong_rand_bytes(16)
+      ciphertext = :crypto.crypto_one_time(:aes_256_cbc, @key, iv, block, true)
+
+      assert Cipher.safe_decrypt(Base.encode64(iv <> ciphertext)) == :error
     end
   end
 

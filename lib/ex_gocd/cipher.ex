@@ -68,8 +68,19 @@ defmodule ExGoCD.Cipher do
     data <> String.duplicate(<<pad_len>>, pad_len)
   end
 
+  # PKCS#7: the last byte says how many bytes of padding there are, and they all
+  # carry that count. Anything else means the value was written with another key
+  # or altered in storage, and a caller is better served by an error than by the
+  # bytes that come out — GoCD's cipher refuses it too.
   defp unpad(data) do
     pad_len = :binary.last(data)
+
+    if pad_len < 1 or pad_len > @block_size or
+         binary_part(data, byte_size(data) - pad_len, pad_len) !=
+           :binary.copy(<<pad_len>>, pad_len) do
+      raise ArgumentError, "malformed padding"
+    end
+
     binary_part(data, 0, byte_size(data) - pad_len)
   end
 end
