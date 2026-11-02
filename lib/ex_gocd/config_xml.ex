@@ -104,10 +104,10 @@ defmodule ExGoCD.ConfigXml do
 
     tag2("git", %{
       url: mat.url,
-      branch: mat.branch || "master",
+      branch: branch_of(mat, "master"),
       dest: destination,
-      materialName: material_name(mat) || destination,
-      autoUpdate: mat.auto_update != false
+      materialName: named_as(mat, destination),
+      autoUpdate: auto_update?(mat)
     })
   end
 
@@ -117,29 +117,24 @@ defmodule ExGoCD.ConfigXml do
     tag2("pipeline", %{
       pipelineName: pipeline_name,
       stageName: material_stage_name(mat) || "build",
-      materialName: material_name(mat) || pipeline_name
+      materialName: named_as(mat, pipeline_name)
     })
   end
 
   defp render_material(%{type: "svn"} = mat) do
-    tsc = mat.type_specific_config || %{}
-    check_externals = tsc["check_externals"]
+    tsc = type_specific_config(mat)
     destination = material_destination(mat)
 
-    base_attrs = %{
+    %{
       url: mat.url,
       dest: destination,
-      materialName: material_name(mat) || destination,
-      autoUpdate: mat.auto_update != false
+      materialName: named_as(mat, destination),
+      autoUpdate: auto_update?(mat)
     }
-
-    attrs =
-      base_attrs
-      |> maybe_put_attr(:username, mat.username)
-      |> maybe_put_attr(:password, tsc["password"])
-      |> maybe_put_attr(:checkexternals, check_externals)
-
-    tag2("svn", attrs)
+    |> maybe_put_attr(:username, mat.username)
+    |> maybe_put_attr(:password, tsc["password"])
+    |> maybe_put_attr(:checkexternals, tsc["check_externals"])
+    |> then(&tag2("svn", &1))
   end
 
   defp render_material(%{type: type} = mat) when type in ["hg", "p4", "tfs"] do
@@ -148,11 +143,17 @@ defmodule ExGoCD.ConfigXml do
     tag2(type, %{
       url: mat.url || "",
       dest: destination,
-      materialName: material_name(mat) || destination
+      materialName: named_as(mat, destination)
     })
   end
 
   defp render_material(mat), do: tag2(mat.type || "git", %{url: mat.url || ""})
+
+  # The defaults GoCD's own writer applies, in one place per attribute.
+  defp branch_of(mat, default), do: mat.branch || default
+  defp named_as(mat, default), do: material_name(mat) || default
+  defp auto_update?(mat), do: mat.auto_update != false
+  defp type_specific_config(mat), do: mat.type_specific_config || %{}
 
   # GoCD checks a material out into `dest`, which defaults to the material name.
   defp material_destination(mat) do
