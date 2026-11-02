@@ -14,8 +14,8 @@
 | Dimension | State | Evidence |
 | --- | --- | --- |
 | Code | 268 source files, compile warnings-as-errors clean | `git ls-files 'lib/**/*.ex'` |
-| ExUnit | **1442 tests, all green** | `mix test` |
-| Coverage | **64.5 %**; 27 modules at 0 % | `mix test.coverage` |
+| ExUnit | **1445 tests, all green** | `mix test` |
+| Coverage | **64.8 %**; 27 modules at 0 % | `mix test.coverage` |
 | Go agent | builds; tests pass in 3 of 10 packages (3,793 prod LOC / 599 test LOC); modules upgraded 2026-11-01 (otel 1.47, grpc 1.85) | `cd agent && go test ./...` |
 | Cypress | 27 specs on disk, **not executed in this session** | `ls cypress/e2e/*.cy.js` |
 | Static analysis | `scripts/quality-gate.sh` passes as a whole: 17 steps, 0 failures (format, compile, Sobelow, credo, doc references, test database, ExUnit, Go fmt/vet/golangci-lint/tests/gofmt/mod-tidy, jscpd, ESLint, TypeScript, Prettier, link checker). Two findings are kept and documented rather than ignored: the MD5 artifact checksums, which are the format a GoCD agent writes. `mix dialyzer` was run for the first time on 2026-11-02: 41 warnings then, 6 now. Six that went were dead branches that hid real faults, described below; eighteen were calls `VsmTracer.set_status` made to a one-argument form whose spec wants a status record, which now go through the documented `set_status(code, message)`; the rest were stale specs and one function with no callers. The six that remain are named rather than silenced: `k8s.ex:136`, a third-party inference about `K8s.Client.run/2` inside the `Task` that probes a cluster (the probe cannot be driven from a test because the fake provider is registered per process); `test_report.ex:107` and `:109`, Ecto changeset typing in the store path that `parse_and_store/2` tests exercise on three report formats; `materials/scm_client.ex:140`, `:141` and `:151`, an `author || "svn"` whose producer always supplies a binary. Three stale specs it found early are fixed too: two modules were referenced as `.t()` without defining one, and `material_filter`'s spec named an unaliased `Material`. `staticcheck` cannot serve either, its binary being older than the Go toolchain, and the gate now says that instead of blaming the code | see above |
@@ -754,14 +754,15 @@ something that is not a uuid is refused without touching Presence. 96.5 % of its
 lines, from none.
 
 `DockerElasticAgentScheduler` ends every decision in a Docker API call, so the
-calls go through one replaceable function now (`docker/0`, read from
-`:docker_client`, defaulting to `ExGoCD.Docker`). That is what makes the tick
-testable without a daemon: a container in error is stopped, removed and forgotten,
-and a healthy new one is left alone. The image a job's resources pick
-(`pick_image/2`) and the public view of a scheduler with nothing running are tested
-too. 35.2 % of its lines, from none. Still untested: the scaling decisions
-(`check_and_scale`, `maintain_min_agents`), which the same fake can now reach by
-answering a created container id.
+calls go through one replaceable function (`docker/0`, read from `:docker_client`,
+defaulting to `ExGoCD.Docker`). A test swaps in a client that records what it was
+asked and answers a container id, which is how a tick is now checked without a
+daemon: a container in error is stopped, removed and forgotten; a healthy new one
+is left alone; a profile that asks for two standby agents gets two, one that asks
+for none gets none, and a standby already running is not created twice. 68.8 % of
+its lines, from none. Still untested: `check_and_scale` (a queued job creating a
+container), which needs the scheduler's queue to be a controllable input rather
+than global state.
 
 ### Known noise: the sandbox says a connection was disconnected
 
@@ -786,7 +787,7 @@ table: the agent speaks HTTP remoting, like a real GoCD agent
 (`agent/internal/remoting/`, `agent_remoting_controller.ex`, and no `websocket`
 string anywhere in the Go agent).
 
-`README.md` badges are hand-written and say 1442 tests and 27 Cypress specs.
+`README.md` badges are hand-written and say 1445 tests and 27 Cypress specs.
 Nothing regenerates them, so they will drift again.
 
 `scripts/check_doc_refs.exs` is the part that cannot drift: it fails when a

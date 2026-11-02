@@ -1,16 +1,18 @@
 defmodule ExGoCD.DockerElasticAgentSchedulerTest do
   @moduledoc """
-  The Docker elastic scheduler had no test: every decision it makes ends in a
-  Docker API call, and the calls are made directly. What can be checked without a
-  daemon is checked here — the image a job's resources pick, and the public view of
-  a scheduler with nothing running. The tick itself (idle cleanup, scaling,
-  maintaining a minimum) still needs the Docker calls behind a seam.
+  The Docker elastic scheduler makes every decision by calling the Docker API, so
+  the calls go through `Scheduler.docker/0` and the tests replace that client. What
+  a tick does is then checked without a daemon: a container in error is cleaned up,
+  a healthy one is left alone, and a profile that asks for standby agents gets
+  them.
 
   The scheduler is a cluster singleton, so this runs synchronously.
   """
   use ExGoCD.DataCase, async: false
 
+  alias ExGoCD.ClusterProfiles
   alias ExGoCD.DockerElasticAgentScheduler, as: Scheduler
+  alias ExGoCD.ElasticAgentProfiles
   alias ExGoCD.ElasticAgentProfiles.ElasticAgentProfile
 
   defp profile(properties) do
@@ -50,9 +52,16 @@ defmodule ExGoCD.DockerElasticAgentSchedulerTest do
       def remove_container(cid, opts), do: report({:remove, cid, opts})
       def default_socket, do: "unix:///fake.sock"
 
-      def create_container(_image, _env, _opts) do
-        report({:create, nil, []})
-        {:error, :unused}
+      # A test decides whether the daemon accepts a container by putting `:ok` (a
+      # fresh id per call) or an error tuple under :docker_create. Declining by
+      # default keeps a tick that finds queued jobs from quietly adding containers.
+      def create_container(image, env, opts) do
+        report({:create, image, env, opts})
+
+        case Process.get(:docker_create, {:error, :denied}) do
+          :ok -> {:ok, fresh_container_id()}
+          error -> error
+        end
       end
 
       def start_container(cid, opts), do: report({:start, cid, opts})
@@ -60,6 +69,12 @@ defmodule ExGoCD.DockerElasticAgentSchedulerTest do
       defp report(call) do
         if pid = Process.get(:docker_reporter), do: send(pid, {:docker, call})
         :ok
+      end
+
+      defp fresh_container_id do
+        count = Process.get(:docker_container_count, 0) + 1
+        Process.put(:docker_container_count, count)
+        "container#{count}"
       end
     end
 
@@ -100,6 +115,70 @@ defmodule ExGoCD.DockerElasticAgentSchedulerTest do
 
       refute_received {:docker, {:stop, _, _}}
       assert Map.has_key?(new_state.containers, "healthy12345")
+    end
+
+    test "a profile that keeps standby agents gets that many created" do
+      {:ok, _profile} = docker_profile("standby-pool", %{"MinAgents" => 2, "Image" => "agent:1"})
+      Process.put(:docker_create, :ok)
+
+      assert {:noreply, new_state} = Scheduler.handle_info(:tick, fresh_state())
+
+      standbys = standby_containers(new_state)
+      assert length(standbys) == 2
+      assert Enum.all?(standbys, &(&1.profile_name == "standby-pool"))
+      assert Enum.all?(standbys, &(&1.image == "agent:1"))
+      assert_received {:docker, {:create, "agent:1", _env, _opts}}
+      assert_received {:docker, {:start, "container1", _opts}}
+
+      assert Enum.any?(
+               new_state.events,
+               &(&1.message =~ "Created standby container for profile standby-pool")
+             )
+    end
+
+    test "a profile that asks for no standby agents creates none" do
+      {:ok, _profile} = docker_profile("scale-to-zero", %{"Image" => "agent:1"})
+      Process.put(:docker_create, :ok)
+
+      assert {:noreply, new_state} = Scheduler.handle_info(:tick, fresh_state())
+
+      assert standby_containers(new_state) == []
+      refute Enum.any?(new_state.events, &(&1.message =~ "Created standby container"))
+    end
+
+    test "standby agents already running are not created twice" do
+      {:ok, _profile} = docker_profile("standby-pool", %{"MinAgents" => 1, "Image" => "agent:1"})
+      Process.put(:docker_create, :ok)
+
+      assert {:noreply, once} = Scheduler.handle_info(:tick, fresh_state())
+      assert length(standby_containers(once)) == 1
+
+      assert {:noreply, twice} = Scheduler.handle_info(:tick, once)
+      assert length(standby_containers(twice)) == 1
+    end
+
+    defp fresh_state, do: %{containers: %{}, events: [], tick_timer: nil}
+
+    defp standby_containers(state) do
+      for {_cid, info} <- state.containers,
+          String.starts_with?(info.job_name, "standby-"),
+          do: info
+    end
+
+    defp docker_profile(name, properties) do
+      {:ok, cluster} =
+        ClusterProfiles.create_profile(%{
+          name: "#{name}-cluster",
+          plugin_id: "cd.go.contrib.elastic-agent.docker",
+          properties: %{"docker_socket" => "unix:///var/run/docker.sock"}
+        })
+
+      ElasticAgentProfiles.create_profile(%{
+        name: name,
+        plugin_id: "cd.go.contrib.elastic-agent.docker",
+        cluster_profile_id: cluster.id,
+        properties: properties
+      })
     end
   end
 
