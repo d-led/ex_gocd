@@ -15,7 +15,13 @@ docker compose -f docker-compose.quickstart.yml up --build
 
 Then open <http://localhost:4000>. The demo pipelines are in the group `default`.
 The first build takes a few minutes; later starts are seconds.
+Check the stack rather than trusting it — the script asks the questions a
+visitor asks (page renders, an agent is registered, pipelines exist, the MCP
+endpoint answers):
 
+```bash
+scripts/demo-smoke.sh
+```
 The stack is Postgres 18, the server, and the Go agent, which registers itself and
 picks up work. `EX_GOCD_SKIP_USER_SEED=1` is what keeps open mode: the seed script's
 demo users include an admin, and an admin in the database turns open mode off.

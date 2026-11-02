@@ -112,7 +112,10 @@ defmodule ExGoCD.ElasticAgentScheduler do
         |> maintain_min_agents()
         |> reap_orphan_pods()
       rescue
-        e -> log_event(state, :error, "Tick error: #{Exception.message(e)}")
+        e ->
+          # The message alone has said "IO.chardata_to_string/1" more than once,
+          # which names no line of ours; the stacktrace is what says which step.
+          log_event(state, :error, "Tick error: #{Exception.format(:error, e, __STACKTRACE__)}")
       end
 
     schedule_tick()
@@ -488,9 +491,16 @@ defmodule ExGoCD.ElasticAgentScheduler do
       "client_key" => ClusterProfile.client_key(cluster_profile)
     }
 
-    case k8s().from_config(config) do
-      {:ok, conn} -> conn
-      {:error, _} -> nil
+    # A profile that names no server cannot be talked to. Callers already skip a
+    # nil connection; handing the client an empty URL instead makes it fail
+    # inside `Path.join/2` with a nil on every tick.
+    if config["server"] == "" do
+      nil
+    else
+      case k8s().from_config(config) do
+        {:ok, conn} -> conn
+        {:error, _} -> nil
+      end
     end
   end
 

@@ -61,6 +61,17 @@ if config_env() == :prod do
       You can generate one by calling: mix phx.gen.secret
       """
 
+  # Plug refuses anything shorter than 64 bytes at the first request that touches
+  # a cookie. A short key therefore boots a healthy server whose every page is a
+  # 500, with the reason only in the log — refuse it here, where the message can
+  # say what to do about it.
+  if byte_size(secret_key_base) < 64 do
+    raise """
+    SECRET_KEY_BASE must be at least 64 bytes; this one is #{byte_size(secret_key_base)}.
+    You can generate one by calling: mix phx.gen.secret
+    """
+  end
+
   host = System.get_env("PHX_HOST") || "localhost"
   port = String.to_integer(System.get_env("PORT") || "4000")
 

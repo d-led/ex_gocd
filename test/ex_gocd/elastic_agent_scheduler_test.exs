@@ -143,6 +143,33 @@ defmodule ExGoCD.ElasticAgentSchedulerTest do
       assert Enum.any?(new_state.events, &(&1.message =~ "Failed to create pod"))
     end
 
+    test "a cluster profile that names no server is skipped rather than asked" do
+      # What a profile looks like halfway through being filled in: there is a
+      # namespace and nothing to talk to. The Kubernetes client cannot build a
+      # connection for it, so the tick must not try — asking crashed every tick.
+      {:ok, cluster} =
+        ClusterProfiles.create_profile(%{
+          name: "unfinished",
+          plugin_id: "ex_gocd.elasticagent.kubernetes",
+          properties: %{"namespace" => "ci"}
+        })
+
+      {:ok, _profile} =
+        ElasticAgentProfiles.create_profile(%{
+          name: "builders",
+          plugin_id: "ex_gocd.elasticagent.kubernetes",
+          cluster_profile_id: cluster.id,
+          properties: %{"Image" => "gocd-agent:1"}
+        })
+
+      Process.put(:queue_answer, [])
+
+      assert {:noreply, new_state} = ElasticAgentScheduler.handle_info(:tick, fresh_state())
+
+      refute_received {:k8s, {:list, _, _, _}}
+      refute Enum.any?(new_state.events, &(&1.level == :error))
+    end
+
     test "a pod in error is deleted and forgotten" do
       {:ok, cluster} = kubernetes_cluster()
 

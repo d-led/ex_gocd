@@ -236,10 +236,13 @@ func writePidFile(path string, pid int) error {
 	// Check for existing pidfile
 	if existing, err := os.ReadFile(path); err == nil {
 		var existingPID int
-		if _, scanErr := fmt.Sscanf(strings.TrimSpace(string(existing)), "%d", &existingPID); scanErr == nil && isProcessAlive(existingPID) {
+		if _, scanErr := fmt.Sscanf(strings.TrimSpace(string(existing)), "%d", &existingPID); scanErr == nil &&
+			existingPID != pid && isProcessAlive(existingPID) {
 			return fmt.Errorf("agent already running with PID %d (pidfile %s)", existingPID, path)
 		}
-		// Stale pidfile — remove it
+		// Stale pidfile — remove it. A pidfile that names this very process is
+		// stale too: in a container the agent is PID 1 on every start, and PID 1
+		// always exists, so a restart would otherwise be refused forever.
 		agentlog.Logger.Warn().Str("path", path).Str("stale_pid", strings.TrimSpace(string(existing))).Msg("removing stale pidfile")
 		os.Remove(path)
 	}

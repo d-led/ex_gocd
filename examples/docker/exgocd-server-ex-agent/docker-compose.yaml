@@ -34,7 +34,7 @@ services:
       sh -c "/app/bin/ex_gocd eval 'ExGoCD.Release.migrate()' && /app/bin/ex_gocd start"
     environment:
       DATABASE_URL: "ecto://postgres:postgres@postgres/ex_gocd_prod"
-      SECRET_KEY_BASE: "demo-secret-key-base-do-not-use-in-production"
+      SECRET_KEY_BASE: "cJumB9kRIRyLR50XQ5Rlox/B1jvaAwaI7TuR/OWlx6k/I9gKCU4RoZS7hJrfMcBT"
       PHX_HOST: "localhost"
       PORT: "4000"
       EX_GOCD_AUTO_ENABLE_AGENTS: "true"

@@ -221,6 +221,24 @@ broken section, and the snapshot test now asserts that no section reports
 `_error`. `scms` still returns `[]` because this build has no SCM table — a
 repository is named by the material that points at it.
 
+### Fixed: the quickstart served 500s, then a dead agent
+
+Running `docker compose -f docker-compose.quickstart.yml up --build` and asking
+it what a visitor asks found four faults in a row. Health checks stayed green
+through all of them, which is why none had been noticed:
+
+| Fault | Effect |
+| --- | --- |
+| `SECRET_KEY_BASE` in the demo file was 63 bytes; Plug requires 64 | the session cookie is written on every HTML response, so **every page was a 500** while `/go/api/v1/health` answered 200 |
+| the agent's pidfile persisted on a volume, and in a container the agent is PID 1 every start | PID 1 always exists, so a restart was always refused — after the first `up` the agent never ran again |
+| the agent advertised the `docker` resource with no docker binary or socket in the image | a docker job was handed to an agent that could not run it and failed, instead of waiting for one that could |
+| a cluster profile with no server URL reached the Kubernetes client | the elastic scheduler crashed every tick inside `Path.join/2`; the tick now skips a connection it cannot build, and logs the stacktrace when a tick does fail |
+
+`config/runtime.exs` now refuses a `SECRET_KEY_BASE` shorter than 64 bytes at
+boot, so a broken demo fails on `up` instead of serving an empty 500 page, and
+`scripts/demo-smoke.sh` asks the running stack whether the page renders, an agent
+is registered, pipelines exist and the MCP endpoint answers.
+
 ### Fixed: two modules at 0 % were a second copy of live controllers
 
 Coverage listed `ExGoCDWeb.BackupConfigController` and `ExGoCDWeb.BackupController`

@@ -37,7 +37,9 @@ services:
     environment:
       DATABASE_URL: ecto://postgres:postgres@db/ex_gocd
       # Demo value, not a secret: this file is for a laptop, not a deployment.
-      SECRET_KEY_BASE: 5Yq3k7uK9n7Xb2mW0c1d4f6g8h0j2l4n6p8r0s2t4v6w8x0y2z4A6B8C0D2E4F6
+      # Plug refuses a key shorter than 64 bytes, and then every page that
+      # touches a cookie is a 500, so this one is exactly 64.
+      SECRET_KEY_BASE: cJumB9kRIRyLR50XQ5Rlox/B1jvaAwaI7TuR/OWlx6k/I9gKCU4RoZS7hJrfMcBT
       PHX_SERVER: "true"
       PORT: "4000"
       POOL_SIZE: "10"
@@ -73,7 +75,11 @@ services:
       AGENT_SERVER_URL: http://server:4000
       EX_GOCD_DEMO_COOKIE: ex-gocd-demo-cookie
       # The demo pipelines ask for these; a job runs here when they match.
-      AGENT_AUTO_REGISTER_RESOURCES: elixir,postgres,docker
+      # No `docker`: this image has no docker CLI and no daemon socket, and an
+      # agent that advertises what it cannot deliver gets the job and fails it.
+      # Jobs that need docker stay queued, which is what GoCD does when no agent
+      # can take them.
+      AGENT_AUTO_REGISTER_RESOURCES: elixir,postgres
       AGENT_WORK_DIR: /agent-work
     volumes:
       - agent-work:/agent-work
