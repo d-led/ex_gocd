@@ -85,6 +85,12 @@ defmodule ExGoCD.Mcp do
     and `gocd_agent_analytics` for trends rather than snapshots, \
     `gocd_queue` when work is not moving, and `gocd_job_console` when a run \
     failed.
+
+    Three things are not tools. Documents — the dashboard, the configuration XML, \
+    the audit trail, one pipeline's configuration — are resources under `gocd://`, \
+    listed by `resources/list`. The workflows worth following in order (diagnose a \
+    failed pipeline, why nothing is running, what changed, how the fleet is doing) \
+    are prompts, listed by `prompts/list`. Both read as you, with your permissions.
     """
   end
 

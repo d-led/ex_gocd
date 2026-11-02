@@ -109,6 +109,45 @@ defmodule ExGoCDWeb.McpControllerTest do
     end
   end
 
+  describe "the documents and the workflows" do
+    test "a resource reads back the tool's own answer", %{conn: conn} do
+      insert_pipeline("resource-over-http")
+
+      body =
+        conn
+        |> rpc(%{
+          "jsonrpc" => "2.0",
+          "id" => 4,
+          "method" => "resources/read",
+          "params" => %{"uri" => "gocd://dashboard"}
+        })
+        |> json_response(200)
+
+      assert [%{"uri" => "gocd://dashboard", "mimeType" => "application/json", "text" => text}] =
+               body["result"]["contents"]
+
+      assert Jason.decode!(text)["total"] == 1
+    end
+
+    test "a prompt is filled in over the wire", %{conn: conn} do
+      body =
+        conn
+        |> rpc(%{
+          "jsonrpc" => "2.0",
+          "id" => 5,
+          "method" => "prompts/get",
+          "params" => %{
+            "name" => "diagnose_pipeline",
+            "arguments" => %{"pipeline" => "build-app"}
+          }
+        })
+        |> json_response(200)
+
+      assert [%{"role" => "user", "content" => %{"text" => text}}] = body["result"]["messages"]
+      assert text =~ "build-app"
+    end
+  end
+
   describe "identity" do
     test "a rejected token is a 401 that says where a credential comes from", %{conn: conn} do
       conn =

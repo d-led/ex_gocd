@@ -5,6 +5,11 @@ transport, so an assistant can ask about a running GoCD server — what is
 configured, what ran, what is running now, why nothing is running, and what the
 numbers say — and act on it.
 
+It offers three things: **tools** (35 of them, below), **resources** (the
+documents a person would attach: the dashboard, the configuration XML, the audit
+trail, one pipeline's configuration) and **prompts** (the four workflows worth
+following in order).
+
 It is one endpoint, one JSON-RPC message in, one answer out. No sessions, no
 server-sent events, no batches — every request is self-contained, which is what
 lets a client treat it as a plain HTTP URL.
@@ -51,7 +56,7 @@ from a tool and an answer from a page cannot differ.
 **The server** — `gocd_server_info` (version, counts, maintenance mode, disk),
 `gocd_dashboard` (every pipeline's latest status), `gocd_queue` (what the
 scheduler holds, and why a job with given resources is not picked up),
-`gocd_audit_log`.
+`gocd_audit_log`, `gocd_server_stats` (the `/api/stats` payload).
 
 **Pipelines** — `gocd_list_pipelines` (configurations), `gocd_describe_pipeline`
 (materials, stages, jobs, tasks, variables), `gocd_pipeline_status` (paused,
@@ -77,16 +82,53 @@ locked, schedulable, latest run), `gocd_pipeline_history`,
 **Configuration** — `gocd_config_xml`, `gocd_config_history`,
 `gocd_environments`, `gocd_materials`.
 
+**Administration** — `gocd_set_maintenance_mode` (stops or resumes scheduling;
+asks for a confirmation before it stops anything), `gocd_create_backup`,
+`gocd_backup_status`, `gocd_config_repos`, `gocd_refresh_config_repo`,
+`gocd_list_users`. Each of these asks for the administrator check the web UI
+makes, and reports a repository's configuration *keys* rather than its values,
+because a git credential is one of them.
+
 Every tool answers with two things: `text`, which a model reads, and
 `structuredContent`, which is the same facts for a program. Every tool has an
 `inputSchema` and honest annotations: the ones that only read say
 `readOnlyHint`; the ones that write say that too; and the ones that can throw
-work away — cancelling a stage, killing an agent's tasks, releasing a lock —
-say `destructiveHint` and refuse to act without `confirm: true`.
+work away — cancelling a stage, killing an agent's tasks, turning maintenance
+mode on — say `destructiveHint` and refuse to act without `confirm: true`.
 
 A tool that refuses its arguments answers with `isError: true` and a sentence
 that says what to fix. That is the specification's way of saying "this call
 failed, the message says how" rather than "the server is broken".
+
+## Documents and workflows
+
+Two things are not tools.
+
+**Resources** are documents, addressed by URI, that a client lists and reads
+whole: `gocd://dashboard`, `gocd://config.xml`, `gocd://audit/recent`, and — from
+the template `gocd://pipelines/{name}` — one pipeline's configuration. Each one
+is its tool's own structured answer (`gocd_dashboard`, `gocd_config_xml`,
+`gocd_audit_log`, `gocd_describe_pipeline`), not a second implementation, so a
+resource cannot drift into a slightly different truth from the tool beside it;
+and a resource is read as the caller, with the caller's permissions.
+
+```jsonc
+{"jsonrpc": "2.0", "id": 1, "method": "resources/list"}
+{"jsonrpc": "2.0", "id": 2, "method": "resources/read", "params": {"uri": "gocd://pipelines/build-app"}}
+```
+
+**Prompts** are the workflows a person asks for most often, written down once so
+an assistant does not have to invent the order of the calls: `diagnose_pipeline`
+(status → instance → the failed job → the end of its console → is it recurring),
+`why_is_nothing_running` (nothing queued, nothing that can take it, or the
+server refusing to schedule), `what_changed` (two runs compared, then the config
+diff, then the audit log) and `fleet_health` (a period's pass rates, wait times
+and agent utilization).
+
+```jsonc
+{"jsonrpc": "2.0", "id": 3, "method": "prompts/get",
+ "params": {"name": "diagnose_pipeline", "arguments": {"pipeline": "build-app"}}}
+```
 
 ## Authentication
 
@@ -171,9 +213,10 @@ Two things are the deployment's business:
 ## What it is not
 
 No server-sent events and no sessions: `GET /mcp` and `DELETE /mcp` answer
-`405`, and every request stands alone. No resources, no prompts, no sampling —
-only tools. No per-tool scopes: a token sees what its reader sees, and the write
-tools check the same permissions the web UI checks.
+`405`, and every request stands alone. No sampling and no roots — tools,
+resources and prompts, and nothing behind them that is not the server already
+has. No per-tool scopes: a token sees what its reader sees, and the write tools
+check the same permissions the web UI checks.
 
 `Origin`, when a client sends one, must name this host — the DNS-rebinding
 defence the specification asks for — and `MCP-Protocol-Version`, when a client

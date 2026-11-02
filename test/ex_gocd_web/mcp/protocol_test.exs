@@ -25,7 +25,15 @@ defmodule ExGoCDWeb.Mcp.ProtocolTest do
 
       assert result["protocolVersion"] == "2025-03-26"
       assert result["serverInfo"]["name"] == "gocd-mcp"
-      assert result["capabilities"] == %{"tools" => %{"listChanged" => false}}
+    end
+
+    test "advertises the three capabilities it has" do
+      assert {:reply, %{"result" => %{"capabilities" => capabilities}}} =
+               call("initialize", %{"protocolVersion" => "2025-06-18"})
+
+      assert capabilities["tools"] == %{"listChanged" => false}
+      assert capabilities["resources"] == %{"subscribe" => false, "listChanged" => false}
+      assert capabilities["prompts"] == %{"listChanged" => false}
     end
 
     test "answers with the newest revision it speaks when the client names one it does not" do
@@ -69,7 +77,67 @@ defmodule ExGoCDWeb.Mcp.ProtocolTest do
   end
 
   test "an unknown method is method-not-found" do
-    assert {:reply, %{"error" => %{"code" => -32_601}}} = call("resources/list", %{})
+    assert {:reply, %{"error" => %{"code" => -32_601}}} = call("resources/subscribe", %{})
+  end
+
+  describe "the documents" do
+    test "resources/list is what the server publishes" do
+      assert {:reply, %{"result" => %{"resources" => resources}}} = call("resources/list", %{})
+
+      assert Enum.map(resources, & &1["uri"]) == [
+               "gocd://dashboard",
+               "gocd://config.xml",
+               "gocd://audit/recent"
+             ]
+    end
+
+    test "the templated resource is listed apart, as the specification says" do
+      assert {:reply,
+              %{
+                "result" => %{
+                  "resourceTemplates" => [%{"uriTemplate" => "gocd://pipelines/{name}"}]
+                }
+              }} =
+               call("resources/templates/list", %{})
+    end
+
+    test "a URI the server does not publish uses the specification's not-found code" do
+      assert {:reply, %{"error" => %{"code" => -32_002}}} =
+               call("resources/read", %{"uri" => "gocd://robots.txt"})
+    end
+
+    test "reading without a uri names the missing argument" do
+      assert {:reply, %{"error" => %{"code" => -32_602, "message" => "`uri` is required."}}} =
+               call("resources/read", %{})
+    end
+  end
+
+  describe "the workflows" do
+    test "prompts/list is the prompts, each with the arguments it takes" do
+      assert {:reply, %{"result" => %{"prompts" => prompts}}} = call("prompts/list", %{})
+
+      assert Enum.any?(prompts, &(&1["name"] == "diagnose_pipeline"))
+      assert Enum.all?(prompts, &is_list(&1["arguments"]))
+    end
+
+    test "filling a prompt in produces the message a client shows the model" do
+      assert {:reply, %{"result" => %{"description" => description, "messages" => [message]}}} =
+               call("prompts/get", %{
+                 "name" => "diagnose_pipeline",
+                 "arguments" => %{"pipeline" => "build-app"}
+               })
+
+      assert description =~ "build-app"
+      assert message["role"] == "user"
+      assert message["content"]["text"] =~ "gocd_job_console"
+    end
+
+    test "an unknown prompt is refused, and says what there is instead" do
+      assert {:reply, %{"error" => %{"code" => -32_602, "message" => message}}} =
+               call("prompts/get", %{"name" => "write_my_release_notes"})
+
+      assert message =~ "prompts/list"
+    end
   end
 
   test "a batch is refused with a message that says so" do

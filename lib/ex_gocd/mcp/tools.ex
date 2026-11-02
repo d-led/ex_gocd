@@ -18,6 +18,7 @@ defmodule ExGoCD.Mcp.Tools do
   alias ExGoCD.Mcp.Tool
 
   alias ExGoCD.Mcp.Tools.{
+    Administration,
     Agents,
     Analytics,
     Config,
@@ -37,7 +38,8 @@ defmodule ExGoCD.Mcp.Tools do
     {"Jobs", [Jobs]},
     {"Agents", [Agents]},
     {"Analytics", [Analytics]},
-    {"Configuration", [Config]}
+    {"Configuration", [Config]},
+    {"Administration", [Administration]}
   ]
 
   @modules Enum.flat_map(@families, fn {_label, modules} -> modules end)

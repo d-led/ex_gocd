@@ -10,10 +10,11 @@ defmodule ExGoCD.Mcp.Tools.Server do
   use.
   """
 
-  alias ExGoCD.{Agents, AuditLog, ConfigVersion, MaintenanceMode, Pipelines, Scheduler}
+  alias ExGoCD.{Agents, AuditLog, ConfigVersion, MaintenanceMode, Pipelines, Scheduler, Stats}
   alias ExGoCD.Mcp.{Args, Render, Tool}
+  alias ExGoCDWeb.AgentPresence
 
-  @names ~w(gocd_server_info gocd_dashboard gocd_queue gocd_audit_log)
+  @names ~w(gocd_server_info gocd_dashboard gocd_queue gocd_audit_log gocd_server_stats)
 
   @tools [
     %{
@@ -96,6 +97,17 @@ defmodule ExGoCD.Mcp.Tools.Server do
         }
       },
       "annotations" => Tool.read_only()
+    },
+    %{
+      "name" => "gocd_server_stats",
+      "title" => "This node's numbers",
+      "description" =>
+        "The payload `/api/stats` publishes: agents counted by state (idle, building, lost " <>
+          "contact, disabled, pending), jobs pending and running, this node's uptime and " <>
+          "memory, and how many agents are connected right now. Use it when the question is " <>
+          "\"is this server working hard or idle\", which `gocd_server_info` does not answer.",
+      "inputSchema" => %{"type" => "object", "properties" => %{}},
+      "annotations" => Tool.read_only()
     }
   ]
 
@@ -117,6 +129,7 @@ defmodule ExGoCD.Mcp.Tools.Server do
   def call("gocd_dashboard", args, ctx), do: dashboard(args, ctx)
   def call("gocd_queue", args, ctx), do: queue(args, ctx)
   def call("gocd_audit_log", args, ctx), do: audit_log(args, ctx)
+  def call("gocd_server_stats", args, ctx), do: server_stats(args, ctx)
   def call(_name, _args, _ctx), do: :unknown_tool
 
   defp about(_args, _ctx) do
@@ -310,6 +323,32 @@ defmodule ExGoCD.Mcp.Tools.Server do
       Tool.ok(text, structured)
     end
   end
+
+  defp server_stats(_args, _ctx) do
+    report = Stats.report(map_size(AgentPresence.list("agent")))
+
+    text =
+      [
+        "Agents: #{report.agents.total} total · #{report.agents.idle} idle · " <>
+          "#{report.agents.building} building · #{report.agents.lost_contact} lost contact · " <>
+          "#{report.agents.disabled} disabled",
+        "Jobs: #{report.jobs.pending} pending · #{report.jobs.running} running",
+        "System: up #{Render.duration(report.system.uptime_seconds)} · " <>
+          "#{megabytes(report.system.memory_total_bytes)} MB · " <>
+          "#{report.system.active_connections} agent connection(s)"
+      ]
+      |> Enum.join("\n")
+
+    Tool.ok(text, %{
+      "agents" => stringify(report.agents),
+      "jobs" => stringify(report.jobs),
+      "system" => stringify(report.system)
+    })
+  end
+
+  defp stringify(map), do: Map.new(map, fn {key, value} -> {to_string(key), value} end)
+
+  defp megabytes(bytes), do: Float.round(bytes / 1_048_576, 1)
 
   # ── rendering ──────────────────────────────────────────────────────
 

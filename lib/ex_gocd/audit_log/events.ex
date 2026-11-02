@@ -150,6 +150,22 @@ defmodule ExGoCD.AuditLog.Events do
     })
   end
 
+  @doc """
+  Maintenance mode was turned on or off.
+
+  Payload: enabled (boolean)
+  """
+  @spec maintenance_mode_toggled(String.t(), boolean()) :: :ok
+  def maintenance_mode_toggled(actor, enabled) do
+    emit("admin.maintenance_mode", actor, nil, nil, %{enabled: enabled})
+  end
+
+  @doc "An administrator asked for a database backup."
+  @spec backup_requested(String.t()) :: :ok
+  def backup_requested(actor) do
+    emit("admin.backup_requested", actor, nil, nil, %{})
+  end
+
   # ===========================================================================
   # Agent Events
   # ===========================================================================

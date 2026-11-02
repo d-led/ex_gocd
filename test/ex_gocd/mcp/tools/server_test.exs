@@ -88,4 +88,33 @@ defmodule ExGoCD.Mcp.Tools.ServerTest do
       assert text =~ "0 pending"
     end
   end
+
+  describe "gocd_server_stats" do
+    test "counts the same agents the API counts" do
+      Repo.insert!(%Agent{uuid: "a-1", hostname: "build-1", ipaddress: "10.0.0.1", state: "Idle"})
+
+      Repo.insert!(%Agent{
+        uuid: "a-2",
+        hostname: "build-2",
+        ipaddress: "10.0.0.2",
+        state: "Building"
+      })
+
+      assert {:ok, %{text: text, structured: structured}} =
+               Tools.call("gocd_server_stats", %{}, @ctx)
+
+      assert structured["agents"] == %{
+               "total" => 2,
+               "idle" => 1,
+               "building" => 1,
+               "lost_contact" => 0,
+               "disabled" => 0,
+               "pending" => 0
+             }
+
+      assert structured["jobs"]["pending"] == 0
+      assert is_integer(structured["system"]["uptime_seconds"])
+      assert text =~ "2 total"
+    end
+  end
 end

@@ -16,7 +16,7 @@ defmodule ExGoCDWeb.Mcp.Protocol do
   """
 
   alias ExGoCD.Mcp
-  alias ExGoCD.Mcp.Tools
+  alias ExGoCD.Mcp.{Prompts, Resources, Tools}
 
   @type outcome :: {:reply, map()} | :accepted | {:invalid_request, map()}
 
@@ -55,7 +55,11 @@ defmodule ExGoCDWeb.Mcp.Protocol do
     {:reply,
      result(id, %{
        "protocolVersion" => Mcp.negotiate(version(params)),
-       "capabilities" => %{"tools" => %{"listChanged" => false}},
+       "capabilities" => %{
+         "tools" => %{"listChanged" => false},
+         "resources" => %{"subscribe" => false, "listChanged" => false},
+         "prompts" => %{"listChanged" => false}
+       },
        "serverInfo" => Mcp.server_info(),
        "instructions" => Mcp.instructions()
      })}
@@ -85,6 +89,42 @@ defmodule ExGoCDWeb.Mcp.Protocol do
     end
   end
 
+  defp dispatch("resources/list", _params, id, _ctx) do
+    {:reply, result(id, %{"resources" => Resources.definitions()})}
+  end
+
+  defp dispatch("resources/templates/list", _params, id, _ctx) do
+    {:reply, result(id, %{"resourceTemplates" => Resources.templates()})}
+  end
+
+  defp dispatch("resources/read", params, id, ctx) do
+    case resource_uri(params) do
+      {:ok, uri} ->
+        case Resources.read(uri, ctx) do
+          {:ok, content} -> {:reply, result(id, %{"contents" => [content]})}
+          # The specification's own code for a URI the server does not publish.
+          {:error, message} -> {:reply, error(id, -32_002, message)}
+        end
+
+      {:error, message} ->
+        {:reply, error(id, -32_602, message)}
+    end
+  end
+
+  defp dispatch("prompts/list", _params, id, _ctx) do
+    {:reply, result(id, %{"prompts" => Prompts.definitions()})}
+  end
+
+  defp dispatch("prompts/get", params, id, ctx) do
+    with {:ok, name} <- prompt_name(params),
+         {:ok, arguments} <- tool_arguments(%{"arguments" => params["arguments"]}),
+         {:ok, prompt} <- Prompts.get(name, arguments, ctx) do
+      {:reply, result(id, prompt)}
+    else
+      {:error, message} -> {:reply, error(id, -32_602, message)}
+    end
+  end
+
   defp dispatch(method, _params, id, _ctx) do
     {:reply, error(id, -32_601, "Method not found: #{method}")}
   end
@@ -94,6 +134,12 @@ defmodule ExGoCDWeb.Mcp.Protocol do
 
   defp tool_name(%{"name" => name}) when is_binary(name) and name != "", do: {:ok, name}
   defp tool_name(_params), do: {:error, "`name` is required."}
+
+  defp resource_uri(%{"uri" => uri}) when is_binary(uri) and uri != "", do: {:ok, uri}
+  defp resource_uri(_params), do: {:error, "`uri` is required."}
+
+  defp prompt_name(%{"name" => name}) when is_binary(name) and name != "", do: {:ok, name}
+  defp prompt_name(_params), do: {:error, "`name` is required."}
 
   defp tool_arguments(%{"arguments" => nil}), do: {:ok, %{}}
   defp tool_arguments(%{"arguments" => arguments}) when is_map(arguments), do: {:ok, arguments}
