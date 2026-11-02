@@ -492,34 +492,7 @@ defmodule ExGoCDWeb.StageDetailsLive do
   end
 
   defp job_gantt_window(jobs) do
-    now = DateTime.utc_now()
-
-    starts =
-      jobs
-      |> Enum.map(& &1[:scheduled_at])
-      |> Enum.reject(&is_nil/1)
-
-    ends =
-      jobs
-      |> Enum.map(fn j ->
-        j[:completed_at] || if j[:state] == "Building", do: now
-      end)
-      |> Enum.reject(&is_nil/1)
-
-    min_ts =
-      if starts != [],
-        do: Enum.min(starts, DateTime, fn -> now end),
-        else: DateTime.add(now, -60, :second)
-
-    max_ts =
-      if ends != [],
-        do: Enum.max(ends, DateTime, fn -> now end),
-        else: now
-
-    span = max(DateTime.diff(max_ts, min_ts, :second), 30)
-
-    pad = round(span * 0.05)
-    {DateTime.add(min_ts, -pad, :second), DateTime.add(max_ts, pad, :second), span + 2 * pad}
+    ExGoCDWeb.GanttWindow.span(jobs, &(&1[:state] == "Building"))
   end
 
   defp job_bar_color("Passed"), do: "bg-[#5cb85c]"

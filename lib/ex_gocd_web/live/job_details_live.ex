@@ -14,6 +14,10 @@ defmodule ExGoCDWeb.JobDetailsLive do
   alias ExGoCD.Scheduler
   alias ExGoCD.TestReport
 
+  # How many console lines the page keeps in the DOM; a long job would otherwise
+  # render tens of thousands of them.
+  @max_rendered_lines 1000
+
   @impl true
   def mount(params, _session, socket) do
     pipeline_name = params["pipeline_name"]
@@ -247,70 +251,74 @@ defmodule ExGoCDWeb.JobDetailsLive do
 
   @impl true
   def handle_info({:run_updated, updated_run}, socket) do
-    if socket.assigns.run && updated_run.build_id == socket.assigns.run.build_id do
-      old_state = socket.assigns.run.state
-      new_state = updated_run.state
-
-      socket =
-        if old_state in ["Scheduled", "Assigned", "Preparing"] and
-             new_state not in ["Scheduled", "Assigned", "Preparing"] do
-          {lines, _next_idx, fold_stack, fold_counter} =
-            parse_log_into_lines(updated_run.console_log, [], 0)
-
-          line_count = length(lines)
-
-          initial_lines =
-            if line_count > 1000, do: Enum.drop(lines, line_count - 1000), else: lines
-
-          socket
-          |> assign(line_count: line_count)
-          |> assign(fold_stack: fold_stack)
-          |> assign(fold_counter: fold_counter)
-          |> assign(pending_line: "")
-          |> stream(:log_lines, initial_lines, reset: true, limit: -1000)
-        else
-          socket
-        end
-
-      {:noreply, assign(socket, run: updated_run)}
+    if same_run?(socket, updated_run) do
+      {:noreply, socket |> refresh_run(updated_run) |> assign(:run, updated_run)}
     else
-      # Re-fetch run if it was just created/assigned
-      run =
-        get_run_by_params(
-          socket.assigns.pipeline_name,
-          socket.assigns.pipeline_counter,
-          socket.assigns.stage_name,
-          socket.assigns.stage_counter,
-          socket.assigns.job_name
-        )
-
-      if run && connected?(socket) do
-        AgentJobRuns.subscribe_console(run.build_id)
-      end
-
-      {lines, fold_stack, fold_counter} =
-        if run do
-          {l, _idx, s, c} = parse_log_into_lines(run.console_log, [], 0)
-          {l, s, c}
-        else
-          {[], [], 0}
-        end
-
-      line_count = length(lines)
-      initial_lines = if line_count > 1000, do: Enum.drop(lines, line_count - 1000), else: lines
-
-      {:noreply,
-       socket
-       |> assign(run: run)
-       |> assign(line_count: line_count)
-       |> assign(fold_stack: fold_stack)
-       |> assign(fold_counter: fold_counter)
-       |> assign(pending_line: "")
-       |> stream(:log_lines, initial_lines, reset: true, limit: -1000)}
+      {:noreply, follow_new_run(socket)}
     end
   end
 
-  defp parse_log_into_lines(nil, stack, counter), do: {[], 0, stack, counter}
+  defp same_run?(socket, updated_run) do
+    run = socket.assigns.run
+    run && updated_run.build_id == run.build_id
+  end
+
+  # The run this page was opened for. If it has started, its console may already
+  # have output worth showing; until then the page shows what it can.
+  defp refresh_run(socket, updated_run) do
+    if just_started?(socket.assigns.run.state, updated_run.state) do
+      show_whole_log(socket, updated_run.console_log)
+    else
+      socket
+    end
+  end
+
+  defp just_started?(old_state, new_state) do
+    old_state in ["Scheduled", "Assigned", "Preparing"] and
+      new_state not in ["Scheduled", "Assigned", "Preparing"]
+  end
+
+  # The page was opened before the run existed (it is created when the job is
+  # scheduled), so read it again and subscribe to whatever it has to say.
+  defp follow_new_run(socket) do
+    run =
+      get_run_by_params(
+        socket.assigns.pipeline_name,
+        socket.assigns.pipeline_counter,
+        socket.assigns.stage_name,
+        socket.assigns.stage_counter,
+        socket.assigns.job_name
+      )
+
+    if run && connected?(socket), do: AgentJobRuns.subscribe_console(run.build_id)
+
+    socket
+    |> assign(:run, run)
+    |> show_whole_log(if(run, do: run.console_log))
+  end
+
+  defp show_whole_log(socket, nil), do: show_lines(socket, [], [], 0)
+
+  defp show_whole_log(socket, log) do
+    {lines, _index, fold_stack, fold_counter} = parse_log_into_lines(log, [], 0)
+    show_lines(socket, lines, fold_stack, fold_counter)
+  end
+
+  defp show_lines(socket, lines, fold_stack, fold_counter) do
+    line_count = length(lines)
+
+    initial_lines =
+      if line_count > @max_rendered_lines,
+        do: Enum.drop(lines, line_count - @max_rendered_lines),
+        else: lines
+
+    socket
+    |> assign(line_count: line_count)
+    |> assign(fold_stack: fold_stack)
+    |> assign(fold_counter: fold_counter)
+    |> assign(pending_line: "")
+    |> stream(:log_lines, initial_lines, reset: true, limit: -@max_rendered_lines)
+  end
 
   defp parse_log_into_lines(log, stack, counter) when is_binary(log) do
     raw_lines =

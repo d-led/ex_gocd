@@ -1413,7 +1413,26 @@ defmodule ExGoCDWeb.PipelineConfigLive do
     save_modal_for_type(socket.assigns.modal_type, params, socket)
   end
 
-  defp save_modal_for_type(:add_stage, params, socket) do
+  @modal_saves %{
+    add_stage: :save_add_stage,
+    add_job: :save_add_job,
+    add_task: :save_add_task,
+    edit_task: :save_edit_task,
+    add_material: :save_add_material,
+    edit_material: :save_edit_material
+  }
+
+  # Which modal was saved, and the function that saves it. One function per modal
+  # keeps each write readable next to the fields it needs.
+  defp save_modal_for_type(kind, params, socket) do
+    case Map.fetch(@modal_saves, kind) do
+      {:ok, handler} -> apply(__MODULE__, handler, [params, socket])
+      :error -> {:error, :unsupported_modal}
+    end
+  end
+
+  @doc false
+  def save_add_stage(params, socket) do
     if use_mock?() do
       {:ok, :mock_created}
     else
@@ -1425,7 +1444,8 @@ defmodule ExGoCDWeb.PipelineConfigLive do
     end
   end
 
-  defp save_modal_for_type(:add_job, params, socket) do
+  @doc false
+  def save_add_job(params, socket) do
     if use_mock?() do
       {:ok, :mock_created}
     else
@@ -1436,7 +1456,8 @@ defmodule ExGoCDWeb.PipelineConfigLive do
     end
   end
 
-  defp save_modal_for_type(:add_task, params, socket) do
+  @doc false
+  def save_add_task(params, socket) do
     if use_mock?() do
       {:ok, :mock_created}
     else
@@ -1449,7 +1470,8 @@ defmodule ExGoCDWeb.PipelineConfigLive do
     end
   end
 
-  defp save_modal_for_type(:edit_task, params, _socket) do
+  @doc false
+  def save_edit_task(params, _socket) do
     if use_mock?() do
       {:ok, :mock_updated}
     else
@@ -1464,7 +1486,8 @@ defmodule ExGoCDWeb.PipelineConfigLive do
     end
   end
 
-  defp save_modal_for_type(:add_material, params, socket) do
+  @doc false
+  def save_add_material(params, socket) do
     attrs = material_attributes(params)
 
     if attrs["type"] == "dependency" and not pipeline_exists?(attrs["url"]) do
@@ -1478,7 +1501,8 @@ defmodule ExGoCDWeb.PipelineConfigLive do
     end
   end
 
-  defp save_modal_for_type(:edit_material, params, _socket) do
+  @doc false
+  def save_edit_material(params, _socket) do
     if use_mock?() do
       {:ok, :mock_updated}
     else
@@ -1491,8 +1515,6 @@ defmodule ExGoCDWeb.PipelineConfigLive do
       })
     end
   end
-
-  defp save_modal_for_type(_modal_type, _params, _socket), do: {:error, :unsupported_modal}
 
   defp pipeline_exists?(name) do
     if use_mock?() do

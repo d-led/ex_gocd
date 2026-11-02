@@ -572,17 +572,27 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
       preload: [:pipeline, stage_instances: :job_instances]
     )
     |> Repo.all()
-    |> Enum.find(fn pi ->
-      bc = pi.build_cause || %{}
-      revisions = bc["materialRevisions"] || []
+    |> Enum.find(&triggered_by_any?(&1, parents))
+  end
 
-      Enum.any?(revisions, fn rev ->
-        mat = rev["material"] || rev
-        mat_type = mat["type"] || rev["material_type"] || rev["type"]
-        mat_url = mat["url"] || rev["url"] || rev["pipeline_name"] || rev["name"]
-        mat_type == "dependency" && Enum.member?(parents, mat_url)
-      end)
-    end)
+  # Whether this run started because one of the parent pipelines finished.
+  defp triggered_by_any?(instance, parents) do
+    instance
+    |> material_revisions()
+    |> Enum.any?(&dependency_upstream(&1, parents))
+  end
+
+  defp material_revisions(instance) do
+    (instance.build_cause || %{})["materialRevisions"] || []
+  end
+
+  defp dependency_upstream(revision, parents) do
+    material = revision["material"] || revision
+
+    type = material["type"] || revision["material_type"] || revision["type"]
+    url = material["url"] || revision["url"] || revision["pipeline_name"] || revision["name"]
+
+    type == "dependency" and url in parents
   end
 
   defp build_real_instance(instance) do
@@ -643,14 +653,18 @@ defmodule ExGoCD.Pipelines.ValueStreamMap do
         nil
 
       mod ->
-        %{
-          username: mod["username"] || "anonymous",
-          email: mod["email"] || "",
-          revision: mod["revision"] || "unknown",
-          comment: mod["comment"] || "",
-          modified_time: parse_or_default_time(mod["modifiedTime"])
-        }
+        modification_view(mod)
     end
+  end
+
+  defp modification_view(mod) do
+    %{
+      username: Map.get(mod, "username") || "anonymous",
+      email: Map.get(mod, "email") || "",
+      revision: Map.get(mod, "revision") || "unknown",
+      comment: Map.get(mod, "comment") || "",
+      modified_time: parse_or_default_time(mod["modifiedTime"])
+    }
   end
 
   defp parse_or_default_time(nil), do: DateTime.utc_now()

@@ -878,14 +878,20 @@ defmodule ExGoCDWeb.AgentsLive do
   defp filter_by_search(agents, ""), do: agents
 
   defp filter_by_search(agents, term) do
-    term_lower = String.downcase(term)
+    term = String.downcase(term)
+    Enum.filter(agents, &mentioned_in?(&1, term))
+  end
 
-    Enum.filter(agents, fn agent ->
-      String.contains?(String.downcase(agent.hostname || ""), term_lower) or
-        String.contains?(String.downcase(agent.ipaddress || ""), term_lower) or
-        Enum.any?(agent.resources || [], &String.contains?(String.downcase(&1), term_lower)) or
-        Enum.any?(agent.environments || [], &String.contains?(String.downcase(&1), term_lower))
-    end)
+  # Everything an agent can be found by: who it is and what it can do.
+  defp mentioned_in?(agent, term) do
+    agent
+    |> searchable_values()
+    |> Enum.any?(fn value -> String.contains?(String.downcase(value), term) end)
+  end
+
+  defp searchable_values(agent) do
+    [agent.hostname || "", agent.ipaddress || ""] ++
+      (agent.resources || []) ++ (agent.environments || [])
   end
 
   defp sort_agents(agents, column, order) do

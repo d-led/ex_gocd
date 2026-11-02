@@ -460,36 +460,9 @@ defmodule ExGoCDWeb.PipelineActivityLive do
   end
 
   defp gantt_time_window(runs) do
-    stages = Enum.flat_map(runs, & &1.stages)
-    now = DateTime.utc_now()
-
-    starts =
-      stages
-      |> Enum.map(& &1[:scheduled_at])
-      |> Enum.reject(&is_nil/1)
-
-    ends =
-      stages
-      |> Enum.map(fn s ->
-        s[:completed_at] || if s[:status] == "Building", do: now
-      end)
-      |> Enum.reject(&is_nil/1)
-
-    min_ts =
-      if starts != [],
-        do: Enum.min(starts, DateTime, fn -> now end),
-        else: DateTime.add(now, -60, :second)
-
-    max_ts =
-      if ends != [],
-        do: Enum.max(ends, DateTime, fn -> now end),
-        else: now
-
-    span = max(DateTime.diff(max_ts, min_ts, :second), 60)
-
-    # Pad 5% on each side so bars don't touch edges
-    pad = round(span * 0.05)
-    {DateTime.add(min_ts, -pad, :second), DateTime.add(max_ts, pad, :second), span + 2 * pad}
+    runs
+    |> Enum.flat_map(& &1.stages)
+    |> ExGoCDWeb.GanttWindow.span(&(&1[:status] == "Building"))
   end
 
   defp gantt_bar_color("Passed"), do: "bg-[#5cb85c]"
