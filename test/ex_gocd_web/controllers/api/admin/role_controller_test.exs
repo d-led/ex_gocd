@@ -5,8 +5,6 @@ defmodule ExGoCDWeb.API.Admin.RoleControllerTest do
   alias ExGoCD.Accounts.Role
   alias ExGoCD.Repo
 
-  import Ecto.Query
-
   setup do
     # Clean up from previous test runs
     Repo.delete_all(Role)
@@ -24,6 +22,51 @@ defmodule ExGoCDWeb.API.Admin.RoleControllerTest do
     conn = Phoenix.ConnTest.build_conn() |> Plug.Test.init_test_session(session)
 
     {:ok, conn: conn}
+  end
+
+  describe "who may change roles" do
+    setup do
+      {:ok, viewer} =
+        Accounts.create_user(%{
+          username: "role-viewer",
+          display_name: "Viewer",
+          password: "test123456",
+          roles: ["viewer"]
+        })
+
+      conn =
+        Phoenix.ConnTest.build_conn()
+        |> Plug.Test.init_test_session(%{"username" => viewer.username})
+
+      {:ok, viewer_conn: conn}
+    end
+
+    test "a viewer cannot create one", %{viewer_conn: conn} do
+      conn =
+        post(conn, "/api/admin/security/roles", %{
+          "role" => %{"name" => "sneaky", "users" => ["mallory"]}
+        })
+
+      assert conn.status == 403
+      assert Accounts.get_role_by_name("sneaky") == nil
+    end
+
+    test "a viewer cannot delete one", %{viewer_conn: conn} do
+      {:ok, _} = Accounts.create_role(%{name: "keep-me", users: ["alice"]})
+
+      assert delete(conn, "/api/admin/security/roles/keep-me").status == 403
+      assert Accounts.get_role_by_name("keep-me")
+    end
+  end
+
+  describe "the path api.go.cd documents" do
+    test "answers the roles under /go/api/admin", %{conn: conn} do
+      {:ok, _} = Accounts.create_role(%{name: "documented", users: ["alice"]})
+
+      body = conn |> get("/go/api/admin/security/roles") |> json_response(200)
+
+      assert [%{"name" => "documented"}] = body["_embedded"]["roles"]
+    end
   end
 
   describe "GET /api/admin/security/roles" do

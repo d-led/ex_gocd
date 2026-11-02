@@ -188,13 +188,6 @@ defmodule ExGoCDWeb.Router do
       get "/go/admin/config_xml", ConfigXmlController, :index
       post "/admin/config_xml/import", ConfigXmlController, :import_xml
       post "/admin/config_xml/revert/:version_id", ConfigXmlController, :revert
-
-      # Role configuration API (GoCD parity: RoleConfig)
-      get "/api/admin/security/roles", API.Admin.RoleController, :index
-      get "/api/admin/security/roles/:role_name", API.Admin.RoleController, :show
-      post "/api/admin/security/roles", API.Admin.RoleController, :create
-      put "/api/admin/security/roles/:role_name", API.Admin.RoleController, :update
-      delete "/api/admin/security/roles/:role_name", API.Admin.RoleController, :delete
     end
   end
 
@@ -417,6 +410,13 @@ defmodule ExGoCDWeb.Router do
     get "/security/system_admins", SystemAdminsController, :index
     get "/plugin_settings/:plugin_id", PluginSettingsController, :show
 
+    # Role configuration API (GoCD parity: RoleConfig)
+    get "/security/roles", RoleController, :index
+    get "/security/roles/:role_name", RoleController, :show
+    post "/security/roles", RoleController, :create
+    put "/security/roles/:role_name", RoleController, :update
+    delete "/security/roles/:role_name", RoleController, :delete
+
     # Encryption API (GoCD parity: POST /api/admin/encrypt)
     post "/encrypt", EncryptionController, :encrypt
   end
@@ -626,6 +626,13 @@ defmodule ExGoCDWeb.Router do
     # System admins + plugin settings (GoCD parity)
     get "/security/system_admins", SystemAdminsController, :index
     get "/plugin_settings/:plugin_id", PluginSettingsController, :show
+
+    # Role configuration API (GoCD parity: RoleConfig)
+    get "/security/roles", RoleController, :index
+    get "/security/roles/:role_name", RoleController, :show
+    post "/security/roles", RoleController, :create
+    put "/security/roles/:role_name", RoleController, :update
+    delete "/security/roles/:role_name", RoleController, :delete
   end
 
   # GoCD internal agent remoting API (HTTP-based, used by official Go agent)

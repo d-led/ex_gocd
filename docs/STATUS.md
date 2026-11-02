@@ -14,8 +14,8 @@
 | Dimension | State | Evidence |
 | --- | --- | --- |
 | Code | 268 source files, compile warnings-as-errors clean | `git ls-files 'lib/**/*.ex'` |
-| ExUnit | **1258 tests, all green** | `mix test` |
-| Coverage | **62.8 %**; 26 modules at 0 % | `mix test.coverage` |
+| ExUnit | **1263 tests, all green** | `mix test` |
+| Coverage | **62.7 %**; 26 modules at 0 % | `mix test.coverage` |
 | Go agent | builds; tests pass in 3 of 10 packages (3,793 prod LOC / 599 test LOC); modules upgraded 2026-11-01 (otel 1.47, grpc 1.85) | `cd agent && go test ./...` |
 | Cypress | 27 specs on disk, **not executed in this session** | `ls cypress/e2e/*.cy.js` |
 | Static analysis | `scripts/quality-gate.sh` passes as a whole: 17 steps, 0 failures (format, compile, Sobelow, credo, doc references, test database, ExUnit, Go fmt/vet/golangci-lint/tests/gofmt/mod-tidy, jscpd, ESLint, TypeScript, Prettier, link checker). Two findings are kept and documented rather than ignored: the MD5 artifact checksums, which are the format a GoCD agent writes. `mix dialyzer` was run for the first time on 2026-11-02: 41 warnings then, 6 now. Six that went were dead branches that hid real faults, described below; eighteen were calls `VsmTracer.set_status` made to a one-argument form whose spec wants a status record, which now go through the documented `set_status(code, message)`; the rest were stale specs and one function with no callers. The six that remain are named rather than silenced: `k8s.ex:136`, a third-party inference about `K8s.Client.run/2` inside the `Task` that probes a cluster (the probe cannot be driven from a test because the fake provider is registered per process); `test_report.ex:107` and `:109`, Ecto changeset typing in the store path that `parse_and_store/2` tests exercise on three report formats; `materials/scm_client.ex:140`, `:141` and `:151`, an `author || "svn"` whose producer always supplies a binary. Three stale specs it found early are fixed too: two modules were referenced as `.t()` without defining one, and `material_filter`'s spec named an unaliased `Material`. `staticcheck` cannot serve either, its binary being older than the Go toolchain, and the gate now says that instead of blaming the code | see above |
@@ -603,6 +603,26 @@ agent stays; an admin presses enable and the agent is enabled. An unauthenticate
 visitor is redirected to the login page by an existing test, so these four are
 about the case that visitor becomes after signing in.
 
+The role configuration API is authorization and it had no authorization. Its
+five routes were declared inside the browser scope, so they ran through
+`:browser` — session, CSRF protection, no admin check — where a signed-in
+viewer could create a role (201) and delete one (204). Roles decide the pipeline
+group permissions, so that is a viewer granting and revoking access. The same
+placement made the documented JSON API unusable for its actual clients: an
+API client with a personal access token has no CSRF token, and
+`protect_from_forgery` refuses its POST. The five routes are in the `:admin_api`
+pipeline now, beside `security/system_admins` in both trees, and a viewer gets
+403 from `AdminApiPlug`.
+
+The second fault in the same file was the path. api.go.cd documents the role
+config API at `/go/api/admin/security/roles`; ex_gocd served it only without the
+`go` prefix, so a client following the documentation got a 404 — the third
+endpoint found in that state after config repos and the backup settings. Rather
+than find a fourth by hand, a test compares the two admin route trees and fails
+on any route in one and not the other, with `/config_repos/cleanup` named as the
+one exception: it deletes data for tests, and a destructive hook does not need a
+second door. Checked by deleting one `go` route: the test names it.
+
 ### Known noise: the sandbox says a connection was disconnected
 
 Most runs print one or two lines like
@@ -626,7 +646,7 @@ table: the agent speaks HTTP remoting, like a real GoCD agent
 (`agent/internal/remoting/`, `agent_remoting_controller.ex`, and no `websocket`
 string anywhere in the Go agent).
 
-`README.md` badges are hand-written and say 1258 tests and 27 Cypress specs.
+`README.md` badges are hand-written and say 1263 tests and 27 Cypress specs.
 Nothing regenerates them, so they will drift again.
 
 `scripts/check_doc_refs.exs` is the part that cannot drift: it fails when a
