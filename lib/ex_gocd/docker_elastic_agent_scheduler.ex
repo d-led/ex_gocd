@@ -345,7 +345,10 @@ defmodule ExGoCD.DockerElasticAgentScheduler do
         resources: job[:resources] || [],
         created_at: DateTime.utc_now(),
         agent_uuid: nil,
-        error: false
+        error: false,
+        # The socket the container was created on is the only one it can be
+        # stopped on later; a profile may name its own.
+        docker_socket: job[:docker_socket]
       })
 
     %{state | containers: containers}

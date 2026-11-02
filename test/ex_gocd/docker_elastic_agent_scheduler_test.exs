@@ -224,6 +224,33 @@ defmodule ExGoCD.DockerElasticAgentSchedulerTest do
       assert length(standby_containers(twice)) == 1
     end
 
+    test "a container it created is stopped on the socket it was created on" do
+      {:ok, _profile} =
+        docker_profile("builders", %{"Resources" => ["docker"], "Image" => "agent:1"})
+
+      Process.put(:docker_create, :ok)
+      Process.put(:queue_answer, [%{job: "build", resources: ["docker"], environments: []}])
+
+      {:noreply, state} = Scheduler.handle_info(:tick, fresh_state())
+      assert_received {:docker, {:create, _image, _env, create_opts}}
+      assert create_opts[:docker_socket] == "unix:///fake.sock"
+
+      # The job is over and the container was left behind: the socket it was
+      # created on is the one it has to be stopped on.
+      [id] = Map.keys(state.containers)
+      Process.put(:queue_answer, [])
+
+      left_behind = %{
+        state
+        | containers: Map.update!(state.containers, id, &Map.put(&1, :error, true))
+      }
+
+      {:noreply, _state} = Scheduler.handle_info(:tick, left_behind)
+
+      assert_received {:docker, {:stop, ^id, stop_opts}}
+      assert stop_opts[:docker_socket] == "unix:///fake.sock"
+    end
+
     defp fresh_state, do: %{containers: %{}, events: [], tick_timer: nil}
 
     defp standby_containers(state) do
