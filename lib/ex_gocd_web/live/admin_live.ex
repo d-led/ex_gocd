@@ -1872,65 +1872,67 @@ defmodule ExGoCDWeb.AdminLive do
   end
 
   def save_template(%{"name" => name}, socket) do
-    editing = socket.assigns.template_editing
+    socket.assigns.template_editing
+    |> store_template(name)
+    |> template_saved(socket, name)
+  end
 
-    result =
-      if editing do
-        case Pipelines.get_template_by_name(editing) do
-          nil -> {:error, "Template not found"}
-          tpl -> Pipelines.update_template(tpl, %{name: name})
-        end
-      else
-        Pipelines.create_template(%{name: name})
-      end
+  # The form is the same one for a new template and for renaming an existing one;
+  # which it is lives in the socket.
+  defp store_template(nil, name), do: Pipelines.create_template(%{name: name})
 
-    case result do
-      {:ok, _template} ->
-        templates = Pipelines.list_templates()
-
-        {:noreply,
-         socket
-         |> assign(:templates, templates)
-         |> assign(:show_template_form, false)
-         |> assign(:template_editing, nil)
-         |> put_flash(:info, "Template '#{name}' saved.")}
-
-      {:error, %Ecto.Changeset{} = changeset} ->
-        error_msg =
-          changeset.errors
-          |> Enum.map(fn {field, {msg, _}} -> "#{field} #{msg}" end)
-          |> Enum.join(", ")
-
-        {:noreply, socket |> assign(:template_form_error, error_msg)}
-
-      {:error, reason} when is_binary(reason) ->
-        {:noreply, socket |> assign(:template_form_error, reason)}
+  defp store_template(existing, name) do
+    case Pipelines.get_template_by_name(existing) do
+      nil -> {:error, "Template not found"}
+      template -> Pipelines.update_template(template, %{name: name})
     end
+  end
+
+  defp template_saved({:ok, _template}, socket, name) do
+    {:noreply,
+     socket
+     |> assign(:templates, Pipelines.list_templates())
+     |> assign(:show_template_form, false)
+     |> assign(:template_editing, nil)
+     |> put_flash(:info, "Template '#{name}' saved.")}
+  end
+
+  defp template_saved({:error, %Ecto.Changeset{} = changeset}, socket, _name) do
+    {:noreply, assign(socket, :template_form_error, changeset_message(changeset))}
+  end
+
+  defp template_saved({:error, reason}, socket, _name) when is_binary(reason) do
+    {:noreply, assign(socket, :template_form_error, reason)}
+  end
+
+  defp changeset_message(changeset) do
+    changeset.errors
+    |> Enum.map(fn {field, {message, _}} -> "#{field} #{message}" end)
+    |> Enum.join(", ")
   end
 
   def delete_template(%{"name" => name}, socket) do
     case Pipelines.get_template_by_name(name) do
-      nil ->
-        {:noreply, socket |> put_flash(:error, "Template '#{name}' not found.")}
+      nil -> {:noreply, put_flash(socket, :error, "Template '#{name}' not found.")}
+      template -> delete_stored_template(template, name, socket)
+    end
+  end
 
-      tpl ->
-        case Pipelines.delete_template(tpl) do
-          {:ok, _} ->
-            templates = Pipelines.list_templates()
+  defp delete_stored_template(template, name, socket) do
+    case Pipelines.delete_template(template) do
+      {:ok, _} ->
+        {:noreply,
+         socket
+         |> assign(:templates, Pipelines.list_templates())
+         |> put_flash(:info, "Template '#{name}' deleted.")}
 
-            {:noreply,
-             socket
-             |> assign(:templates, templates)
-             |> put_flash(:info, "Template '#{name}' deleted.")}
-
-          {:error, _} ->
-            {:noreply,
-             socket
-             |> put_flash(
-               :error,
-               "Cannot delete template '#{name}'. It may be referenced by pipelines."
-             )}
-        end
+      {:error, _} ->
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           "Cannot delete template '#{name}'. It may be referenced by pipelines."
+         )}
     end
   end
 

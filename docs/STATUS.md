@@ -842,15 +842,16 @@ under a floor and leaves the coverdata `mix crap` reads; ExCoveralls could do
 neither. The gate runs tests with coverage, then `mix complexity` (both trees), then
 dialyzer.
 
-The first CRAP run found **126 functions above 30**. The sweep so far (126 → 62) has been all subtraction — status
+The first CRAP run found **126 functions above 30**. The sweep so far (126 → 54) has been all subtraction — status
 tables instead of clause chains (`StageStatus`, the console log's ANSI codes, the
 dashboard's status dots and trigger failures, the VSM's material icons, the agents
 table's sort keys, the stage page's agent kinds), one `@handlers` table and one
 function per event instead of a 37-clause `handle_event/3` on the admin page (and
 the same in five other pages), and one default helper instead of a chain of `||`
-in the config XML, the mailer, the agent mock and the Docker client. The worst
-remaining are two MCP tool handlers (`stages.history/2`, `jobs.schedule/2`, 110
-each) and `mcp/tools/stages.ex`'s `rerun_failed/2` (90).
+in the config XML, the mailer, the agent mock and the Docker client. What is left is the
+30–56 band: `plugin_registry.handle_info/2`, `mcp/tools/pipelines.config_diff/2`,
+`stage_details_live.approve_stage/2`, the two Gantt builders and the
+pipeline-operations controller's `comment/2` and `approve_stage/2`, all at 56.
 
 ### Doc drift
 `docs/PARITY.md` opens by saying it is a map of intent rather than a status

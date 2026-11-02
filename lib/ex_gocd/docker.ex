@@ -176,20 +176,16 @@ defmodule ExGoCD.Docker do
   Returns the default Docker socket path for the current OS.
   """
   def default_socket do
-    System.get_env("DOCKER_HOST") ||
-      System.get_env("DOCKER_SOCKET") ||
-      case :os.type() do
-        {:unix, :darwin} ->
-          # Docker Desktop on macOS
-          home = System.get_env("HOME") || "/tmp"
-          "#{home}/.docker/run/docker.sock"
+    System.get_env("DOCKER_HOST") || System.get_env("DOCKER_SOCKET") || platform_socket()
+  end
 
-        {:unix, _} ->
-          "/var/run/docker.sock"
-
-        _ ->
-          "/var/run/docker.sock"
-      end
+  # Where a daemon listens when nothing said otherwise. Docker Desktop on macOS
+  # keeps its socket under the user's home; everywhere else it is the system one.
+  defp platform_socket do
+    case :os.type() do
+      {:unix, :darwin} -> "#{System.get_env("HOME") || "/tmp"}/.docker/run/docker.sock"
+      _ -> "/var/run/docker.sock"
+    end
   end
 
   # ── Helpers ────────────────────────────────────────────────────────────────

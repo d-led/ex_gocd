@@ -1,4 +1,6 @@
 defmodule ExGoCDWeb.MaterialsLive do
+  import Ecto.Query
+
   @moduledoc """
   LiveView for the Materials page (SCM materials, pipeline dependencies).
   """
@@ -633,35 +635,31 @@ defmodule ExGoCDWeb.MaterialsLive do
     """
   end
 
+  # The last fifty changes of a material, newest first. Mock materials in tests
+  # carry no id, and a material with no history shows nothing.
   defp get_all_modifications(material) do
-    # Query real modifications from DB. Mock materials may lack :id.
-    if is_nil(Map.get(material, :id)) do
-      []
-    else
-      import Ecto.Query
-      alias ExGoCD.Pipelines.Modification
-      alias ExGoCD.Repo
-
-      mods =
-        Repo.all(
-          from m in Modification,
-            where: m.material_id == ^material.id,
-            order_by: [desc: m.modified_time],
-            limit: 50
-        )
-
-      if mods == [] do
-        []
-      else
-        Enum.map(mods, fn mod ->
-          %{
-            username: mod.username || mod.committer_name || "anonymous",
-            revision: mod.revision || "",
-            comment: mod.comment || "",
-            modified_time: mod.modified_time || mod.inserted_at
-          }
-        end)
-      end
+    case Map.get(material, :id) do
+      nil -> []
+      material_id -> recent_modifications(material_id)
     end
+  end
+
+  defp recent_modifications(material_id) do
+    ExGoCD.Repo.all(
+      from m in ExGoCD.Pipelines.Modification,
+        where: m.material_id == ^material_id,
+        order_by: [desc: m.modified_time],
+        limit: 50
+    )
+    |> Enum.map(&modification_entry/1)
+  end
+
+  defp modification_entry(mod) do
+    %{
+      username: first_present([mod.username, mod.committer_name], "anonymous"),
+      revision: first_present([mod.revision], ""),
+      comment: first_present([mod.comment], ""),
+      modified_time: first_present([mod.modified_time, mod.inserted_at], nil)
+    }
   end
 end

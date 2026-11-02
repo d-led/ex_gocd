@@ -372,24 +372,24 @@ defmodule ExGoCD.HTTPTestAgent do
     end
   end
 
-  defp parse_frame(<<129, len, payload::binary-size(len), rest::binary>>) when len <= 125 do
-    {:ok, {:text, payload}, rest}
+  # The three frame kinds this agent cares about, by opcode.
+  @frame_kinds %{129 => :text, 137 => :ping, 136 => :close}
+
+  # A short payload is written into the length byte itself; 126 and 127 mean the
+  # length follows in two or eight bytes.
+  defp parse_frame(<<opcode, len, payload::binary-size(len), rest::binary>>)
+       when is_map_key(@frame_kinds, opcode) and len <= 125 do
+    {:ok, {Map.fetch!(@frame_kinds, opcode), payload}, rest}
   end
 
-  defp parse_frame(<<129, 126, len::16, payload::binary-size(len), rest::binary>>) do
-    {:ok, {:text, payload}, rest}
+  defp parse_frame(<<opcode, 126, len::16, payload::binary-size(len), rest::binary>>)
+       when is_map_key(@frame_kinds, opcode) do
+    {:ok, {Map.fetch!(@frame_kinds, opcode), payload}, rest}
   end
 
-  defp parse_frame(<<129, 127, len::64, payload::binary-size(len), rest::binary>>) do
-    {:ok, {:text, payload}, rest}
-  end
-
-  defp parse_frame(<<137, len, payload::binary-size(len), rest::binary>>) when len <= 125 do
-    {:ok, {:ping, payload}, rest}
-  end
-
-  defp parse_frame(<<136, len, payload::binary-size(len), rest::binary>>) when len <= 125 do
-    {:ok, {:close, payload}, rest}
+  defp parse_frame(<<opcode, 127, len::64, payload::binary-size(len), rest::binary>>)
+       when is_map_key(@frame_kinds, opcode) do
+    {:ok, {Map.fetch!(@frame_kinds, opcode), payload}, rest}
   end
 
   defp parse_frame(buffer) do
