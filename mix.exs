@@ -72,7 +72,7 @@ defmodule ExGoCD.MixProject do
 
   # The floor is where the suite is, rounded down: raising it is a decision, not a
   # side effect of adding tests.
-  defp coverage_threshold, do: 67
+  defp coverage_threshold, do: 68
 
   defp test_support_modules do
     "test/support/**/*.ex"
@@ -161,10 +161,15 @@ defmodule ExGoCD.MixProject do
       # or migrate anything: doing that on every run makes two concurrent runs
       # race on CREATE DATABASE.
       "test.setup": ["ecto.create --quiet", "ecto.migrate --quiet"],
-      "test.coverage": ["cover"],
       # Coverage that CRAP can read afterwards. Plain `mix test --cover` prints a
-      # report and leaves nothing behind.
+      # report and leaves nothing behind; the exported run prints no summary, so
+      # the floor is enforced by `mix test.coverage`, which reads it back. The
+      # aliases deliberately leave that name to Mix — shadowing it is how the
+      # floor came to be checked by nothing.
       cover: ["test --cover --export-coverage default"],
+      # What a person runs for the whole picture: the tests, then the report the
+      # floor is checked against.
+      "test.coverage.report": ["cover", "test.coverage"],
       # Both application trees, because a web-layer function and a domain function
       # of the same score are not the same risk: the domain one is where the rules
       # live.

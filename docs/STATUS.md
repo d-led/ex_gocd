@@ -15,7 +15,7 @@
 | --- | --- | --- |
 | Code | compiles clean with warnings as errors | `mix compile --warnings-as-errors` |
 | ExUnit | green | `mix test` |
-| Coverage | above the floor in `mix.exs`; `scripts/coverage_total.exs` lists the modules no test reaches | `mix cover`, then `elixir scripts/coverage_total.exs` |
+| Coverage | above the floor in `mix.exs`; `scripts/coverage_total.exs` lists the modules no test reaches | `mix cover`, then `mix test.coverage` |
 | Go agent | builds; some packages still have no tests | `cd agent && go test ./...` |
 | Cypress | specs on disk, not run by the gate | `ls cypress/e2e/*.cy.js` |
 | Static analysis | `scripts/quality-gate.sh` passes as a whole (format, compile, Sobelow, credo, doc references, test database, ExUnit, Go checks, jscpd, ESLint, TypeScript, Prettier, link checker). Two findings are kept and documented rather than ignored: the MD5 artifact checksums, which are the format a GoCD agent writes. `staticcheck` cannot serve either, its binary being older than the Go toolchain, and the gate says that instead of blaming the code | see above |
@@ -38,7 +38,7 @@ means nothing currently *fails*; it does not mean the untested paths work.
 | --- | --- | --- | --- |
 | ExUnit | `mix test` | yes, already prepared | yes |
 | ExUnit, no database | `EX_GOCD_TEST_NO_DB=1 mix test` | no | no |
-| Coverage, against a floor | `mix cover` (fails under the floor in `mix.exs`) | yes, already prepared | yes |
+| Coverage, against a floor | `mix cover`, then `mix test.coverage` (the export prints no summary, so the report task checks the floor) | yes, already prepared | yes |
 | Coverage, the number | `elixir scripts/coverage_total.exs` (reads the export) | no | no |
 | Coverage, per module | `mix test.coverage` (Coveralls JSON) | yes, already prepared | no |
 | Go agent | `cd agent && go test ./...` | no | yes |
@@ -284,6 +284,15 @@ the same way. A module whose only instrumented line is its own `defmodule` — o
 the `use` that generates nothing callable — has nothing to cover, which is what
 most of the remaining entries are. The script prints the modules with nothing
 covered and their size, so the list is the work queue rather than a number.
+
+The floor was decoration for a while: `mix cover` exports the results and
+prints no summary, and an alias named `test.coverage` shadowed Mix's own report
+task, so nothing compared the total to the threshold. `mix test.coverage` is
+Mix's task again and fails the run when the total is under the floor; the gate
+runs it after `mix cover`. It counts slightly differently from
+`scripts/coverage_total.exs` — 69.86 % against 68.5 % — because the script skips
+the module-level lines that Mix counts; the floor is set against Mix's number,
+which is the one that fails.
 
 ### Fixed: two 0 %-coverage pages were hiding four faults
 

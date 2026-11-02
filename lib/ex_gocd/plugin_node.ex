@@ -20,8 +20,7 @@ defmodule ExGoCD.PluginNode do
 
     # Start a minimal supervision tree
     children = [
-      {Cluster.Supervisor, [topologies(), [name: :plugin_cluster_supervisor]]},
-      # Register a simple observer GenServer that logs cluster events
+      {Cluster.Supervisor, [cluster_topologies(), [name: :plugin_cluster_supervisor]]},
       {ExGoCD.PluginNode.Observer, []}
     ]
 
@@ -35,14 +34,24 @@ defmodule ExGoCD.PluginNode do
     Process.sleep(:infinity)
   end
 
-  defp topologies do
-    case System.get_env("ERLANG_SEED_NODES", "")
-         |> String.split(",", trim: true)
-         |> Enum.map(&String.trim/1)
-         |> Enum.reject(&(&1 == ""))
-         |> Enum.map(&String.to_atom/1) do
+  @doc """
+  How this node finds its peers: `ERLANG_SEED_NODES` names them, separated by
+  commas; without it the node gossips and finds whoever is listening.
+  """
+  @spec cluster_topologies() :: keyword()
+  def cluster_topologies do
+    case seed_nodes() do
       [] -> [default: [strategy: Cluster.Strategy.Gossip]]
       seeds -> [default: [strategy: Cluster.Strategy.Epmd, config: [hosts: seeds]]]
     end
+  end
+
+  defp seed_nodes do
+    "ERLANG_SEED_NODES"
+    |> System.get_env("")
+    |> String.split(",", trim: true)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.map(&String.to_atom/1)
   end
 end

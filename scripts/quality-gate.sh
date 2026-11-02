@@ -96,12 +96,18 @@ echo ""
 echo "=== Elixir: ExUnit tests, with coverage ==="
 mix test.setup >/dev/null 2>&1 || true
 # `mix cover` is `mix test --cover --export-coverage default`: the run leaves
-# cover/default.coverdata behind for `mix complexity`, and fails under the
-# coverage floor.
+# cover/default.coverdata behind for `mix complexity`. It prints no summary, so
+# the floor is checked by `mix test.coverage`, which reads the export back.
 TEST_OUT=$(mix cover 2>&1) && TEST_EXIT=0 || TEST_EXIT=$?
-echo "$TEST_OUT" | grep -E "^Result:|^\[TOTAL\]|Coverage test failed" | tail -3 || true
+echo "$TEST_OUT" | grep -E "^Result:|Coverage test failed" | tail -3 || true
 echo "$TEST_OUT" | tail -3
 if [ "$TEST_EXIT" -eq 0 ]; then
+  FLOOR_OUT=$(mix test.coverage 2>&1) && FLOOR_EXIT=0 || FLOOR_EXIT=$?
+  echo "$FLOOR_OUT" | grep -E "Total|Coverage test failed" | tail -2 || true
+else
+  FLOOR_EXIT=$TEST_EXIT
+fi
+if [ "$TEST_EXIT" -eq 0 ] && [ "$FLOOR_EXIT" -eq 0 ]; then
   pass_step "ExUnit tests — all passing, coverage above the floor"
 else
   echo ""
