@@ -70,15 +70,9 @@ defmodule ExGoCDWeb.FeedsController do
     """
   end
 
-  defp esc(text),
-    do:
-      String.replace(text || "", ~w(& < > " '), fn
-        "&" -> "&amp;"
-        "<" -> "&lt;"
-        ">" -> "&gt;"
-        "\"" -> "&quot;"
-        "'" -> "&apos;"
-      end)
+  @xml_escapes %{"&" => "&amp;", "<" => "&lt;", ">" => "&gt;", "\"" => "&quot;", "'" => "&apos;"}
+
+  defp esc(text), do: String.replace(text || "", ~w(& < > " '), &Map.fetch!(@xml_escapes, &1))
 
   @doc """
   GET /api/feeds/pipelines/:pipeline_name/stages.xml

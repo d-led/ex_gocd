@@ -672,6 +672,9 @@ defmodule ExGoCDWeb.JobDetailsLive do
     end
   end
 
+  defp blank_as_none(""), do: "none"
+  defp blank_as_none(joined), do: joined
+
   defp job_resource_summary(job_instance) do
     # Try to get resources from the job config
     job_name = job_instance[:name]
@@ -682,7 +685,7 @@ defmodule ExGoCDWeb.JobDetailsLive do
           "none"
 
         job ->
-          if Enum.empty?(job.resources || []), do: "none", else: Enum.join(job.resources, ", ")
+          Enum.join(job.resources || [], ", ") |> blank_as_none()
       end
     else
       "unknown"

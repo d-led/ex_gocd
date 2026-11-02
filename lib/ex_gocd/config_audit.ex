@@ -75,8 +75,8 @@ defmodule ExGoCD.ConfigAudit do
           [] ->
             [no_agents(agents)]
 
-          usable ->
-            job_findings(verdicts) ++ Enum.flat_map(agents, &agent_findings(&1, jobs, usable))
+          _usable ->
+            job_findings(verdicts) ++ Enum.flat_map(agents, &agent_findings(&1, jobs))
         end
 
     %{
@@ -151,10 +151,12 @@ defmodule ExGoCD.ConfigAudit do
     do: "it is in no environment, and the pipeline is in #{quoted(environments)}"
 
   def obstacle_text({:environment, {:agent_is_in_an_environment, environments}}),
-    do: "it is in #{quoted(environments)}, so it takes only those pipelines"
+    do: "it is in #{quoted(environments)} and the pipeline is in no environment"
 
-  def obstacle_text({:environment, {:no_shared_environment, %{agent: agent, pipeline: pipeline}}}),
-    do: "it is in #{quoted(agent)} and the pipeline is in #{quoted(pipeline)}"
+  def obstacle_text(
+        {:environment, {:no_shared_environment, %{agent: agent, pipeline: pipeline}}}
+      ),
+      do: "it is in #{quoted(agent)} and the pipeline is in #{quoted(pipeline)}"
 
   # ── the configuration as it stands ─────────────────────────────────
 
@@ -195,15 +197,14 @@ defmodule ExGoCD.ConfigAudit do
   end
 
   defp job_spec(job, pipeline, stage, environments) do
-    asked = job.resources || []
     params = Params.merge_params(pipeline.parameters, %{})
 
     %{
       pipeline: pipeline.name,
       stage: stage.name,
       job: job.name,
-      asked: asked,
-      resources: asked |> Enum.map(&Params.interpolate(&1, params)) |> Enum.uniq(),
+      resources:
+        (job.resources || []) |> Enum.map(&Params.interpolate(&1, params)) |> Enum.uniq(),
       environments: Map.get(environments, pipeline.name, []),
       elastic_profile: job.elastic_profile_id,
       tasks: length(job.tasks || [])
@@ -339,7 +340,7 @@ defmodule ExGoCD.ConfigAudit do
 
   defp undefined_parameters(job) do
     job.resources
-    |> Enum.filter(&String.contains?(&1, "#{"))
+    |> Enum.filter(&String.contains?(&1, "\#{"))
     |> Enum.map(fn resource ->
       finding(
         :warning,
@@ -400,12 +401,18 @@ defmodule ExGoCD.ConfigAudit do
 
   defp runnability(_job, _runnable, _blocked), do: []
 
-  defp agent_findings(agent, jobs, usable) do
-    takes_nothing =
-      agent not in usable or
-        not Enum.any?(jobs, fn job -> fit([agent], job.resources, job.environments).runnable != [] end)
+  # A disabled agent is somebody's decision, not a finding.
+  defp agent_findings(%{disabled: true}, _jobs), do: []
 
-    if takes_nothing do
+  defp agent_findings(agent, jobs) do
+    takes_something =
+      Enum.any?(jobs, fn job ->
+        fit([agent], job.resources, job.environments).runnable != []
+      end)
+
+    if takes_something do
+      []
+    else
       [
         finding(
           :warning,
@@ -415,8 +422,6 @@ defmodule ExGoCD.ConfigAudit do
             "holds #{holds(agent.resources)} and is in #{belongs(agent.environments)}."
         )
       ]
-    else
-      []
     end
   end
 
@@ -431,7 +436,8 @@ defmodule ExGoCD.ConfigAudit do
         Enum.map(blocked, fn %{agent: agent, obstacles: obstacles} ->
           %{agent: agent.hostname, because: Enum.map(obstacles, &obstacle_text/1)}
         end),
-      verdict: verdict(runnable, blocked, job)
+      verdict: verdict(runnable, blocked, job),
+      advice: advice(runnable, blocked, job)
     })
   end
 
@@ -451,6 +457,32 @@ defmodule ExGoCD.ConfigAudit do
     "#{length(runnable)} agent(s) can take it: #{Enum.map_join(runnable, ", ", & &1.hostname)}"
   end
 
+  # What a person would do about it. `nil` when there is nothing to do.
+  defp advice(_runnable, [], _job), do: nil
+  defp advice([_ | _], _blocked, _job), do: nil
+
+  defp advice([], blocked, job) do
+    obstacles = blocked |> Enum.min_by(&weight(&1.obstacles)) |> Map.get(:obstacles)
+
+    cond do
+      job.elastic_profile != nil ->
+        nil
+
+      Enum.any?(obstacles, &environment_obstacle?/1) and job.environments == [] ->
+        "A pipeline in no environment runs only on agents in no environment: assign " <>
+          "it to one, or keep an agent outside every environment."
+
+      Enum.any?(obstacles, &environment_obstacle?/1) ->
+        "The pipeline and the agent have to share an environment: put both in one."
+
+      true ->
+        "Give the resource to an agent (`gocd_update_agent`), or take it off the job."
+    end
+  end
+
+  defp environment_obstacle?({:environment, _mismatch}), do: true
+  defp environment_obstacle?(_obstacle), do: false
+
   # ── words ──────────────────────────────────────────────────────────
 
   defp finding(severity, code, subject, message) do
@@ -459,8 +491,8 @@ defmodule ExGoCD.ConfigAudit do
 
   defp subject(job), do: "`#{job.pipeline}` / `#{job.stage}` / `#{job.job}`"
 
-  defp asked(%{resources: []}), do: ""
-  defp asked(%{resources: resources}), do: ", though it asks for #{quoted(resources)},"
+  defp asks(%{resources: []}), do: ""
+  defp asks(%{resources: resources}), do: "asks for #{quoted(resources)} and "
 
   defp quoted([]), do: "nothing"
   defp quoted(names), do: Enum.map_join(names, ", ", &"`#{&1}`")

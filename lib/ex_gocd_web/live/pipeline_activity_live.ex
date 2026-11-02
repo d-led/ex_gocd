@@ -160,17 +160,16 @@ defmodule ExGoCDWeb.PipelineActivityLive do
     end)
   end
 
+  # What a material writes when it has nothing to say about a change.
+  @empty_comments ["Triggered commit", "Auto-detected update via git ls-remote"]
+
   defp clean_comment("", _revision), do: nil
   defp clean_comment(comment, _revision) when byte_size(comment) < 3, do: comment
 
   defp clean_comment(comment, _revision) do
-    if String.starts_with?(comment, "git ls-remote") or
-         comment == "Triggered commit" or
-         comment == "Auto-detected update via git ls-remote" do
-      nil
-    else
-      comment
-    end
+    if String.starts_with?(comment, "git ls-remote") or comment in @empty_comments,
+      do: nil,
+      else: comment
   end
 
   defp stage_status(si) do

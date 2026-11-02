@@ -321,13 +321,16 @@ defmodule ExGoCDWeb.StageDetailsLive do
     end
   end
 
-  defp kind_color("k8s-elastic"), do: "bg-purple-100 text-purple-700"
-  defp kind_color("docker-elastic"), do: "bg-blue-100 text-blue-700"
-  defp kind_color("docker"), do: "bg-cyan-100 text-cyan-700"
-  defp kind_color("k8s"), do: "bg-purple-100 text-purple-700"
-  defp kind_color("elastic"), do: "bg-teal-100 text-teal-700"
-  defp kind_color("regular"), do: "bg-gray-100 text-gray-600"
-  defp kind_color(_), do: "bg-gray-100 text-gray-400"
+  @kind_colours %{
+    "k8s-elastic" => "bg-purple-100 text-purple-700",
+    "docker-elastic" => "bg-blue-100 text-blue-700",
+    "docker" => "bg-cyan-100 text-cyan-700",
+    "k8s" => "bg-purple-100 text-purple-700",
+    "elastic" => "bg-teal-100 text-teal-700",
+    "regular" => "bg-gray-100 text-gray-600"
+  }
+
+  defp kind_color(kind), do: Map.get(@kind_colours, kind, "bg-gray-100 text-gray-400")
 
   # ── Job Gantt chart ────────────────────────────────────────────────────
 

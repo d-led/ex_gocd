@@ -15,7 +15,7 @@ defmodule ExGoCD.Mcp.Tools.PipelineConfig do
   settings and says so.
   """
 
-  alias ExGoCD.{AuditLog.Events, Pipelines, Repo}
+  alias ExGoCD.{AuditLog.Events, ConfigAudit, Pipelines, Repo}
   alias ExGoCD.Mcp.{Args, Auth, Changeset, Render, Tool}
 
   @names ~w(gocd_create_pipeline gocd_update_pipeline gocd_delete_pipeline)
@@ -203,6 +203,25 @@ defmodule ExGoCD.Mcp.Tools.PipelineConfig do
   @spec definitions() :: [map()]
   def definitions, do: @tools
 
+  @doc """
+  The shape of a pipeline definition, for a tool that reads one the same way.
+  """
+  @spec definition_schema() :: map()
+  def definition_schema, do: @definition
+
+  @doc """
+  Reads a definition exactly as `gocd_create_pipeline` reads it and returns what
+  it understood — stages, jobs, tasks, materials — without writing anything.
+
+  `gocd_validate_pipeline` uses this to answer "would this run?" about a
+  pipeline that does not exist yet, which is the only moment the answer is free.
+  """
+  @spec preview(map()) :: {:ok, map()} | {:error, String.t()}
+  def preview(definition) when is_map(definition), do: validate(definition)
+
+  def preview(_other),
+    do: {:error, "`definition` must be an object with at least a `name` and `stages`."}
+
   @doc "The names of this family's tools."
   @spec names() :: [String.t()]
   def names, do: @names
@@ -382,12 +401,14 @@ defmodule ExGoCD.Mcp.Tools.PipelineConfig do
 
     jobs = stages |> Enum.flat_map(& &1.jobs) |> length()
     link = "#{ctx.base_url}/admin/pipelines/#{pipeline.name}/edit"
+    fit = ConfigAudit.fit_pipeline(pipeline.name)
 
     Tool.ok(
       "#{pipeline.name} created in group #{Render.cell(pipeline.group)}: " <>
         "#{length(stages)} stage(s), #{jobs} job(s), #{length(materials)} material(s).\n" <>
         "Its configuration: #{link}\n" <>
-        "It has not run yet; `gocd_trigger_pipeline` starts it.",
+        "It has not run yet; `gocd_trigger_pipeline` starts it." <>
+        verdict_text(fit),
       %{
         "name" => pipeline.name,
         "group" => pipeline.group,
@@ -400,9 +421,47 @@ defmodule ExGoCD.Mcp.Tools.PipelineConfig do
               "approval_type" => stage.approval_type,
               "jobs" => Enum.map(stage.jobs, & &1.name)
             }
-          end)
+          end),
+        "will_run" => will_run(fit)
       }
     )
+  end
+
+  # The question an author asks the moment a pipeline exists. A pipeline that is
+  # in no environment has a narrower answer than it looks: only agents outside
+  # every environment can take its jobs, so a fleet that lives entirely inside
+  # environments takes none of them until the pipeline is assigned to one.
+  defp verdict_text(nil), do: ""
+
+  defp verdict_text(%{jobs: []}) do
+    "\nWill it run? There is nothing to run: it has no jobs."
+  end
+
+  defp verdict_text(%{jobs: jobs}) do
+    case Enum.reject(jobs, &(&1.runnable != [])) do
+      [] ->
+        "\nWill it run? Yes — every one of its #{length(jobs)} job(s) has an agent."
+
+      [stuck | _] ->
+        "\nWill it run? Not yet — `#{stuck.stage}` / `#{stuck.job}`: #{stuck.verdict}. " <>
+          "#{stuck.advice || ""} `gocd_audit_config` shows the rest."
+    end
+  end
+
+  defp will_run(nil), do: nil
+
+  defp will_run(%{jobs: jobs}) do
+    stuck = Enum.reject(jobs, &(&1.runnable != []))
+
+    %{
+      "jobs" => length(jobs),
+      "jobs_with_an_agent" => length(jobs) - length(stuck),
+      "first_problem" =>
+        case stuck do
+          [] -> nil
+          [first | _] -> "#{first.stage} / #{first.job}: #{first.verdict}"
+        end
+    }
   end
 
   # ── update ─────────────────────────────────────────────────────────
