@@ -16,7 +16,6 @@ config :ex_gocd,
   # visible to an assertion.
   snapshot_in_background: false,
   sync_webhook_poll: true,
-  git_client: ExGoCD.Materials.GitClient.MockImpl,
   scm_client: ExGoCD.Materials.ScmClient.MockImpl
 
 # Configure your database

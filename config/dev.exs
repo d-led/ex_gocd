@@ -91,8 +91,7 @@ if System.get_env("USE_MOCK_DATA") == "true" do
   config :ex_gocd,
     poller_interval: :none,
     enable_timer_scheduler: false,
-    scm_client: ExGoCD.Materials.ScmClient.MockImpl,
-    git_client: ExGoCD.Materials.GitClient.MockImpl
+    scm_client: ExGoCD.Materials.ScmClient.MockImpl
 end
 
 # Do not include metadata nor timestamps in development logs
