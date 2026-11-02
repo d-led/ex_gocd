@@ -623,8 +623,12 @@ const vsmArrowSelector = (sourceId, targetId) =>
 Cypress.Commands.add("hoverOnArrowBetween", (sourceLabel, targetLabel) => {
   vsmNodeId(sourceLabel).then((srcId) => {
     vsmNodeId(targetLabel).then((tgtId) => {
+      // The graph is a LiveView patch away from replacing the arrow it drew a
+      // moment ago, so the element is waited for in the current DOM: a
+      // mouseenter fired on a detached node highlights nothing.
       cy.get(vsmArrowSelector(srcId, tgtId))
         .first()
+        .should("be.visible")
         .trigger("mouseenter", { force: true });
     });
   });
@@ -719,6 +723,7 @@ Cypress.Commands.add(
       vsmNodeId(targetLabel).then((tgtId) => {
         cy.get(vsmArrowSelector(srcId, tgtId))
           .first()
+          .should("be.visible")
           .trigger("mouseleave", { force: true });
       });
     });
