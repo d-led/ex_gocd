@@ -5,7 +5,7 @@ transport, so an assistant can ask about a running GoCD server — what is
 configured, what ran, what is running now, why nothing is running, and what the
 numbers say — and act on it.
 
-It offers three things: **tools** (35 of them, below), **resources** (the
+It offers three things: **tools** (42 of them, below), **resources** (the
 documents a person would attach: the dashboard, the configuration XML, the audit
 trail, one pipeline's configuration) and **prompts** (the four workflows worth
 following in order).

@@ -37,6 +37,25 @@ An agent is optional; without one, pipelines queue and nothing runs:
 cd agent && GOCD_SERVER_URL=http://localhost:4000 go run .
 ```
 
+## Talk to it from an AI assistant
+
+The server is also a [Model Context Protocol](https://modelcontextprotocol.io)
+server at `POST /mcp`, so an assistant can read — and, where its credentials
+allow, act on — the pipelines, agents and jobs it already shows:
+
+```bash
+curl -s localhost:4000/mcp -H 'content-type: application/json' \
+  -d '{"jsonrpc": "2.0", "id": 1, "method": "initialize",
+       "params": {"protocolVersion": "2025-06-18"}}'
+```
+
+VS Code reads [`.vscode/mcp.json`](.vscode/mcp.json); any client that takes a URL
+takes `http://localhost:4000/mcp`. It accepts the same credentials as the rest of
+the server — an access token, basic `user:token`, a session from the browser or
+from `oauth2-proxy`, or the OAuth round trip it runs itself. [docs/mcp.md](docs/mcp.md)
+is the page: the tools, the documents, the workflows, and what a deployment still
+has to configure.
+
 ## What works
 
 | Area | State |
@@ -49,6 +68,7 @@ cd agent && GOCD_SERVER_URL=http://localhost:4000 go run .
 | OpenTelemetry traces and metrics, Jaeger, Grafana | wired; dashboards in `grafana/` |
 | Plugins: agent selectors, auth providers, notification sinks, org hierarchy | wired through a plugin registry |
 | RBAC: roles, per-environment policies, personal access tokens, encryption | working, tested |
+| MCP server: 42 tools, 4 resources and 4 prompts over `POST /mcp`, with its own OAuth round trip | working, tested |
 
 What is measured and what is not is in [docs/STATUS.md](docs/STATUS.md), including the
 modules no test reaches. Feature-by-feature detail, with the GoCD class each module
@@ -92,6 +112,7 @@ process-compose up
 
 - [docs/STATUS.md](docs/STATUS.md) — measured state: tests, coverage, faults found.
 - [docs/PARITY.md](docs/PARITY.md) — GoCD feature map and the module for each.
+- [docs/mcp.md](docs/mcp.md) — the MCP server: tools, documents, workflows, authentication.
 - [docs/plugin_authoring.md](docs/plugin_authoring.md) — writing a plugin.
 - [agent/README.md](agent/README.md) — agent configuration and behaviour.
 
