@@ -146,7 +146,7 @@ defmodule ExGoCD.Materials.ScmClient do
         case SvnCmd.latest_modification(url, opts) do
           {:ok, %{author: author, date: date, message: msg}} ->
             %{
-              committer_name: author,
+              committer_name: or_default(author, "svn"),
               committer_email: "#{String.replace(or_default(author, "svn"), " ", ".")}@scm.local",
               comment: or_default(msg, "svn revision #{rev}"),
               modified_time: parse_svn_date(date)
@@ -157,7 +157,7 @@ defmodule ExGoCD.Materials.ScmClient do
             case SvnCmd.remote_info(url, opts) do
               {:ok, %{author: author, date: date}} ->
                 %{
-                  committer_name: author,
+                  committer_name: or_default(author, "svn"),
                   committer_email:
                     "#{String.replace(or_default(author, "svn"), " ", ".")}@scm.local",
                   comment: "svn revision #{rev}",
