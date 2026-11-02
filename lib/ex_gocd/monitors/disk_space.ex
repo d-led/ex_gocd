@@ -113,25 +113,26 @@ defmodule ExGoCD.Monitors.DiskSpace do
     output
     |> String.split("\n")
     |> Enum.at(1)
-    |> case do
-      nil ->
-        nil
+    |> available_bytes()
+  end
 
-      line ->
-        parts = String.split(line, ~r/\s+/, trim: true)
-        # df output: Filesystem 1K-blocks Used Available ...
-        # Available is typically column 4 (0-indexed: 3)
-        case Enum.at(parts, 3) do
-          nil ->
-            nil
+  # df prints a header line and then the row; "Available" is its fourth column,
+  # in 1K blocks. Anything else means the disk is unknown, not empty.
+  defp available_bytes(nil), do: nil
 
-          avail_str ->
-            case Integer.parse(avail_str) do
-              # Convert 1K blocks to bytes
-              {n, _} -> n * 1024
-              :error -> nil
-            end
-        end
+  defp available_bytes(line) do
+    line
+    |> String.split(~r/\s+/, trim: true)
+    |> Enum.at(3)
+    |> kilobytes_to_bytes()
+  end
+
+  defp kilobytes_to_bytes(nil), do: nil
+
+  defp kilobytes_to_bytes(available) do
+    case Integer.parse(available) do
+      {kilobytes, _} -> kilobytes * 1024
+      :error -> nil
     end
   end
 

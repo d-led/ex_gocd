@@ -10,7 +10,7 @@ defmodule ExGoCD.TestReport.TestSuite do
   @type t :: %__MODULE__{
           id: integer() | nil,
           test_report_id: integer() | nil,
-          name: String.t(),
+          name: String.t() | nil,
           tests: integer(),
           failures: integer(),
           errors: integer(),

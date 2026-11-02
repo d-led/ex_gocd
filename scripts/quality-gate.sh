@@ -90,21 +90,48 @@ else
   fail_step "Test database — not reachable (see the message above)"
 fi
 
-# ── Elixir: Test suite ─────────────────────────────────────────────────
+# ── Elixir: Test suite, with the coverage the CRAP gate reads ──────────
 
 echo ""
-echo "=== Elixir: ExUnit tests ==="
+echo "=== Elixir: ExUnit tests, with coverage ==="
 mix test.setup >/dev/null 2>&1 || true
-TEST_OUT=$(mix test 2>&1) && TEST_EXIT=0 || TEST_EXIT=$?
+# `mix cover` is `mix test --cover --export-coverage default`: the run leaves
+# cover/default.coverdata behind for `mix complexity`, and fails under the
+# coverage floor.
+TEST_OUT=$(mix cover 2>&1) && TEST_EXIT=0 || TEST_EXIT=$?
+echo "$TEST_OUT" | grep -E "^Result:|^\[TOTAL\]|Coverage test failed" | tail -3 || true
 echo "$TEST_OUT" | tail -3
 if [ "$TEST_EXIT" -eq 0 ]; then
-  pass_step "ExUnit tests — all passing"
+  pass_step "ExUnit tests — all passing, coverage above the floor"
 else
   echo ""
   echo "--- FAILURES ---"
   echo "$TEST_OUT" | grep -A 10 "^\s*[0-9]\+) test " || echo "$TEST_OUT" | tail -40
   echo "--- END FAILURES ---"
-  fail_step "ExUnit tests — failures"
+  fail_step "ExUnit tests — failures, or coverage under the floor"
+fi
+
+# ── Elixir: CRAP — complexity squared by the coverage it lacks ─────────
+
+echo ""
+echo "=== CRAP: every function at or below 30 ==="
+CRAP_OUT=$(mix complexity 2>&1) && CRAP_EXIT=0 || CRAP_EXIT=$?
+echo "$CRAP_OUT" | grep -E "score=|Summary:|threshold" | tail -12 || true
+if [ "$CRAP_EXIT" -eq 0 ]; then
+  pass_step "CRAP — no function above 30"
+else
+  fail_step "CRAP — a function is above 30 (listed above)"
+fi
+
+# ── Elixir: Types (dialyzer) ───────────────────────────────────────────
+
+echo ""
+echo "=== Elixir: Types (dialyzer) ==="
+if mix dialyzer >/tmp/ex_gocd_dialyzer.log 2>&1; then
+  pass_step "Dialyzer — no warnings"
+else
+  grep -E "^(lib|test)/" /tmp/ex_gocd_dialyzer.log | head -20 || tail -20 /tmp/ex_gocd_dialyzer.log
+  fail_step "Dialyzer — warnings (listed above)"
 fi
 
 # ── Go: agent static analysis ──────────────────────────────────────────

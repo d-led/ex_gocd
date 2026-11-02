@@ -542,19 +542,7 @@ defmodule ExGoCD.Scheduler do
         resources_match?(resources, agent_resources(a))
       end)
 
-    non_matching_detail =
-      if matching == [] do
-        Enum.map(all_agents, fn a ->
-          agent_set = agent_resources(a)
-
-          missing =
-            Enum.reject(resources, fn r -> MapSet.member?(agent_set, String.downcase(r)) end)
-
-          %{hostname: a.hostname, uuid: a.uuid, has: a.resources || [], missing: missing}
-        end)
-      else
-        []
-      end
+    non_matching_detail = non_matching_detail(resources, all_agents, matching)
 
     %{
       required_resources: resources,
@@ -563,6 +551,20 @@ defmodule ExGoCD.Scheduler do
       non_matching_detail: non_matching_detail,
       any_agent_connected: map_size(AgentPresence.list(@presence_topic)) > 0
     }
+  end
+
+  # When nothing matched, say what each connected agent is missing, so the job page
+  # can tell "no agent has docker" from "no agent is up".
+  defp non_matching_detail(_resources, _all_agents, [_ | _]), do: []
+
+  defp non_matching_detail(resources, all_agents, []),
+    do: Enum.map(all_agents, &missing_resources(&1, resources))
+
+  defp missing_resources(agent, resources) do
+    agent_set = agent_resources(agent)
+    missing = Enum.reject(resources, fn r -> MapSet.member?(agent_set, String.downcase(r)) end)
+
+    %{hostname: agent.hostname, uuid: agent.uuid, has: agent.resources || [], missing: missing}
   end
 
   # Rule:

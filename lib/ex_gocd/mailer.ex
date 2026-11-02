@@ -188,43 +188,49 @@ defmodule ExGoCD.Mailer do
 
     rows =
       materials
-      |> Enum.map(fn m ->
-        """
-        <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:16px;border:1px solid #e5e7eb;border-radius:6px">
-          <tr>
-            <td style="padding:14px 16px">
-              <table width="100%" cellpadding="0" cellspacing="0">
-                <tr>
-                  <td style="font-size:12px;font-weight:600;color:#374151;padding-bottom:4px">
-                    <span style="display:inline-block;background:#f3f4f6;padding:2px 8px;border-radius:4px">#{m[:type] || "Material"}</span>
-                    &nbsp; #{m[:url] || ""}
-                  </td>
-                </tr>
-                <tr>
-                  <td style="font-size:13px;color:#6b7280;padding-bottom:2px">
-                    Revision <code style="background:#f3f4f6;padding:1px 4px;border-radius:3px;font-size:12px">#{m[:revision] || "?"}</code>
-                    by <strong style="color:#374151">#{m[:user] || "unknown"}</strong>
-                    #{if m[:date], do: "on #{m[:date]}", else: ""}
-                  </td>
-                </tr>
-                #{if m[:comment] && m[:comment] != "" do
-          """
-          <tr>
-            <td style="font-size:13px;color:#374151;font-style:italic;padding-top:4px">
-              #{m[:comment]}
-            </td>
-          </tr>
-          """
-        end}
-              </table>
-            </td>
-          </tr>
-        </table>
-        """
-      end)
-      |> Enum.join("")
+      |> Enum.map(&change_view/1)
+      |> Enum.map_join("", &change_row_html/1)
 
     header <> rows
+  end
+
+  defp change_row_html(m) do
+    """
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:16px;border:1px solid #e5e7eb;border-radius:6px">
+      <tr>
+        <td style="padding:14px 16px">
+          <table width="100%" cellpadding="0" cellspacing="0">
+            <tr>
+              <td style="font-size:12px;font-weight:600;color:#374151;padding-bottom:4px">
+                <span style="display:inline-block;background:#f3f4f6;padding:2px 8px;border-radius:4px">#{m.type}</span>
+                &nbsp; #{m.url}
+              </td>
+            </tr>
+            <tr>
+              <td style="font-size:13px;color:#6b7280;padding-bottom:2px">
+                Revision <code style="background:#f3f4f6;padding:1px 4px;border-radius:3px;font-size:12px">#{m.revision}</code>
+                by <strong style="color:#374151">#{m.user}</strong>
+                #{m.date_note}
+              </td>
+            </tr>
+            #{comment_row_html(m)}
+          </table>
+        </td>
+      </tr>
+    </table>
+    """
+  end
+
+  defp comment_row_html(%{comment: ""}), do: ""
+
+  defp comment_row_html(m) do
+    """
+    <tr>
+      <td style="font-size:13px;color:#374151;font-style:italic;padding-top:4px">
+        #{m.comment}
+      </td>
+    </tr>
+    """
   end
 
   # ── Plain-text body (GoCD parity) ────────────────────────────────────────
@@ -246,21 +252,37 @@ defmodule ExGoCD.Mailer do
   end
 
   defp material_changes_text(materials) do
-    header = "-- CHANGES --"
-
     body =
       materials
-      |> Enum.map(fn m ->
+      |> Enum.map(&change_view/1)
+      |> Enum.map_join("\n\n", fn m ->
         """
-        #{m[:type] || "Material"}: #{m[:url] || ""}
-        revision: #{m[:revision] || "?"}, modified by #{m[:user] || "unknown"}#{if m[:date], do: " on #{m[:date]}", else: ""}
-        #{m[:comment] || ""}\
+        #{m.type}: #{m.url}
+        revision: #{m.revision}, modified by #{m.user}#{m.date_note}
+        #{m.comment}\
         """
       end)
-      |> Enum.join("\n\n")
 
-    header <> "\n\n" <> body
+    "-- CHANGES --" <> "\n\n" <> body
   end
+
+  # One change, as the lines both bodies print. A material may carry none of
+  # these, so each has what GoCD shows when it is missing.
+  defp change_view(material) do
+    %{
+      type: field(material, :type, "Material"),
+      url: field(material, :url, ""),
+      revision: field(material, :revision, "?"),
+      user: field(material, :user, "unknown"),
+      comment: field(material, :comment, ""),
+      date_note: date_note(field(material, :date, nil))
+    }
+  end
+
+  defp field(material, key, default), do: Map.get(material, key) || default
+
+  defp date_note(nil), do: ""
+  defp date_note(date), do: " on #{date}"
 
   # ── Helpers ──────────────────────────────────────────────────────────────
 

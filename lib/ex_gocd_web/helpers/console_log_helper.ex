@@ -69,38 +69,42 @@ defmodule ExGoCDWeb.ConsoleLogHelper do
     end
   end
 
-  defp ansi_code_to_class("1"), do: "ansi-bold"
-  defp ansi_code_to_class("3"), do: "ansi-italic"
-  defp ansi_code_to_class("4"), do: "ansi-underline"
-  # Foreground colors
-  defp ansi_code_to_class("30"), do: "ansi-black"
-  defp ansi_code_to_class("31"), do: "ansi-red"
-  defp ansi_code_to_class("32"), do: "ansi-green"
-  defp ansi_code_to_class("33"), do: "ansi-yellow"
-  defp ansi_code_to_class("34"), do: "ansi-blue"
-  defp ansi_code_to_class("35"), do: "ansi-magenta"
-  defp ansi_code_to_class("36"), do: "ansi-cyan"
-  defp ansi_code_to_class("37"), do: "ansi-white"
-  # Bright foreground colors
-  defp ansi_code_to_class("90"), do: "ansi-bright-black"
-  defp ansi_code_to_class("91"), do: "ansi-bright-red"
-  defp ansi_code_to_class("92"), do: "ansi-bright-green"
-  defp ansi_code_to_class("93"), do: "ansi-bright-yellow"
-  defp ansi_code_to_class("94"), do: "ansi-bright-blue"
-  defp ansi_code_to_class("95"), do: "ansi-bright-magenta"
-  defp ansi_code_to_class("96"), do: "ansi-bright-cyan"
-  defp ansi_code_to_class("97"), do: "ansi-bright-white"
-  # Background colors
-  defp ansi_code_to_class("40"), do: "ansi-bg-black"
-  defp ansi_code_to_class("41"), do: "ansi-bg-red"
-  defp ansi_code_to_class("42"), do: "ansi-bg-green"
-  defp ansi_code_to_class("43"), do: "ansi-bg-yellow"
-  defp ansi_code_to_class("44"), do: "ansi-bg-blue"
-  defp ansi_code_to_class("45"), do: "ansi-bg-magenta"
-  defp ansi_code_to_class("46"), do: "ansi-bg-cyan"
-  defp ansi_code_to_class("47"), do: "ansi-bg-white"
-  # Default
-  defp ansi_code_to_class(_), do: nil
+  # The escape code names the style; there is nothing to decide, so the codes are
+  # a table rather than thirty clauses.
+  @ansi_classes %{
+    "1" => "ansi-bold",
+    "3" => "ansi-italic",
+    "4" => "ansi-underline",
+    # Foreground colors
+    "30" => "ansi-black",
+    "31" => "ansi-red",
+    "32" => "ansi-green",
+    "33" => "ansi-yellow",
+    "34" => "ansi-blue",
+    "35" => "ansi-magenta",
+    "36" => "ansi-cyan",
+    "37" => "ansi-white",
+    # Bright foreground colors
+    "90" => "ansi-bright-black",
+    "91" => "ansi-bright-red",
+    "92" => "ansi-bright-green",
+    "93" => "ansi-bright-yellow",
+    "94" => "ansi-bright-blue",
+    "95" => "ansi-bright-magenta",
+    "96" => "ansi-bright-cyan",
+    "97" => "ansi-bright-white",
+    # Background colors
+    "40" => "ansi-bg-black",
+    "41" => "ansi-bg-red",
+    "42" => "ansi-bg-green",
+    "43" => "ansi-bg-yellow",
+    "44" => "ansi-bg-blue",
+    "45" => "ansi-bg-magenta",
+    "46" => "ansi-bg-cyan",
+    "47" => "ansi-bg-white"
+  }
+
+  defp ansi_code_to_class(code), do: Map.get(@ansi_classes, code)
 
   defp replace_urls_with_links(html) do
     ~r{(https?://[^\s<]+)}

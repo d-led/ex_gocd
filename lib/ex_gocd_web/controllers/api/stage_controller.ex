@@ -158,9 +158,14 @@ defmodule ExGoCDWeb.API.StageController do
       rerun_of_counter: si.rerun_of_counter,
       scheduled_at: format_ts(si.scheduled_at),
       completed_at: format_ts(si.completed_at),
-      jobs: Enum.map(si.job_instances || [], &job_json/1)
+      jobs: Enum.map(loaded(si.job_instances), &job_json/1)
     }
   end
+
+  # A preloaded association is a list; one that was left out is NotLoaded, which
+  # has no rows to show rather than no value.
+  defp loaded(jobs) when is_list(jobs), do: jobs
+  defp loaded(_not_loaded), do: []
 
   defp job_json(%JobInstance{} = ji) do
     %{

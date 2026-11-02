@@ -10,7 +10,7 @@ defmodule ExGoCD.TestReport.TestCase do
   @type t :: %__MODULE__{
           id: integer() | nil,
           test_suite_id: integer() | nil,
-          name: String.t(),
+          name: String.t() | nil,
           classname: String.t(),
           time: float(),
           result: String.t(),

@@ -65,10 +65,16 @@ jobs:
       env:
         DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ex_gocd_test
         CI: "true"
-    - name: Run Elixir tests
-      run: mix test
+    # Coverage, exported so the CRAP step can read it; the run fails under the
+    # floor set in mix.exs.
+    - name: Run Elixir tests with coverage
+      run: mix cover
       env:
         DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ex_gocd_test
+        CI: "true"
+    - name: CRAP — no function above 30
+      run: mix complexity
+      env:
         CI: "true"
 
     - uses: actions/setup-go@v6
@@ -85,6 +91,30 @@ jobs:
         path: _build/test/lib/ex_gocd/test-junit-report.xml
         reporter: java-junit
         fail-on-error: false
+
+  types:
+    name: Dialyzer
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+    - uses: actions/checkout@v7
+    - name: Set up Elixir
+      uses: erlef/setup-beam@v1
+      with:
+        elixir-version: '1.20.1'
+        otp-version: '29.0'
+    # The PLT takes minutes to build and does not change until the lockfile does.
+    - name: Cache deps, build and PLTs
+      uses: actions/cache@v6
+      with:
+        path: |
+          deps
+          _build
+          priv/plts
+        key: ${{ runner.os }}-plt-${{ hashFiles('**/mix.lock') }}
+        restore-keys: ${{ runner.os }}-plt-
+    - run: mix deps.get
+    - run: mix dialyzer
 
   publish-server:
     name: Build and publish Server Docker image

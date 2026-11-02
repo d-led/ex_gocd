@@ -62,34 +62,42 @@ defmodule ExGoCD.ConfigRepos.Poller do
 
   defp poll_repo(repo, first_poll?) do
     case ensure_cloned(repo) do
-      {:ok, dir} ->
-        case git_pull(dir) do
-          {:changed, _} ->
-            Logger.info("[ConfigRepoPoller] Changes detected in repo #{repo.id}")
-            parse_repo(repo, dir)
+      {:ok, dir} -> poll_cloned_repo(repo, dir, first_poll?)
+      {:error, reason} -> log_clone_failure(repo, reason)
+    end
+  end
 
-          :unchanged ->
-            # Always parse on the first poll after startup so config repos
-            # pick up YAML changes that were pushed while the server was
-            # down or before the clone existed.
-            # Also parse if this repo has never been parsed.
-            if first_poll? or is_nil(repo.last_parsed_at) do
-              Logger.info(
-                "[ConfigRepoPoller] No git changes but repo #{repo.id} forcing parse (first_poll=#{first_poll?}, last_parsed=#{repo.last_parsed_at})"
-              )
+  defp poll_cloned_repo(repo, dir, first_poll?) do
+    case git_pull(dir) do
+      {:changed, _} ->
+        Logger.info("[ConfigRepoPoller] Changes detected in repo #{repo.id}")
+        parse_repo(repo, dir)
 
-              parse_repo(repo, dir)
-            else
-              :ok
-            end
-
-          {:error, reason} ->
-            Logger.error("[ConfigRepoPoller] Git pull failed for repo #{repo.id}: #{reason}")
-        end
+      :unchanged ->
+        parse_when_forgotten(repo, dir, first_poll?)
 
       {:error, reason} ->
-        Logger.error("[ConfigRepoPoller] Clone failed for repo #{repo.id}: #{reason}")
+        Logger.error("[ConfigRepoPoller] Git pull failed for repo #{repo.id}: #{reason}")
     end
+  end
+
+  # Always parse on the first poll after startup so config repos pick up YAML
+  # changes pushed while the server was down, or before the clone existed. Also
+  # parse a repo that has never been parsed.
+  defp parse_when_forgotten(repo, dir, first_poll?) do
+    if first_poll? or is_nil(repo.last_parsed_at) do
+      Logger.info(
+        "[ConfigRepoPoller] No git changes but repo #{repo.id} forcing parse (first_poll=#{first_poll?}, last_parsed=#{repo.last_parsed_at})"
+      )
+
+      parse_repo(repo, dir)
+    else
+      :ok
+    end
+  end
+
+  defp log_clone_failure(repo, reason) do
+    Logger.error("[ConfigRepoPoller] Clone failed for repo #{repo.id}: #{reason}")
   end
 
   defp ensure_cloned(repo) do
@@ -192,46 +200,51 @@ defmodule ExGoCD.ConfigRepos.Poller do
   # --- External CI format (GitHub Actions / GitLab CI) ---
 
   defp parse_external_ci(repo, dir, file_pattern, file_source_type) do
-    files = Path.wildcard(Path.join(dir, file_pattern))
+    result = sync_files(repo, dir, file_pattern, file_source_type)
 
-    result =
-      if files == [] do
+    # Always update last_parsed_at so the admin page shows when the repo was last
+    # checked, whatever the sync found.
+    update_last_parsed(repo)
+
+    result
+  end
+
+  defp sync_files(repo, dir, file_pattern, file_source_type) do
+    case Path.wildcard(Path.join(dir, file_pattern)) do
+      [] ->
         Logger.warning("[ConfigRepoPoller] No #{file_source_type} files found in #{dir}")
         :no_files
-      else
-        has_changes =
-          Enum.any?(files, fn full_path ->
-            rel_path = Path.relative_to(full_path, dir)
-            content = File.read!(full_path)
-            checksum = :crypto.hash(:sha256, content) |> Base.encode16(case: :lower)
-            upsert_file_record(repo, rel_path, file_source_type, checksum, content)
-          end)
 
-        if has_changes do
-          case TranslationEngine.translate_and_persist_all(repo.id) do
-            {:ok, count} ->
-              Logger.info(
-                "[ConfigRepoPoller] Translated #{count} pipelines from #{repo.source_type} repo #{repo.id}"
-              )
-
-              :ok
-
-            {:error, reason} ->
-              Logger.error("[ConfigRepoPoller] Translation failed for repo #{repo.id}: #{reason}")
-              {:error, reason}
-          end
+      files ->
+        if Enum.any?(files, &file_changed?(repo, dir, file_source_type, &1)) do
+          translate_repo(repo)
         else
           Logger.debug("[ConfigRepoPoller] No changes in #{repo.source_type} repo #{repo.id}")
           :no_changes
         end
-      end
+    end
+  end
 
-    # Always update last_parsed_at so admin page shows when the repo was last checked
-    update_last_parsed(repo)
+  # Whether this file differs from the checksum the repo was last parsed with.
+  defp file_changed?(repo, dir, file_source_type, full_path) do
+    rel_path = Path.relative_to(full_path, dir)
+    content = File.read!(full_path)
+    checksum = :crypto.hash(:sha256, content) |> Base.encode16(case: :lower)
+    upsert_file_record(repo, rel_path, file_source_type, checksum, content)
+  end
 
-    case result do
-      {:error, reason} -> {:error, reason}
-      _ -> :ok
+  defp translate_repo(repo) do
+    case TranslationEngine.translate_and_persist_all(repo.id) do
+      {:ok, count} ->
+        Logger.info(
+          "[ConfigRepoPoller] Translated #{count} pipelines from #{repo.source_type} repo #{repo.id}"
+        )
+
+        :ok
+
+      {:error, reason} ->
+        Logger.error("[ConfigRepoPoller] Translation failed for repo #{repo.id}: #{reason}")
+        {:error, reason}
     end
   end
 

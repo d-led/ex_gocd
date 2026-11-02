@@ -131,14 +131,19 @@ defmodule ExGoCD.Materials.ScmClient do
         end
       end
 
+      # `svn log` gives an empty element for a field it could not read, so empty
+      # means missing here rather than a value.
+      defp or_default("", default), do: default
+      defp or_default(value, _default), do: value
+
       defp resolve_svn_details(url, rev, opts) do
         # Try svn log --xml for commit message and author
         case SvnCmd.latest_modification(url, opts) do
           {:ok, %{author: author, date: date, message: msg}} ->
             %{
               committer_name: author,
-              committer_email: "#{String.replace(author || "svn", " ", ".")}@scm.local",
-              comment: msg || "svn revision #{rev}",
+              committer_email: "#{String.replace(or_default(author, "svn"), " ", ".")}@scm.local",
+              comment: or_default(msg, "svn revision #{rev}"),
               modified_time: parse_svn_date(date)
             }
 
@@ -148,7 +153,8 @@ defmodule ExGoCD.Materials.ScmClient do
               {:ok, %{author: author, date: date}} ->
                 %{
                   committer_name: author,
-                  committer_email: "#{String.replace(author || "svn", " ", ".")}@scm.local",
+                  committer_email:
+                    "#{String.replace(or_default(author, "svn"), " ", ".")}@scm.local",
                   comment: "svn revision #{rev}",
                   modified_time: parse_svn_date(date)
                 }

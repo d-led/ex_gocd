@@ -398,25 +398,14 @@ defmodule ExGoCD.Agents do
   Lists ALL agents matching the given resources (any state, not disabled/deleted).
   """
   def list_all_matching(resources) when is_list(resources) and resources != [] do
-    base =
-      if use_mock?() do
-        Mock.list_active_agents()
-      else
-        Repo.all(from a in Agent, where: a.deleted == false and a.disabled == false)
-      end
-
-    Enum.filter(base, fn agent ->
-      agent_resources = agent.resources || []
-      Enum.all?(resources, fn r -> r in agent_resources end)
-    end)
+    Enum.filter(active_agents(), &serves_resources?(&1, resources))
   end
 
-  def list_all_matching(_resources) do
-    if use_mock?() do
-      Mock.list_active_agents()
-    else
-      Repo.all(from a in Agent, where: a.deleted == false and a.disabled == false)
-    end
+  def list_all_matching(_resources), do: active_agents()
+
+  defp serves_resources?(agent, resources) do
+    agent_resources = agent.resources || []
+    Enum.all?(resources, fn r -> r in agent_resources end)
   end
 
   @doc """
@@ -697,8 +686,15 @@ defmodule ExGoCD.Agents do
   """
   @spec reap_stale_agents() :: integer()
   def reap_stale_agents do
-    # Soft-delete stale elastic agents instead of hard-deleting — preserves audit trail
-    {elastic_terminated, _} =
+    soft_delete_elastic_terminated() +
+      hard_delete_marked_deleted() +
+      soft_delete_lost_contact() +
+      remove_duplicate_hostnames()
+  end
+
+  @spec soft_delete_elastic_terminated() :: non_neg_integer()
+  defp soft_delete_elastic_terminated do
+    {count, _} =
       from(a in Agent,
         where:
           not is_nil(a.elastic_agent_id) and
@@ -707,49 +703,69 @@ defmodule ExGoCD.Agents do
       )
       |> Repo.update_all(set: [deleted: true, state: "Terminated"])
 
-    # Delete agents already marked as deleted that are NOT elastic
-    {deleted_count, _} =
+    count
+  end
+
+  @spec hard_delete_marked_deleted() :: non_neg_integer()
+  defp hard_delete_marked_deleted do
+    {count, _} =
       from(a in Agent, where: a.deleted == true and is_nil(a.elastic_agent_id))
       |> Repo.delete_all()
 
-    # Soft-delete LostContact agents without elastic_id
-    {lost_count, _} =
+    count
+  end
+
+  @spec soft_delete_lost_contact() :: non_neg_integer()
+  defp soft_delete_lost_contact do
+    {count, _} =
       from(a in Agent,
         where: a.state == "LostContact" and is_nil(a.elastic_agent_id) and a.deleted == false
       )
       |> Repo.update_all(set: [deleted: true, state: "Terminated"])
 
-    # Deduplicate: keep only the most recent agent per hostname (non-elastic only)
-    dup_counts =
-      from(a in Agent,
-        where: is_nil(a.elastic_agent_id),
-        group_by: a.hostname,
-        having: count(a.id) > 1,
-        select: {a.hostname, count(a.id)}
-      )
-      |> Repo.all()
+    count
+  end
 
-    dup_removed =
-      Enum.reduce(dup_counts, 0, fn {hostname, _count}, acc ->
-        agents =
-          from(a in Agent,
-            where: a.hostname == ^hostname and is_nil(a.elastic_agent_id),
-            order_by: [desc: a.updated_at]
-          )
-          |> Repo.all()
+  # One agent per hostname: the others are duplicates of a machine that came back
+  # under a new uuid, so the most recently updated row is kept.
+  @spec remove_duplicate_hostnames() :: non_neg_integer()
+  defp remove_duplicate_hostnames do
+    from(a in Agent,
+      where: is_nil(a.elastic_agent_id),
+      group_by: a.hostname,
+      having: count(a.id) > 1,
+      select: a.hostname
+    )
+    |> Repo.all()
+    |> Enum.reduce(0, fn hostname, acc -> acc + delete_older_agents_of(hostname) end)
+  end
 
-        case agents do
-          [_keep | to_delete] ->
-            ids = Enum.map(to_delete, & &1.id)
-            {removed, _} = from(a in Agent, where: a.id in ^ids) |> Repo.delete_all()
-            acc + removed
+  defp delete_older_agents_of(hostname) do
+    case agents_of_hostname(hostname) do
+      [_keep | older] ->
+        ids = Enum.map(older, & &1.id)
+        {removed, _} = from(a in Agent, where: a.id in ^ids) |> Repo.delete_all()
+        removed
 
-          _ ->
-            acc
-        end
-      end)
+      _ ->
+        0
+    end
+  end
 
-    elastic_terminated + deleted_count + lost_count + dup_removed
+  defp agents_of_hostname(hostname) do
+    from(a in Agent,
+      where: a.hostname == ^hostname and is_nil(a.elastic_agent_id),
+      order_by: [desc: a.updated_at]
+    )
+    |> Repo.all()
+  end
+
+  defp active_agents do
+    if use_mock?() do
+      Mock.list_active_agents()
+    else
+      Repo.all(from a in Agent, where: a.deleted == false and a.disabled == false)
+    end
   end
 
   @doc "Soft-deletes all k8s elastic agents (preserves audit history). Returns {count, nil}."
@@ -1034,27 +1050,27 @@ defmodule ExGoCD.Agents do
   that linger after test runs. Returns count deleted.
   """
   def clean_test_agents do
-    agents =
+    count =
       from(a in Agent,
         where:
           (like(a.hostname, "http-test-agent-%") or like(a.hostname, "otp-test-agent-%")) and
             a.deleted == false
       )
       |> Repo.all()
-
-    count =
-      Enum.reduce(agents, 0, fn agent, acc ->
-        case do_delete_agent(agent) do
-          {:ok, _} -> acc + 1
-          _ -> acc
-        end
-      end)
+      |> Enum.count(&deleted?/1)
 
     if count > 0 do
       Logger.info("[Agents] Cleaned #{count} orphaned test agents")
     end
 
     count
+  end
+
+  defp deleted?(agent) do
+    case do_delete_agent(agent) do
+      {:ok, _} -> true
+      _ -> false
+    end
   end
 
   @doc """

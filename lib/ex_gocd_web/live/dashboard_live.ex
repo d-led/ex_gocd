@@ -976,30 +976,27 @@ defmodule ExGoCDWeb.DashboardLive do
     state = (job[:state] || "unknown") |> String.downcase()
     result = (job[:result] || "unknown") |> String.downcase()
 
-    base = "status-dot"
-
-    cond do
-      state in ["building", "preparing", "completing"] -> "#{base} building"
-      state in ["scheduled", "assigned"] -> "#{base} scheduled"
-      result == "passed" -> "#{base} passed"
-      result == "failed" -> "#{base} failed"
-      result == "cancelled" -> "#{base} cancelled"
-      true -> "#{base} unknown"
-    end
+    "status-dot " <> dot_modifier(state, result)
   end
+
+  defp dot_modifier(state, _result) when state in ["building", "preparing", "completing"],
+    do: "building"
+
+  defp dot_modifier(state, _result) when state in ["scheduled", "assigned"], do: "scheduled"
+  defp dot_modifier(_state, result) when result in ["passed", "failed", "cancelled"], do: result
+  defp dot_modifier(_state, _result), do: "unknown"
 
   # Accessibility label for screen readers
   def status_dot_label(job) do
     state = (job[:state] || "Unknown") |> String.capitalize()
-    result = job[:result] || "Unknown"
-
-    cond do
-      state in ["Building", "Preparing", "Completing"] -> "Status: #{state}"
-      state in ["Scheduled", "Assigned"] -> "Status: #{state}, waiting for agent"
-      result == "Passed" -> "Status: Passed"
-      result == "Failed" -> "Status: Failed"
-      result == "Cancelled" -> "Status: Cancelled"
-      true -> "Status: #{state}"
-    end
+    "Status: " <> dot_label(state, job[:result] || "Unknown")
   end
+
+  defp dot_label(state, _result) when state in ["Building", "Preparing", "Completing"], do: state
+
+  defp dot_label(state, _result) when state in ["Scheduled", "Assigned"],
+    do: state <> ", waiting for agent"
+
+  defp dot_label(_state, result) when result in ["Passed", "Failed", "Cancelled"], do: result
+  defp dot_label(state, _result), do: state
 end

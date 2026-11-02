@@ -194,15 +194,23 @@ defmodule ExGoCD.Analytics do
     end)
   end
 
+  # What an agent is, which is mostly which plugin started it.
+  @agent_kinds %{
+    "cd.go.contrib.elastic-agent.docker" => "elastic-docker",
+    "cd.go.contrib.elastic-agent.kubernetes" => "elastic-k8s",
+    "ex_gocd.elasticagent.kubernetes" => "k8s-elastic"
+  }
+
   defp classify_agent(agent) do
-    cond do
-      agent.elastic_plugin_id == "cd.go.contrib.elastic-agent.docker" -> "elastic-docker"
-      agent.elastic_plugin_id == "cd.go.contrib.elastic-agent.kubernetes" -> "elastic-k8s"
-      agent.elastic_plugin_id == "ex_gocd.elasticagent.kubernetes" -> "k8s-elastic"
-      not is_nil(agent.elastic_agent_id) -> "elastic"
-      agent.resources != [] and "docker" in agent.resources -> "docker"
-      true -> "regular"
-    end
+    Map.get(@agent_kinds, agent.elastic_plugin_id) ||
+      elastic_or_static(agent.elastic_agent_id, agent.resources)
+  end
+
+  defp elastic_or_static(elastic_agent_id, _resources) when not is_nil(elastic_agent_id),
+    do: "elastic"
+
+  defp elastic_or_static(_elastic_agent_id, resources) do
+    if "docker" in resources, do: "docker", else: "regular"
   end
 
   def vsm_trends(pipeline_name, days \\ 30) do

@@ -177,10 +177,9 @@ defmodule ExGoCD.ConfigXml do
 
   defp render_env_vars(vars) when is_map(vars) and map_size(vars) > 0 do
     vars
-    |> Enum.reject(fn {_k, v} -> is_map(v) and v["secure"] end)
-    |> Enum.map_join("", fn {k, v} ->
-      val = if is_map(v), do: v["value"] || v[:value] || "", else: v
-      tag3("variable", %{name: k}, tag3("value", %{}, esc(val)))
+    |> Enum.reject(fn {_name, value} -> secure?(value) end)
+    |> Enum.map_join("", fn {name, value} ->
+      tag3("variable", %{name: name}, tag3("value", %{}, esc(plain_value(value))))
     end)
   end
 
@@ -188,14 +187,20 @@ defmodule ExGoCD.ConfigXml do
 
   defp render_secure_vars(vars) when is_map(vars) and map_size(vars) > 0 do
     vars
-    |> Enum.filter(fn {_k, v} -> is_map(v) and v["secure"] end)
-    |> Enum.map_join("", fn {k, v} ->
-      val = v["value"] || v[:value] || ""
-      tag3("secureVariable", %{name: k}, tag3("encryptedValue", %{}, esc(val)))
+    |> Enum.filter(fn {_name, value} -> secure?(value) end)
+    |> Enum.map_join("", fn {name, value} ->
+      tag3("secureVariable", %{name: name}, tag3("encryptedValue", %{}, esc(plain_value(value))))
     end)
   end
 
   defp render_secure_vars(_), do: ""
+
+  # A variable is either a plain value or a map with the value and whether it is
+  # secret.
+  defp secure?(value), do: is_map(value) and Map.get(value, "secure") == true
+
+  defp plain_value(value) when is_map(value), do: value["value"] || value[:value] || ""
+  defp plain_value(value), do: value
 
   defp render_stage(stage) do
     tag3(
@@ -1093,14 +1098,18 @@ defmodule ExGoCD.ConfigXml do
   defp parse_fetch_task(el) do
     %{
       type: "fetch",
-      pipeline: to_string(attr(el, :pipeline) || ""),
-      stage: to_string(attr(el, :stage) || ""),
-      job: to_string(attr(el, :job) || ""),
-      src_file: to_string(attr(el, :srcfile) || ""),
-      dest: to_string(attr(el, :dest) || ""),
-      artifact_origin: to_string(attr(el, :artifactOrigin) || "gocd")
+      pipeline: attribute(el, :pipeline, ""),
+      stage: attribute(el, :stage, ""),
+      job: attribute(el, :job, ""),
+      src_file: attribute(el, :srcfile, ""),
+      dest: attribute(el, :dest, ""),
+      artifact_origin: attribute(el, :artifactOrigin, "gocd")
     }
   end
+
+  # An attribute GoCD wrote, as text, with the value GoCD leaves out when it is
+  # empty.
+  defp attribute(el, name, default), do: to_string(attr(el, name) || default)
 
   # ── xmerl navigation helpers ──────────────────────────────────────
 

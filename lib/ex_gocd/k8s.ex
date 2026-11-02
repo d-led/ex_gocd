@@ -153,31 +153,51 @@ defmodule ExGoCD.K8s do
     end
   end
 
+  # What a failure means to the person reading the admin page. The reason, the HTTP
+  # status and the message fragments each map to a sentence; there is no decision
+  # to make, so they are tables.
+  @reason_messages %{
+    unauthorized: "Unauthorized — invalid token",
+    forbidden: "Forbidden — token lacks permissions",
+    connect_timeout: "Connection timed out — unreachable",
+    nxdomain: "DNS resolution failed — check server URL",
+    econnrefused: "Connection refused — cluster running?",
+    ssl_error: "TLS error — check CA certificate",
+    not_found: "Connected — namespace not found",
+    closed: "Socket closed — cluster unreachable?"
+  }
+
+  @status_messages %{
+    401 => "Unauthorized — verify bearer token",
+    403 => "Forbidden — insufficient RBAC permissions"
+  }
+
+  @message_fragments [
+    {"closed", "Connection closed — cluster unreachable?"},
+    {"refused", "Connection refused — cluster running?"},
+    {"timeout", "Connection timed out — unreachable"}
+  ]
+
   @doc false
-  def format_error(%{reason: :unauthorized}), do: "Unauthorized — invalid token"
-  def format_error(%{reason: :forbidden}), do: "Forbidden — token lacks permissions"
-  def format_error(%{reason: :connect_timeout}), do: "Connection timed out — unreachable"
-  def format_error(%{reason: :nxdomain}), do: "DNS resolution failed — check server URL"
-  def format_error(%{reason: :econnrefused}), do: "Connection refused — cluster running?"
-  def format_error(%{reason: :ssl_error}), do: "TLS error — check CA certificate"
-  def format_error(%{reason: :not_found}), do: "Connected — namespace not found"
-  def format_error(%{reason: :closed}), do: "Socket closed — cluster unreachable?"
-
-  # HTTP response with status code embedded (k8s client wraps these)
-  def format_error(%{status: 401}), do: "Unauthorized — verify bearer token"
-  def format_error(%{status: 403}), do: "Forbidden — insufficient RBAC permissions"
-  def format_error(%{status: code}) when is_integer(code), do: "HTTP #{code}"
-
-  def format_error(%{message: msg}) when is_binary(msg) do
-    cond do
-      String.contains?(msg, "closed") -> "Connection closed — cluster unreachable?"
-      String.contains?(msg, "refused") -> "Connection refused — cluster running?"
-      String.contains?(msg, "timeout") -> "Connection timed out — unreachable"
-      true -> msg
-    end
+  def format_error(%{reason: reason}) when is_atom(reason) do
+    Map.get(@reason_messages, reason, "Error: #{inspect(%{reason: reason})}")
   end
 
+  # An HTTP response from the client carries its status.
+  def format_error(%{status: status}) when is_integer(status) do
+    Map.get(@status_messages, status, "HTTP #{status}")
+  end
+
+  def format_error(%{message: message}) when is_binary(message), do: explain_message(message)
+
   def format_error(other), do: "Error: #{inspect(other)}"
+
+  defp explain_message(message) do
+    case Enum.find(@message_fragments, fn {fragment, _} -> String.contains?(message, fragment) end) do
+      {_fragment, explanation} -> explanation
+      nil -> message
+    end
+  end
 
   @doc """
   Discover a local k3s cluster for development.

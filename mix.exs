@@ -12,10 +12,11 @@ defmodule ExGoCD.MixProject do
       deps: deps(),
       compilers: [:phoenix_live_view] ++ Mix.compilers(),
       listeners: [Phoenix.CodeReloader],
-      test_coverage: [tool: ExCoveralls],
-      dialyzer: [
-        plt_add_apps: [:mix]
-      ]
+      # Built-in coverage, so `mix test --cover --export-coverage default` leaves
+      # the coverdata `mix crap` reads, and a run under the floor fails. ExCoveralls
+      # was here before; it reports but cannot fail, and cannot feed CRAP.
+      test_coverage: [summary: [threshold: coverage_threshold()]],
+      dialyzer: dialyzer()
     ]
   end
 
@@ -34,11 +35,9 @@ defmodule ExGoCD.MixProject do
       preferred_envs: [
         precommit: :test,
         "test.setup": :test,
-        coveralls: :test,
-        "coveralls.detail": :test,
-        "coveralls.post": :test,
-        "coveralls.html": :test,
-        "coveralls.json": :test
+        cover: :test,
+        complexity: :test,
+        types: :test
       ]
     ]
   end
@@ -46,6 +45,28 @@ defmodule ExGoCD.MixProject do
   # Specifies which paths to compile per environment.
   defp elixirc_paths(:test), do: ["lib", "test/support"]
   defp elixirc_paths(_), do: ["lib"]
+
+  defp dialyzer do
+    [
+      # The PLT is expensive to build and cheap to keep; CI caches this directory
+      # under a key made of the lockfile.
+      plt_core_path: "priv/plts",
+      plt_local_path: "priv/plts",
+      # `:cover` — which the coverage export calls — lives in `tools`, so a PLT
+      # without it reads those calls as functions that do not exist.
+      plt_add_apps: [:mix, :ex_unit, :tools],
+      # The types job is about the application: Mix tasks are operator tooling and
+      # tests are exercised by running them.
+      exclude_paths: ["lib/mix/tasks/**", "test/**"],
+      # Stricter than the defaults: a function that can fail without saying so, or
+      # a `case` with no way back, is a fault waiting for a caller.
+      flags: [:error_handling, :extra_return, :missing_return]
+    ]
+  end
+
+  # The floor is where the suite is, rounded down: raising it is a decision, not a
+  # side effect of adding tests.
+  defp coverage_threshold, do: 65
 
   # Specifies your project dependencies.
   #
@@ -85,11 +106,13 @@ defmodule ExGoCD.MixProject do
       {:opentelemetry_phoenix, "~> 2.0"},
       {:opentelemetry_ecto, "~> 1.2"},
       {:opentelemetry_process_propagator, "~> 0.3"},
-      {:excoveralls, "~> 0.18", only: [:test]},
       {:junit_formatter, "~> 3.4", only: [:test]},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:map_diff, "~> 1.3"},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
+      # CRAP: complexity squared by the coverage a function is missing. It reads
+      # the coverdata `mix test --cover --export-coverage` writes.
+      {:ex_crap, "~> 0.1.1", only: [:dev, :test], runtime: false},
       {:logger_backends, "~> 1.0"},
       {:yaml_elixir, "~> 2.11"},
       {:bodyguard, "~> 2.4"},
@@ -119,8 +142,19 @@ defmodule ExGoCD.MixProject do
       # or migrate anything: doing that on every run makes two concurrent runs
       # race on CREATE DATABASE.
       "test.setup": ["ecto.create --quiet", "ecto.migrate --quiet"],
-      "test.coverage": ["ecto.create --quiet", "ecto.migrate --quiet", "coveralls.json"],
-      quality: ["credo --strict", "dialyzer"],
+      "test.coverage": ["cover"],
+      # Coverage that CRAP can read afterwards. Plain `mix test --cover` prints a
+      # report and leaves nothing behind.
+      cover: ["test --cover --export-coverage default"],
+      # Both application trees, because a web-layer function and a domain function
+      # of the same score are not the same risk: the domain one is where the rules
+      # live.
+      complexity: [
+        "cmd mix crap --path lib/ex_gocd --max-score 30",
+        "cmd mix crap --path lib/ex_gocd_web --max-score 30"
+      ],
+      types: ["dialyzer"],
+      quality: ["credo --strict", "dialyzer", "complexity"],
       "assets.setup": ["tailwind.install --if-missing", "esbuild.install --if-missing"],
       "assets.build": ["compile", "tailwind ex_gocd", "esbuild ex_gocd"],
       "assets.deploy": [

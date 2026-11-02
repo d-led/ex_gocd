@@ -229,26 +229,30 @@ defmodule ExGoCD.Agents.Mock do
   Mock register agent.
   """
   def register_agent(attrs) do
-    agent = %Agent{
-      id: :rand.uniform(10_000),
-      uuid: attrs["uuid"] || Ecto.UUID.generate(),
-      hostname: attrs["hostname"] || "mock-agent",
-      ipaddress: attrs["ipaddress"] || "127.0.0.1",
-      elastic_agent_id: attrs["elastic_agent_id"],
-      elastic_plugin_id: attrs["elastic_plugin_id"],
-      disabled: false,
-      deleted: false,
-      environments: attrs["environments"] || [],
-      resources: attrs["resources"] || [],
-      cookie: attrs["cookie"],
-      working_dir: attrs["working_dir"],
-      operating_system: attrs["operating_system"],
-      free_space: attrs["free_space"],
-      state: attrs["state"] || "Idle",
-      inserted_at: NaiveDateTime.utc_now(),
-      updated_at: NaiveDateTime.utc_now()
-    }
+    now = NaiveDateTime.utc_now()
 
-    {:ok, agent}
+    {:ok,
+     %Agent{
+       id: :rand.uniform(10_000),
+       uuid: value(attrs, "uuid", Ecto.UUID.generate()),
+       hostname: value(attrs, "hostname", "mock-agent"),
+       ipaddress: value(attrs, "ipaddress", "127.0.0.1"),
+       elastic_agent_id: attrs["elastic_agent_id"],
+       elastic_plugin_id: attrs["elastic_plugin_id"],
+       disabled: false,
+       deleted: false,
+       environments: value(attrs, "environments", []),
+       resources: value(attrs, "resources", []),
+       cookie: attrs["cookie"],
+       working_dir: attrs["working_dir"],
+       operating_system: attrs["operating_system"],
+       free_space: attrs["free_space"],
+       state: value(attrs, "state", "Idle"),
+       inserted_at: now,
+       updated_at: now
+     }}
   end
+
+  # Absent and nil both mean "use the default", which is what the mock wants.
+  defp value(attrs, key, default), do: Map.get(attrs, key) || default
 end

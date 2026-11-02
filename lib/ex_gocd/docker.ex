@@ -239,60 +239,69 @@ defmodule ExGoCD.Docker do
   end
 
   defp handle_resp({:ok, %Req.Response{status: status, body: body}}) do
-    parsed_body =
-      case body do
-        b when is_binary(b) and b != "" ->
-          case Jason.decode(b) do
-            {:ok, decoded} -> decoded
-            _ -> b
-          end
-
-        other ->
-          other
-      end
-
-    {:ok, %{status: status, body: parsed_body}}
+    {:ok, %{status: status, body: decode_body(body)}}
   end
 
   defp handle_resp({:error, error}), do: {:error, error}
 
-  defp random_suffix, do: 8 |> :crypto.strong_rand_bytes() |> Base.hex_encode32(case: :lower)
-
-  defp parse_memory(mem) when is_binary(mem) do
-    cond do
-      String.ends_with?(mem, "g") || String.ends_with?(mem, "G") ->
-        n = String.replace_trailing(mem, "g", "") |> String.replace_trailing("G", "")
-
-        case Integer.parse(n) do
-          {v, _} -> v * 1_024 * 1_024 * 1_024
-          :error -> 2_147_483_648
-        end
-
-      String.ends_with?(mem, "m") || String.ends_with?(mem, "M") ->
-        n = String.replace_trailing(mem, "m", "") |> String.replace_trailing("M", "")
-
-        case Integer.parse(n) do
-          {v, _} -> v * 1_024 * 1_024
-          :error -> 2_147_483_648
-        end
-
-      true ->
-        case Integer.parse(mem) do
-          {v, _} -> v
-          :error -> 2_147_483_648
-        end
+  # Docker answers JSON, except when it does not (an empty body on 204, a plain
+  # error string); a body that is not JSON is passed on as it came.
+  defp decode_body(body) when is_binary(body) and body != "" do
+    case Jason.decode(body) do
+      {:ok, decoded} -> decoded
+      _ -> body
     end
   end
 
-  defp parse_memory(_int), do: 2_147_483_648
+  defp decode_body(body), do: body
+
+  defp random_suffix, do: 8 |> :crypto.strong_rand_bytes() |> Base.hex_encode32(case: :lower)
+
+  # Docker wants bytes and nanocpus; a profile says "4Gi" and "2". The suffix picks
+  # the multiplier, and a value the app cannot read falls back to the profile
+  # default rather than sending zero.
+  @default_memory 2_147_483_648
+  @default_nano_cpus 2_000_000_000
+
+  @memory_multipliers %{
+    "k" => 1_024,
+    "m" => 1_024 * 1_024,
+    "g" => 1_024 * 1_024 * 1_024,
+    "t" => 1_024 * 1_024 * 1_024 * 1_024
+  }
+
+  defp parse_memory(mem) when is_binary(mem) do
+    case parse_quantity(mem) do
+      {value, multiplier} -> round(value * multiplier)
+      :error -> @default_memory
+    end
+  end
+
+  defp parse_memory(_int), do: @default_memory
 
   defp parse_nano_cpus(cpu) when is_binary(cpu) do
-    case Float.parse(cpu) do
-      {v, _} -> round(v * 1_000_000_000)
-      :error -> 2_000_000_000
+    case parse_quantity(cpu) do
+      {value, multiplier} -> round(value * multiplier * 1_000_000_000)
+      :error -> @default_nano_cpus
     end
   end
 
   defp parse_nano_cpus(cpu) when is_number(cpu), do: round(cpu * 1_000_000_000)
-  defp parse_nano_cpus(_), do: 2_000_000_000
+  defp parse_nano_cpus(_), do: @default_nano_cpus
+
+  # "4Gi", "512Mb", "2" → the number and what a unit is worth. The unit is whatever
+  # follows the number, with the "i" or "B" people write after it taken off, since
+  # "3Gi", "3G" and "3GB" are the same amount of memory.
+  defp parse_quantity(quantity) do
+    with [_, digits, suffix] <- Regex.run(~r/\A([0-9]+(?:\.[0-9]+)?)(.*)\z/s, quantity),
+         {value, ""} <- Float.parse(digits) do
+      {value, Map.get(@memory_multipliers, normalize_unit(suffix), 1)}
+    else
+      _ -> :error
+    end
+  end
+
+  defp normalize_unit(suffix) do
+    suffix |> String.downcase() |> String.trim_trailing("b") |> String.trim_trailing("i")
+  end
 end
