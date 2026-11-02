@@ -215,7 +215,7 @@ defmodule ExGoCD.Agents do
   defp log_registration_audit(uuid, hostname, outcome, attrs) do
     ip = attrs["ipaddress"] || attrs[:ipaddress] || "unknown"
     status = if outcome == :ok, do: "success", else: "failed"
-    actor = "agent:#{String.slice(uuid || "", 0, 8)}"
+    actor = "agent:#{String.slice(uuid, 0, 8)}"
 
     ExGoCD.AuditLog.log(actor, "agent_registration",
       resource_type: "agent",

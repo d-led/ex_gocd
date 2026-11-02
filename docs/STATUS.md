@@ -14,11 +14,11 @@
 | Dimension | State | Evidence |
 | --- | --- | --- |
 | Code | 275 modules, compile warnings-as-errors clean | `mix compile --force --warnings-as-errors` |
-| ExUnit | **1107 tests, all green** | `mix test` |
+| ExUnit | **1110 tests, all green** | `mix test` |
 | Coverage | **55.2 %** of 274 modules; 78 at 0 % | `mix test.coverage` |
 | Go agent | builds; tests pass in 3 of 10 packages (3,793 prod LOC / 599 test LOC); modules upgraded 2026-11-01 (otel 1.47, grpc 1.85) | `cd agent && go test ./...` |
 | Cypress | 27 specs on disk, **not executed in this session** | `ls cypress/e2e/*.cy.js` |
-| Static analysis | `scripts/quality-gate.sh` passes as a whole: 17 steps, 0 failures (format, compile, Sobelow, credo, doc references, test database, ExUnit, Go fmt/vet/golangci-lint/tests/gofmt/mod-tidy, jscpd, ESLint, TypeScript, Prettier, link checker). Two findings are kept and documented rather than ignored: the MD5 artifact checksums, which are the format a GoCD agent writes. `mix dialyzer` was run for the first time on 2026-11-02: 41 warnings then, 37 now, concentrated in `pipelines.ex` (8), `scheduler.ex` (8), `agent_channel.ex` (6) and `materials/scm_client.ex` (4), of kinds `call` (18), `no_return` (12), `pattern_match` (1), `guard_fail` (5) and `invalid_contract` (1); the four that went were the dead branches described below. Three stale specs it found are fixed: two modules were referenced as `.t()` without defining one, and `material_filter`'s spec named an unaliased `Material`. `staticcheck` cannot serve either, its binary being older than the Go toolchain, and the gate now says that instead of blaming the code | see above |
+| Static analysis | `scripts/quality-gate.sh` passes as a whole: 17 steps, 0 failures (format, compile, Sobelow, credo, doc references, test database, ExUnit, Go fmt/vet/golangci-lint/tests/gofmt/mod-tidy, jscpd, ESLint, TypeScript, Prettier, link checker). Two findings are kept and documented rather than ignored: the MD5 artifact checksums, which are the format a GoCD agent writes. `mix dialyzer` was run for the first time on 2026-11-02: 41 warnings then, 35 now, concentrated in `pipelines.ex` (8), `scheduler.ex` (6), `agent_channel.ex` (6) and `materials/scm_client.ex` (4), of kinds `call` (18), `no_return` (12), `guard_fail` (3), `pattern_match` (1) and `invalid_contract` (1); the six that went were the dead branches described below. Three stale specs it found are fixed: two modules were referenced as `.t()` without defining one, and `material_filter`'s spec named an unaliased `Material`. `staticcheck` cannot serve either, its binary being older than the Go toolchain, and the gate now says that instead of blaming the code | see above |
 | CI | every commit through `ae8b54c` is green on Elixir CI, CodeQL and Sobelow, and two of those runs show the documentation check executing and printing `[PASS] documentation references resolve` in the `build` job. `5d74c99` and `8331faf` were still queued at hand-off; both pass the whole local gate | `gh run list` |
 | Security | **0 open Dependabot alerts**; `npm audit` 0 vulnerabilities | see above |
 | Dependencies | Hex and npm on their latest releases; Go modules not yet | `mix hex.outdated`, `npm outdated` |
@@ -250,6 +250,15 @@ and take it when the selector fails. The registry's `node_for/1` spec said
 `String.t()` while the code stored a node atom, and the broadcast registration
 path stored a string — both now yield a node, which is what a remote call needs.
 
+A ninth: the JSON log backend, whose lines Fluent Bit forwards to Loki, matched
+the current span context against an eleven-element tuple. The record OTel
+defines has thirteen fields, so the pattern never matched and **no log line ever
+carried a `trace_id` or `span_id`** — the whole point of writing JSON beside the
+traces. It now asks the library for the hex identifiers it already knows how to
+render, and three tests write a line inside a span and outside one; the one
+inside carries exactly the identifiers its `traceparent` named. A dead `uuid ||
+""` in the agent audit log, which the same run flagged, is gone too.
+
 ### Known noise: the sandbox says a connection was disconnected
 
 Most runs print one or two lines like
@@ -273,7 +282,7 @@ table: the agent speaks HTTP remoting, like a real GoCD agent
 (`agent/internal/remoting/`, `agent_remoting_controller.ex`, and no `websocket`
 string anywhere in the Go agent).
 
-`README.md` badges are hand-written and say 1107 tests and 27 Cypress specs.
+`README.md` badges are hand-written and say 1110 tests and 27 Cypress specs.
 Nothing regenerates them, so they will drift again.
 
 `scripts/check_doc_refs.exs` is the part that cannot drift: it fails when a
