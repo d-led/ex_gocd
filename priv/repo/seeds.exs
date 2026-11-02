@@ -10,6 +10,11 @@ import Ecto.Query, only: [from: 2]
 
 mock_mode? = fn -> System.get_env("USE_MOCK_DATA") == "true" end
 
+# History is only seeded in mock mode, so a report may only mention it then.
+history_note = fn count ->
+  if mock_mode?.(), do: ", #{count} historical runs", else: ""
+end
+
 ensure_material = fn pipeline, type, url ->
   branch = "main"
 
@@ -557,7 +562,7 @@ unless Repo.get_by(Pipeline, name: "release-pipeline") do
     end)
   end
 
-  IO.puts("Seeded: release-pipeline (stages: build → test → deploy, 4 historical runs)")
+  IO.puts("Seeded: release-pipeline (stages: build → test → deploy#{history_note.(4)})")
 else
   IO.puts("Pipeline 'release-pipeline' already exists")
 end
@@ -692,7 +697,7 @@ unless Repo.get_by(Pipeline, name: "build-linux") do
     end)
   end
 
-  IO.puts("Seeded: build-linux (build → test, 3 historical runs)")
+  IO.puts("Seeded: build-linux (build → test#{history_note.(3)})")
 end
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -827,7 +832,7 @@ unless Repo.get_by(Pipeline, name: "deploy-staging") do
     end)
   end
 
-  IO.puts("Seeded: deploy-staging (deploy → smoke-tests, 3 historical runs)")
+  IO.puts("Seeded: deploy-staging (deploy → smoke-tests#{history_note.(3)})")
 end
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1086,7 +1091,7 @@ unless Repo.get_by(Pipeline, name: "two-stage-demo") do
     end)
   end
 
-  IO.puts("Seeded: two-stage-demo (build → test, 3 historical runs)")
+  IO.puts("Seeded: two-stage-demo (build → test#{history_note.(3)})")
 end
 
 # ── Elastic Agent Profile seeding ─────────────────────────────────────────
