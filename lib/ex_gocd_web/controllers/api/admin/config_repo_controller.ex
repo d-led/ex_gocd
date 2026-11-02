@@ -6,6 +6,7 @@ defmodule ExGoCDWeb.API.Admin.ConfigRepoController do
 
   alias ExGoCD.ConfigRepos
   alias ExGoCD.ConfigRepos.Poller
+  alias ExGoCDWeb.API.Admin.ConfigRepoJSON
 
   action_fallback ExGoCDWeb.FallbackController
 
@@ -14,7 +15,7 @@ defmodule ExGoCDWeb.API.Admin.ConfigRepoController do
   """
   def index(conn, _params) do
     repos = ConfigRepos.list_config_repos()
-    json(conn, %{config_repos: repos})
+    json(conn, %{config_repos: Enum.map(repos, &ConfigRepoJSON.data/1)})
   end
 
   @doc """
@@ -28,7 +29,7 @@ defmodule ExGoCDWeb.API.Admin.ConfigRepoController do
         |> json(%{error: "Config repo not found"})
 
       repo ->
-        json(conn, %{config_repo: repo})
+        json(conn, %{config_repo: ConfigRepoJSON.data(repo)})
     end
   end
 
@@ -54,7 +55,7 @@ defmodule ExGoCDWeb.API.Admin.ConfigRepoController do
       {:error, changeset} ->
         conn
         |> put_status(:unprocessable_entity)
-        |> json(%{error: "Validation failed", details: translate_errors(changeset)})
+        |> json(%{error: "Validation failed", details: format_errors(changeset)})
     end
   end
 
@@ -77,12 +78,12 @@ defmodule ExGoCDWeb.API.Admin.ConfigRepoController do
 
         case ConfigRepos.update_config_repo(repo, attrs) do
           {:ok, updated} ->
-            json(conn, %{config_repo: updated})
+            json(conn, %{config_repo: ConfigRepoJSON.data(updated)})
 
           {:error, changeset} ->
             conn
             |> put_status(:unprocessable_entity)
-            |> json(%{error: "Validation failed", details: translate_errors(changeset)})
+            |> json(%{error: "Validation failed", details: format_errors(changeset)})
         end
     end
   end
@@ -119,20 +120,12 @@ defmodule ExGoCDWeb.API.Admin.ConfigRepoController do
           Poller.poll_now()
 
           repo = ConfigRepos.get_config_repo(id)
-          json(conn, %{config_repo: repo})
+          json(conn, %{config_repo: ConfigRepoJSON.data(repo)})
         else
           conn
           |> put_status(:bad_request)
           |> json(%{error: "Repo URL must be a valid git URL"})
         end
     end
-  end
-
-  defp translate_errors(changeset) do
-    Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
-      Regex.replace(~r"%{(\w+)}", msg, fn _, key ->
-        opts |> Keyword.get(String.to_existing_atom(key), key) |> to_string()
-      end)
-    end)
   end
 end

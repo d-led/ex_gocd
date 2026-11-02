@@ -21,11 +21,18 @@ defmodule ExGoCD.ConfigRepos do
   end
 
   @doc """
-  Gets a config repo by id.
+  Gets a config repo by id, or `nil` when nothing has that id.
+
+  An id arrives from a path, so it is whatever a caller typed. A word is not an
+  error — `Repo.get/2` raises `Ecto.Query.CastError` for one, which turns a
+  mistyped path into a 500 — it simply names nothing.
   """
-  @spec get_config_repo(integer()) :: ConfigRepo.t() | nil
+  @spec get_config_repo(integer() | String.t() | nil) :: ConfigRepo.t() | nil
   def get_config_repo(id) do
-    Repo.get(ConfigRepo, id)
+    case Integer.parse(to_string(id)) do
+      {id, ""} -> Repo.get(ConfigRepo, id)
+      _ -> nil
+    end
   end
 
   @doc """

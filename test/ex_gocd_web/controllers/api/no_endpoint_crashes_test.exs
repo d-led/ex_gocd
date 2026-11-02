@@ -46,6 +46,7 @@ defmodule ExGoCDWeb.API.NoEndpointCrashesTest do
     "/api/admin/config/backup",
     "/api/admin/config/server/artifact_config",
     "/api/admin/config/server/default_job_timeout",
+    "/api/admin/config_repos",
     "/api/admin/elastic_agent_profiles",
     "/api/admin/environments",
     "/api/admin/maintenance_mode/info",

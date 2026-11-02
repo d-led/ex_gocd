@@ -351,6 +351,18 @@ defmodule ExGoCDWeb.Router do
     post "/:id/refresh", ConfigRepoController, :refresh
   end
 
+  # The config repo API is documented under /go/api/admin (api.go.cd,
+  # "Config Repositories"); the unprefixed tree above is ex_gocd's own.
+  scope "/go/api/admin/config_repos", ExGoCDWeb.API.Admin do
+    pipe_through :admin_api
+    get "/", ConfigRepoController, :index
+    get "/:id", ConfigRepoController, :show
+    post "/", ConfigRepoController, :create
+    put "/:id", ConfigRepoController, :update
+    delete "/:id", ConfigRepoController, :delete
+    post "/:id/refresh", ConfigRepoController, :refresh
+  end
+
   scope "/api/admin", ExGoCDWeb.API do
     pipe_through :admin_api
     get "/scms", SCMController, :index
