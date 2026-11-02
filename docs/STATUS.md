@@ -842,7 +842,7 @@ under a floor and leaves the coverdata `mix crap` reads; ExCoveralls could do
 neither. The gate runs tests with coverage, then `mix complexity` (both trees), then
 dialyzer.
 
-The first CRAP run found **126 functions above 30**. The sweep so far (126 → 61) has been all subtraction — status
+The first CRAP run found **126 functions above 30**. The sweep so far (126 → 62) has been all subtraction — status
 tables instead of clause chains (`StageStatus`, the console log's ANSI codes, the
 dashboard's status dots and trigger failures, the VSM's material icons, the agents
 table's sort keys, the stage page's agent kinds), one `@handlers` table and one
