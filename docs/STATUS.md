@@ -14,8 +14,8 @@
 | Dimension | State | Evidence |
 | --- | --- | --- |
 | Code | 272 source files, compile warnings-as-errors clean | `mix compile --force --warnings-as-errors` |
-| ExUnit | **1174 tests, all green** | `mix test` |
-| Coverage | **57.4 %**; 67 modules at 0 % | `mix test.coverage` |
+| ExUnit | **1182 tests, all green** | `mix test` |
+| Coverage | **57.9 %**; 66 modules at 0 % | `mix test.coverage` |
 | Go agent | builds; tests pass in 3 of 10 packages (3,793 prod LOC / 599 test LOC); modules upgraded 2026-11-01 (otel 1.47, grpc 1.85) | `cd agent && go test ./...` |
 | Cypress | 27 specs on disk, **not executed in this session** | `ls cypress/e2e/*.cy.js` |
 | Static analysis | `scripts/quality-gate.sh` passes as a whole: 17 steps, 0 failures (format, compile, Sobelow, credo, doc references, test database, ExUnit, Go fmt/vet/golangci-lint/tests/gofmt/mod-tidy, jscpd, ESLint, TypeScript, Prettier, link checker). Two findings are kept and documented rather than ignored: the MD5 artifact checksums, which are the format a GoCD agent writes. `mix dialyzer` was run for the first time on 2026-11-02: 41 warnings then, 6 now. Six that went were dead branches that hid real faults, described below; eighteen were calls `VsmTracer.set_status` made to a one-argument form whose spec wants a status record, which now go through the documented `set_status(code, message)`; the rest were stale specs and one function with no callers. The six that remain are named rather than silenced: `k8s.ex:136`, a third-party inference about `K8s.Client.run/2` inside the `Task` that probes a cluster (the probe cannot be driven from a test because the fake provider is registered per process); `test_report.ex:107` and `:109`, Ecto changeset typing in the store path that `parse_and_store/2` tests exercise on three report formats; `materials/scm_client.ex:140`, `:141` and `:151`, an `author || "svn"` whose producer always supplies a binary. Three stale specs it found early are fixed too: two modules were referenced as `.t()` without defining one, and `material_filter`'s spec named an unaliased `Material`. `staticcheck` cannot serve either, its binary being older than the Go toolchain, and the gate now says that instead of blaming the code | see above |
@@ -358,14 +358,27 @@ answers `{:ok, n}` or `{:error, :not_a_counter}`, and the four actions answer
 400 with the name of the thing that must be a number. Ten tests, three of which
 fail against the old code.
 
-The same `String.to_integer` appears at thirteen more places in controllers —
-`pipeline_instance_controller`, `pipeline_operations_controller` (twice),
-`job_controller` (twice), `personal_access_token_controller` (twice),
-`feeds_controller` (three times), `scm_controller`, and the pipeline-group and
-notification-filter admin controllers — and each will raise the same way. They
-are listed here rather than changed in one sweep, because each needs its own test
-of what a bad path should answer; `grep -rn "String.to_integer(" lib/ex_gocd_web/controllers`
-prints the list.
+The same `String.to_integer` appeared at thirteen more places in controllers; two of those controllers are dealt with below and eleven remain — `pipeline_operations_controller` (twice), `personal_access_token_controller` (twice), `feeds_controller` (three times), `scm_controller`, and the pipeline-group (three times) and notification-filter admin controllers. Each will raise the same way, and `grep -rn "String.to_integer(" lib/ex_gocd_web/controllers` prints the list.
+
+A sixteenth is the largest of the run, and the reason the pipeline-instance API
+had never worked: `/api/pipelines/:name/history` and `/api/pipelines/:name/:counter`
+answered 500 to every request. The JSON it builds read five fields the
+`PipelineInstance` schema does not have — `scheduled_at`, `comment`,
+`trigger_message`, `trigger_forced` and `approver` — and a struct answers a
+missing key with a `KeyError`. What exists is `inserted_at` and a `build_cause`
+map that the trigger path fills in, so the payload is now built from those; the
+`comment` key is gone rather than always nil, because nothing stores a comment on
+an instance. A seventeenth was one line further on: `show/2` preloaded
+`stage_instances: [:stage, …]`, and `StageInstance` has no `:stage` association,
+so that action raised `ArgumentError` before it could render anything. Five tests
+for the controller, its first: the run as stored, the stages beneath it, a run
+that does not exist, a pipeline that does not exist, and a counter that is not a
+number.
+
+Worth writing down beside these: dialyzer did not see either one. A struct that
+comes back from `Repo` reaches it as an opaque type, so a field read that cannot
+work is a runtime `KeyError` — exactly what a test that calls the endpoint finds
+and a type check cannot.
 ### Known noise: the sandbox says a connection was disconnected
 
 Most runs print one or two lines like
@@ -389,7 +402,7 @@ table: the agent speaks HTTP remoting, like a real GoCD agent
 (`agent/internal/remoting/`, `agent_remoting_controller.ex`, and no `websocket`
 string anywhere in the Go agent).
 
-`README.md` badges are hand-written and say 1174 tests and 27 Cypress specs.
+`README.md` badges are hand-written and say 1182 tests and 27 Cypress specs.
 Nothing regenerates them, so they will drift again.
 
 `scripts/check_doc_refs.exs` is the part that cannot drift: it fails when a

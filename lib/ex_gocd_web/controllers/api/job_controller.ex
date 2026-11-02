@@ -42,47 +42,52 @@ defmodule ExGoCDWeb.API.JobController do
         "stage_counter" => stage_counter_str,
         "job_name" => job_name
       }) do
-    pipeline_counter = String.to_integer(counter_str)
-    stage_counter = String.to_integer(stage_counter_str)
+    with {:ok, pipeline_counter} <- parse_counter(counter_str),
+         {:ok, stage_counter} <- parse_counter(stage_counter_str) do
+      import Ecto.Query
 
-    import Ecto.Query
-
-    ji =
-      from(ji in JobInstance,
-        join: si in assoc(ji, :stage_instance),
-        join: pi in assoc(si, :pipeline_instance),
-        join: p in assoc(pi, :pipeline),
-        where:
-          p.name == ^pipeline_name and
-            pi.counter == ^pipeline_counter and
-            si.name == ^stage_name and
-            si.counter == ^stage_counter and
-            ji.name == ^job_name,
-        preload: [stage_instance: {si, pipeline_instance: {pi, pipeline: p}}],
-        limit: 1
-      )
-      |> Repo.one()
-
-    if is_nil(ji) do
-      conn |> put_status(:not_found) |> json(%{message: "Job instance not found."})
-    else
-      run =
-        AgentJobRuns.get_run_by_params(
-          pipeline_name,
-          pipeline_counter,
-          stage_name,
-          stage_counter,
-          job_name
+      ji =
+        from(ji in JobInstance,
+          join: si in assoc(ji, :stage_instance),
+          join: pi in assoc(si, :pipeline_instance),
+          join: p in assoc(pi, :pipeline),
+          where:
+            p.name == ^pipeline_name and
+              pi.counter == ^pipeline_counter and
+              si.name == ^stage_name and
+              si.counter == ^stage_counter and
+              ji.name == ^job_name,
+          preload: [stage_instance: {si, pipeline_instance: {pi, pipeline: p}}],
+          limit: 1
         )
+        |> Repo.one()
 
-      json(conn, %{
-        name: ji.name,
-        state: ji.state || "Scheduled",
-        result: ji.result || "Unknown",
-        scheduled_date: format_ts(ji.scheduled_at || ji.inserted_at),
-        agent_uuid: run && run.agent_uuid,
-        build_id: run && run.build_id
-      })
+      if is_nil(ji) do
+        conn |> put_status(:not_found) |> json(%{message: "Job instance not found."})
+      else
+        run =
+          AgentJobRuns.get_run_by_params(
+            pipeline_name,
+            pipeline_counter,
+            stage_name,
+            stage_counter,
+            job_name
+          )
+
+        json(conn, %{
+          name: ji.name,
+          state: ji.state || "Scheduled",
+          result: ji.result || "Unknown",
+          scheduled_date: format_ts(ji.scheduled_at || ji.inserted_at),
+          agent_uuid: run && run.agent_uuid,
+          build_id: run && run.build_id
+        })
+      end
+    else
+      {:error, :not_a_counter} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{message: "Pipeline and stage counters must be whole numbers."})
     end
   end
 

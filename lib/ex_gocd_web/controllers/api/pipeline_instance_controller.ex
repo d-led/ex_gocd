@@ -33,16 +33,24 @@ defmodule ExGoCDWeb.API.PipelineInstanceController do
   Returns a single pipeline instance (GoCD v1 format).
   """
   def show(conn, %{"pipeline_name" => name, "counter" => counter_str}) do
-    counter = String.to_integer(counter_str)
+    case parse_counter(counter_str) do
+      {:ok, counter} ->
+        show_instance(conn, name, counter)
 
-    instance =
-      Pipelines.get_pipeline_instance(name, counter)
-      |> Repo.preload([:pipeline, stage_instances: [:stage, job_instances: :job]])
+      {:error, :not_a_counter} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{message: "Pipeline counter must be a whole number."})
+    end
+  end
 
-    if is_nil(instance) do
-      conn |> put_status(:not_found) |> json(%{message: "Pipeline instance not found."})
-    else
-      json(conn, instance_to_json(instance))
+  defp show_instance(conn, name, counter) do
+    case Pipelines.get_pipeline_instance(name, counter) do
+      nil ->
+        conn |> put_status(:not_found) |> json(%{message: "Pipeline instance not found."})
+
+      instance ->
+        json(conn, instance_to_json(instance))
     end
   end
 
@@ -56,11 +64,10 @@ defmodule ExGoCDWeb.API.PipelineInstanceController do
       name: pipeline.name,
       counter: pi.counter,
       label: pi.label || "",
-      scheduled_date: format_timestamp(pi.scheduled_at || pi.inserted_at),
+      scheduled_date: format_timestamp(pi.inserted_at),
       natural_order: pi.natural_order || 0.0,
       stages: Enum.map(pi.stage_instances || [], &stage_instance_json/1),
-      build_cause: build_cause_json(pi),
-      comment: pi.comment
+      build_cause: build_cause_json(pi)
     }
   end
 
@@ -85,11 +92,15 @@ defmodule ExGoCDWeb.API.PipelineInstanceController do
     }
   end
 
+  # What triggered a run is stored in `build_cause`, which the trigger path fills
+  # in; there is no column per field.
   defp build_cause_json(pi) do
+    cause = pi.build_cause || %{}
+
     %{
-      trigger_message: pi.trigger_message || "Forced by user",
-      trigger_forced: pi.trigger_forced || false,
-      approver: pi.approver,
+      trigger_message: cause["trigger_message"] || "Forced by user",
+      trigger_forced: cause["trigger_forced"] == true,
+      approver: cause["approver"],
       material_revisions: []
     }
   end
