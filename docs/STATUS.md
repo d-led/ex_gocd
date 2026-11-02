@@ -14,7 +14,7 @@
 | Dimension | State | Evidence |
 | --- | --- | --- |
 | Code | 268 source files, compile warnings-as-errors clean | `git ls-files 'lib/**/*.ex'` |
-| ExUnit | **1243 tests, all green** | `mix test` |
+| ExUnit | **1244 tests, all green** | `mix test` |
 | Coverage | **62.5 %**; 29 modules at 0 % | `mix test.coverage` |
 | Go agent | builds; tests pass in 3 of 10 packages (3,793 prod LOC / 599 test LOC); modules upgraded 2026-11-01 (otel 1.47, grpc 1.85) | `cd agent && go test ./...` |
 | Cypress | 27 specs on disk, **not executed in this session** | `ls cypress/e2e/*.cy.js` |
@@ -561,6 +561,14 @@ and an edit that changes what the body names and keeps the rest. The listing is
 in the endpoint sweep too, so the seeded pass asks it with data present; the
 `translate_errors/1` copy in that controller is the shared `format_errors/1` now.
 
+The route table is checked against the code now: a test walks
+`ExGoCDWeb.Router.__routes__/0` and asks each module it names whether the action
+it names exists. `resources` declares seven routes from one line, so a controller
+that answers six of them — the pipeline group controller had no `update/2` — reads
+as complete in `mix phx.routes` and in every sweep that only asks paths. LiveView
+routes mount a module rather than calling an action and are not held to it; a
+route naming a module that does not exist is reported.
+
 ### Known noise: the sandbox says a connection was disconnected
 
 Most runs print one or two lines like
@@ -584,7 +592,7 @@ table: the agent speaks HTTP remoting, like a real GoCD agent
 (`agent/internal/remoting/`, `agent_remoting_controller.ex`, and no `websocket`
 string anywhere in the Go agent).
 
-`README.md` badges are hand-written and say 1243 tests and 27 Cypress specs.
+`README.md` badges are hand-written and say 1244 tests and 27 Cypress specs.
 Nothing regenerates them, so they will drift again.
 
 `scripts/check_doc_refs.exs` is the part that cannot drift: it fails when a
