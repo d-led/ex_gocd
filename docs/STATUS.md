@@ -14,7 +14,7 @@
 | Dimension | State | Evidence |
 | --- | --- | --- |
 | Code | 268 source files, compile warnings-as-errors clean | `git ls-files 'lib/**/*.ex'` |
-| ExUnit | **1280 tests, all green** | `mix test` |
+| ExUnit | **1428 tests, all green** | `mix test` |
 | Coverage | **62.9 %**; 26 modules at 0 % | `mix test.coverage` |
 | Go agent | builds; tests pass in 3 of 10 packages (3,793 prod LOC / 599 test LOC); modules upgraded 2026-11-01 (otel 1.47, grpc 1.85) | `cd agent && go test ./...` |
 | Cypress | 27 specs on disk, **not executed in this session** | `ls cypress/e2e/*.cy.js` |
@@ -728,10 +728,14 @@ Running it found three things that only happen in a release:
   answered 500 with it. With the two fixes above, a fresh stack schedules a
   pipeline and the bundled agent completes it: `demo #1`, stage `build`, job
   `default`, Passed.
-* Known and not fixed: that one-shot starter task is fragile by construction. If
-  the Horde supervisor restarts for any other reason, the singletons are lost until
-  the node restarts. Replacing the task with a supervised starter is the fix; the
-  crash that exposed it is gone.
+* The one-shot starter is gone. `ExGoCD.ClusterSingletons` is a GenServer that
+  starts the same list and **watches** the supervisor: when it is replaced, the
+  children are started again under it. It also reports a child that will not start
+  instead of discarding the answer, which the task did — `start_child` returns
+  `{:error, reason}` and `:ignore`, and the old code ignored all three shapes. Three
+  tests hold it, against a stand-in supervisor that speaks the one message Horde's
+  `start_child` sends: every child is asked for, they are asked for again after the
+  supervisor is replaced, and a supervisor that is not up yet is waited for.
 
 Both READMEs were rewritten while doing this. The workspace README claimed "100%
 protocol compatibility", a WebSocket agent protocol that this agent does not use,
@@ -764,7 +768,7 @@ table: the agent speaks HTTP remoting, like a real GoCD agent
 (`agent/internal/remoting/`, `agent_remoting_controller.ex`, and no `websocket`
 string anywhere in the Go agent).
 
-`README.md` badges are hand-written and say 1280 tests and 27 Cypress specs.
+`README.md` badges are hand-written and say 1428 tests and 27 Cypress specs.
 Nothing regenerates them, so they will drift again.
 
 `scripts/check_doc_refs.exs` is the part that cannot drift: it fails when a

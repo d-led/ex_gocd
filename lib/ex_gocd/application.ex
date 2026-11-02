@@ -41,32 +41,7 @@ defmodule ExGoCD.Application do
          max_restarts: 90,
          max_seconds: 30
        ]},
-      Supervisor.child_spec(
-        {Task,
-         fn ->
-           for mod <- [
-                 ExGoCD.MaintenanceMode,
-                 ExGoCD.Analytics.SnapshotCollector,
-                 ExGoCD.Scheduler,
-                 ExGoCD.AgentRegistry,
-                 ExGoCD.Materials.Poller,
-                 ExGoCD.Materials.TimerScheduler,
-                 ExGoCD.Pipelines.ConsoleActivityMonitor,
-                 ExGoCD.SchedulingChecker.TriggerMonitor,
-                 ExGoCD.Monitors.DiskSpace,
-                 ExGoCD.ElasticAgentScheduler,
-                 ExGoCD.DockerElasticAgentScheduler,
-                 ExGoCD.ConfigRepos.Poller,
-                 ExGoCD.Backup,
-                 ExGoCD.StartupReaper
-               ] do
-             Horde.DynamicSupervisor.start_child(ExGoCD.HordeSupervisor, {mod, []})
-           end
-
-           :ok
-         end},
-        id: :horde_singletons_starter
-      ),
+      ExGoCD.ClusterSingletons,
       ExGoCD.ClusterInfoServer
     ]
 
