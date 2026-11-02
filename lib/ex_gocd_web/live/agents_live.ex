@@ -3,11 +3,11 @@ defmodule ExGoCDWeb.AgentsLive do
   LiveView for displaying and managing agents.
   Real-time updates via Phoenix channel (agents:updates); hook pushes refresh_agents.
   Admin-only actions (enable/disable/delete, bulk actions, job history link) are
-  gated by is_user_admin (from AgentPolicy).
+  gated by is_user_admin, which is `ExGoCD.Policies.AgentPolicy`'s decision.
   """
   use ExGoCDWeb, :live_view
   alias ExGoCD.{Accounts, Agents, Scheduler}
-  alias ExGoCD.Accounts.User
+  alias ExGoCD.Policies.AgentPolicy
 
   @impl true
   def mount(_params, session, socket) do
@@ -31,7 +31,7 @@ defmodule ExGoCDWeb.AgentsLive do
        page_title: "Agents",
        current_path: "/agents",
        pending_scheduled: pending_scheduled_count(),
-       is_user_admin: User.has_role?(current_user, :admin),
+       is_user_admin: ExGoCD.Policies.permit?(AgentPolicy, :manage_agents, current_user),
        current_user: current_user,
        tracked_pods: %{},
        scheduler_events: []
