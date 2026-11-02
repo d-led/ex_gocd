@@ -23,17 +23,18 @@ defmodule ExGoCD.Mcp.Tools.JobsTest do
     insert_pipeline("console-app")
     instance = insert_pipeline_instance_by_name("console-app", 1, DateTime.utc_now())
     stage = insert_stage_instance(instance.id, "build", state: "Completed", result: "Failed")
-    insert_job_instance(stage.id, "compile", DateTime.utc_now(), DateTime.utc_now())
 
-    agent =
-      Repo.insert!(%Agent{
-        uuid: "agent-1",
-        hostname: "build-1",
-        ipaddress: "10.0.0.1",
-        state: "Idle"
-      })
+    job_instance =
+      insert_job_instance(stage.id, "compile", DateTime.utc_now(), DateTime.utc_now())
 
-    :ok
+    Repo.insert!(%Agent{
+      uuid: "agent-1",
+      hostname: "build-1",
+      ipaddress: "10.0.0.1",
+      state: "Idle"
+    })
+
+    {:ok, job_instance: job_instance}
   end
 
   test "a job with no run yet says so instead of showing an empty console" do
@@ -74,6 +75,47 @@ defmodule ExGoCD.Mcp.Tools.JobsTest do
     assert [%{"name" => "compile", "state" => "Completed"}] = structured["instances"]
   end
 
+  describe "gocd_test_report" do
+    test "a job that published no report says so, rather than meaning all tests passed" do
+      assert {:error, message} = Tools.call("gocd_test_report", job_args(), @ctx)
+      assert message =~ "published none"
+    end
+
+    test "the failed cases are named, with the first line of each message", %{
+      job_instance: job_instance
+    } do
+      store_report(job_instance.id)
+
+      assert {:ok, %{text: text, structured: structured}} =
+               Tools.call("gocd_test_report", job_args(), @ctx)
+
+      assert structured["totals"] == %{
+               "total" => 2,
+               "passed" => 1,
+               "failed" => 1,
+               "errored" => 0,
+               "skipped" => 0,
+               "time_seconds" => 0.3
+             }
+
+      assert [%{"test" => "fails", "result" => "failed", "message" => message}] =
+               structured["cases"]
+
+      assert message == "Expected 42 but got 0"
+      assert text =~ "1 failed"
+      refute text =~ "passes"
+    end
+
+    test "all the cases are listed when the caller asks for them", %{job_instance: job_instance} do
+      store_report(job_instance.id)
+
+      assert {:ok, %{structured: structured}} =
+               Tools.call("gocd_test_report", Map.put(job_args(), "failed_only", false), @ctx)
+
+      assert Enum.map(structured["cases"], & &1["test"]) == ["passes", "fails"]
+    end
+  end
+
   defp job_args do
     %{
       "pipeline" => "console-app",
@@ -96,5 +138,30 @@ defmodule ExGoCD.Mcp.Tools.JobsTest do
     Enum.each(lines, &AgentJobRuns.append_console(run.build_id, &1 <> "\n"))
 
     {run, agent}
+  end
+
+  # The report is stored the way a job stores it: a JUnit file under `testoutput/`
+  # in the job's artifact directory, parsed by the code that parses it in
+  # production.
+  defp store_report(job_instance_id) do
+    dir = Path.join(System.tmp_dir!(), "mcp-report-#{System.unique_integer([:positive])}")
+    File.mkdir_p!(Path.join(dir, "testoutput"))
+    File.write!(Path.join([dir, "testoutput", "report.xml"]), junit_xml())
+    on_exit(fn -> File.rm_rf(dir) end)
+
+    {:ok, _report} = ExGoCD.TestReport.parse_and_store(dir, job_instance_id)
+  end
+
+  defp junit_xml do
+    """
+    <?xml version="1.0" encoding="UTF-8"?>
+    <testsuite name="checks" tests="2" failures="1" errors="0" skipped="0" time="0.30">
+      <testcase name="passes" classname="checks" time="0.10"/>
+      <testcase name="fails" classname="checks" time="0.20">
+        <failure message="expected: 42, got: 0" type="AssertionError">Expected 42 but got 0
+    at checks.fails(checks_test.exs:9)</failure>
+      </testcase>
+    </testsuite>
+    """
   end
 end

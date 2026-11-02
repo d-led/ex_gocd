@@ -14,7 +14,7 @@ defmodule ExGoCD.Mcp.Tools.Jobs do
   alias ExGoCD.{AgentJobRuns, Pipelines, Scheduler}
   alias ExGoCD.Mcp.{Args, Auth, PipelineView, Render, Tool}
 
-  @names ~w(gocd_job gocd_job_console gocd_job_history gocd_schedule_job)
+  @names ~w(gocd_job gocd_job_console gocd_job_history gocd_test_report gocd_schedule_job)
 
   @tools [
     %{
@@ -95,6 +95,42 @@ defmodule ExGoCD.Mcp.Tools.Jobs do
       "annotations" => Tool.read_only()
     },
     %{
+      "name" => "gocd_test_report",
+      "title" => "The tests a job published",
+      "description" =>
+        "The test results a job wrote into its artifacts, read back: totals, and the cases " <>
+          "that failed or errored with the first line of each message. `failed_only` is true " <>
+          "by default, because the failed cases are the answer and the passing ones are the " <>
+          "rest of the log. A job that published no report says so — which is not the same " <>
+          "as a job whose tests all passed.",
+      "inputSchema" => %{
+        "type" => "object",
+        "properties" => %{
+          "pipeline" => %{"type" => "string", "description" => "The pipeline's name."},
+          "counter" => %{
+            "type" => "integer",
+            "minimum" => 1,
+            "description" => "The run's counter."
+          },
+          "stage" => %{"type" => "string", "description" => "The stage's name."},
+          "stage_counter" => %{
+            "type" => "integer",
+            "minimum" => 1,
+            "description" => "The stage instance."
+          },
+          "job" => %{"type" => "string", "description" => "The job's name."},
+          "failed_only" => %{
+            "type" => "boolean",
+            "default" => true,
+            "description" => "Only the cases that failed or errored. False lists them all."
+          },
+          "limit" => %{"type" => "integer", "minimum" => 1, "maximum" => 500, "default" => 50}
+        },
+        "required" => ["pipeline", "counter", "stage", "stage_counter", "job"]
+      },
+      "annotations" => Tool.read_only()
+    },
+    %{
       "name" => "gocd_schedule_job",
       "title" => "Schedule a single job",
       "description" =>
@@ -141,6 +177,7 @@ defmodule ExGoCD.Mcp.Tools.Jobs do
   def call("gocd_job", args, ctx), do: show(args, ctx)
   def call("gocd_job_console", args, ctx), do: console(args, ctx)
   def call("gocd_job_history", args, ctx), do: history(args, ctx)
+  def call("gocd_test_report", args, ctx), do: test_report(args, ctx)
   def call("gocd_schedule_job", args, ctx), do: schedule(args, ctx)
   def call(_name, _args, _ctx), do: :unknown_tool
 
@@ -230,6 +267,87 @@ defmodule ExGoCD.Mcp.Tools.Jobs do
       {:error, message} -> {:error, message}
     end
   end
+
+  defp test_report(args, _ctx) do
+    with {:ok, {job_instance, _run}} <- find(args),
+         {:ok, failed_only} <- failures_only(args),
+         {:ok, limit} <- Args.integer(args, "limit", default: 50, min: 1, max: 500) do
+      case ExGoCD.TestReport.get_by_job_instance(job_instance.id) do
+        nil ->
+          {:error,
+           "No test report is stored for '#{job_instance.name}': the job published none. " <>
+             "That is not the same as a job whose tests passed."}
+
+        report ->
+          report_answer(job_instance, report, failed_only, limit)
+      end
+    end
+  end
+
+  defp report_answer(job_instance, report, failed_only, limit) do
+    cases =
+      report.suites
+      |> Enum.flat_map(fn suite ->
+        Enum.map(suite.cases, fn test_case ->
+          %{
+            "suite" => suite.name,
+            "test" => test_case.name,
+            "result" => test_case.result,
+            "time" => test_case.time,
+            "failure_type" => test_case.failure_type,
+            "message" => first_line(test_case.message)
+          }
+        end)
+      end)
+      |> Enum.filter(&(not failed_only or &1["result"] != "passed"))
+      |> Enum.take(limit)
+
+    totals = %{
+      "total" => report.total_tests,
+      "passed" => report.passed,
+      "failed" => report.failed,
+      "errored" => report.errored,
+      "skipped" => report.skipped,
+      "time_seconds" => report.total_time
+    }
+
+    text =
+      [
+        "#{job_instance.name}: #{report.total_tests} test(s) — #{report.passed} passed · " <>
+          "#{report.failed} failed · #{report.errored} errored · #{report.skipped} skipped · " <>
+          "#{Float.round(report.total_time, 2)}s",
+        if(cases == [],
+          do: "No failing case in this report.",
+          else:
+            Render.table(
+              ["SUITE", "TEST", "RESULT", "TIME", "MESSAGE"],
+              Enum.map(cases, fn test_case ->
+                [
+                  test_case["suite"],
+                  test_case["test"],
+                  test_case["result"],
+                  test_case["time"],
+                  Render.truncate(Render.cell(test_case["message"]), 120)
+                ]
+              end)
+            )
+        )
+      ]
+      |> Enum.join("\n\n")
+
+    Tool.ok(text, %{"job" => job_instance.name, "totals" => totals, "cases" => cases})
+  end
+
+  # `failed_only` is true unless the caller says otherwise, and `Args.boolean/2`
+  # cannot tell "absent" from "false".
+  defp failures_only(args) do
+    if Map.has_key?(args, "failed_only"), do: Args.boolean(args, "failed_only"), else: {:ok, true}
+  end
+
+  # A failure message is a stack trace more often than a sentence; the first line
+  # is the sentence.
+  defp first_line(nil), do: nil
+  defp first_line(message), do: message |> String.split("\n", parts: 2) |> hd()
 
   defp schedule(args, ctx) do
     with {:ok, pipeline} <- Args.optional(args, "pipeline"),

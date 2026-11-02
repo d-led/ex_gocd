@@ -16,7 +16,7 @@ defmodule ExGoCDWeb.Mcp.Protocol do
   """
 
   alias ExGoCD.Mcp
-  alias ExGoCD.Mcp.{Prompts, Resources, Tools}
+  alias ExGoCD.Mcp.{Completions, Prompts, Resources, Tools}
 
   @type outcome :: {:reply, map()} | :accepted | {:invalid_request, map()}
 
@@ -58,7 +58,8 @@ defmodule ExGoCDWeb.Mcp.Protocol do
        "capabilities" => %{
          "tools" => %{"listChanged" => false},
          "resources" => %{"subscribe" => false, "listChanged" => false},
-         "prompts" => %{"listChanged" => false}
+         "prompts" => %{"listChanged" => false},
+         "completions" => %{}
        },
        "serverInfo" => Mcp.server_info(),
        "instructions" => Mcp.instructions()
@@ -125,6 +126,16 @@ defmodule ExGoCDWeb.Mcp.Protocol do
     end
   end
 
+  defp dispatch("completion/complete", params, id, ctx) do
+    case completion_request(params) do
+      {:ok, ref, argument} ->
+        {:reply, result(id, %{"completion" => Completions.complete(ref, argument, ctx)})}
+
+      {:error, message} ->
+        {:reply, error(id, -32_602, message)}
+    end
+  end
+
   defp dispatch(method, _params, id, _ctx) do
     {:reply, error(id, -32_601, "Method not found: #{method}")}
   end
@@ -140,6 +151,14 @@ defmodule ExGoCDWeb.Mcp.Protocol do
 
   defp prompt_name(%{"name" => name}) when is_binary(name) and name != "", do: {:ok, name}
   defp prompt_name(_params), do: {:error, "`name` is required."}
+
+  defp completion_request(%{"ref" => ref, "argument" => %{"name" => name} = argument})
+       when is_map(ref) and is_binary(name) do
+    {:ok, ref, argument}
+  end
+
+  defp completion_request(_params),
+    do: {:error, "`ref` and `argument` (with a `name`) are required."}
 
   defp tool_arguments(%{"arguments" => nil}), do: {:ok, %{}}
   defp tool_arguments(%{"arguments" => arguments}) when is_map(arguments), do: {:ok, arguments}

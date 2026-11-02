@@ -5,10 +5,11 @@ transport, so an assistant can ask about a running GoCD server — what is
 configured, what ran, what is running now, why nothing is running, and what the
 numbers say — and act on it.
 
-It offers three things: **tools** (42 of them, below), **resources** (the
+It offers three things: **tools** (46 of them, below), **resources** (the
 documents a person would attach: the dashboard, the configuration XML, the audit
 trail, one pipeline's configuration) and **prompts** (the four workflows worth
-following in order).
+following in order). Completions offer the values that exist while an argument is
+typed — the pipeline names, mostly.
 
 It is one endpoint, one JSON-RPC message in, one answer out. No sessions, no
 server-sent events, no batches — every request is self-contained, which is what
@@ -71,16 +72,19 @@ locked, schedulable, latest run), `gocd_pipeline_history`,
 `gocd_cancel_stage`, `gocd_rerun_failed_jobs`.
 
 **Jobs** — `gocd_job`, `gocd_job_console`, `gocd_job_history`,
+`gocd_test_report` (the JUnit-style results a job published, failing cases named),
 `gocd_schedule_job`.
 
 **Agents** — `gocd_list_agents`, `gocd_agent`, `gocd_update_agent`,
 `gocd_kill_agent_tasks`.
 
 **Analytics** — `gocd_pipeline_analytics`, `gocd_agent_analytics`,
-`gocd_value_stream_map`.
+`gocd_value_stream_map`, `gocd_stage_trends` (one stage's last runs, oldest
+first, with a median — the series the duration chart draws).
 
 **Configuration** — `gocd_config_xml`, `gocd_config_history`,
-`gocd_environments`, `gocd_materials`.
+`gocd_environments`, `gocd_materials`, `gocd_templates` (each template's stages
+and the pipelines that use it), `gocd_pipeline_groups`.
 
 **Administration** — `gocd_set_maintenance_mode` (stops or resumes scheduling;
 asks for a confirmation before it stops anything), `gocd_create_backup`,
@@ -129,6 +133,13 @@ and agent utilization).
 {"jsonrpc": "2.0", "id": 3, "method": "prompts/get",
  "params": {"name": "diagnose_pipeline", "arguments": {"pipeline": "build-app"}}}
 ```
+
+**Completions** are the menu a client offers while an argument is being typed:
+the `pipeline` argument of `diagnose_pipeline` and `what_changed`, the `name` of
+the `gocd://pipelines/{name}` template, and the `days` of `fleet_health`. They
+come from the pipelines that exist, filtered by what has been typed. A
+completion is a convenience, not a permission: the value a client settles on is
+checked again by the tool or resource it is used with.
 
 ## Authentication
 

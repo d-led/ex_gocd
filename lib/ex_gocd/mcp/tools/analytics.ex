@@ -12,9 +12,10 @@ defmodule ExGoCD.Mcp.Tools.Analytics do
 
   alias ExGoCD.Analytics
   alias ExGoCD.Mcp.{Args, Render, Tool}
+  alias ExGoCD.Pipelines
   alias ExGoCD.Pipelines.ValueStreamMap
 
-  @names ~w(gocd_pipeline_analytics gocd_agent_analytics gocd_value_stream_map)
+  @names ~w(gocd_pipeline_analytics gocd_agent_analytics gocd_value_stream_map gocd_stage_trends)
 
   @tools [
     %{
@@ -83,6 +84,25 @@ defmodule ExGoCD.Mcp.Tools.Analytics do
         }
       },
       "annotations" => Tool.read_only()
+    },
+    %{
+      "name" => "gocd_stage_trends",
+      "title" => "How one stage has been running",
+      "description" =>
+        "The last instances of one stage, oldest first, with each run's state, result and how " <>
+          "long it took — the series the stage-duration chart draws. This is the tool for a " <>
+          "question one run cannot answer: is this stage getting slower, and when did it start " <>
+          "failing. The median duration is there because a single slow run is noise.",
+      "inputSchema" => %{
+        "type" => "object",
+        "properties" => %{
+          "pipeline" => %{"type" => "string", "description" => "The pipeline's name."},
+          "stage" => %{"type" => "string", "description" => "The stage's name."},
+          "limit" => %{"type" => "integer", "minimum" => 1, "maximum" => 100, "default" => 10}
+        },
+        "required" => ["pipeline", "stage"]
+      },
+      "annotations" => Tool.read_only()
     }
   ]
 
@@ -103,6 +123,7 @@ defmodule ExGoCD.Mcp.Tools.Analytics do
   def call("gocd_pipeline_analytics", args, ctx), do: pipeline_analytics(args, ctx)
   def call("gocd_agent_analytics", args, ctx), do: agent_analytics(args, ctx)
   def call("gocd_value_stream_map", args, ctx), do: value_stream_map(args, ctx)
+  def call("gocd_stage_trends", args, ctx), do: stage_trends(args, ctx)
   def call(_name, _args, _ctx), do: :unknown_tool
 
   defp pipeline_analytics(args, _ctx) do
@@ -307,6 +328,82 @@ defmodule ExGoCD.Mcp.Tools.Analytics do
       "#{subject}\n\n" <> Render.truncate(inspect(vsm, pretty: true, limit: :infinity), 6_000),
       %{"subject" => subject, "value_stream_map" => vsm}
     )
+  end
+
+  defp stage_trends(args, _ctx) do
+    with {:ok, pipeline} <- Args.required(args, "pipeline"),
+         {:ok, stage} <- Args.required(args, "stage"),
+         {:ok, limit} <- Args.integer(args, "limit", default: 10, min: 1, max: 100) do
+      case Pipelines.get_pipeline_by_name(pipeline) do
+        nil ->
+          {:error, "Pipeline '#{pipeline}' not found."}
+
+        _pipeline ->
+          stage_trend_answer(pipeline, stage, Analytics.stage_trends(pipeline, stage, limit))
+      end
+    else
+      {:error, message} -> {:error, message}
+    end
+  end
+
+  defp stage_trend_answer(pipeline, stage, trends) do
+    durations = trends |> Enum.map(& &1.duration) |> Enum.reject(&is_nil/1)
+    counts = Enum.frequencies_by(trends, &(&1.result || &1.state || "Unknown"))
+    median = median(durations)
+
+    text =
+      if trends == [] do
+        "#{pipeline} · #{stage}: no instance of this stage was recorded."
+      else
+        "#{pipeline} · #{stage}: the last #{length(trends)} instance(s), oldest first\n" <>
+          Enum.map_join(counts |> Enum.sort(), " · ", fn {result, count} ->
+            "#{result} #{count}"
+          end) <>
+          " · median #{Render.duration(median)}\n\n" <>
+          Render.table(
+            ["RUN", "STATE", "RESULT", "DURATION", "COMPLETED"],
+            Enum.map(trends, fn trend ->
+              [
+                trend.counter,
+                trend.state,
+                trend.result,
+                Render.duration(trend.duration),
+                Render.timestamp(trend.completed_at)
+              ]
+            end)
+          )
+      end
+
+    Tool.ok(text, %{
+      "pipeline" => pipeline,
+      "stage" => stage,
+      "counts" => counts,
+      "median_duration_sec" => median,
+      "trends" =>
+        Enum.map(trends, fn trend ->
+          %{
+            "counter" => trend.counter,
+            "state" => trend.state,
+            "result" => trend.result,
+            "duration_sec" => trend.duration,
+            "scheduled_at" => Render.timestamp(trend.scheduled_at),
+            "completed_at" => Render.timestamp(trend.completed_at)
+          }
+        end)
+    })
+  end
+
+  defp median([]), do: nil
+
+  defp median(values) do
+    sorted = Enum.sort(values)
+    middle = div(length(sorted), 2)
+
+    if rem(length(sorted), 2) == 1 do
+      Enum.at(sorted, middle)
+    else
+      round((Enum.at(sorted, middle - 1) + Enum.at(sorted, middle)) / 2)
+    end
   end
 
   # ── rendering ──────────────────────────────────────────────────────

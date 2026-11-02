@@ -13,7 +13,8 @@ defmodule ExGoCD.Mcp.Tools.Config do
   alias ExGoCD.{ConfigVersion, ConfigXml, Environments, Pipelines}
   alias ExGoCD.Mcp.{Args, Render, Tool}
 
-  @names ~w(gocd_config_xml gocd_config_history gocd_environments gocd_materials)
+  @names ~w(gocd_config_xml gocd_config_history gocd_environments gocd_materials gocd_templates
+            gocd_pipeline_groups)
 
   @tools [
     %{
@@ -75,6 +76,26 @@ defmodule ExGoCD.Mcp.Tools.Config do
         }
       },
       "annotations" => Tool.read_only()
+    },
+    %{
+      "name" => "gocd_templates",
+      "title" => "The pipeline templates",
+      "description" =>
+        "Every pipeline template, its stages in order, and the pipelines that use it. A " <>
+          "pipeline built from a template does not hold its own stages: they are the " <>
+          "template's, and changing the template changes every pipeline that names it.",
+      "inputSchema" => %{"type" => "object", "properties" => %{}},
+      "annotations" => Tool.read_only()
+    },
+    %{
+      "name" => "gocd_pipeline_groups",
+      "title" => "The pipeline groups",
+      "description" =>
+        "The groups pipelines are filed under, how many each holds, and how many of those are " <>
+          "paused. Groups are the unit permissions and the dashboard are organised by, so this " <>
+          "is the answer to \"what is in this group\" and \"how many groups are there\".",
+      "inputSchema" => %{"type" => "object", "properties" => %{}},
+      "annotations" => Tool.read_only()
     }
   ]
 
@@ -96,6 +117,8 @@ defmodule ExGoCD.Mcp.Tools.Config do
   def call("gocd_config_history", args, ctx), do: config_history(args, ctx)
   def call("gocd_environments", args, ctx), do: environments(args, ctx)
   def call("gocd_materials", args, ctx), do: materials(args, ctx)
+  def call("gocd_templates", args, ctx), do: templates(args, ctx)
+  def call("gocd_pipeline_groups", args, ctx), do: pipeline_groups(args, ctx)
   def call(_name, _args, _ctx), do: :unknown_tool
 
   defp config_xml(_args, _ctx) do
@@ -251,6 +274,81 @@ defmodule ExGoCD.Mcp.Tools.Config do
     else
       {:error, message} -> {:error, message}
     end
+  end
+
+  defp templates(_args, _ctx) do
+    templates = Pipelines.list_templates()
+    usage = pipelines_by_template()
+
+    text =
+      if templates == [] do
+        "No pipeline templates are configured."
+      else
+        "#{length(templates)} template(s)\n\n" <>
+          Render.table(
+            ["TEMPLATE", "STAGES", "USED BY"],
+            Enum.map(templates, fn template ->
+              [
+                template.name,
+                Enum.map_join(template.stages || [], " → ", & &1.name),
+                Map.get(usage, template.id, [])
+              ]
+            end)
+          )
+      end
+
+    Tool.ok(text, %{
+      "templates" =>
+        Enum.map(templates, fn template ->
+          %{
+            "name" => template.name,
+            "stages" => Enum.map(template.stages || [], & &1.name),
+            "used_by" => Map.get(usage, template.id, [])
+          }
+        end)
+    })
+  end
+
+  defp pipeline_groups(_args, _ctx) do
+    groups =
+      Pipelines.list_pipelines()
+      |> Enum.group_by(&(&1.group || "default"))
+      |> Enum.map(fn {name, members} ->
+        %{
+          "name" => name,
+          "pipelines" => members |> Enum.map(& &1.name) |> Enum.sort(),
+          "paused" => Enum.count(members, & &1.paused)
+        }
+      end)
+      |> Enum.sort_by(& &1["name"])
+
+    text =
+      if groups == [] do
+        "No pipelines are configured, so there are no groups."
+      else
+        "#{length(groups)} pipeline group(s)\n\n" <>
+          Render.table(
+            ["GROUP", "PIPELINES", "PAUSED", "MEMBERS"],
+            Enum.map(groups, fn group ->
+              [
+                group["name"],
+                length(group["pipelines"]),
+                group["paused"],
+                Enum.join(group["pipelines"], ", ")
+              ]
+            end)
+          )
+      end
+
+    Tool.ok(text, %{"groups" => groups})
+  end
+
+  # Which pipelines name each template, read from the pipelines themselves: a
+  # template keeps no list of its users, and a cached one would go stale.
+  defp pipelines_by_template do
+    Pipelines.list_pipelines()
+    |> Enum.reject(&is_nil(&1.template_id))
+    |> Enum.group_by(& &1.template_id, & &1.name)
   end
 
   defp map_version(version) do

@@ -27,13 +27,14 @@ defmodule ExGoCDWeb.Mcp.ProtocolTest do
       assert result["serverInfo"]["name"] == "gocd-mcp"
     end
 
-    test "advertises the three capabilities it has" do
+    test "advertises the capabilities it has" do
       assert {:reply, %{"result" => %{"capabilities" => capabilities}}} =
                call("initialize", %{"protocolVersion" => "2025-06-18"})
 
       assert capabilities["tools"] == %{"listChanged" => false}
       assert capabilities["resources"] == %{"subscribe" => false, "listChanged" => false}
       assert capabilities["prompts"] == %{"listChanged" => false}
+      assert capabilities["completions"] == %{}
     end
 
     test "answers with the newest revision it speaks when the client names one it does not" do
@@ -137,6 +138,24 @@ defmodule ExGoCDWeb.Mcp.ProtocolTest do
                call("prompts/get", %{"name" => "write_my_release_notes"})
 
       assert message =~ "prompts/list"
+    end
+
+    test "a reference nobody completes is an empty menu, which is a normal answer" do
+      assert {:reply,
+              %{
+                "result" => %{"completion" => %{"values" => [], "total" => 0, "hasMore" => false}}
+              }} =
+               call("completion/complete", %{
+                 "ref" => %{"type" => "ref/prompt", "name" => "nonexistent"},
+                 "argument" => %{"name" => "pipeline", "value" => "bu"}
+               })
+    end
+
+    test "a completion without a ref names what is missing" do
+      assert {:reply, %{"error" => %{"code" => -32_602, "message" => message}}} =
+               call("completion/complete", %{})
+
+      assert message =~ "`ref`"
     end
   end
 

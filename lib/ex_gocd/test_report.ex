@@ -510,8 +510,8 @@ defmodule ExGoCD.TestReport do
   defp find_child_text(children, tags) do
     child =
       Enum.find(children, fn
-        {:xmlElement, tag, _, _, _, _, _, _, _} -> Enum.member?(tags, tag)
-        _ -> false
+        {:xmlElement, tag, _, _, _, _, _, _, _, _, _, _} -> Enum.member?(tags, tag)
+        _other -> false
       end)
 
     case child do
@@ -526,8 +526,8 @@ defmodule ExGoCD.TestReport do
 
   defp extract_text(children) do
     children
-    |> Enum.filter(&match?({:xmlText, _, _, _, _, _, _}, &1))
-    |> Enum.map_join(fn {:xmlText, _, _, _, _, text, _} -> List.to_string(text) end)
+    |> Enum.filter(&match?({:xmlText, _, _, _, _, _}, &1))
+    |> Enum.map_join(fn {:xmlText, _, _, _, text, _} -> List.to_string(text) end)
     |> String.trim()
   end
 

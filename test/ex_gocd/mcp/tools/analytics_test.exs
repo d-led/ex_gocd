@@ -53,4 +53,26 @@ defmodule ExGoCD.Mcp.Tools.AnalyticsTest do
     assert {:error, message} = Tools.call("gocd_value_stream_map", %{}, @ctx)
     assert message =~ "pipeline"
   end
+
+  describe "gocd_stage_trends" do
+    test "says how the stage has been running, oldest first" do
+      assert {:ok, %{structured: structured}} =
+               Tools.call(
+                 "gocd_stage_trends",
+                 %{"pipeline" => "trend-app", "stage" => "build"},
+                 @ctx
+               )
+
+      assert structured["counts"] == %{"Passed" => 1}
+      assert is_integer(structured["median_duration_sec"])
+      assert [%{"counter" => 1, "result" => "Passed"}] = structured["trends"]
+    end
+
+    test "a pipeline that does not exist is named as such" do
+      assert {:error, message} =
+               Tools.call("gocd_stage_trends", %{"pipeline" => "ghost", "stage" => "build"}, @ctx)
+
+      assert message == "Pipeline 'ghost' not found."
+    end
+  end
 end

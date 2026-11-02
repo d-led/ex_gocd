@@ -80,4 +80,27 @@ defmodule ExGoCD.Mcp.Tools.ConfigTest do
     assert xml =~ "<cruise>"
     assert text =~ "a change"
   end
+
+  test "templates bring their stages, and say which pipelines use them" do
+    insert_pipeline_with_template("templated", "shared", 1)
+
+    assert {:ok, %{structured: structured}} = Tools.call("gocd_templates", %{}, @ctx)
+
+    assert [%{"name" => "shared", "stages" => ["template-stage"], "used_by" => ["templated"]}] =
+             structured["templates"]
+  end
+
+  test "groups count their pipelines and how many of them are paused" do
+    insert_pipeline("one", group: "ci")
+    insert_pipeline("two", group: "ci")
+    paused = insert_pipeline("three", group: "ops")
+    {:ok, _} = ExGoCD.Pipelines.pause_pipeline(paused.name, "ops", "freezing")
+
+    assert {:ok, %{structured: structured}} = Tools.call("gocd_pipeline_groups", %{}, @ctx)
+
+    assert [
+             %{"name" => "ci", "pipelines" => ["one", "two"], "paused" => 0},
+             %{"name" => "ops", "pipelines" => ["three"], "paused" => 1}
+           ] = structured["groups"]
+  end
 end
