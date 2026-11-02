@@ -69,8 +69,11 @@ defmodule ExGoCDWeb.NoPageCrashesTest do
   # A page told to show something that is not there has to say so. Counters
   # parse, names are ones nothing holds, ids are of the right shape.
   defp absent_paths do
+    uuid = Ecto.UUID.generate()
+
     [
-      "/agents/#{Ecto.UUID.generate()}/job_run_history",
+      "/agents/#{uuid}/job_run_history",
+      "/agents/#{uuid}/job_run_history/build-absent",
       "/compare/absent",
       "/compare/absent/1/with/2",
       "/go/compare/absent/1/with/2",
