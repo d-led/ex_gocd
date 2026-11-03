@@ -1,8 +1,9 @@
 defmodule ExGoCDWeb.PipelineWizardLive do
   use ExGoCDWeb, :live_view
 
+  alias ExGoCD.Materials.ScmClient
   alias ExGoCD.Pipelines
-  alias ExGoCD.Pipelines.{Job, Pipeline, Stage, Task}
+  alias ExGoCD.Pipelines.{Job, Material, Pipeline, Stage, Task}
   alias ExGoCD.Repo
 
   @impl true
@@ -39,7 +40,7 @@ defmodule ExGoCDWeb.PipelineWizardLive do
      |> assign(:form, form)
      |> assign(:errors, %{})
      |> assign(:pipeline_groups, pipeline_groups)
-     # nil, :checking, :success, :failed
+     # nil, :success, :failed — what the repository itself answered
      |> assign(:connection_status, nil)
      |> assign(:page_title, "Create a New Pipeline - GoCD")}
   end
@@ -216,11 +217,7 @@ defmodule ExGoCDWeb.PipelineWizardLive do
                         phx-click="check_connection"
                         class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 border border-slate-350 text-slate-700 rounded text-xs font-semibold flex items-center gap-1.5 transition-all"
                       >
-                        <%= if @connection_status == :checking do %>
-                          <i class="fa fa-spinner animate-spin"></i> Checking Connection...
-                        <% else %>
-                          <i class="fa fa-circle-nodes"></i> Check Connection
-                        <% end %>
+                        <i class="fa fa-circle-nodes"></i> Check Connection
                       </button>
 
                       <%= if @connection_status == :success do %>
@@ -231,7 +228,7 @@ defmodule ExGoCDWeb.PipelineWizardLive do
                       <%= if @connection_status == :failed do %>
                         <span class="text-xs text-rose-500 font-bold flex items-center gap-1">
                           <i class="fa fa-circle-exclamation"></i>
-                          Connection failed (invalid URL or credentials)
+                          Connection failed — the repository could not be read
                         </span>
                       <% end %>
                     </div>
@@ -439,9 +436,8 @@ defmodule ExGoCDWeb.PipelineWizardLive do
 
   @impl true
   def handle_event("check_connection", _params, socket) do
-    # Simulate connection checking
-    send(self(), :complete_connection_check)
-    {:noreply, assign(socket, :connection_status, :checking)}
+    status = ask_remote(socket.assigns.form)
+    {:noreply, assign(socket, :connection_status, status)}
   end
 
   @impl true
@@ -495,15 +491,43 @@ defmodule ExGoCDWeb.PipelineWizardLive do
   end
 
   @impl true
-  def handle_info(:complete_connection_check, socket) do
-    url = socket.assigns.form["material_url"] || ""
+  def handle_info(_message, socket), do: {:noreply, socket}
 
-    status =
-      if String.starts_with?(url, "http") or String.starts_with?(url, "git@"),
-        do: :success,
-        else: :failed
+  # Whether a repository can be read is the repository's answer, not the shape
+  # of its URL: it is asked the way the poller asks it. A remote that takes too
+  # long is not a connection either, and waiting on one must not hold the page.
+  @connection_check_timeout 5_000
 
-    {:noreply, assign(socket, :connection_status, status)}
+  defp ask_remote(form) do
+    material = %Material{
+      type: "git",
+      url: form["material_url"] || "",
+      branch: form["material_branch"] || "main"
+    }
+
+    parent = self()
+
+    {_pid, monitor} =
+      spawn_monitor(fn ->
+        send(parent, {:asked_remote, ScmClient.latest_revision(material)})
+      end)
+
+    receive do
+      {:asked_remote, {:ok, _revision}} ->
+        Process.demonitor(monitor, [:flush])
+        :success
+
+      {:asked_remote, {:error, _reason}} ->
+        Process.demonitor(monitor, [:flush])
+        :failed
+
+      {:DOWN, ^monitor, :process, _pid, _reason} ->
+        :failed
+    after
+      @connection_check_timeout ->
+        Process.demonitor(monitor, [:flush])
+        :failed
+    end
   end
 
   # --- Validators ---

@@ -31,13 +31,9 @@ defmodule ExGoCDWeb.PipelineWizardLiveTest do
       assert render(view) =~ "Step 2: Material"
       assert render(view) =~ "Repository URL"
 
-      # Step 2: Test connection check
-      view
-      |> element("button", "Check Connection")
-      |> render_click()
-
-      # Simulate check completion response
-      send(view.pid, :complete_connection_check)
+      # Step 2: the repository answers the connection check
+      html = view |> element("button", "Check Connection") |> render_click()
+      assert html =~ "Connection OK"
 
       # Submit repository details
       view
@@ -99,5 +95,30 @@ defmodule ExGoCDWeb.PipelineWizardLiveTest do
       assert material.url == "git@github.com:myorg/repo.git"
       assert material.branch == "main"
     end
+  end
+end
+
+defmodule ExGoCDWeb.PipelineWizardConnectionCheckTest do
+  # The answer comes from the SCM client this test configures, which is an
+  # application-wide setting: nothing else may run beside it.
+  use ExGoCDWeb.ConnCase, async: false
+
+  import Phoenix.LiveViewTest
+
+  alias ExGoCD.TestEnv
+
+  test "a repository that cannot be read is not called a connection", %{conn: conn} do
+    TestEnv.replace(:mock_scm_revision, {:error, "no such repository"})
+
+    {:ok, view, _html} = live(conn, ~p"/admin/pipelines/new")
+
+    view
+    |> form("form", %{"name" => "connection-check", "group" => "DeployGroup"})
+    |> render_submit()
+
+    html = view |> element("button", "Check Connection") |> render_click()
+
+    assert html =~ "Connection failed"
+    refute html =~ "Connection OK"
   end
 end
