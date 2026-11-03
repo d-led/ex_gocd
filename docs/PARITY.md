@@ -161,6 +161,17 @@ D1 (artifact caching), D2 (docker elastic agent), G1 (tests tab), plus:
 - Package material plugin support — needs full plugin ecosystem
 - Agent approval/pending workflow — auto-register model
 
+The list of endpoints api.go.cd documents that this server does not route is not
+written down here, because it goes stale. Ask for it instead:
+
+```shell
+mix run --no-start scripts/api_gap.exs
+```
+
+It compares the docs (a sibling `api.go.cd` checkout; point `API_DOCS_DIR` at
+another one) with the router's own route table, erasing parameter names that
+differ. Nothing boots and no database is needed.
+
 ---
 
 ## Cross-Linking Audit
