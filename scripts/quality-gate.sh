@@ -20,6 +20,27 @@ pass_step() { echo -e "${GREEN}[PASS]${NC} $1"; PASS=$((PASS + 1)); }
 fail_step() { echo -e "${RED}[FAIL]${NC} $1"; FAIL=$((FAIL + 1)); die "Quality gate halted on failure."; }
 warn_step() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 
+# ── One gate at a time ──────────────────────────────────────────────────
+# Two runs share the test database and cover/default.coverdata, and the
+# export of one clobbers the other's — which shows up as a green suite
+# whose coverage step cannot find its data. A run that was backgrounded is
+# still running, so a second start is easy to do by accident.
+
+LOCK_DIR="${TMPDIR:-/tmp}/ex_gocd-quality-gate.lock"
+
+if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+  holder=$(cat "$LOCK_DIR/pid" 2>/dev/null || echo "unknown")
+  if [ "$holder" != "unknown" ] && kill -0 "$holder" 2>/dev/null; then
+    die "Another quality gate is running (pid $holder). Wait for it, or stop it first."
+  fi
+  echo "Removing a lock left behind by pid $holder, which is gone."
+  rm -rf "$LOCK_DIR"
+  mkdir "$LOCK_DIR" || die "Could not take the gate lock at $LOCK_DIR"
+fi
+
+echo $$ > "$LOCK_DIR/pid"
+trap 'rm -rf "$LOCK_DIR"' EXIT
+
 # ── Elixir: Format check ────────────────────────────────────────────────
 
 echo "=== Elixir: mix format ==="
