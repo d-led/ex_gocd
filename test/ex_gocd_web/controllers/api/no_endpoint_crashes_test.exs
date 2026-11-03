@@ -31,7 +31,7 @@ defmodule ExGoCDWeb.API.NoEndpointCrashesTest do
     "/go/api/agent_health",
     "/go/api/agents",
     "/go/api/config/mailserver",
-    "/go/api/plugin_info",
+    "/go/api/admin/plugin_info",
     "/go/api/server_health_messages",
     "/go/api/stats",
     "/go/api/v1/health",

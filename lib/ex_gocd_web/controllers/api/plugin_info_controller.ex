@@ -6,7 +6,7 @@ defmodule ExGoCDWeb.API.PluginInfoController do
   """
   use ExGoCDWeb, :controller
 
-  @doc "GET /api/plugin_info"
+  @doc "GET /api/admin/plugin_info"
   def index(conn, _params) do
     plugins = builtin_plugins()
 
@@ -14,14 +14,14 @@ defmodule ExGoCDWeb.API.PluginInfoController do
     |> put_status(:ok)
     |> json(%{
       _links: %{
-        self: %{href: "/api/plugin_info"},
+        self: %{href: "/api/admin/plugin_info"},
         doc: %{href: "https://github.com/d-led/ex_gocd"}
       },
       plugins: plugins
     })
   end
 
-  @doc "GET /api/plugin_info/:plugin_id"
+  @doc "GET /api/admin/plugin_info/:plugin_id"
   def show(conn, %{"plugin_id" => plugin_id}) do
     case Enum.find(builtin_plugins(), &(&1.id == plugin_id)) do
       nil ->
@@ -42,9 +42,9 @@ defmodule ExGoCDWeb.API.PluginInfoController do
   defp present(plugin) do
     %{
       _links: %{
-        self: %{href: "/api/plugin_info/#{plugin.id}"},
+        self: %{href: "/api/admin/plugin_info/#{plugin.id}"},
         doc: %{href: "https://github.com/d-led/ex_gocd"},
-        find: %{href: "/api/plugin_info/:plugin_id"}
+        find: %{href: "/api/admin/plugin_info/:plugin_id"}
       },
       id: plugin.id,
       status: plugin.status,
