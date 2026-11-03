@@ -17,6 +17,7 @@ defmodule ExGoCDWeb.AgentRemotingController do
 
   alias ExGoCD.AgentJobRuns
   alias ExGoCD.Agents
+  alias ExGoCD.Agents.Token
   alias ExGoCD.Remoting.BuildWork
   alias ExGoCD.Scheduler
 
@@ -181,11 +182,15 @@ defmodule ExGoCDWeb.AgentRemotingController do
   defp authorize(conn, body) do
     uuid = extract_uuid(body)
     header_uuid = get_req_header(conn, "x-agent-guid") |> List.first()
+    token = get_req_header(conn, "authorization") |> List.first()
 
     cond do
       not is_nil(header_uuid) and header_uuid != uuid ->
         {:error,
          forbidden(conn, "Agent UUID mismatch: header '#{header_uuid}' vs body '#{uuid}'")}
+
+      not Token.valid?(uuid, token) ->
+        {:error, unauthorized(conn, "Agent token missing or not valid for #{uuid}")}
 
       disabled_agent?(uuid) ->
         {:error, forbidden(conn, "Agent is disabled")}
@@ -193,6 +198,13 @@ defmodule ExGoCDWeb.AgentRemotingController do
       true ->
         {:ok, uuid}
     end
+  end
+
+  defp unauthorized(conn, message) do
+    conn
+    |> put_status(:unauthorized)
+    |> json(%{error: message})
+    |> halt()
   end
 
   defp forbidden(conn, message) do

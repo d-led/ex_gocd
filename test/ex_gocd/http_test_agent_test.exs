@@ -78,11 +78,20 @@ defmodule ExGoCD.HTTPTestAgentTest do
   end
 
   describe "GET /admin/agent/token" do
-    test "returns a token for a given uuid", %{conn: conn} do
-      conn = get(conn, "/admin/agent/token?uuid=#{@agent_uuid}")
+    test "answers the same token every time, so an agent that lost its copy can ask again", %{
+      conn: conn
+    } do
+      first = conn |> get("/admin/agent/token?uuid=#{@agent_uuid}") |> response(200)
+      second = conn |> get("/admin/agent/token?uuid=#{@agent_uuid}") |> response(200)
 
-      assert response(conn, 200)
-      assert String.length(response(conn, 200)) > 0
+      assert first == second
+      assert first == ExGoCD.Agents.Token.for_agent(@agent_uuid)
+    end
+
+    test "answers a different token for a different agent", %{conn: conn} do
+      other = conn |> get("/admin/agent/token?uuid=another-agent") |> response(200)
+
+      assert other != ExGoCD.Agents.Token.for_agent(@agent_uuid)
     end
   end
 end

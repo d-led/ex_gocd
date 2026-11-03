@@ -4,6 +4,7 @@ defmodule ExGoCDWeb.AgentRemotingControllerTest do
   alias ExGoCD.AgentJobRuns
   alias ExGoCD.Agents
   alias ExGoCD.Agents.Agent
+  alias ExGoCD.Agents.Token
   alias ExGoCD.RemotingFixture
   alias ExGoCD.Repo
 
@@ -55,9 +56,22 @@ defmodule ExGoCDWeb.AgentRemotingControllerTest do
   defp post_remoting(conn, action, body) do
     conn
     |> put_req_header("x-agent-guid", @agent_uuid)
+    |> put_req_header("authorization", Token.for_agent(@agent_uuid))
     |> put_req_header("accept", "application/vnd.go.cd+json")
     |> put_req_header("content-type", "application/json; charset=UTF-8")
     |> post("/remoting/api/agent/#{action}", body)
+  end
+
+  # The shared credential the docker demo hands every agent.
+  defp put_demo_cookie(value) do
+    previous = System.get_env("EX_GOCD_DEMO_COOKIE")
+    System.put_env("EX_GOCD_DEMO_COOKIE", value)
+
+    on_exit(fn ->
+      if previous,
+        do: System.put_env("EX_GOCD_DEMO_COOKIE", previous),
+        else: System.delete_env("EX_GOCD_DEMO_COOKIE")
+    end)
   end
 
   describe "POST /remoting/api/agent/ping" do
@@ -80,8 +94,43 @@ defmodule ExGoCDWeb.AgentRemotingControllerTest do
       conn =
         conn
         |> put_req_header("x-agent-guid", @agent_uuid)
+        |> put_req_header("authorization", Token.for_agent(@agent_uuid))
         |> put_req_header("content-type", "application/json")
         |> post("/go/remoting/api/agent/ping", captured("ping_request.json", agent))
+
+      assert response(conn, 200) == RemotingFixture.raw("ping_response.json")
+    end
+
+    test "refuses a call that carries no agent token", %{conn: conn, agent: agent} do
+      conn =
+        conn
+        |> put_req_header("x-agent-guid", @agent_uuid)
+        |> put_req_header("content-type", "application/json")
+        |> post("/remoting/api/agent/ping", captured("ping_request.json", agent))
+
+      assert json_response(conn, 401)["error"] =~ "token"
+    end
+
+    test "refuses a call that carries another agent's token", %{conn: conn, agent: agent} do
+      conn =
+        conn
+        |> put_req_header("x-agent-guid", @agent_uuid)
+        |> put_req_header("authorization", Token.for_agent("some-other-agent"))
+        |> put_req_header("content-type", "application/json")
+        |> post("/remoting/api/agent/ping", captured("ping_request.json", agent))
+
+      assert json_response(conn, 401)["error"] =~ "token"
+    end
+
+    test "accepts the shared demo cookie in place of the token", %{conn: conn, agent: agent} do
+      put_demo_cookie("shared-demo-cookie")
+
+      conn =
+        conn
+        |> put_req_header("x-agent-guid", @agent_uuid)
+        |> put_req_header("authorization", "shared-demo-cookie")
+        |> put_req_header("content-type", "application/json")
+        |> post("/remoting/api/agent/ping", captured("ping_request.json", agent))
 
       assert response(conn, 200) == RemotingFixture.raw("ping_response.json")
     end

@@ -93,27 +93,23 @@ defmodule ExGoCDWeb.AdminAgentController do
   @doc """
   GET /admin/agent/token?uuid=<uuid>
 
-  Returns a registration token for the agent.
-  In the simplified implementation, we generate a simple token.
+  The credential the agent presents as `Authorization` on every remoting call
+  (`ExGoCD.Agents.Token`). The same agent always gets the same token back, so
+  an agent that lost its copy can simply ask again.
+
+  This path is deliberately open: an agent that has never registered holds no
+  credential to present. Authentication of *who* is asking is not possible on
+  this server — TLS ends at the proxy in front and agents have no key pair — so
+  the token says "this uuid was issued a token", which is what GoCD's remoting
+  API asks for. A deployment that needs more sets `EX_GOCD_DEMO_COOKIE` to a
+  shared secret, or closes this path at the proxy.
   """
   def token(conn, %{"uuid" => uuid}) do
-    Logger.info("Token request for agent: #{uuid}")
-
-    # Demo/dev: shared cookie so phx.server + start-agent and docker-compose always match
-    token =
-      case System.get_env("EX_GOCD_DEMO_COOKIE") do
-        nil ->
-          if dev_env?(),
-            do: "ex-gocd-demo-cookie",
-            else: "agent-token-#{uuid}-#{:os.system_time(:millisecond)}"
-
-        demo ->
-          String.trim(demo)
-      end
+    Logger.info("Agent token issued for #{uuid}, requested by #{peer(conn)}")
 
     conn
     |> put_resp_content_type("text/plain")
-    |> text(token)
+    |> text(Agents.Token.for_agent(uuid))
   end
 
   def token(conn, _params) do
@@ -121,6 +117,8 @@ defmodule ExGoCDWeb.AdminAgentController do
     |> put_status(:bad_request)
     |> json(%{error: "Missing uuid parameter"})
   end
+
+  defp peer(conn), do: conn.remote_ip |> :inet.ntoa() |> to_string()
 
   defp dev_env? do
     Application.get_env(:ex_gocd, :env) == :dev
