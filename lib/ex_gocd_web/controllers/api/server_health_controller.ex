@@ -9,7 +9,7 @@ defmodule ExGoCDWeb.API.ServerHealthController do
 
   @doc "GET /api/server_health_messages"
   def show(conn, _params) do
-    disk_status = disk_health()
+    disk_status = ExGoCD.Monitors.DiskSpace.status()
     maintenance = MaintenanceMode.enabled?()
 
     messages =
@@ -30,6 +30,17 @@ defmodule ExGoCDWeb.API.ServerHealthController do
             }
           ]
 
+        # The guard is blind: say so rather than report a healthy disk. Nothing
+        # blocks on this — see `ExGoCD.SchedulingChecker.DiskSpace`.
+        disk_status == :unknown ->
+          [
+            %{
+              level: "WARNING",
+              message:
+                "Disk space could not be determined: the artifact directory could not be read."
+            }
+          ]
+
         disk_status == :warning ->
           [%{level: "WARNING", message: "Disk space is low."}]
 
@@ -46,15 +57,5 @@ defmodule ExGoCDWeb.API.ServerHealthController do
 
   defp health_status(messages) do
     if Enum.any?(messages, &(&1.level == "ERROR")), do: "ERROR", else: "WARNING"
-  end
-
-  defp disk_health do
-    try do
-      ExGoCD.Monitors.DiskSpace.status()
-    rescue
-      _ -> :ok
-    catch
-      :exit, _ -> :ok
-    end
   end
 end

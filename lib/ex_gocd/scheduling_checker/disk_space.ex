@@ -3,25 +3,20 @@ defmodule ExGoCD.SchedulingChecker.DiskSpace do
   Blocks pipeline scheduling when disk space on the artifact directory
   falls below the critical threshold.
 
-  Mirrors GoCD's `OutOfDiskSpaceChecker`. Delegates to the running
-  `ExGoCD.Monitors.DiskSpace` GenServer for current status.
+  Mirrors GoCD's `OutOfDiskSpaceChecker`. It asks the running
+  `ExGoCD.Monitors.DiskSpace` for the last measurement.
 
-  If the DiskSpace monitor is not running (e.g., in tests), it defaults
-  to `:ok` — disk is assumed to have sufficient space.
+  A disk the monitor could not measure (`:unknown`) does not block scheduling:
+  a guard that cannot see is not evidence that the disk is full, and the server
+  health API reports the blind spot instead.
   """
   use ExGoCD.SchedulingChecker
 
   @impl true
   def check(_pipeline_name) do
-    try do
-      case ExGoCD.Monitors.DiskSpace.status() do
-        :critical -> {:error, :disk_space_critical}
-        _ -> :ok
-      end
-    rescue
-      _ -> :ok
-    catch
-      :exit, _ -> :ok
+    case ExGoCD.Monitors.DiskSpace.status() do
+      :critical -> {:error, :disk_space_critical}
+      _other -> :ok
     end
   end
 end

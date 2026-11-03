@@ -5,6 +5,7 @@ config :ex_gocd,
   poller_interval: :none,
   enable_timer_scheduler: false,
   console_monitor_interval_ms: :none,
+  disk_monitor_interval: :none,
   # Background workers that would query the database on their own timer are
   # inert in tests: their work happens outside any test's sandbox transaction.
   # Tests that need them call the functions directly.

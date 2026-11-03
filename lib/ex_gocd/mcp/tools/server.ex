@@ -138,7 +138,11 @@ defmodule ExGoCD.Mcp.Tools.Server do
     by_state = Enum.frequencies_by(agents, &(&1.state || "Unknown"))
     disabled = Enum.count(agents, & &1.disabled)
     maintenance = MaintenanceMode.info()
-    disk = disk_status()
+
+    # The disk monitor is a process of its own. `status/0` answers `:unmeasured`
+    # when it is not running, and `:unknown` when it could not read the
+    # directory — neither claims a healthy disk.
+    disk = ExGoCD.Monitors.DiskSpace.status()
 
     structured = %{
       "version" => version(),
@@ -415,19 +419,6 @@ defmodule ExGoCD.Mcp.Tools.Server do
     case Application.spec(:ex_gocd, :vsn) do
       nil -> "dev"
       vsn -> to_string(vsn)
-    end
-  end
-
-  # The disk monitor is a process of its own. A request that arrives while it is
-  # restarting must still be answered, and "unknown" is the answer that does not
-  # claim a healthy disk.
-  defp disk_status do
-    try do
-      ExGoCD.Monitors.DiskSpace.status()
-    rescue
-      _ -> "unknown"
-    catch
-      :exit, _ -> "unknown"
     end
   end
 end
