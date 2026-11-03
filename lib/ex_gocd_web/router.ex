@@ -492,6 +492,7 @@ defmodule ExGoCDWeb.Router do
   scope "/api/current_user", ExGoCDWeb.API do
     pipe_through :api
 
+    get "/", CurrentUserController, :show
     get "/access_tokens", PersonalAccessTokenController, :index
     get "/access_tokens/:id", PersonalAccessTokenController, :show
     post "/access_tokens", PersonalAccessTokenController, :create
@@ -526,6 +527,7 @@ defmodule ExGoCDWeb.Router do
   scope "/go/api/current_user", ExGoCDWeb.API do
     pipe_through :api
 
+    get "/", CurrentUserController, :show
     get "/access_tokens", PersonalAccessTokenController, :index
     get "/access_tokens/:id", PersonalAccessTokenController, :show
     post "/access_tokens", PersonalAccessTokenController, :create

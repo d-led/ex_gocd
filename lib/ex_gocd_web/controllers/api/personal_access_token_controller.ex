@@ -5,7 +5,7 @@ defmodule ExGoCDWeb.API.PersonalAccessTokenController do
 
   action_fallback ExGoCDWeb.FallbackController
 
-  plug :require_authenticated_user
+  plug ExGoCDWeb.Plugs.RequireAuthenticatedUser
 
   def index(conn, _params) do
     user = conn.assigns.current_user
@@ -83,22 +83,6 @@ defmodule ExGoCDWeb.API.PersonalAccessTokenController do
             |> put_status(:unprocessable_entity)
             |> json(%{error: "Failed to revoke token"})
         end
-    end
-  end
-
-  # Controller Plugs
-
-  defp require_authenticated_user(conn, _opts) do
-    session = get_session(conn)
-    user = Accounts.get_current_user(session)
-
-    if is_nil(user.id) do
-      conn
-      |> put_status(:unauthorized)
-      |> json(%{error: "Unauthorized"})
-      |> halt()
-    else
-      assign(conn, :current_user, user)
     end
   end
 end
