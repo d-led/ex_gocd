@@ -56,7 +56,11 @@ defmodule ExGoCDWeb.Plugs.GoCDConfirm do
     end
   end
 
-  defp parsed_params(%{body_params: params}) when is_map(params), do: params
+  # A struct is what an unread body looks like (`Plug.Conn.Unfetched`), so only a
+  # plain map counts as parameters that were actually parsed.
+  defp parsed_params(%{body_params: params}) when is_map(params) and not is_struct(params),
+    do: params
+
   defp parsed_params(_conn), do: %{}
 
   defp confirmed?(conn), do: get_req_header(conn, "x-gocd-confirm") != []
