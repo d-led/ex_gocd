@@ -19,7 +19,15 @@ defmodule ExGoCD.ConfigRepos.Translator do
     - `:selected_triggers` — %{"included" => ["push", ...]} (nil = all)
     - `:pipeline_name_prefix` — prefix for generated pipeline name
     - `:overrides` — map of manual overrides (env vars, resource tags, etc.)
+
+  `repository` names the config repository the workflow was read from, as
+  `%{url: ..., branch: ...}` — the pipeline's material points at it, and a
+  material without a URL is no material at all.
   """
-  @callback translate(ir :: ExternalPipelineIR.t(), selections :: map()) ::
+  @callback translate(
+              ir :: ExternalPipelineIR.t(),
+              selections :: map(),
+              repository :: %{optional(atom()) => String.t() | nil}
+            ) ::
               {:ok, map()} | {:error, String.t()}
 end

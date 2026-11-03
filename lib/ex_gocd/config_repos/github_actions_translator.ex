@@ -24,13 +24,17 @@ defmodule ExGoCD.ConfigRepos.GitHubActionsTranslator do
   alias ExGoCD.ConfigRepos.TranslatorHelpers
 
   @impl true
-  def translate(%ExternalPipelineIR{source_type: "github_actions"} = ir, selections) do
+  def translate(
+        %ExternalPipelineIR{source_type: "github_actions"} = ir,
+        selections,
+        repository \\ %{}
+      ) do
     mode = Map.get(selections, :mode, "translate")
 
     case mode do
       "skip" -> {:ok, skip_attrs(ir, selections)}
-      "execute_act" -> {:ok, execute_act_attrs(ir, selections)}
-      _ -> {:ok, translate_attrs(ir, selections)}
+      "execute_act" -> {:ok, execute_act_attrs(ir, selections, repository)}
+      _ -> {:ok, translate_attrs(ir, selections, repository)}
     end
   end
 
@@ -40,13 +44,13 @@ defmodule ExGoCD.ConfigRepos.GitHubActionsTranslator do
 
   # --- Translate mode ---
 
-  defp translate_attrs(ir, selections) do
+  defp translate_attrs(ir, selections, repository) do
     prefix = Map.get(selections, :pipeline_name_prefix, "")
     selected_jobs = TranslatorHelpers.chosen(selections, :selected_jobs)
     selected_triggers = TranslatorHelpers.chosen(selections, :selected_triggers)
 
     stages = build_translate_stages(ir, selected_jobs)
-    materials = build_materials(ir, selected_triggers)
+    materials = build_materials(ir, selected_triggers, repository)
     timer = build_timer(ir)
 
     attrs = %{
@@ -94,33 +98,26 @@ defmodule ExGoCD.ConfigRepos.GitHubActionsTranslator do
     end)
   end
 
-  defp build_materials(ir, selected_triggers) do
-    # Check if push trigger should be included
-    triggers = ir.triggers
-
+  defp build_materials(ir, selected_triggers, repository) do
     triggers =
-      if selected_triggers do
-        Enum.filter(triggers, &(&1.type in selected_triggers))
-      else
-        triggers
-      end
+      if selected_triggers,
+        do: Enum.filter(ir.triggers, &(&1.type in selected_triggers)),
+        else: ir.triggers
 
-    push_triggers = Enum.filter(triggers, &(&1.type == "push"))
-
-    if push_triggers != [] do
-      branches = push_triggers |> Enum.flat_map(&(Map.get(&1, :branches) || [])) |> Enum.uniq()
-
+    with true <- Enum.any?(triggers, &(&1.type == "push")),
+         url when is_binary(url) and url != "" <- repository[:url] do
       [
         %{
           type: "git",
-          url: "",
-          branch: if(branches == [], do: "main", else: hd(branches)),
+          url: url,
+          branch: repository[:branch] || "main",
           auto_update: true
         }
       ]
     else
-      # workflow_dispatch or schedule: no SCM material
-      []
+      # A workflow with no push trigger, or a caller that did not name the
+      # repository: no material is better than one that cannot poll anything.
+      _ -> []
     end
   end
 
@@ -134,7 +131,7 @@ defmodule ExGoCD.ConfigRepos.GitHubActionsTranslator do
 
   # --- Execute act mode ---
 
-  defp execute_act_attrs(ir, selections) do
+  defp execute_act_attrs(ir, selections, repository) do
     prefix = Map.get(selections, :pipeline_name_prefix, "")
     selected_jobs = TranslatorHelpers.chosen(selections, :selected_jobs)
 
@@ -176,7 +173,7 @@ defmodule ExGoCD.ConfigRepos.GitHubActionsTranslator do
       name: TranslatorHelpers.pipeline_name(ir, prefix),
       group: prefix,
       stages: stages,
-      materials: build_materials(ir, nil)
+      materials: build_materials(ir, nil, repository)
     }
   end
 

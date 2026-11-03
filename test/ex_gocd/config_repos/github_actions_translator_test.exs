@@ -5,6 +5,8 @@ defmodule ExGoCD.ConfigRepos.GitHubActionsTranslatorTest do
 
   @prefix "eci-test-ghat"
 
+  @repository %{url: "https://example.com/ci-config.git", branch: "main"}
+
   @fixture_ci ~s"""
   name: CI
   on:
@@ -44,20 +46,25 @@ defmodule ExGoCD.ConfigRepos.GitHubActionsTranslatorTest do
       name = "#{prefix}-CI"
 
       {:ok, attrs} =
-        GitHubActionsTranslator.translate(ir, %{
-          mode: "translate",
-          pipeline_name_prefix: prefix
-        })
+        GitHubActionsTranslator.translate(
+          ir,
+          %{
+            mode: "translate",
+            pipeline_name_prefix: prefix
+          },
+          @repository
+        )
 
       assert attrs.name == name
       assert attrs.group == prefix
       assert attrs.label_template == "${COUNT}"
 
-      # Materials: git material with branch filter
-      assert length(attrs.materials) == 1
-      mat = hd(attrs.materials)
+      # The material is the repository the workflow was read from: a material
+      # with no URL could never poll anything.
+      assert [mat] = attrs.materials
       assert mat.type == "git"
-      assert mat.branch == "main"
+      assert mat.url == @repository.url
+      assert mat.branch == @repository.branch
       assert mat.auto_update == true
 
       # Stages: one per job
@@ -85,10 +92,14 @@ defmodule ExGoCD.ConfigRepos.GitHubActionsTranslatorTest do
         GitHubActionsParser.parse_workflow(@fixture_dispatch, ".github/workflows/release.yml")
 
       {:ok, attrs} =
-        GitHubActionsTranslator.translate(ir, %{
-          mode: "translate",
-          pipeline_name_prefix: prefix
-        })
+        GitHubActionsTranslator.translate(
+          ir,
+          %{
+            mode: "translate",
+            pipeline_name_prefix: prefix
+          },
+          @repository
+        )
 
       assert attrs.materials == []
     end

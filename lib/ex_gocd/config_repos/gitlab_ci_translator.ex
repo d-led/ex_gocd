@@ -22,13 +22,17 @@ defmodule ExGoCD.ConfigRepos.GitLabCITranslator do
   alias ExGoCD.ConfigRepos.TranslatorHelpers
 
   @impl true
-  def translate(%ExternalPipelineIR{source_type: "gitlab_ci"} = ir, selections) do
+  def translate(
+        %ExternalPipelineIR{source_type: "gitlab_ci"} = ir,
+        selections,
+        repository \\ %{}
+      ) do
     mode = Map.get(selections, :mode, "translate")
 
     case mode do
       "skip" -> {:ok, skip_attrs(ir, selections)}
-      "execute_gitlab" -> {:ok, execute_gitlab_attrs(ir, selections)}
-      _ -> {:ok, translate_attrs(ir, selections)}
+      "execute_gitlab" -> {:ok, execute_gitlab_attrs(ir, selections, repository)}
+      _ -> {:ok, translate_attrs(ir, selections, repository)}
     end
   end
 
@@ -38,7 +42,7 @@ defmodule ExGoCD.ConfigRepos.GitLabCITranslator do
 
   # --- Translate mode ---
 
-  defp translate_attrs(ir, selections) do
+  defp translate_attrs(ir, selections, repository) do
     prefix = Map.get(selections, :pipeline_name_prefix, "")
     selected_jobs = TranslatorHelpers.chosen(selections, :selected_jobs)
 
@@ -50,7 +54,7 @@ defmodule ExGoCD.ConfigRepos.GitLabCITranslator do
       label_template: "${COUNT}",
       environment_variables: ir.env_vars,
       stages: stages,
-      materials: build_materials(ir)
+      materials: build_materials(repository)
     }
 
     attrs
@@ -113,15 +117,22 @@ defmodule ExGoCD.ConfigRepos.GitLabCITranslator do
 
   defp build_tasks(_), do: []
 
-  defp build_materials(_ir) do
-    # GitLab CI triggers via rules, not top-level on: — v1: no SCM material
-    # Later: parse rules:if to extract branch filters
-    []
+  defp build_materials(repository) do
+    # Which pipelines a commit triggers is GitLab's `rules:` — not read here yet —
+    # but the pipeline is still defined in this repository, so the material names
+    # it and the pipeline can be tracked with the repository it belongs to.
+    case repository[:url] do
+      url when is_binary(url) and url != "" ->
+        [%{type: "git", url: url, branch: repository[:branch] || "main", auto_update: true}]
+
+      _ ->
+        []
+    end
   end
 
   # --- Execute gitlab-ci-local mode ---
 
-  defp execute_gitlab_attrs(ir, selections) do
+  defp execute_gitlab_attrs(ir, selections, repository) do
     prefix = Map.get(selections, :pipeline_name_prefix, "")
     selected_jobs = TranslatorHelpers.chosen(selections, :selected_jobs)
 
@@ -160,7 +171,7 @@ defmodule ExGoCD.ConfigRepos.GitLabCITranslator do
       name: TranslatorHelpers.pipeline_name(ir, prefix),
       group: prefix,
       stages: stages,
-      materials: build_materials(ir)
+      materials: build_materials(repository)
     }
   end
 

@@ -5,6 +5,8 @@ defmodule ExGoCD.ConfigRepos.GitLabCITranslatorTest do
 
   @prefix "eci-test-glct"
 
+  @repository %{url: "https://example.com/gitlab-config.git", branch: "main"}
+
   @fixture_simple ~s"""
   stages:
     - build
@@ -29,6 +31,22 @@ defmodule ExGoCD.ConfigRepos.GitLabCITranslatorTest do
   end
 
   describe "translate/2 — translate mode" do
+    test "the pipeline watches the repository it is defined in", %{prefix: prefix} do
+      {:ok, ir} = GitLabCIParser.parse_gitlab_ci(@fixture_simple, ".gitlab-ci.yml")
+
+      {:ok, attrs} =
+        GitLabCITranslator.translate(
+          ir,
+          %{mode: "translate", pipeline_name_prefix: prefix},
+          @repository
+        )
+
+      assert [material] = attrs.materials
+      assert material.type == "git"
+      assert material.url == @repository.url
+      assert material.branch == @repository.branch
+    end
+
     test "translates a simple GitLab CI to pipeline attrs", %{prefix: prefix} do
       {:ok, ir} = GitLabCIParser.parse_gitlab_ci(@fixture_simple, ".gitlab-ci.yml")
 

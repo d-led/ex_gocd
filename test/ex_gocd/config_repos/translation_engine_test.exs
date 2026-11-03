@@ -107,6 +107,35 @@ defmodule ExGoCD.ConfigRepos.TranslationEngineTest do
       assert [%{name: "release", tasks: [%{command: "make release"}]}] = release.jobs
     end
 
+    test "the pipeline watches the config repository it was translated from", %{repo: repo} do
+      file = cached_workflow(repo, mode: "translate")
+
+      assert {:ok, 1} = TranslationEngine.translate_and_persist_all(repo.id)
+
+      assert [material] = Repo.preload(pipeline_from(file), :materials).materials
+      assert material.type == "git"
+      assert material.url == repo.url
+      assert material.branch == repo.branch
+    end
+
+    test "translating the same repository again links one material, not two", %{repo: repo} do
+      file = cached_workflow(repo, mode: "translate")
+
+      assert {:ok, 1} = TranslationEngine.translate_and_persist_all(repo.id)
+      assert {:ok, 1} = TranslationEngine.translate_and_persist_all(repo.id)
+
+      assert [_material] = Repo.all(from m in Pipelines.Material, where: m.url == ^repo.url)
+
+      pipeline = pipeline_from(file)
+
+      assert [_link] =
+               Repo.all(
+                 from pm in "pipelines_materials",
+                   where: pm.pipeline_id == ^pipeline.id,
+                   select: pm.material_id
+               )
+    end
+
     test "a file set to be skipped makes no pipeline", %{repo: repo} do
       cached_workflow(repo, mode: "skip")
 

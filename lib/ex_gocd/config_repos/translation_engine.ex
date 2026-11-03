@@ -9,6 +9,7 @@ defmodule ExGoCD.ConfigRepos.TranslationEngine do
   """
 
   alias ExGoCD.ConfigRepos.{
+    ConfigRepo,
     ConfigRepoFile,
     ConfigRepoFileSelection,
     ExternalPipelineIR,
@@ -26,15 +27,15 @@ defmodule ExGoCD.ConfigRepos.TranslationEngine do
 
   Returns `{:ok, pipeline_count}` or `{:error, reason}`.
   """
-  @spec translate_and_persist(ExternalPipelineIR.t(), map()) ::
+  @spec translate_and_persist(ExternalPipelineIR.t(), map(), map()) ::
           {:ok, integer()} | {:error, String.t()}
-  def translate_and_persist(ir, selections) do
+  def translate_and_persist(ir, selections, repository \\ %{}) do
     mode = Map.get(selections, :mode, "translate")
 
     if mode == "skip" do
       {:ok, 0}
     else
-      with {:ok, attrs} <- translate(ir, selections),
+      with {:ok, attrs} <- translate(ir, selections, repository),
            {:ok, _pipeline} <- persist_pipeline(attrs) do
         {:ok, 1}
       end
@@ -50,12 +51,13 @@ defmodule ExGoCD.ConfigRepos.TranslationEngine do
   @spec translate_and_persist_all(integer()) :: {:ok, integer()} | {:error, String.t()}
   def translate_and_persist_all(config_repo_id) when is_integer(config_repo_id) do
     files = list_files_with_selections(config_repo_id)
+    repository = repository_of(config_repo_id)
 
     results =
       Enum.reduce_while(files, {:ok, 0}, fn {file, selection}, {:ok, acc} ->
         with {:ok, content} <- get_file_content(file),
              {:ok, ir} <- parse_content(content, file),
-             {:ok, count} <- translate_and_persist(ir, selection_to_map(selection)) do
+             {:ok, count} <- translate_and_persist(ir, selection_to_map(selection), repository) do
           {:cont, {:ok, acc + count}}
         else
           {:error, reason} -> {:halt, {:error, reason}}
@@ -65,12 +67,20 @@ defmodule ExGoCD.ConfigRepos.TranslationEngine do
     results
   end
 
+  # The repository the pipelines are defined in: their material points at it.
+  defp repository_of(config_repo_id) do
+    case Repo.get(ConfigRepo, config_repo_id) do
+      nil -> %{}
+      config_repo -> %{url: config_repo.url, branch: config_repo.branch}
+    end
+  end
+
   # --- Private ---
 
-  defp translate(ir, selections) do
+  defp translate(ir, selections, repository) do
     case ir.source_type do
-      "github_actions" -> GitHubActionsTranslator.translate(ir, selections)
-      "gitlab_ci" -> GitLabCITranslator.translate(ir, selections)
+      "github_actions" -> GitHubActionsTranslator.translate(ir, selections, repository)
+      "gitlab_ci" -> GitLabCITranslator.translate(ir, selections, repository)
       _ -> {:error, "unsupported source_type: #{ir.source_type}"}
     end
   end
@@ -141,23 +151,40 @@ defmodule ExGoCD.ConfigRepos.TranslationEngine do
         |> Pipelines.Pipeline.changeset(Map.take(attrs, @pipeline_fields))
         |> Repo.update()
 
+      insert_materials(pipeline, attrs[:materials] || [])
       upsert_stages(pipeline, attrs[:stages] || [])
 
       pipeline
     end)
   end
 
+  # GoCD keeps one material row per repository and links every pipeline that
+  # watches it, so translating the same repository again adds no row.
   defp insert_materials(pipeline, materials) do
     Enum.each(materials, fn material_attrs ->
-      {:ok, material} =
-        %Pipelines.Material{}
-        |> Pipelines.Material.changeset(material_attrs)
-        |> Repo.insert()
+      material = material_for(material_attrs)
 
-      Repo.insert_all("pipelines_materials", [
-        %{pipeline_id: pipeline.id, material_id: material.id}
-      ])
+      unless linked?(pipeline, material) do
+        Repo.insert_all("pipelines_materials", [
+          %{pipeline_id: pipeline.id, material_id: material.id}
+        ])
+      end
     end)
+  end
+
+  defp material_for(%{url: url, type: type} = material_attrs)
+       when is_binary(url) and url != "" do
+    Repo.one(from m in Pipelines.Material, where: m.type == ^type and m.url == ^url, limit: 1) ||
+      insert!(Pipelines.Material, material_attrs)
+  end
+
+  defp material_for(material_attrs), do: insert!(Pipelines.Material, material_attrs)
+
+  defp linked?(pipeline, material) do
+    Repo.exists?(
+      from pm in "pipelines_materials",
+        where: pm.pipeline_id == ^pipeline.id and pm.material_id == ^material.id
+    )
   end
 
   defp upsert_stages(pipeline, stage_attrs_list) do
