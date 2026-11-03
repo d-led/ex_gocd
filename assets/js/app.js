@@ -554,7 +554,9 @@ const csrfToken = document
   .querySelector("meta[name='csrf-token']")
   .getAttribute("content");
 const liveSocket = new LiveSocket("/live", Socket, {
-  longPollFallbackMs: 2500,
+  // WebSocket or nothing: a connection that cannot be made is a connection to
+  // report, not one to keep alive over long polling at a fraction of the speed.
+  longPollFallbackMs: false,
   params: { _csrf_token: csrfToken },
   hooks: {
     AgentsUpdates,
