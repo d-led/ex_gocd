@@ -61,14 +61,8 @@ defmodule ExGoCD.ElasticAgentSchedulerTest do
   end
 
   setup do
-    replace = fn key, value ->
-      previous = Application.get_env(:ex_gocd, key)
-      Application.put_env(:ex_gocd, key, value)
-      on_exit(fn -> Application.put_env(:ex_gocd, key, previous) end)
-    end
-
-    replace.(:k8s_client, FakeK8s)
-    replace.(:elastic_scheduler_queue, FakeQueue)
+    ExGoCD.TestEnv.replace(:k8s_client, FakeK8s)
+    ExGoCD.TestEnv.replace(:elastic_scheduler_queue, FakeQueue)
     Process.put(:k8s_reporter, self())
     :ok
   end

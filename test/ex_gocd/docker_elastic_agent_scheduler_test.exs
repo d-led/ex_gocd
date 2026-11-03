@@ -63,14 +63,8 @@ defmodule ExGoCD.DockerElasticAgentSchedulerTest do
   end
 
   setup do
-    replace = fn key, value ->
-      previous = Application.get_env(:ex_gocd, key)
-      Application.put_env(:ex_gocd, key, value)
-      on_exit(fn -> Application.put_env(:ex_gocd, key, previous) end)
-    end
-
-    replace.(:docker_client, FakeDocker)
-    replace.(:elastic_scheduler_queue, FakeQueue)
+    ExGoCD.TestEnv.replace(:docker_client, FakeDocker)
+    ExGoCD.TestEnv.replace(:elastic_scheduler_queue, FakeQueue)
     Process.put(:docker_reporter, self())
     :ok
   end
