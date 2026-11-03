@@ -55,4 +55,42 @@ defmodule ExGoCDWeb.API.Admin.SiteURLControllerTest do
              } = json_response(conn, 200)
     end
   end
+
+  describe "the documented write" do
+    test "POST stores the URLs links will use", %{conn: conn} do
+      conn =
+        post(conn, "/go/api/admin/config/server/site_urls", %{
+          site_url: "http://ci.example",
+          secure_site_url: "https://ci.example"
+        })
+
+      assert %{
+               "site_url" => "http://ci.example",
+               "secure_site_url" => "https://ci.example"
+             } = json_response(conn, 200)
+
+      assert %{"site_url" => "http://ci.example"} =
+               json_response(
+                 get(build_conn(), "/go/api/admin/config/server/site_urls"),
+                 200
+               )
+    end
+
+    test "PUT means the same as POST", %{conn: conn} do
+      conn =
+        put(conn, "/api/admin/config/server/site_urls", %{
+          site_url: "http://put.example"
+        })
+
+      assert %{"site_url" => "http://put.example"} = json_response(conn, 200)
+    end
+
+    test "refuses a URL that does not start with http or https", %{conn: conn} do
+      conn =
+        post(conn, "/go/api/admin/config/server/site_urls", %{site_url: "ci.example"})
+
+      assert %{"errors" => %{"site_url" => [message]}} = json_response(conn, 422)
+      assert message =~ "must start with http/s"
+    end
+  end
 end

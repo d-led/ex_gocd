@@ -49,6 +49,46 @@ defmodule ExGoCDWeb.ArtifactsControllerTest do
       assert File.read!(expected_path) == "file contents here"
     end
 
+    test "writes into the directory the admin API stored", %{
+      conn: conn,
+      artifacts_dir: artifacts_dir
+    } do
+      stored_dir = Path.join(artifacts_dir, "stored-by-an-admin")
+      File.mkdir_p!(stored_dir)
+
+      store_artifacts_dir(conn, stored_dir)
+
+      temp_file =
+        Path.join(System.tmp_dir!(), "stored_upload_#{System.unique_integer([:positive])}.txt")
+
+      File.write!(temp_file, "published here")
+
+      upload = %Plug.Upload{
+        content_type: "text/plain",
+        filename: "artifact.txt",
+        path: temp_file
+      }
+
+      conn =
+        post(conn, ~p"/files/test_pipeline/1/test_stage/1/test_job/artifact.txt", %{
+          file: upload
+        })
+
+      assert response(conn, 201) =~ "created successfully"
+
+      assert File.read!(
+               Path.join([
+                 stored_dir,
+                 "test_pipeline",
+                 "1",
+                 "test_stage",
+                 "1",
+                 "test_job",
+                 "artifact.txt"
+               ])
+             ) == "published here"
+    end
+
     test "uploads a zipped directory and extracts it securely", %{
       conn: conn,
       artifacts_dir: artifacts_dir
@@ -265,5 +305,20 @@ defmodule ExGoCDWeb.ArtifactsControllerTest do
       assert response(conn, 200) =~ "appended successfully"
       assert File.read!(file_path) == "Line 1\nLine 2\n"
     end
+  end
+
+  # The admin API refuses a write that does not carry the ETag it last emitted.
+  defp store_artifacts_dir(conn, directory) do
+    etag =
+      conn
+      |> get("/api/admin/config/server/artifact_config")
+      |> get_resp_header("etag")
+      |> List.first()
+
+    conn
+    |> put_req_header("content-type", "application/json")
+    |> put_req_header("if-match", etag)
+    |> put("/api/admin/config/server/artifact_config", Jason.encode!(%{artifacts_dir: directory}))
+    |> json_response(200)
   end
 end

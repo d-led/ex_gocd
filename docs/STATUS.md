@@ -176,6 +176,34 @@ contract and lose the object on the way back, and a client reading either gets a
 value it can see for what it is. `min_agents/1` already accepts a number or a
 string, so a profile created through the API with `"MinAgents": "1"` works.
 
+### The server's own settings are stored; the environment seeds them
+
+`/go/api/admin/config/server/site_urls`, `.../default_job_timeout` and
+`.../artifact_config` read and write one row of `server_configs`
+(`ExGoCD.ServerConfig`), admin only, at api.go.cd's paths and at this server's
+shorter spellings. A column the row leaves null falls back to the environment —
+`PHX_URL`/`SITE_URL`, `PHX_SECURE_URL`/`SECURE_SITE_URL`, `DEFAULT_JOB_TIMEOUT`,
+`ARTIFACTS_DIR`, `EX_GOCD_PURGE_START_GB`/`EX_GOCD_PURGE_UPTO_GB` — so a
+container that sets only variables behaves as it did, and a stored value wins. A
+blank site URL stores null again, which hands that setting back.
+
+The artifact config answers with the `ETag` its `If-Match` has to carry, and
+refuses a `PUT` that carries none, the way GoCD's `CrudController.isPutRequestStale`
+does. What may be stored is GoCD's rules as well: a site URL starts with
+`http`/`https`, a secure one with `https`, the job timeout is a non-negative
+number of minutes, the artifacts directory is neither empty nor the server's own
+directory, and a purge goal needs a trigger below it.
+
+Two things are stored and reported but not acted on yet: the **purge settings**
+(this build's cleanup is the size- and age-based one in
+`ExGoCD.ArtifactCleanup`), and the settings are **not part of the config XML** —
+`ConfigXml.generate/0` renders no `<server>` section, so an XML reader does not
+see them, where GoCD keeps them in `cruise-config.xml`.
+
+`test/ex_gocd/server_config_test.exs` pins the rules and the fall-backs;
+`test/ex_gocd_web/controllers/api/admin/` pins the documented shapes and the
+`ETag`/`If-Match` round trip.
+
 ### Notification filters are a different object, not a missing path
 
 GoCD's `api-notification-filter-v2` keeps notification filters **per user**, at
@@ -1100,3 +1128,12 @@ Reconstructed from the two indexed sessions for this workspace
     only the header's presence and answers
     `{"message": "Missing required header 'X-GoCD-Confirm' with value 'true'"}`,
     which is now what the plug says for every resource.
+11. ~~**Give the server-config API something to write to.**~~ Done: the three
+    documented endpoints now read and write one row of `server_configs`, the
+    environment seeding whatever the row leaves null, and the places that read
+    `ARTIFACTS_DIR` ask `ExGoCD.ServerConfig` instead of the environment
+    directly. `mix run --no-start scripts/api_gap.exs` is five paths shorter.
+    Still open in the same shape: the **feed paths** (the docs' singular
+    `/go/api/feed/...` with `.xml` suffixes and `/pipelines/` prefixes against
+    our `/api/feeds/` shapes), and **notification filters**, which need the
+    per-user model before they can be answered honestly.

@@ -12,6 +12,7 @@ defmodule ExGoCDWeb.JobDetailsLive do
   alias ExGoCD.Pipelines.PipelineMaterialRevision
   alias ExGoCD.Repo
   alias ExGoCD.Scheduler
+  alias ExGoCD.ServerConfig
   alias ExGoCD.TestReport
 
   # How many console lines the page keeps in the DOM; a long job would otherwise
@@ -537,14 +538,10 @@ defmodule ExGoCDWeb.JobDetailsLive do
     )
   end
 
-  defp artifacts_dir do
-    System.get_env("ARTIFACTS_DIR") || "artifacts"
-  end
-
   defp list_artifacts(pipeline_name, pipeline_counter, stage_name, stage_counter, job_name) do
     job_dir =
       Path.join([
-        artifacts_dir(),
+        ServerConfig.artifacts_dir(),
         pipeline_name,
         to_string(pipeline_counter),
         stage_name,

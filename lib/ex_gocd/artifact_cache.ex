@@ -28,12 +28,12 @@ defmodule ExGoCD.ArtifactCache do
 
   @doc "Get cached zip path for a directory, or nil if not cached."
   def get(dir_path) do
-    GenServer.call(__MODULE__, {:get, dir_path})
+    GenServer.call(__MODULE__, {:get, cache_key(dir_path)})
   end
 
   @doc "Store a zip for a directory in the cache."
   def put(dir_path, zip_path) do
-    GenServer.cast(__MODULE__, {:put, dir_path, zip_path})
+    GenServer.cast(__MODULE__, {:put, cache_key(dir_path), zip_path})
   end
 
   @doc "Invalidate all cached entries for a stage."
@@ -61,8 +61,7 @@ defmodule ExGoCD.ArtifactCache do
   end
 
   @impl true
-  def handle_call({:get, dir_path}, _from, state) do
-    key = cache_key(dir_path)
+  def handle_call({:get, key}, _from, state) do
     entry = Map.get(state.entries, key)
     {:reply, entry && File.exists?(entry.zip_path) && entry.zip_path, state}
   end
@@ -83,9 +82,7 @@ defmodule ExGoCD.ArtifactCache do
   end
 
   @impl true
-  def handle_cast({:put, dir_path, zip_path}, state) do
-    key = cache_key(dir_path)
-
+  def handle_cast({:put, key, zip_path}, state) do
     size =
       case File.stat(zip_path) do
         {:ok, stat} -> stat.size
@@ -127,14 +124,12 @@ defmodule ExGoCD.ArtifactCache do
 
   # ── Internal ─────────────────────────────────────────────────────────────
 
+  # Resolved by the caller: it reads the server's stored setting, which is a
+  # query this GenServer has no business running for its callers.
   defp cache_key(dir_path) do
     dir_path
-    |> String.replace(~r/^#{Regex.escape(artifacts_dir())}\//, "")
+    |> String.replace(~r/^#{Regex.escape(ExGoCD.ServerConfig.artifacts_dir())}\//, "")
     |> String.trim_trailing("/")
-  end
-
-  defp artifacts_dir do
-    System.get_env("ARTIFACTS_DIR") || "artifacts"
   end
 
   defp schedule_cleanup do

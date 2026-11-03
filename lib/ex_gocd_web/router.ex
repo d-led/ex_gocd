@@ -473,12 +473,17 @@ defmodule ExGoCDWeb.Router do
 
     resources "/artifact_stores", ArtifactStoreController, except: [:new, :edit]
     get "/site_url", SiteURLController, :show
-    get "/config/server/site_urls", SiteURLController, :show
     get "/permissions", PermissionsController, :index
 
-    # Server configuration (GoCD parity)
+    # The server's own settings, read and written at api.go.cd's paths
+    get "/config/server/site_urls", SiteURLController, :show
+    post "/config/server/site_urls", SiteURLController, :upsert
+    put "/config/server/site_urls", SiteURLController, :upsert
     get "/config/server/default_job_timeout", DefaultJobTimeoutController, :show
+    post "/config/server/default_job_timeout", DefaultJobTimeoutController, :upsert
+    put "/config/server/default_job_timeout", DefaultJobTimeoutController, :upsert
     get "/config/server/artifact_config", ArtifactConfigController, :show
+    put "/config/server/artifact_config", ArtifactConfigController, :update
     get "/config.xml", ConfigXmlController, :show
 
     # System admins + plugin settings (GoCD parity)
@@ -730,12 +735,17 @@ defmodule ExGoCDWeb.Router do
 
     resources "/artifact_stores", ArtifactStoreController, except: [:new, :edit]
     get "/site_url", SiteURLController, :show
-    get "/config/server/site_urls", SiteURLController, :show
     get "/permissions", PermissionsController, :index
 
-    # Server configuration (GoCD parity)
+    # The server's own settings, read and written at api.go.cd's paths
+    get "/config/server/site_urls", SiteURLController, :show
+    post "/config/server/site_urls", SiteURLController, :upsert
+    put "/config/server/site_urls", SiteURLController, :upsert
     get "/config/server/default_job_timeout", DefaultJobTimeoutController, :show
+    post "/config/server/default_job_timeout", DefaultJobTimeoutController, :upsert
+    put "/config/server/default_job_timeout", DefaultJobTimeoutController, :upsert
     get "/config/server/artifact_config", ArtifactConfigController, :show
+    put "/config/server/artifact_config", ArtifactConfigController, :update
     get "/config.xml", ConfigXmlController, :show
 
     # System admins + plugin settings (GoCD parity)

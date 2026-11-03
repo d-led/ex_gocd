@@ -1,5 +1,8 @@
 defmodule ExGoCD.ArtifactCacheTest do
-  use ExUnit.Case, async: true
+  # The cache key is the directory with the server's artifacts directory cut
+  # off its front, and that directory is a stored setting — so this needs a
+  # database even though the cache itself keeps nothing in one.
+  use ExGoCD.DataCase, async: true
 
   alias ExGoCD.ArtifactCache
 

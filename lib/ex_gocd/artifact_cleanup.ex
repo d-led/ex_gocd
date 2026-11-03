@@ -23,6 +23,7 @@ defmodule ExGoCD.ArtifactCleanup do
   import Ecto.Query
   alias ExGoCD.Pipelines.{Pipeline, PipelineInstance, StageInstance}
   alias ExGoCD.Repo
+  alias ExGoCD.ServerConfig
 
   require Logger
 
@@ -49,7 +50,7 @@ defmodule ExGoCD.ArtifactCleanup do
       Logger.debug("Artifact cleanup disabled via EX_GOCD_ARTIFACT_CLEANUP_ENABLED")
       :ok
     else
-      artifacts_path = artifacts_dir()
+      artifacts_path = ServerConfig.artifacts_dir()
 
       if File.exists?(artifacts_path) do
         run_cleanup(artifacts_path)
@@ -264,7 +265,7 @@ defmodule ExGoCD.ArtifactCleanup do
   defp stage_artifact_dir(pipeline, pipeline_instance, si) do
     Path.expand(
       Path.join([
-        artifacts_dir(),
+        ServerConfig.artifacts_dir(),
         pipeline.name,
         to_string(pipeline_instance.counter),
         si.name,
@@ -331,10 +332,6 @@ defmodule ExGoCD.ArtifactCleanup do
     rescue
       ArgumentError -> :error
     end
-  end
-
-  defp artifacts_dir do
-    System.get_env("ARTIFACTS_DIR") || "artifacts"
   end
 
   # ── File system ─────────────────────────────────────────────────────

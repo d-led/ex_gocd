@@ -10,11 +10,7 @@ defmodule ExGoCDWeb.ArtifactsController do
   import Ecto.Query
   alias ExGoCD.Pipelines.{Pipeline, PipelineInstance, StageInstance}
   alias ExGoCD.Repo
-
-  # Helper to determine where artifacts are stored
-  defp artifacts_dir do
-    System.get_env("ARTIFACTS_DIR") || "artifacts"
-  end
+  alias ExGoCD.ServerConfig
 
   # Constructs job_dir and target_path from URL path params
   defp build_job_paths(
@@ -31,7 +27,7 @@ defmodule ExGoCDWeb.ArtifactsController do
     job_dir =
       Path.expand(
         Path.join([
-          artifacts_dir(),
+          ServerConfig.artifacts_dir(),
           pipeline_name,
           to_string(pipeline_counter),
           stage_name,
