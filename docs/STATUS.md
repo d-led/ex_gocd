@@ -805,9 +805,10 @@ holds them to each other, and a new test names the resources we implement with t
 path api.go.cd gives them — `GET` each and require an answer — so the list is
 checked rather than remembered.
 
-A comparison of all 181 endpoints api.go.cd documents against the router finds 90
-with no route. Most are features this rewrite does not have; the ones above were
-features it had under other names.
+Comparing every endpoint api.go.cd documents against the router is a script, not a
+recollection: `mix run --no-start scripts/api_gap.exs` prints how many of them have
+no route and names each one. Most of what is left are features this rewrite does
+not have; the ones above were features it had under other names.
 
 ### A quickstart compose, and the three faults running it found
 
@@ -852,8 +853,9 @@ protocol compatibility", a WebSocket agent protocol that this agent does not use
 and that "the original Java agent works with the Phoenix server" — none of it
 checkable here, all of it gone. What replaced it: the quickstart first, then what
 works with the evidence for it, and the compatibility limits stated as limits — the
-Go agent interoperates over GoCD's remoting API, the HTTP API is a subset (157 of
-181 documented endpoints), and the UI is a rewrite.
+Go agent interoperates over GoCD's remoting API, the HTTP API is a subset of
+what api.go.cd documents (`scripts/api_gap.exs` measures it), and the UI is a
+rewrite.
 
 The two modules the parity table named whose behaviour no test reached have tests
 now. `AgentRegistry` decides whether a test job can be sent — it asks Presence

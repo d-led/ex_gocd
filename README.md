@@ -102,8 +102,9 @@ corresponds to, is in [docs/PARITY.md](docs/PARITY.md).
 
 - **The Go agent works against this server**, and this agent works against a real GoCD
   server: both speak GoCD's remoting API (`/remoting/api/agent/*`).
-- **The HTTP API is a subset**, not all of api.go.cd: 157 of the 181 documented
-  endpoints have a route, and the rest are features this rewrite does not have. The
+- **The HTTP API is a subset**, not all of api.go.cd: some documented endpoints are
+  features this rewrite does not have. Which ones is a measurement, not a claim —
+  `mix run --no-start scripts/api_gap.exs` lists them against the router. The
   documented paths are served under both `/api/...` and the `/go/api/...` spelling
   GoCD uses.
 - **The UI is a rewrite**, not a copy: same pages and flows, different HTML.

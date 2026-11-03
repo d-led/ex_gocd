@@ -23,6 +23,8 @@ defmodule ExGoCD.AgentJobRuns.AgentJobRun do
 
     belongs_to :job_instance, ExGoCD.Pipelines.JobInstance
 
+    has_many :transitions, ExGoCD.AgentJobRuns.Transition
+
     timestamps(type: :utc_datetime)
   end
 

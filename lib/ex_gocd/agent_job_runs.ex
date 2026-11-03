@@ -9,6 +9,7 @@ defmodule ExGoCD.AgentJobRuns do
   """
   import Ecto.Query
   alias ExGoCD.AgentJobRuns.AgentJobRun
+  alias ExGoCD.AgentJobRuns.Transition
   alias ExGoCD.Agents
   alias ExGoCD.PubSub
   alias ExGoCD.Repo
@@ -78,14 +79,36 @@ defmodule ExGoCD.AgentJobRuns do
         attrs =
           if job_instance_id, do: Map.put(attrs, :job_instance_id, job_instance_id), else: attrs
 
-        result =
-          %AgentJobRun{}
-          |> AgentJobRun.changeset(attrs)
-          |> Repo.insert()
+        result = insert_run_with_transition(attrs)
 
         if match?({:ok, _}, result), do: broadcast_job_runs(agent_uuid, :run_created)
         result
     end
+  end
+
+  # A run and the state it started in are one fact: a history missing its first
+  # entry cannot be repaired afterwards, so they are written together.
+  defp insert_run_with_transition(attrs) do
+    Repo.transaction(fn ->
+      case %AgentJobRun{} |> AgentJobRun.changeset(attrs) |> Repo.insert() do
+        {:ok, run} ->
+          {:ok, _transition} = record_transition(run.id, run.state)
+          run
+
+        {:error, reason} ->
+          Repo.rollback(reason)
+      end
+    end)
+  end
+
+  defp record_transition(agent_job_run_id, state) do
+    %Transition{}
+    |> Transition.changeset(%{
+      agent_job_run_id: agent_job_run_id,
+      state: state,
+      changed_at: DateTime.utc_now() |> DateTime.truncate(:second)
+    })
+    |> Repo.insert()
   end
 
   @doc """
@@ -138,16 +161,30 @@ defmodule ExGoCD.AgentJobRuns do
     attrs = %{state: job_state}
     attrs = if result, do: Map.put(attrs, :result, result), else: attrs
 
-    case run |> AgentJobRun.changeset(attrs) |> Repo.update() do
-      {:ok, updated} ->
-        broadcast_job_runs(agent_uuid, :run_updated)
-        broadcast_run_updated_for_console(build_id, updated)
-        sync_job_instance_state(updated, job_state, result)
-        {:ok, updated}
-
-      error ->
-        error
+    with {:ok, updated} <- update_run_with_transition(run, attrs) do
+      broadcast_job_runs(agent_uuid, :run_updated)
+      broadcast_run_updated_for_console(build_id, updated)
+      sync_job_instance_state(updated, job_state, result)
+      {:ok, updated}
     end
+  end
+
+  # A state the run is already in is not a transition: an agent that reports
+  # "Building" twice made one move, and the history says so.
+  defp update_run_with_transition(run, attrs) do
+    Repo.transaction(fn ->
+      case run |> AgentJobRun.changeset(attrs) |> Repo.update() do
+        {:ok, updated} ->
+          if updated.state != run.state do
+            {:ok, _transition} = record_transition(updated.id, updated.state)
+          end
+
+          updated
+
+        {:error, reason} ->
+          Repo.rollback(reason)
+      end
+    end)
   end
 
   defp sync_job_instance_state(updated, job_state, result) do
@@ -189,6 +226,67 @@ defmodule ExGoCD.AgentJobRuns do
       result
     else
       {:error, :run_not_found}
+    end
+  end
+
+  @doc """
+  The completed jobs of one agent, newest first by default, with the states each
+  went through.
+
+  `page` is `%{offset, page_size, sort_column, sort_order}` already validated:
+  the controller rejects anything else with a 400, so a bad column cannot reach
+  the query. `completed` and `duration` sort on the recorded transitions rather
+  than on `updated_at`, which console output also moves.
+  """
+  def completed_jobs(agent_uuid, %{offset: offset, page_size: page_size} = page)
+      when is_binary(agent_uuid) do
+    completed =
+      from(r in AgentJobRun, where: r.agent_uuid == ^agent_uuid, where: r.state == "Completed")
+
+    total = Repo.one(from r in completed, select: count(r.id))
+
+    jobs =
+      completed
+      |> order_history(page)
+      |> limit(^page_size)
+      |> offset(^offset)
+      |> preload([:transitions, :job_instance])
+      |> Repo.all()
+
+    {jobs, total}
+  end
+
+  @doc """
+  The values `sort_column` accepts, in the order GoCD lists them.
+  """
+  def history_sort_columns, do: ~w(pipeline stage job result completed duration)
+
+  @history_fields %{
+    "pipeline" => :pipeline_name,
+    "stage" => :stage_name,
+    "job" => :job_name,
+    "result" => :result
+  }
+
+  # When the run finished, from its own history: a completed run has a
+  # `Completed` transition, and nothing later can change that instant.
+  @completed_at "(SELECT MAX(changed_at) FROM agent_job_run_transitions WHERE agent_job_run_id = ? AND state = 'Completed')"
+
+  # From the first state the run entered to the last, as Postgres intervals.
+  @duration "(SELECT MAX(changed_at) - MIN(changed_at) FROM agent_job_run_transitions WHERE agent_job_run_id = ?)"
+
+  defp order_history(query, %{sort_column: column, sort_order: order}) do
+    direction = if order == :asc, do: :asc, else: :desc
+
+    case column do
+      "completed" ->
+        order_by(query, [r], [{^direction, fragment(@completed_at, r.id)}])
+
+      "duration" ->
+        order_by(query, [r], [{^direction, fragment(@duration, r.id)}])
+
+      known ->
+        order_by(query, [r], [{^direction, field(r, ^Map.fetch!(@history_fields, known))}])
     end
   end
 

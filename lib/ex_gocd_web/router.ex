@@ -295,6 +295,7 @@ defmodule ExGoCDWeb.Router do
       put "/:uuid/enable", AgentController, :enable
       put "/:uuid/disable", AgentController, :disable
       post "/:uuid/kill_running_tasks", AgentController, :kill_running_tasks
+      get "/:uuid/job_run_history", AgentJobHistoryController, :index
     end
 
     # Build console log upload (agent streams stdout/stderr here)
@@ -575,6 +576,7 @@ defmodule ExGoCDWeb.Router do
       put "/:uuid/enable", AgentController, :enable
       put "/:uuid/disable", AgentController, :disable
       post "/:uuid/kill_running_tasks", AgentController, :kill_running_tasks
+      get "/:uuid/job_run_history", AgentJobHistoryController, :index
     end
 
     post "/builds/:build_id/console", BuildConsoleController, :append

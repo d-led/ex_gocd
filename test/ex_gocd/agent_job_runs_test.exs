@@ -5,8 +5,11 @@ defmodule ExGoCD.AgentJobRunsTest do
   """
   use ExGoCD.DataCase, async: true
 
+  import Ecto.Query
+
   alias ExGoCD.AgentJobRuns
   alias ExGoCD.AgentJobRuns.AgentJobRun
+  alias ExGoCD.AgentJobRuns.Transition
   alias ExGoCD.Agents
 
   @agent_uuid "550e8400-e29b-41d4-a716-446655500006"
@@ -165,6 +168,51 @@ defmodule ExGoCD.AgentJobRunsTest do
     test "returns empty list when agent has no runs" do
       assert AgentJobRuns.list_runs_for_agent(@agent_uuid) == []
     end
+  end
+
+  describe "the states a run went through" do
+    test "begin with the state the run was created in" do
+      {:ok, run} = AgentJobRuns.create_run(@agent_uuid, "build-1", "p", "s", "j")
+
+      assert states_of(run) == ["Assigned"]
+    end
+
+    test "grow by one each time the agent reports a new state" do
+      {:ok, _run} = AgentJobRuns.create_run(@agent_uuid, "build-2", "p", "s", "j")
+
+      {:ok, _} = AgentJobRuns.report_status(@agent_uuid, "build-2", "Preparing")
+      {:ok, _} = AgentJobRuns.report_status(@agent_uuid, "build-2", "Building")
+      {:ok, _} = AgentJobRuns.report_status(@agent_uuid, "build-2", "Completed", "Passed")
+
+      run = get_run(@agent_uuid, "build-2")
+      assert states_of(run) == ["Assigned", "Preparing", "Building", "Completed"]
+    end
+
+    test "do not repeat a state the agent reports twice" do
+      {:ok, _run} = AgentJobRuns.create_run(@agent_uuid, "build-3", "p", "s", "j")
+
+      {:ok, _} = AgentJobRuns.report_status(@agent_uuid, "build-3", "Building")
+      {:ok, _} = AgentJobRuns.report_status(@agent_uuid, "build-3", "Building")
+
+      assert states_of(get_run(@agent_uuid, "build-3")) == ["Assigned", "Building"]
+    end
+
+    test "are gone when the run is, rather than left behind" do
+      {:ok, run} = AgentJobRuns.create_run(@agent_uuid, "build-4", "p", "s", "j")
+
+      ExGoCD.Repo.delete!(run)
+
+      assert ExGoCD.Repo.all(Transition) == []
+    end
+  end
+
+  defp states_of(run) do
+    ExGoCD.Repo.all(
+      from t in Transition,
+        where: t.agent_job_run_id == ^run.id,
+        order_by: [asc: t.changed_at, asc: t.id]
+    )
+    |> Enum.map(& &1.state)
   end
 
   defp get_run(agent_uuid, build_id) do

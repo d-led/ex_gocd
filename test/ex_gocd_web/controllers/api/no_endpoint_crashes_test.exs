@@ -143,6 +143,7 @@ defmodule ExGoCDWeb.API.NoEndpointCrashesTest do
       "/api/admin/security/roles/absent",
       "/api/admin/templates/absent",
       "/api/agents/#{uuid}",
+      "/api/agents/#{uuid}/job_run_history",
       "/api/analytics/nonsense",
       "/api/feeds/jobs/absent/1/absent/1/absent",
       "/api/feeds/materials/absent/1/absent",
