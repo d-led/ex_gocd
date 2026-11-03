@@ -68,77 +68,87 @@ defmodule ExGoCDWeb.API.StageController do
   end
 
   @doc """
-  POST /api/stages/:pipeline_name/:pipeline_counter/:stage_name/cancel
+  POST /api/stages/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/cancel
+
+  GoCD names the stage instance with its counter; the counter-less path is ours
+  and stays, because our own pages call it.
   """
-  def cancel(conn, %{
-        "pipeline_name" => pipeline_name,
-        "pipeline_counter" => counter_str,
-        "stage_name" => stage_name
-      }) do
+  def cancel(
+        conn,
+        %{
+          "pipeline_name" => pipeline_name,
+          "pipeline_counter" => counter_str,
+          "stage_name" => stage_name
+        } = params
+      ) do
     actor = get_actor(conn)
     remote_ip = get_remote_ip(conn)
 
-    case parse_counter(counter_str) do
-      {:ok, pipeline_counter} ->
-        cancel_stage(conn, pipeline_name, pipeline_counter, stage_name,
-          actor: actor,
-          remote_ip: remote_ip
-        )
-
-      {:error, :not_a_counter} ->
-        not_a_counter(conn, "pipeline counter")
-    end
-  end
-
-  defp cancel_stage(conn, pipeline_name, pipeline_counter, stage_name, opts) do
-    case Pipelines.cancel_stage(pipeline_name, pipeline_counter, stage_name, opts) do
-      {:ok, _} ->
-        json(conn, %{message: "Stage '#{stage_name}' cancelled."})
-
-      {:error, reason} ->
-        conn
-        |> put_status(:unprocessable_entity)
-        |> json(%{message: "Cancel failed: #{reason}"})
-    end
-  end
-
-  @doc "POST /api/stages/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/rerun-failed-jobs"
-  def rerun_failed_jobs(conn, %{
-        "pipeline_name" => pipeline_name,
-        "pipeline_counter" => counter_str,
-        "stage_name" => stage_name,
-        "stage_counter" => stage_counter_str
-      }) do
     with {:ok, pipeline_counter} <- parse_counter(counter_str),
-         {:ok, stage_counter} <- parse_counter(stage_counter_str) do
-      case Pipelines.rerun_failed_jobs(
-             pipeline_name,
-             pipeline_counter,
-             stage_name,
-             stage_counter
+         {:ok, stage_counter} <- parse_optional_counter(params["stage_counter"]) do
+      case Pipelines.cancel_stage(pipeline_name, pipeline_counter, stage_name,
+             actor: actor,
+             remote_ip: remote_ip,
+             stage_counter: stage_counter
            ) do
-        {:ok, count} ->
-          json(conn, %{
-            message: "Re-running #{count} failed job(s) in stage '#{stage_name}'."
-          })
-
-        {:error, :stage_not_found} ->
-          conn |> put_status(:not_found) |> json(%{message: "Stage not found."})
-
-        {:error, :no_failed_jobs} ->
-          conn
-          |> put_status(:unprocessable_entity)
-          |> json(%{message: "No failed jobs to re-run."})
+        {:ok, _} ->
+          json(conn, %{message: "Stage cancelled successfully."})
 
         {:error, reason} ->
           conn
           |> put_status(:unprocessable_entity)
-          |> json(%{message: "Re-run failed: #{reason}"})
+          |> json(%{message: "Cancel failed: #{reason}"})
       end
     else
       {:error, :not_a_counter} -> not_a_counter(conn, "pipeline and stage counters")
     end
   end
+
+  # Only the counter-less route leaves this out.
+  defp parse_optional_counter(nil), do: {:ok, nil}
+  defp parse_optional_counter(value), do: parse_counter(value)
+
+  @doc "POST /api/stages/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/run-failed-jobs"
+  def run_failed_jobs(conn, params) do
+    with_stage_instance(conn, params, &Pipelines.rerun_failed_jobs/4)
+  end
+
+  @doc "POST /api/stages/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/run-selected-jobs"
+  def run_selected_jobs(conn, %{"jobs" => job_names} = params) when is_list(job_names) do
+    with_stage_instance(conn, params, &Pipelines.rerun_selected_jobs(&1, &2, &3, &4, job_names))
+  end
+
+  def run_selected_jobs(conn, _params) do
+    conn
+    |> put_status(:bad_request)
+    |> json(%{message: "Following property must be specified: jobs (a list of job names)."})
+  end
+
+  defp with_stage_instance(conn, params, rerun) do
+    with {:ok, pipeline_counter} <- parse_counter(params["pipeline_counter"]),
+         {:ok, stage_counter} <- parse_counter(params["stage_counter"]) do
+      rerun.(params["pipeline_name"], pipeline_counter, params["stage_name"], stage_counter)
+      |> respond(conn)
+    else
+      {:error, :not_a_counter} -> not_a_counter(conn, "pipeline and stage counters")
+    end
+  end
+
+  defp respond({:ok, _count}, conn) do
+    conn |> put_status(:accepted) |> json(%{message: "Request to rerun jobs accepted"})
+  end
+
+  defp respond({:error, :stage_not_found}, conn) do
+    conn |> put_status(:not_found) |> json(%{message: "Stage not found."})
+  end
+
+  defp respond({:error, reason}, conn) do
+    conn |> put_status(:unprocessable_entity) |> json(%{message: rerun_refusal(reason)})
+  end
+
+  defp rerun_refusal(:no_failed_jobs), do: "No failed jobs to rerun."
+  defp rerun_refusal(:no_such_jobs), do: "None of those jobs belong to this stage."
+  defp rerun_refusal(other), do: "Rerun failed: #{other}"
 
   defp not_a_counter(conn, what) do
     conn

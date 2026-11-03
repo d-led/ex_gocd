@@ -171,45 +171,82 @@ defmodule ExGoCD.Pipelines do
   @doc """
   Re-runs all failed/cancelled jobs in a stage instance.
   Resets them to Scheduled and enqueues for agent pickup.
-  Returns {:ok, stage_instance} or {:error, reason}.
+  Returns {:ok, count} or {:error, reason}.
   """
   def rerun_failed_jobs(pipeline_name, pipeline_counter, stage_name, stage_counter)
       when is_binary(pipeline_name) and is_integer(pipeline_counter) and
              is_binary(stage_name) and is_integer(stage_counter) do
-    query =
-      from si in StageInstance,
-        join: pi in assoc(si, :pipeline_instance),
-        join: p in assoc(pi, :pipeline),
-        where:
-          p.name == ^pipeline_name and pi.counter == ^pipeline_counter and
-            si.name == ^stage_name and si.counter == ^stage_counter,
-        preload: [job_instances: [], pipeline_instance: :pipeline]
+    rerun_jobs(
+      pipeline_name,
+      pipeline_counter,
+      stage_name,
+      stage_counter,
+      &(&1.result in ["Failed", "Cancelled"]),
+      :no_failed_jobs
+    )
+  end
 
-    case Repo.one(query) do
+  @doc """
+  Re-runs the named jobs of a stage instance, whether they passed or not — what
+  GoCD calls "run selected jobs". Same in-place reset as a failed-job rerun.
+  Returns {:ok, count} or {:error, reason}.
+  """
+  def rerun_selected_jobs(pipeline_name, pipeline_counter, stage_name, stage_counter, job_names)
+      when is_binary(pipeline_name) and is_integer(pipeline_counter) and
+             is_binary(stage_name) and is_integer(stage_counter) and is_list(job_names) do
+    rerun_jobs(
+      pipeline_name,
+      pipeline_counter,
+      stage_name,
+      stage_counter,
+      &(&1.name in job_names),
+      :no_such_jobs
+    )
+  end
+
+  defp rerun_jobs(
+         pipeline_name,
+         pipeline_counter,
+         stage_name,
+         stage_counter,
+         selected?,
+         nothing_selected
+       ) do
+    with %StageInstance{} = si <-
+           find_stage_instance(pipeline_name, pipeline_counter, stage_name, stage_counter),
+         [_ | _] = jobs <- Enum.filter(si.job_instances, selected?) do
+      rerun_in_place(si, jobs)
+    else
       nil -> {:error, :stage_not_found}
-      si -> do_rerun_failed_jobs(si)
+      [] -> {:error, nothing_selected}
     end
   end
 
-  defp do_rerun_failed_jobs(%StageInstance{job_instances: jobs} = si) do
-    failed_jobs = Enum.filter(jobs, &(&1.result in ["Failed", "Cancelled"]))
+  defp find_stage_instance(pipeline_name, pipeline_counter, stage_name, stage_counter) do
+    from(si in StageInstance,
+      join: pi in assoc(si, :pipeline_instance),
+      join: p in assoc(pi, :pipeline),
+      where:
+        p.name == ^pipeline_name and pi.counter == ^pipeline_counter and
+          si.name == ^stage_name and si.counter == ^stage_counter,
+      preload: [job_instances: [], pipeline_instance: :pipeline]
+    )
+    |> Repo.one()
+  end
 
-    if Enum.empty?(failed_jobs) do
-      {:error, :no_failed_jobs}
-    else
-      pipeline = si.pipeline_instance.pipeline
-      pipeline_config = Repo.get(Pipeline, pipeline.id) |> Repo.preload(stages: [jobs: :tasks])
-      stage_config = Enum.find(pipeline_config.stages, &(&1.name == si.name))
-      p_counter = si.pipeline_instance.counter
+  defp rerun_in_place(si, jobs) do
+    pipeline = si.pipeline_instance.pipeline
+    pipeline_config = Repo.get(Pipeline, pipeline.id) |> Repo.preload(stages: [jobs: :tasks])
+    stage_config = Enum.find(pipeline_config.stages, &(&1.name == si.name))
+    p_counter = si.pipeline_instance.counter
 
-      now = DateTime.utc_now()
+    now = DateTime.utc_now()
 
-      Repo.transaction(fn ->
-        reset_stage_if_terminal(si, now)
-        Enum.each(failed_jobs, &reset_and_schedule_job(&1, pipeline, si, p_counter, stage_config))
-        length(failed_jobs)
-      end)
-    end
+    Repo.transaction(fn ->
+      reset_stage_if_terminal(si, now)
+      Enum.each(jobs, &reset_and_schedule_job(&1, pipeline, si, p_counter, stage_config))
+      length(jobs)
+    end)
   end
 
   defp reset_stage_if_terminal(si, now) do
@@ -663,7 +700,11 @@ defmodule ExGoCD.Pipelines do
 
   @doc """
   Cancels a stage by marking all its building/scheduled job instances as Cancelled.
-  Accepts options: :actor (username, default "system"), :remote_ip
+
+  Accepts options: :actor (username, default "system"), :remote_ip, and
+  :stage_counter. Without an explicit counter the latest stage instance is the
+  one cancelled — a stage that was rerun has more than one, and picking an
+  arbitrary row would cancel the wrong run.
   """
   def cancel_stage(pipeline_name, pipeline_counter, stage_name, opts \\ [])
       when is_binary(pipeline_name) and is_integer(pipeline_counter) and is_binary(stage_name) do
@@ -677,8 +718,13 @@ defmodule ExGoCD.Pipelines do
         join: p in assoc(pi, :pipeline),
         where:
           p.name == ^pipeline_name and pi.counter == ^pipeline_counter and si.name == ^stage_name,
-        preload: :job_instances,
-        limit: 1
+        preload: :job_instances
+
+    query =
+      case Keyword.get(opts, :stage_counter) do
+        nil -> from(si in query, order_by: [desc: si.counter], limit: 1)
+        counter -> from(si in query, where: si.counter == ^counter, limit: 1)
+      end
 
     case Repo.one(query) do
       nil ->

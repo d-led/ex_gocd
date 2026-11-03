@@ -350,10 +350,19 @@ defmodule ExGoCDWeb.Router do
 
     get "/stages/:pipeline_name/:stage_name/history", StageController, :history
 
-    post "/stages/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/rerun-failed-jobs",
+    post "/stages/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/run-failed-jobs",
          StageController,
-         :rerun_failed_jobs
+         :run_failed_jobs
 
+    post "/stages/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/run-selected-jobs",
+         StageController,
+         :run_selected_jobs
+
+    post "/stages/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/cancel",
+         StageController,
+         :cancel
+
+    # Our own pages cancel without naming the stage instance.
     post "/stages/:pipeline_name/:pipeline_counter/:stage_name/cancel", StageController, :cancel
 
     # User management (GoCD users v3). Whoever may change this list may make
@@ -613,9 +622,17 @@ defmodule ExGoCDWeb.Router do
 
     get "/stages/:pipeline_name/:stage_name/history", StageController, :history
 
-    post "/stages/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/rerun-failed-jobs",
+    post "/stages/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/run-failed-jobs",
          StageController,
-         :rerun_failed_jobs
+         :run_failed_jobs
+
+    post "/stages/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/run-selected-jobs",
+         StageController,
+         :run_selected_jobs
+
+    post "/stages/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/cancel",
+         StageController,
+         :cancel
 
     post "/stages/:pipeline_name/:pipeline_counter/:stage_name/cancel", StageController, :cancel
 

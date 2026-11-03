@@ -8,6 +8,7 @@ defmodule ExGoCDWeb.API.StageControllerTest do
 
   import ExGoCD.PipelinesFixtures
 
+  alias ExGoCD.Pipelines.{JobInstance, StageInstance}
   alias ExGoCD.Repo
 
   @pipeline "stage-api-pipeline"
@@ -66,24 +67,56 @@ defmodule ExGoCDWeb.API.StageControllerTest do
 
       body = conn |> post("/api/stages/#{@pipeline}/1/build/cancel") |> json_response(200)
 
-      assert body["message"] =~ "cancelled"
+      assert body == %{"message" => "Stage cancelled successfully."}
+    end
+
+    test "cancels the stage instance the path names, not whichever row came first", %{
+      conn: conn,
+      instance: instance,
+      stage: first
+    } do
+      first |> Ecto.Changeset.change(state: "Completed", result: "Passed") |> Repo.update!()
+
+      second = insert_stage_instance(instance.id, "build", counter: 2)
+      insert_job_instance_unassigned(second.id, "compile", DateTime.utc_now())
+
+      conn
+      |> post("/api/stages/#{@pipeline}/1/build/2/cancel")
+      |> json_response(200)
+
+      assert Repo.get!(StageInstance, second.id).state == "Cancelled"
+      assert Repo.get!(StageInstance, first.id).state == "Completed"
     end
 
     test "answers a counter that is not a number as a bad request", %{conn: conn} do
       assert conn |> post("/api/stages/#{@pipeline}/nope/build/cancel") |> json_response(400)
+      assert conn |> post("/api/stages/#{@pipeline}/1/build/nope/cancel") |> json_response(400)
     end
   end
 
-  describe "re-running the failed jobs of a stage" do
-    test "says there is nothing to re-run when nothing failed", %{
-      conn: conn,
-      stage: stage
-    } do
-      insert_job_instance(stage.id, "compile", DateTime.utc_now(), DateTime.utc_now())
+  describe "running the failed jobs of a stage" do
+    setup %{stage: stage} do
+      %{job: insert_job_instance_unassigned(stage.id, "compile", DateTime.utc_now())}
+    end
+
+    test "accepts the request and reschedules the failed job", %{conn: conn, job: job} do
+      job |> Ecto.Changeset.change(state: "Completed", result: "Failed") |> Repo.update!()
 
       body =
         conn
-        |> post("/api/stages/#{@pipeline}/1/build/1/rerun-failed-jobs")
+        |> post("/go/api/stages/#{@pipeline}/1/build/1/run-failed-jobs")
+        |> json_response(202)
+
+      assert body == %{"message" => "Request to rerun jobs accepted"}
+      assert Repo.get!(JobInstance, job.id).state == "Scheduled"
+    end
+
+    test "says there is nothing to re-run when nothing failed", %{conn: conn, job: job} do
+      job |> Ecto.Changeset.change(state: "Completed", result: "Passed") |> Repo.update!()
+
+      body =
+        conn
+        |> post("/api/stages/#{@pipeline}/1/build/1/run-failed-jobs")
         |> json_response(422)
 
       assert body["message"] =~ "No failed jobs"
@@ -92,7 +125,7 @@ defmodule ExGoCDWeb.API.StageControllerTest do
     test "says a stage it cannot find is missing", %{conn: conn} do
       body =
         conn
-        |> post("/api/stages/#{@pipeline}/1/deploy/1/rerun-failed-jobs")
+        |> post("/api/stages/#{@pipeline}/1/deploy/1/run-failed-jobs")
         |> json_response(404)
 
       assert body["message"] =~ "not found"
@@ -100,8 +133,42 @@ defmodule ExGoCDWeb.API.StageControllerTest do
 
     test "answers a counter that is not a number as a bad request", %{conn: conn} do
       assert conn
-             |> post("/api/stages/#{@pipeline}/1/build/x/rerun-failed-jobs")
+             |> post("/api/stages/#{@pipeline}/1/build/x/run-failed-jobs")
              |> json_response(400)
+    end
+  end
+
+  describe "running selected jobs of a stage" do
+    test "accepts the job names it was given", %{conn: conn, stage: stage} do
+      insert_job_instance(stage.id, "compile", DateTime.utc_now(), DateTime.utc_now())
+
+      body =
+        conn
+        |> post("/api/stages/#{@pipeline}/1/build/1/run-selected-jobs", %{
+          jobs: ["compile"]
+        })
+        |> json_response(202)
+
+      assert body == %{"message" => "Request to rerun jobs accepted"}
+    end
+
+    test "names no jobs as a bad request", %{conn: conn} do
+      assert conn
+             |> post("/api/stages/#{@pipeline}/1/build/1/run-selected-jobs", %{})
+             |> json_response(400)
+    end
+
+    test "refuses job names that are not in the stage", %{conn: conn, stage: stage} do
+      insert_job_instance(stage.id, "compile", DateTime.utc_now(), DateTime.utc_now())
+
+      body =
+        conn
+        |> post("/api/stages/#{@pipeline}/1/build/1/run-selected-jobs", %{
+          jobs: ["no-such-job"]
+        })
+        |> json_response(422)
+
+      assert body["message"] =~ "belong to this stage"
     end
   end
 end
