@@ -25,12 +25,15 @@ defmodule ExGoCDWeb.API.NoEndpointCrashesTest do
     "/api/analytics",
     "/api/analytics/agent_utilization",
     "/api/config/mailserver",
+    "/api/config/materials",
+    "/api/current_user",
     "/api/dashboard",
     "/api/feeds/jobs/scheduled.xml",
     "/api/feeds/pipelines.xml",
     "/go/api/agent_health",
     "/go/api/agents",
     "/go/api/config/mailserver",
+    "/go/api/config/materials",
     "/go/api/admin/plugin_info",
     "/go/api/server_health_messages",
     "/go/api/stats",
@@ -39,6 +42,7 @@ defmodule ExGoCDWeb.API.NoEndpointCrashesTest do
   ]
 
   @admin_paths [
+    "/api/admin/access_tokens",
     "/api/admin/artifact_stores",
     "/api/admin/auth_configs",
     "/api/admin/cluster_profiles",
@@ -46,6 +50,7 @@ defmodule ExGoCDWeb.API.NoEndpointCrashesTest do
     "/api/admin/config/backup",
     "/api/admin/config/server/artifact_config",
     "/api/admin/config/server/default_job_timeout",
+    "/api/admin/config/server/site_urls",
     "/api/admin/config_repos",
     "/api/admin/elastic_agent_profiles",
     "/api/admin/environments",
