@@ -1052,6 +1052,11 @@ Reconstructed from the two indexed sessions for this workspace
    `System.get_env` directly, so a lock in the test still races with any other
    test reading the environment. Doing this properly means the product taking its
    configuration as an argument instead of reading the environment at call time.
+9. ~~**Decide about a docker-capable demo agent.**~~ Decided: opt-in. The `full`
+   agent variant now carries `docker-cli`, and the quickstart has an `agent-docker`
+   service behind `profiles: ["docker"]`, so plain `up` behaves as before and
+   `--profile docker` runs the dogfood docker jobs. The socket it mounts is the
+   daemon, so it stays a profile and the README says what that means.
 10. **Carry GoCD's confirm-header rule to the rest of the mutating API.** GoCD
     asks every POST/PUT/PATCH that carries no body to say so with
     `X-GoCD-Confirm` (`ApiController#verifyContentType`, quoted in
@@ -1059,9 +1064,3 @@ Reconstructed from the two indexed sessions for this workspace
     it today; the pipeline, agent and backup calls still accept an empty request
     without the header, so a client that follows the docs works either way and a
     client that omits it is not told.
-
-9. ~~**Decide about a docker-capable demo agent.**~~ Decided: opt-in. The `full`
-   agent variant now carries `docker-cli`, and the quickstart has an `agent-docker`
-   service behind `profiles: ["docker"]`, so plain `up` behaves as before and
-   `--profile docker` runs the dogfood docker jobs. The socket it mounts is the
-   daemon, so it stays a profile and the README says what that means.
