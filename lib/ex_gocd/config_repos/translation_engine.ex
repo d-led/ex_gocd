@@ -85,84 +85,138 @@ defmodule ExGoCD.ConfigRepos.TranslationEngine do
     end
   end
 
+  @pipeline_fields [
+    :name,
+    :group,
+    :label_template,
+    :environment_variables,
+    :timer,
+    :config_repo_id,
+    :source_file_path
+  ]
+
+  @stage_fields [
+    :name,
+    :approval_type,
+    :fetch_materials,
+    :clean_working_directory,
+    :never_cleanup_artifacts,
+    :artifact_retention_runs,
+    :environment_variables
+  ]
+
+  @job_fields [
+    :name,
+    :run_instance_count,
+    :timeout,
+    :environment_variables,
+    :run_on_all_agents,
+    :elastic_profile_id,
+    :tabs,
+    :artifact_configs
+  ]
+
   defp create_pipeline_from_attrs(attrs) do
     Repo.transaction(fn ->
       {:ok, pipeline} =
         %Pipelines.Pipeline{}
-        |> Pipelines.Pipeline.changeset(
-          Map.take(attrs, [
-            :name,
-            :group,
-            :label_template,
-            :environment_variables,
-            :timer,
-            :config_repo_id,
-            :source_file_path
-          ])
-        )
+        |> Pipelines.Pipeline.changeset(Map.take(attrs, @pipeline_fields))
         |> Repo.insert()
 
-      # Upsert materials
-      Enum.each(attrs[:materials] || [], fn mat ->
-        {:ok, material} =
-          %Pipelines.Material{}
-          |> Pipelines.Material.changeset(mat)
-          |> Repo.insert()
+      insert_materials(pipeline, attrs[:materials] || [])
+      upsert_stages(pipeline, attrs[:stages] || [])
 
-        Repo.insert_all("pipelines_materials", [
-          %{
-            pipeline_id: pipeline.id,
-            material_id: material.id
-          }
-        ])
-      end)
-
-      # Create stages with jobs and tasks
-      Enum.each(attrs[:stages] || [], fn stage_attrs ->
-        {:ok, stage} =
-          %Pipelines.Stage{}
-          |> Pipelines.Stage.changeset(Map.put(stage_attrs, :pipeline_id, pipeline.id))
-          |> Repo.insert()
-
-        create_jobs_for_stage(stage, stage_attrs)
-      end)
-
-      {:ok, pipeline}
+      pipeline
     end)
   end
 
-  defp create_jobs_for_stage(stage, stage_attrs) do
-    Enum.each(stage_attrs[:jobs] || [], fn job_attrs ->
-      {:ok, job} =
-        %Pipelines.Job{}
-        |> Pipelines.Job.changeset(
-          Map.merge(job_attrs, %{stage_id: stage.id})
-          |> Map.drop([:tasks, :resources])
-        )
-        |> Ecto.Changeset.put_change(:resources, job_attrs[:resources] || [])
-        |> Repo.insert()
-
-      create_tasks_for_job(job, job_attrs)
-    end)
-  end
-
-  defp create_tasks_for_job(job, job_attrs) do
-    Enum.each(job_attrs[:tasks] || [], fn task_attrs ->
-      {:ok, _task} =
-        %Pipelines.Task{}
-        |> Pipelines.Task.changeset(Map.put(task_attrs, :job_id, job.id))
-        |> Repo.insert()
-    end)
-  end
-
+  # The repository is translated again whenever it changes, so a pipeline that
+  # is already there is written the way it is created: by name, without
+  # replacing rows. A stage or job's row is what its run history points at, so
+  # one the workflow still names keeps the row it had.
   defp update_pipeline_from_attrs(existing, attrs) do
-    # For now, just update basic attrs. Full upsert of stages/jobs is more complex.
-    # The config repo parser does this in a simpler way.
-    existing
-    |> Pipelines.Pipeline.changeset(
-      Map.take(attrs, [:name, :group, :label_template, :environment_variables])
-    )
-    |> Repo.update()
+    Repo.transaction(fn ->
+      {:ok, pipeline} =
+        existing
+        |> Pipelines.Pipeline.changeset(Map.take(attrs, @pipeline_fields))
+        |> Repo.update()
+
+      upsert_stages(pipeline, attrs[:stages] || [])
+
+      pipeline
+    end)
+  end
+
+  defp insert_materials(pipeline, materials) do
+    Enum.each(materials, fn material_attrs ->
+      {:ok, material} =
+        %Pipelines.Material{}
+        |> Pipelines.Material.changeset(material_attrs)
+        |> Repo.insert()
+
+      Repo.insert_all("pipelines_materials", [
+        %{pipeline_id: pipeline.id, material_id: material.id}
+      ])
+    end)
+  end
+
+  defp upsert_stages(pipeline, stage_attrs_list) do
+    Enum.each(stage_attrs_list, fn stage_attrs ->
+      stage = upsert_stage(pipeline, stage_attrs)
+      upsert_jobs(stage, stage_attrs[:jobs] || [])
+    end)
+  end
+
+  defp upsert_stage(pipeline, stage_attrs) do
+    attrs =
+      stage_attrs
+      |> Map.take(@stage_fields)
+      |> Map.put(:pipeline_id, pipeline.id)
+
+    case Repo.get_by(Pipelines.Stage, pipeline_id: pipeline.id, name: attrs[:name]) do
+      nil -> insert!(Pipelines.Stage, attrs)
+      existing -> update!(Pipelines.Stage, existing, attrs)
+    end
+  end
+
+  defp upsert_jobs(stage, job_attrs_list) do
+    Enum.each(job_attrs_list, fn job_attrs ->
+      job = upsert_job(stage, job_attrs)
+      replace_tasks(job, job_attrs[:tasks] || [])
+    end)
+  end
+
+  defp upsert_job(stage, job_attrs) do
+    attrs =
+      job_attrs
+      |> Map.take(@job_fields)
+      |> Map.put(:stage_id, stage.id)
+      |> Map.put(:resources, job_attrs[:resources] || [])
+
+    case Repo.get_by(Pipelines.Job, stage_id: stage.id, name: attrs[:name]) do
+      nil -> insert!(Pipelines.Job, attrs)
+      existing -> update!(Pipelines.Job, existing, attrs)
+    end
+  end
+
+  # A task has nothing to be found by and nothing points at it, so the list the
+  # workflow gives is the list the job has.
+  defp replace_tasks(job, task_attrs_list) do
+    Repo.delete_all(from t in Pipelines.Task, where: t.job_id == ^job.id)
+
+    Enum.each(task_attrs_list, fn task_attrs ->
+      insert!(Pipelines.Task, Map.put(task_attrs, :job_id, job.id))
+    end)
+  end
+
+  defp insert!(schema, attrs) do
+    {:ok, row} = schema |> struct() |> schema.changeset(attrs) |> Repo.insert()
+    row
+  end
+
+  defp update!(schema, row, attrs) do
+    {:ok, row} = schema.changeset(row, attrs) |> Repo.update()
+    row
   end
 
   defp list_files_with_selections(config_repo_id) do

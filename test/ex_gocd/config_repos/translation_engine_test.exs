@@ -33,6 +33,22 @@ defmodule ExGoCD.ConfigRepos.TranslationEngineTest do
         - run: make build
   """
 
+  @workflow_with_release ~s"""
+  name: CI
+  on:
+    push:
+      branches: [main]
+  jobs:
+    build:
+      runs-on: ubuntu-latest
+      steps:
+        - run: make build
+    release:
+      runs-on: ubuntu-latest
+      steps:
+        - run: make release
+  """
+
   setup do
     {:ok, repo} =
       Repo.insert(%ConfigRepo{
@@ -72,6 +88,25 @@ defmodule ExGoCD.ConfigRepos.TranslationEngineTest do
       assert pipeline_from(file).name == "CI"
     end
 
+    test "a job added to the workflow appears in the pipeline it already made", %{repo: repo} do
+      file = cached_workflow(repo, mode: "translate")
+      assert {:ok, 1} = TranslationEngine.translate_and_persist_all(repo.id)
+
+      [build_before] = Repo.preload(pipeline_from(file), :stages).stages
+
+      replace_workflow(file, @workflow_with_release)
+      assert {:ok, 1} = TranslationEngine.translate_and_persist_all(repo.id)
+
+      [build, release] = Repo.preload(pipeline_from(file), stages: [jobs: :tasks]).stages
+
+      assert build.name == "build"
+      assert build.id == build_before.id, "the stage row carries the run history, so it is kept"
+      assert [%{name: "build"}] = build.jobs
+
+      assert release.name == "release"
+      assert [%{name: "release", tasks: [%{command: "make release"}]}] = release.jobs
+    end
+
     test "a file set to be skipped makes no pipeline", %{repo: repo} do
       cached_workflow(repo, mode: "skip")
 
@@ -107,6 +142,10 @@ defmodule ExGoCD.ConfigRepos.TranslationEngineTest do
 
     Repo.insert!(%ConfigRepoFileSelection{config_repo_file_id: file.id, mode: mode})
     file
+  end
+
+  defp replace_workflow(file, content) do
+    file |> Ecto.Changeset.change(raw_content: content) |> Repo.update!()
   end
 
   defp pipeline_from(file) do
