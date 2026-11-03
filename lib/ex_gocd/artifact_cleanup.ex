@@ -113,13 +113,13 @@ defmodule ExGoCD.ArtifactCleanup do
         age_seconds = round(max_age_days * 86_400)
         age_cutoff = DateTime.add(DateTime.utc_now(), -age_seconds, :second)
         Logger.info("Age-based cleanup: deleting artifacts older than #{max_age_days} days")
-        purge_by_age(age_cutoff)
+        purge_by_age(age_cutoff, artifacts_path)
 
       # Size-based: delete oldest first until under limit
       current_size > limit_bytes ->
         Logger.info("Size-based cleanup: #{current_size}B exceeds #{limit_bytes}B limit")
 
-        purge_old_artifacts(current_size - limit_bytes)
+        purge_old_artifacts(current_size - limit_bytes, artifacts_path)
 
       true ->
         :ok
@@ -130,17 +130,19 @@ defmodule ExGoCD.ArtifactCleanup do
 
   # ── Size-based purge ───────────────────────────────────────────────
 
-  defp purge_old_artifacts(bytes_to_free) do
+  defp purge_old_artifacts(bytes_to_free, artifacts_root) do
     completed_stages = fetch_completed_stages()
 
     Enum.reduce_while(completed_stages, bytes_to_free, fn si, remaining ->
-      if remaining <= 0, do: {:halt, remaining}, else: purge_if_unprotected(si, remaining)
+      if remaining <= 0,
+        do: {:halt, remaining},
+        else: purge_if_unprotected(si, remaining, artifacts_root)
     end)
   end
 
   # ── Age-based purge ────────────────────────────────────────────────
 
-  defp purge_by_age(age_cutoff) do
+  defp purge_by_age(age_cutoff, artifacts_root) do
     stages =
       StageInstance
       |> where(state: "Completed", artifacts_deleted: false)
@@ -150,7 +152,7 @@ defmodule ExGoCD.ArtifactCleanup do
       |> Repo.preload(pipeline_instance: [pipeline: :stages])
 
     Enum.each(stages, fn si ->
-      {:cont, _} = purge_if_unprotected(si, :ignore_size)
+      {:cont, _} = purge_if_unprotected(si, :ignore_size, artifacts_root)
     end)
 
     :ok
@@ -166,7 +168,7 @@ defmodule ExGoCD.ArtifactCleanup do
     |> Repo.preload(pipeline_instance: [pipeline: :stages])
   end
 
-  defp purge_if_unprotected(si, remaining_or_atom) do
+  defp purge_if_unprotected(si, remaining_or_atom, artifacts_root) do
     pipeline_instance = si.pipeline_instance
     pipeline = pipeline_instance.pipeline
 
@@ -178,12 +180,12 @@ defmodule ExGoCD.ArtifactCleanup do
         {:cont, remaining_or_atom}
 
       true ->
-        delete_and_mark(si, pipeline, pipeline_instance, remaining_or_atom)
+        delete_and_mark(si, pipeline, pipeline_instance, remaining_or_atom, artifacts_root)
     end
   end
 
-  defp delete_and_mark(si, pipeline, pipeline_instance, remaining_or_atom) do
-    stage_dir = stage_artifact_dir(pipeline, pipeline_instance, si)
+  defp delete_and_mark(si, pipeline, pipeline_instance, remaining_or_atom, artifacts_root) do
+    stage_dir = stage_artifact_dir(artifacts_root, pipeline, pipeline_instance, si)
 
     # ── Atomicity (GoCD pattern) ──────────────────────────────────
     # Mark as deleted in DB FIRST — this is the single source of truth.
@@ -262,10 +264,10 @@ defmodule ExGoCD.ArtifactCleanup do
   # Helpers
   # ═══════════════════════════════════════════════════════════════════════
 
-  defp stage_artifact_dir(pipeline, pipeline_instance, si) do
+  defp stage_artifact_dir(artifacts_root, pipeline, pipeline_instance, si) do
     Path.expand(
       Path.join([
-        ServerConfig.artifacts_dir(),
+        artifacts_root,
         pipeline.name,
         to_string(pipeline_instance.counter),
         si.name,
