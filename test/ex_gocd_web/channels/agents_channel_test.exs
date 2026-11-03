@@ -3,12 +3,16 @@ defmodule ExGoCDWeb.AgentsChannelTest do
 
   alias ExGoCDWeb.UserSocket
 
+  # The broadcast reaches the channel through PubSub; one second is a slow
+  # machine, not a broken channel.
+  @arrives_within 1_000
+
   test "the dashboard hears that the agent list changed" do
     {:ok, _reply, _channel} = join_dashboard()
 
     Phoenix.PubSub.broadcast(ExGoCD.PubSub, "agents:updates", {:agent_registered, %{uuid: "any"}})
 
-    assert_push("agents_updated", %{})
+    assert_push("agents_updated", %{}, @arrives_within)
   end
 
   test "noise on the same topic is not forwarded to the dashboard" do

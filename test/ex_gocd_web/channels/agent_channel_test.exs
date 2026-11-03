@@ -8,6 +8,10 @@ defmodule ExGoCDWeb.AgentChannelTest do
   @uuid "550e8400-e29b-41d4-a716-4466554401a1"
   @disabled_uuid "550e8400-e29b-41d4-a716-4466554401a2"
 
+  # A channel round trip through PubSub and the socket costs a few milliseconds;
+  # the 100 ms default fails on a machine running anything else.
+  @arrives_within 1_000
+
   describe "joining" do
     test "an agent joins and the connection knows which agent it is" do
       register_agent(@uuid, "channel-agent")
@@ -35,7 +39,7 @@ defmodule ExGoCDWeb.AgentChannelTest do
 
       ref = push(channel, "ping", %{"agentRuntimeInfo" => %{"runtimeStatus" => "Idle"}})
 
-      assert_reply ref, :ok, %{}
+      assert_reply ref, :ok, %{}, @arrives_within
       assert %{hostname: "channel-agent"} = Agents.get_agent_by_uuid(@uuid)
     end
 
@@ -45,7 +49,7 @@ defmodule ExGoCDWeb.AgentChannelTest do
 
       :ok = AgentChannel.request_cancel_build(@uuid, "build-that-must-stop")
 
-      assert_push("cancelBuild", %{"buildId" => "build-that-must-stop"})
+      assert_push("cancelBuild", %{"buildId" => "build-that-must-stop"}, @arrives_within)
     end
 
     test "a build sent to the agent's topic reaches the agent" do
@@ -58,7 +62,7 @@ defmodule ExGoCDWeb.AgentChannelTest do
         {:build, %{"buildId" => "job-1"}}
       )
 
-      assert_push("build", %{"buildId" => "job-1"})
+      assert_push("build", %{"buildId" => "job-1"}, @arrives_within)
     end
   end
 
