@@ -6,8 +6,10 @@ defmodule ExGoCDWeb.API.StageControllerTest do
   """
   use ExGoCDWeb.ConnCase, async: true
 
+  import Ecto.Query
   import ExGoCD.PipelinesFixtures
 
+  alias ExGoCD.Pipelines
   alias ExGoCD.Pipelines.{JobInstance, StageInstance}
   alias ExGoCD.Repo
 
@@ -194,6 +196,97 @@ defmodule ExGoCDWeb.API.StageControllerTest do
         |> json_response(422)
 
       assert body["message"] =~ "belong to this stage"
+    end
+  end
+
+  describe "running a stage that waits for approval" do
+    setup do
+      name = "run-stage-pipeline-#{System.unique_integer([:positive])}"
+      {pipeline, _first, second} = insert_pipeline_with_two_stages(name)
+      {:ok, instance} = Pipelines.trigger_pipeline(name)
+
+      # Finish the first stage so the manual second one is left awaiting.
+      [first_instance] =
+        Repo.all(
+          from(si in StageInstance,
+            where: si.pipeline_instance_id == ^instance.id and si.state == "Building"
+          )
+        )
+
+      [job] =
+        Repo.all(from(ji in JobInstance, where: ji.stage_instance_id == ^first_instance.id))
+
+      :ok = Pipelines.complete_job_instance(job.id, "Passed")
+
+      %{pipeline: pipeline, counter: instance.counter, stage: second.name}
+    end
+
+    test "schedules the awaiting stage, as the documented curl does", %{
+      conn: conn,
+      pipeline: pipeline,
+      counter: counter,
+      stage: stage
+    } do
+      body =
+        conn
+        |> confirmed()
+        |> post("/go/api/stages/#{pipeline.name}/#{counter}/#{stage}/run")
+        |> json_response(202)
+
+      assert body == %{
+               "message" =>
+                 "Request to schedule stage #{pipeline.name}/#{counter}/#{stage} accepted"
+             }
+
+      assert %{state: "Building"} = awaiting_instance(pipeline.name, counter, stage)
+    end
+
+    test "asks an empty request to confirm first", %{
+      conn: conn,
+      pipeline: pipeline,
+      counter: counter,
+      stage: stage
+    } do
+      body =
+        conn |> post("/api/stages/#{pipeline.name}/#{counter}/#{stage}/run") |> json_response(400)
+
+      assert body["message"] =~ "X-GoCD-Confirm"
+      assert %{state: "Awaiting"} = awaiting_instance(pipeline.name, counter, stage)
+    end
+
+    test "refuses a stage that is not waiting for approval", %{
+      conn: conn,
+      pipeline: pipeline,
+      counter: counter
+    } do
+      body =
+        conn
+        |> confirmed()
+        |> post("/api/stages/#{pipeline.name}/#{counter}/build/run")
+        |> json_response(422)
+
+      assert body["message"] =~ "Could not schedule stage"
+    end
+
+    test "answers a counter that is not a number as a bad request", %{
+      conn: conn,
+      pipeline: pipeline,
+      stage: stage
+    } do
+      assert conn
+             |> confirmed()
+             |> post("/api/stages/#{pipeline.name}/nope/#{stage}/run")
+             |> json_response(400)
+    end
+
+    defp awaiting_instance(pipeline_name, counter, stage_name) do
+      Repo.one!(
+        from(si in StageInstance,
+          join: pi in assoc(si, :pipeline_instance),
+          join: p in assoc(pi, :pipeline),
+          where: p.name == ^pipeline_name and pi.counter == ^counter and si.name == ^stage_name
+        )
+      )
     end
   end
 

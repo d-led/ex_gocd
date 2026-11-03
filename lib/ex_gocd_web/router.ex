@@ -366,6 +366,9 @@ defmodule ExGoCDWeb.Router do
     # Our own pages cancel without naming the stage instance.
     post "/stages/:pipeline_name/:pipeline_counter/:stage_name/cancel", StageController, :cancel
 
+    # GoCD calls approving an awaiting manual stage "run".
+    post "/stages/:pipeline_name/:pipeline_counter/:stage_name/run", StageController, :run
+
     # User management (GoCD users v3). Whoever may change this list may make
     # themselves an admin, so it is admin-only — as in GoCD.
     scope "/users" do
@@ -638,6 +641,9 @@ defmodule ExGoCDWeb.Router do
          :cancel
 
     post "/stages/:pipeline_name/:pipeline_counter/:stage_name/cancel", StageController, :cancel
+
+    # GoCD calls approving an awaiting manual stage "run".
+    post "/stages/:pipeline_name/:pipeline_counter/:stage_name/run", StageController, :run
 
     # Encryption API. Encrypting with the server's key is an admin act, as in
     # GoCD, and the /api tree already asks for admin for this one.

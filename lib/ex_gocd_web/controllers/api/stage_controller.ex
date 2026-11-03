@@ -131,6 +131,39 @@ defmodule ExGoCDWeb.API.StageController do
     |> json(%{message: "Following property must be specified: jobs (a list of job names)."})
   end
 
+  @doc "POST /api/stages/:pipeline_name/:pipeline_counter/:stage_name/run"
+  def run(conn, %{
+        "pipeline_name" => pipeline_name,
+        "pipeline_counter" => counter_str,
+        "stage_name" => stage_name
+      }) do
+    case parse_counter(counter_str) do
+      {:ok, pipeline_counter} ->
+        schedule_stage(conn, pipeline_name, pipeline_counter, stage_name)
+
+      {:error, :not_a_counter} ->
+        not_a_counter(conn, "pipeline counter")
+    end
+  end
+
+  defp schedule_stage(conn, pipeline_name, pipeline_counter, stage_name) do
+    case Pipelines.approve_stage(pipeline_name, pipeline_counter, stage_name) do
+      {:ok, _stage_instance} ->
+        conn
+        |> put_status(:accepted)
+        |> json(%{
+          message:
+            "Request to schedule stage " <>
+              "#{pipeline_name}/#{pipeline_counter}/#{stage_name} accepted"
+        })
+
+      {:error, reason} ->
+        conn
+        |> put_status(:unprocessable_entity)
+        |> json(%{message: "Could not schedule stage: #{reason}"})
+    end
+  end
+
   defp with_stage_instance(conn, params, rerun) do
     with {:ok, pipeline_counter} <- parse_counter(params["pipeline_counter"]),
          {:ok, stage_counter} <- parse_counter(params["stage_counter"]) do
