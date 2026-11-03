@@ -502,11 +502,8 @@ defmodule ExGoCDWeb.AdminLive do
             </div>
             <div class="flex justify-between">
               <span>Maintenance Mode:</span>
-              <span class={[
-                "font-bold",
-                if(@maintenance_mode, do: "text-amber-600", else: "text-slate-500")
-              ]}>
-                {if @maintenance_mode, do: "Enabled (Read-only)", else: "Disabled"}
+              <span class={["font-bold", maintenance_mode_colour(@maintenance_mode)]}>
+                {maintenance_mode_label(@maintenance_mode)}
               </span>
             </div>
             <div class="flex justify-between">
@@ -531,15 +528,17 @@ defmodule ExGoCDWeb.AdminLive do
               </div>
               <button
                 phx-click="toggle_maintenance_mode"
+                disabled={@maintenance_mode == :unknown}
                 class={[
                   "px-3 py-1.5 rounded text-xs font-semibold border transition-all",
                   if(@maintenance_mode,
                     do: "bg-amber-600 border-amber-500 text-white hover:bg-amber-500",
                     else: "bg-slate-100 border-slate-350 text-slate-700 hover:bg-slate-200"
-                  )
+                  ),
+                  if(@maintenance_mode == :unknown, do: "opacity-50 cursor-not-allowed")
                 ]}
               >
-                {if @maintenance_mode, do: "Disable", else: "Enable"}
+                {maintenance_mode_action(@maintenance_mode)}
               </button>
             </div>
 
@@ -1165,11 +1164,29 @@ defmodule ExGoCDWeb.AdminLive do
     :exit, _ -> {:error, :unavailable}
   end
 
+  # Maintenance mode lives in a singleton; one that cannot be reached is not the
+  # same as "off", and the page must not say it is.
   defp safe_maintenance_mode do
     MaintenanceMode.enabled?()
   catch
-    :exit, _ -> false
+    :exit, _ -> :unknown
   end
+
+  # What the page says about maintenance mode, for the three answers there are:
+  # on, off, and "the singleton did not answer". Public so a test can pin the
+  # wording without stopping a singleton the rest of the suite is using.
+  @doc false
+  def maintenance_mode_label(true), do: "Enabled (Read-only)"
+  def maintenance_mode_label(false), do: "Disabled"
+  def maintenance_mode_label(:unknown), do: "Unknown"
+
+  defp maintenance_mode_colour(true), do: "text-amber-600"
+  defp maintenance_mode_colour(_unknown_or_off), do: "text-slate-500"
+
+  @doc false
+  def maintenance_mode_action(true), do: "Disable"
+  def maintenance_mode_action(false), do: "Enable"
+  def maintenance_mode_action(:unknown), do: "Unknown"
 
   defp safe_backup_status do
     Backup.status().status

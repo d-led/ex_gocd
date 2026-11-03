@@ -404,4 +404,18 @@ defmodule ExGoCDWeb.AdminLiveTest do
       assert render(view) =~ "No audit log entries found"
     end
   end
+
+  describe "what the page says about maintenance mode" do
+    test "a mode it could read is said plainly" do
+      assert ExGoCDWeb.AdminLive.maintenance_mode_label(true) == "Enabled (Read-only)"
+      assert ExGoCDWeb.AdminLive.maintenance_mode_label(false) == "Disabled"
+      assert ExGoCDWeb.AdminLive.maintenance_mode_action(true) == "Disable"
+      assert ExGoCDWeb.AdminLive.maintenance_mode_action(false) == "Enable"
+    end
+
+    test "a mode it could not read is not called off" do
+      assert ExGoCDWeb.AdminLive.maintenance_mode_label(:unknown) == "Unknown"
+      assert ExGoCDWeb.AdminLive.maintenance_mode_action(:unknown) == "Unknown"
+    end
+  end
 end
