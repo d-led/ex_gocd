@@ -503,6 +503,14 @@ defmodule ExGoCDWeb.Router do
     post "/encrypt", EncryptionController, :encrypt
   end
 
+  # api.go.cd puts the elastic agent profile API outside /admin, so it needs a
+  # scope of its own: admin rights, documented path, same profiles.
+  scope "/api/elastic", ExGoCDWeb.API.Admin do
+    pipe_through :admin_api
+
+    resources "/profiles", ElasticAgentProfileController, except: [:new, :edit]
+  end
+
   scope "/api/config", ExGoCDWeb.API do
     pipe_through :api
 
@@ -747,6 +755,12 @@ defmodule ExGoCDWeb.Router do
     # The same resources at the paths api.go.cd documents for them
     resources "/elastic/cluster_profiles", ClusterProfileController, except: [:new, :edit]
     resources "/repositories", PackageRepositoryController, except: [:new, :edit]
+  end
+
+  scope "/go/api/elastic", ExGoCDWeb.API.Admin do
+    pipe_through :admin_api
+
+    resources "/profiles", ElasticAgentProfileController, except: [:new, :edit]
   end
 
   # GoCD internal agent remoting API (HTTP-based, used by official Go agent)

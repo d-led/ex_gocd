@@ -18,6 +18,19 @@ defmodule ExGoCD.ElasticAgentProfiles do
   def get_profile!(id), do: Repo.get!(ElasticAgentProfile, id)
   def get_profile(id), do: Repo.get(ElasticAgentProfile, id)
 
+  @doc """
+  Finds a profile by its generated id or by the name GoCD addresses it with.
+  """
+  def find_profile(id_or_name) when is_binary(id_or_name) do
+    by_id =
+      case Ecto.UUID.cast(id_or_name) do
+        {:ok, id} -> Repo.get(ElasticAgentProfile, id)
+        :error -> nil
+      end
+
+    by_id || Repo.get_by(ElasticAgentProfile, name: id_or_name)
+  end
+
   @doc "Creates a profile."
   def create_profile(attrs \\ %{}) do
     %ElasticAgentProfile{}

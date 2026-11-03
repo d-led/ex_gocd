@@ -165,6 +165,17 @@ run should check.
 
 ## Known gaps
 
+### An elastic profile's `properties` are mostly strings, and two of ours are not
+
+`/go/api/elastic/profiles` answers in api.go.cd's shape: the profile's `id` is the
+name its author gave it, and `properties` is a list of `{key, value}` pairs. GoCD's
+contract makes every `value` a string; ours are strings too, except for the two
+this server seeds itself — `MinAgents` is a number and `ResourceImages` an object.
+They are sent as they are stored. Sending them as JSON text would satisfy the
+contract and lose the object on the way back, and a client reading either gets a
+value it can see for what it is. `min_agents/1` already accepts a number or a
+string, so a profile created through the API with `"MinAgents": "1"` works.
+
 ### Notification filters are a different object, not a missing path
 
 GoCD's `api-notification-filter-v2` keeps notification filters **per user**, at
