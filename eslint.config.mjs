@@ -1,6 +1,12 @@
 export default [
   {
-    ignores: ["assets/vendor/**", "_build/**", "deps/**", "node_modules/**", "cover/**"],
+    ignores: [
+      "assets/vendor/**",
+      "_build/**",
+      "deps/**",
+      "node_modules/**",
+      "cover/**",
+    ],
   },
   {
     files: ["assets/js/**/*.js"],
@@ -73,6 +79,7 @@ export default [
         navigator: "readonly",
         DOMMatrixReadOnly: "readonly",
         getComputedStyle: "readonly",
+        MouseEvent: "readonly",
         setTimeout: "readonly",
         clearTimeout: "readonly",
         setInterval: "readonly",

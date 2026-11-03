@@ -110,9 +110,6 @@ describe("Value Stream Map", () => {
       cy.allOtherArrowsShouldBeDimmed("ex_gocd", "upstream-lib");
       cy.nodesShouldGlow("ex_gocd", "upstream-lib");
       cy.nodeShouldNotGlow("integration-pipeline");
-
-      // Visual proof — screenshot shows the glow + dimming
-      cy.screenshot("vsm-hover-glow", { capture: "viewport" });
     });
 
     it("restores all arrows and removes the glow when moving the mouse away", () => {
@@ -121,9 +118,6 @@ describe("Value Stream Map", () => {
 
       cy.allArrowsShouldBeBright();
       cy.noNodesShouldGlow();
-
-      // Visual proof — screenshot shows everything restored
-      cy.screenshot("vsm-mouseleave-restored", { capture: "viewport" });
     });
 
     it("keeps the highlight after a tap so mobile users can inspect the arrow", () => {

@@ -620,18 +620,29 @@ const vsmNodeId = (label) => {
 const vsmArrowSelector = (sourceId, targetId) =>
   `#vsm-svg .vsm-path[data-source-id="${sourceId}"][data-target-id="${targetId}"]`;
 
+// Each arrow is two paths: a wide transparent one that takes the pointer and
+// carries the mouse listeners, and a thin visible one drawn over it with
+// `pointer-events: none`. Only the transparent one can be hovered.
+const vsmArrowHitSelector = (sourceId, targetId) =>
+  `${vsmArrowSelector(sourceId, targetId)}[stroke="transparent"]`;
+
+// App/JS draws the arrows after mount and redraws them when the page updates, so
+// a node read a moment ago can be gone by the time an event is dispatched at it
+// — and a mouseenter on a detached node highlights nothing. Dispatching inside
+// the assertion, and asserting the *effect*, is what survives a redraw: when the
+// glow is missing Cypress retries, and the retry queries the current arrows.
 Cypress.Commands.add("hoverOnArrowBetween", (sourceLabel, targetLabel) => {
   vsmNodeId(sourceLabel).then((srcId) => {
     vsmNodeId(targetLabel).then((tgtId) => {
-      // The graph is a LiveView patch away from replacing the arrow it drew a
-      // moment ago, so the element is waited for in the current DOM: a
-      // mouseenter fired on a detached node highlights nothing. `exist`, not
-      // `be.visible` — Cypress reads visibility off offset dimensions, which an
-      // SVG path does not have.
-      cy.get(vsmArrowSelector(srcId, tgtId))
+      cy.get(vsmArrowHitSelector(srcId, tgtId))
         .first()
-        .should("exist")
-        .trigger("mouseenter", { force: true });
+        .should(($hit) => {
+          $hit[0].dispatchEvent(new MouseEvent("mouseenter"));
+          expect(
+            Cypress.$(`.vsm-node[data-id="${srcId}"].vsm-path-highlighted`),
+            "the arrow's source node glows after hovering it",
+          ).to.have.length(1);
+        });
     });
   });
 });
@@ -639,7 +650,9 @@ Cypress.Commands.add("hoverOnArrowBetween", (sourceLabel, targetLabel) => {
 Cypress.Commands.add("tapOnArrowBetween", (sourceLabel, targetLabel) => {
   vsmNodeId(sourceLabel).then((srcId) => {
     vsmNodeId(targetLabel).then((tgtId) => {
-      cy.get(vsmArrowSelector(srcId, tgtId))
+      // One click, not a retried one: a second click on the same arrow would
+      // dismiss the highlight the first one made.
+      cy.get(vsmArrowHitSelector(srcId, tgtId))
         .first()
         .trigger("click", { force: true });
     });
@@ -723,10 +736,15 @@ Cypress.Commands.add(
   (sourceLabel, targetLabel) => {
     vsmNodeId(sourceLabel).then((srcId) => {
       vsmNodeId(targetLabel).then((tgtId) => {
-        cy.get(vsmArrowSelector(srcId, tgtId))
+        cy.get(vsmArrowHitSelector(srcId, tgtId))
           .first()
-          .should("exist")
-          .trigger("mouseleave", { force: true });
+          .should(($hit) => {
+            $hit[0].dispatchEvent(new MouseEvent("mouseleave"));
+            expect(
+              Cypress.$(".vsm-node.vsm-path-highlighted"),
+              "no node is left glowing after the mouse leaves",
+            ).to.have.length(0);
+          });
       });
     });
   },
@@ -863,17 +881,26 @@ Cypress.Commands.add("hoverStillHighlightsNodes", () => {
       const srcId = $arrow.attr("data-source-id");
       const tgtId = $arrow.attr("data-target-id");
       if (srcId && tgtId) {
-        cy.wrap($arrow).trigger("mouseenter", { force: true });
-        cy.get(`.vsm-node[data-id="${srcId}"]`).should(
-          "have.class",
-          "vsm-path-highlighted",
-        );
-        cy.get(`.vsm-node[data-id="${tgtId}"]`).should(
-          "have.class",
-          "vsm-path-highlighted",
-        );
-        cy.wrap($arrow).trigger("mouseleave", { force: true });
-        cy.get(".vsm-node.vsm-path-highlighted").should("not.exist");
+        cy.get(vsmArrowHitSelector(srcId, tgtId))
+          .first()
+          .should(($hit) => {
+            $hit[0].dispatchEvent(new MouseEvent("mouseenter"));
+            expect(
+              Cypress.$(`.vsm-node[data-id="${srcId}"].vsm-path-highlighted`),
+              "the arrow's source node glows",
+            ).to.have.length(1);
+            expect(
+              Cypress.$(`.vsm-node[data-id="${tgtId}"].vsm-path-highlighted`),
+              "the arrow's target node glows",
+            ).to.have.length(1);
+          })
+          .should(($hit) => {
+            $hit[0].dispatchEvent(new MouseEvent("mouseleave"));
+            expect(
+              Cypress.$(".vsm-node.vsm-path-highlighted"),
+              "no node is left glowing",
+            ).to.have.length(0);
+          });
       }
     });
 });
