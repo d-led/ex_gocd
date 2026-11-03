@@ -3,10 +3,11 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLiveTest do
 
   import Phoenix.LiveViewTest
 
-  alias ExGoCD.ConfigRepos.ConfigRepo
-  alias ExGoCD.ConfigRepos.ConfigRepoFile
-  alias ExGoCD.ConfigRepos.ConfigRepoFileSelection
+  alias ExGoCD.ConfigRepos.{ConfigRepo, ConfigRepoFile, ConfigRepoFileSelection, Fetcher}
+  alias ExGoCD.GitRepository
   alias ExGoCD.Repo
+
+  @moduletag :tmp_dir
 
   describe "the external CI repository wizard" do
     test "says so, rather than failing, when the id is not one it could hold", %{conn: conn} do
@@ -34,35 +35,72 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLiveTest do
       assert Repo.all(ConfigRepo) == []
     end
 
-    test "a filled step one stores the repository and shows the workflows it found", %{conn: conn} do
+    test "a filled step one stores the repository and shows the workflows it holds", %{
+      conn: conn,
+      tmp_dir: tmp_dir
+    } do
+      origin = workflows_repository(tmp_dir, ["compile", "test"])
+
       {:ok, view, _html} = live(conn, ~p"/admin/config_repos/new")
 
-      html = submit_step_one(view, "https://github.com/acme/ci.git", "trunk")
+      html = submit_step_one(view, "file://#{origin}", "main")
+      forget_clone_on_exit(Repo.one!(ConfigRepo))
 
-      assert html =~ ".github/workflows/gradle.yml"
+      assert html =~ ".github/workflows/build.yml"
 
       assert [stored] = Repo.all(ConfigRepo)
-      assert stored.url == "https://github.com/acme/ci.git"
-      assert stored.branch == "trunk"
+      assert stored.url == "file://#{origin}"
+      assert stored.branch == "main"
       assert stored.source_type == "github_actions"
     end
 
-    test "finishing the wizard records the chosen file with the jobs it discovered", %{conn: conn} do
+    test "finishing the wizard records the chosen file with the jobs it found", %{
+      conn: conn,
+      tmp_dir: tmp_dir
+    } do
+      origin = workflows_repository(tmp_dir, ["compile", "test"])
+
       {:ok, view, _html} = live(conn, ~p"/admin/config_repos/new")
 
-      submit_step_one(view, "https://github.com/acme/ci.git", "main")
+      submit_step_one(view, "file://#{origin}", "main")
+      forget_clone_on_exit(Repo.one!(ConfigRepo))
 
       view |> element("button[phx-click='step2_continue']") |> render_click()
       view |> element("button[phx-click='step3_next']") |> render_click()
       view |> element("button[phx-click='save_all']") |> render_click()
 
       assert [file] = Repo.all(ConfigRepoFile)
-      assert file.path == ".github/workflows/gradle.yml"
+      assert file.path == ".github/workflows/build.yml"
 
       assert [selection] = Repo.all(ConfigRepoFileSelection)
       assert selection.config_repo_file_id == file.id
-      assert Enum.sort(selection.selected_jobs) == ["mutation-testing", "property-based-testing"]
+      assert selection.selected_jobs == ["compile", "test"]
     end
+
+    test "says why it could not read a repository, and keeps that URL free", %{
+      conn: conn,
+      tmp_dir: tmp_dir
+    } do
+      {:ok, view, _html} = live(conn, ~p"/admin/config_repos/new")
+
+      html = submit_step_one(view, "file://#{Path.join(tmp_dir, "gone")}", "main")
+
+      assert html =~ "Could not read the repository"
+      assert Repo.all(ConfigRepo) == []
+    end
+  end
+
+  defp workflows_repository(tmp_dir, jobs) do
+    GitRepository.create(Path.join(tmp_dir, "origin"), %{
+      ".github/workflows/build.yml" => GitRepository.github_workflow(jobs)
+    })
+  end
+
+  # The wizard clones the repository into the poller's directory; the sandbox
+  # rolls the row back, so the clone is removed here — by the id captured while
+  # the row was still there, because on_exit runs outside the sandbox.
+  defp forget_clone_on_exit(config_repo) do
+    on_exit(fn -> File.rm_rf!(Fetcher.repo_dir(config_repo)) end)
   end
 
   defp submit_step_one(view, url, branch) do

@@ -4,7 +4,7 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
 
   Steps:
     1. Repo details (URL, branch, source type, plugin)
-    2. File discovery (simulated — shows expected workflow files)
+    2. File discovery (the workflow files the repository actually holds)
     3. Per-file configuration (mode, jobs, triggers, overrides)
     4. Review & save
   """
@@ -12,7 +12,7 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
 
   import Ecto.Query
 
-  alias ExGoCD.ConfigRepos.{ConfigRepo, ConfigRepoFile, ConfigRepoFileSelection}
+  alias ExGoCD.ConfigRepos.{ConfigRepo, ConfigRepoFile, ConfigRepoFileSelection, Fetcher}
   alias ExGoCD.Repo
 
   @valid_modes ["translate", "execute_act", "execute_gitlab", "skip"]
@@ -62,14 +62,14 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
   end
 
   defp edit_existing_repo(socket, config_repo) do
-    existing_files = config_repo.config_repo_files || []
+    existing_files = stored_files(config_repo)
 
     socket
     |> assign(:step, 1)
     |> assign(:editing, true)
     |> assign_repo_fields(config_repo)
     |> assign(:errors, %{})
-    |> assign(:discovered_files, simulate_discovery(config_repo.source_type))
+    |> assign(:discovered_files, Fetcher.recorded(config_repo, existing_files))
     |> assign(:selected_paths, Enum.map(existing_files, & &1.path))
     |> assign(:file_configs, build_file_configs_from_repo(existing_files))
     |> assign(:config_repo, config_repo)
@@ -267,6 +267,12 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
 
   # ── Helpers ────────────────────────────────────────────────────────────────
 
+  # The files a repository holds, from the rows the poller recorded. There is no
+  # association to preload: `config_repo_files` carries the `config_repo_id`.
+  defp stored_files(config_repo) do
+    Repo.all(from f in ConfigRepoFile, where: f.config_repo_id == ^config_repo.id)
+  end
+
   defp delete_stored_files(config_repo) do
     file_ids =
       Repo.all(
@@ -350,16 +356,7 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
 
     case Repo.update(changeset) do
       {:ok, config_repo} ->
-        discovered = simulate_discovery(config_repo.source_type)
-
-        existing_paths =
-          config_repo
-          |> Repo.preload(:config_repo_files)
-          |> Map.get(:config_repo_files, [])
-          |> Enum.map(& &1.path)
-
-        all_paths = Enum.uniq(existing_paths ++ Enum.map(discovered, & &1.path))
-        advance_from_step1(socket, url, branch, config_repo, discovered, all_paths)
+        discover_and_advance(socket, url, branch, config_repo, false)
 
       {:error, changeset} ->
         url_error = error_msg(changeset, "update")
@@ -379,13 +376,32 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
          })
          |> Repo.insert() do
       {:ok, config_repo} ->
-        discovered = simulate_discovery(socket.assigns.source_type)
-        paths = Enum.map(discovered, & &1.path)
-        advance_from_step1(socket, url, branch, config_repo, discovered, paths)
+        discover_and_advance(socket, url, branch, config_repo, true)
 
       {:error, changeset} ->
         url_error = error_msg(changeset, "create")
         {:noreply, assign(socket, :errors, %{repo_url: url_error})}
+    end
+  end
+
+  # What step 2 shows is the repository's own content: it is cloned (or the
+  # poller's clone is pulled) and its workflow files are read. A repository that
+  # cannot be read stops the wizard here, with the reason the remote gave.
+  defp discover_and_advance(socket, url, branch, config_repo, created?) do
+    case Fetcher.discover(config_repo) do
+      {:ok, discovered} ->
+        existing_paths = stored_files(config_repo) |> Enum.map(& &1.path)
+
+        all_paths = Enum.uniq(existing_paths ++ Enum.map(discovered, & &1.path))
+        advance_from_step1(socket, url, branch, config_repo, discovered, all_paths)
+
+      {:error, reason} ->
+        # A repository this page created but could not read is not kept, so the
+        # URL stays free for the user to correct it.
+        if created?, do: Repo.delete(config_repo)
+
+        {:noreply,
+         assign(socket, :errors, %{repo_url: "Could not read the repository: #{reason}"})}
     end
   end
 
@@ -433,10 +449,10 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
   defp validate_step1(_url, ""), do: %{branch: "Branch is required"}
 
   defp validate_step1(url, _branch) do
-    unless String.starts_with?(url, "http") or String.starts_with?(url, "git@") do
-      %{repo_url: "Must be a valid git URL (http/https/git@)"}
-    else
+    if ConfigRepo.git_url?(url) do
       %{}
+    else
+      %{repo_url: "Must be a valid git URL (http/https/git@/file)"}
     end
   end
 
@@ -445,29 +461,10 @@ defmodule ExGoCDWeb.ExternalCIRepoWizardLive do
   # nil for a value its key type cannot hold.
   defp fetch_config_repo(id) do
     case Integer.parse(to_string(id)) do
-      {number, ""} -> Repo.get(ConfigRepo, number) |> Repo.preload(:config_repo_files)
+      {number, ""} -> Repo.get(ConfigRepo, number)
       _ -> nil
     end
   end
-
-  # ── Simulated file discovery ───────────────────────────────────────────────
-
-  defp simulate_discovery("github_actions") do
-    [
-      %{
-        path: ".github/workflows/gradle.yml",
-        job_names: ["property-based-testing", "mutation-testing"]
-      }
-    ]
-  end
-
-  defp simulate_discovery("gitlab_ci") do
-    [
-      %{path: ".gitlab-ci.yml", job_names: ["test", "pitest"]}
-    ]
-  end
-
-  defp simulate_discovery(_), do: []
 
   # ── Helpers ────────────────────────────────────────────────────────────────
 

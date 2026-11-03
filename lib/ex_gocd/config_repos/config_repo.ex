@@ -38,6 +38,13 @@ defmodule ExGoCD.ConfigRepos.ConfigRepo do
 
   @valid_source_types ["gocd_pipeline", "github_actions", "gitlab_ci"]
 
+  # What git can clone: http(s), ssh, or a mirror on this host. The wizard asks
+  # this same question, so the rule lives here only.
+  @git_url ~r{^https?://|^git@|^file://}
+
+  @doc "Whether git can clone this URL: http(s), `git@`, or a `file://` mirror."
+  def git_url?(url), do: is_binary(url) and Regex.match?(@git_url, url)
+
   @spec changeset(t(), map()) :: Ecto.Changeset.t()
   def changeset(config_repo, attrs) do
     config_repo
@@ -52,7 +59,7 @@ defmodule ExGoCD.ConfigRepos.ConfigRepo do
       :error_message
     ])
     |> validate_required([:url])
-    |> validate_format(:url, ~r{^https?://|^git@}, message: "must be a valid git URL")
+    |> validate_format(:url, @git_url, message: "must be a valid git URL")
     |> validate_inclusion(:material_type, ["git"])
     |> validate_inclusion(:source_type, @valid_source_types)
     |> unique_constraint([:url, :source_type])
