@@ -212,7 +212,9 @@ jobs:
           cache-to: type=gha,mode=max,scope=${{ matrix.image.name }}-${{ matrix.arch }}
 
       # A password hash is what a first sign-in does, and it is the C NIF that a
-      # foreign-architecture build gets wrong.
+      # foreign-architecture build gets wrong. `:code.load_file/1` answers
+      # `{:module, Mod}` when the `@on_load` found a NIF it can load, and
+      # `{:error, :on_load_failure}` when it found one built for another machine.
       - name: The server hashes a password
         if: matrix.image.name == 'server'
         run: |
@@ -224,7 +226,7 @@ jobs:
             --entrypoint /app/bin/ex_gocd "$image" eval \
             'IO.inspect(:code.load_file(Argon2.Base), label: "argon2")')
           echo "$out"
-          grep -q 'argon2: :module' <<< "$out"
+          grep -q 'argon2: {:module, Argon2.Base}' <<< "$out"
 
       # The agent binary is cross-compiled, so the image's own architecture says
       # nothing about it: the ELF header does. `e_machine` sits at byte 18.
