@@ -203,6 +203,33 @@ defmodule ExGoCD.Accounts do
     PersonalAccessToken
     |> where(user_id: ^user_id)
     |> Repo.all()
+    |> Repo.preload(:user)
+  end
+
+  @doc """
+  Lists personal access tokens across all users, which only an administrator may
+  see. `filter` is `"active"`, `"revoked"` or `"all"` — anything else is
+  treated as `"all"` rather than refused, so a typo shows more, not less.
+  """
+  def list_tokens(filter \\ "all") do
+    PersonalAccessToken
+    |> where_filter(filter)
+    |> Repo.all()
+    |> Repo.preload(:user)
+  end
+
+  defp where_filter(query, "active"), do: where(query, revoked: false)
+  defp where_filter(query, "revoked"), do: where(query, revoked: true)
+  defp where_filter(query, _other), do: query
+
+  @doc """
+  Gets any personal access token by id, with its owner, without asking whose it is.
+  """
+  def get_token(token_id) do
+    case Repo.get(PersonalAccessToken, token_id) do
+      nil -> nil
+      token -> Repo.preload(token, :user)
+    end
   end
 
   @doc """

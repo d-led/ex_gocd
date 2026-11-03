@@ -17,26 +17,22 @@ defmodule ExGoCDWeb.Plugs.AdminApiPlug do
   def init(opts), do: opts
 
   @doc """
-  Halts with 403 if the current user is not an admin.
+  Halts with 403 if the current user is not an admin, and assigns the admin who
+  is asking as `:current_user`.
 
   The current user is resolved from the session (set by `TokenAuthPlug`
   or `AuthHeaderPlug`) via `Accounts.get_current_user/1`.
   """
   def call(conn, _opts) do
-    if admin?(conn) do
-      conn
+    user = conn |> get_session() |> Accounts.get_current_user()
+
+    if Accounts.admin?(user) do
+      assign(conn, :current_user, user)
     else
       conn
       |> put_resp_content_type("application/json")
       |> send_resp(:forbidden, ~s({"error":"Forbidden — admin access required"}))
       |> halt()
     end
-  end
-
-  defp admin?(conn) do
-    conn
-    |> get_session()
-    |> Accounts.get_current_user()
-    |> Accounts.admin?()
   end
 end

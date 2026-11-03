@@ -24,7 +24,9 @@ defmodule ExGoCDWeb.API.PersonalAccessTokenJSON do
       revoked: token.revoked,
       revoked_at: format_time(token.revoked_at),
       revoked_by: token.revoked_by,
-      revoke_cause: token.revoke_cause
+      revoke_cause: token.revoke_cause,
+      # We revoke tokens explicitly; deleting a user does not revoke anything.
+      revoked_because_user_deleted: false
     }
   end
 

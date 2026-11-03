@@ -417,6 +417,11 @@ defmodule ExGoCDWeb.Router do
   scope "/api/admin", ExGoCDWeb.API.Admin do
     pipe_through :admin_api
 
+    # Access tokens of every user (GoCD: /api/admin/access_tokens)
+    get "/access_tokens", AccessTokenController, :index
+    get "/access_tokens/:id", AccessTokenController, :show
+    post "/access_tokens/:id/revoke", AccessTokenController, :revoke
+
     resources "/pipelines", PipelineConfigController, except: [:new, :edit], param: "name"
     resources "/pipeline_groups", PipelineGroupController, except: [:new, :edit], param: "name"
     resources "/templates", TemplateController, except: [:new, :edit], param: "name"
@@ -646,6 +651,11 @@ defmodule ExGoCDWeb.Router do
 
   scope "/go/api/admin", ExGoCDWeb.API.Admin do
     pipe_through :admin_api
+
+    # Access tokens of every user (GoCD: /api/admin/access_tokens)
+    get "/access_tokens", AccessTokenController, :index
+    get "/access_tokens/:id", AccessTokenController, :show
+    post "/access_tokens/:id/revoke", AccessTokenController, :revoke
 
     resources "/pipelines", PipelineConfigController, except: [:new, :edit], param: "name"
     resources "/pipeline_groups", PipelineGroupController, except: [:new, :edit], param: "name"
