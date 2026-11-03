@@ -469,6 +469,7 @@ defmodule ExGoCDWeb.Router do
 
     resources "/artifact_stores", ArtifactStoreController, except: [:new, :edit]
     get "/site_url", SiteURLController, :show
+    get "/config/server/site_urls", SiteURLController, :show
     get "/permissions", PermissionsController, :index
 
     # Server configuration (GoCD parity)
@@ -713,6 +714,7 @@ defmodule ExGoCDWeb.Router do
 
     resources "/artifact_stores", ArtifactStoreController, except: [:new, :edit]
     get "/site_url", SiteURLController, :show
+    get "/config/server/site_urls", SiteURLController, :show
     get "/permissions", PermissionsController, :index
 
     # Server configuration (GoCD parity)
