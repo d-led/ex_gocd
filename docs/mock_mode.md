@@ -16,6 +16,11 @@ Or in `config/dev.exs` for persistent development:
 config :ex_gocd, :use_mock_data, true
 ```
 
+A server started this way shows sample agents and stops polling the repositories
+it is configured for, so the boot line says so. A **release** refuses it unless
+the deployment also sets `EX_GOCD_MOCK_DATA_IN_RELEASE=1`: a production server
+that silently pretends to poll is worse than one that does not start.
+
 ## What Gets Mocked
 
 When mock mode is enabled, the following `Agents` context functions return mock data:

@@ -142,9 +142,27 @@ if config_env() == :prod do
   # See https://hexdocs.pm/swoosh/Swoosh.html#module-installation for details.
 end
 
-# In mock data mode (USE_MOCK_DATA=true), suppress polling and use MockImpl.
-# Works at runtime in any environment (dev, prod, Docker releases).
+# Mock data mode (USE_MOCK_DATA=true) shows sample agents and swallows the
+# pollers, so a server started this way does not track the repositories it is
+# configured for. It is a development and demo aid: a release refuses it unless
+# the deployment says, in so many words, that this is what it wants.
 if System.get_env("USE_MOCK_DATA") == "true" do
+  if config_env() == :prod and System.get_env("EX_GOCD_MOCK_DATA_IN_RELEASE") != "1" do
+    raise """
+    USE_MOCK_DATA=true in a release: this server would show sample data and never
+    poll the repositories it is configured for.
+
+    If that is really what this deployment is for, also set
+
+        EX_GOCD_MOCK_DATA_IN_RELEASE=1
+    """
+  end
+
+  IO.puts(:stderr, """
+  [ex_gocd] USE_MOCK_DATA=true: agents are sample data, the pollers and the timer
+  [ex_gocd] scheduler are off, and the SCM client is the mock one.
+  """)
+
   config :ex_gocd,
     poller_interval: :none,
     enable_timer_scheduler: false,
