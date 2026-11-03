@@ -65,9 +65,22 @@ defmodule ExGoCDWeb.API.StageControllerTest do
     test "cancels a stage that is running", %{conn: conn, stage: stage} do
       stage |> Ecto.Changeset.change(state: "Building", result: "Unknown") |> Repo.update!()
 
-      body = conn |> post("/api/stages/#{@pipeline}/1/build/cancel") |> json_response(200)
+      body =
+        conn
+        |> confirmed()
+        |> post("/api/stages/#{@pipeline}/1/build/cancel")
+        |> json_response(200)
 
       assert body == %{"message" => "Stage cancelled successfully."}
+    end
+
+    test "asks an empty request to confirm first, as GoCD does", %{conn: conn, stage: stage} do
+      stage |> Ecto.Changeset.change(state: "Building", result: "Unknown") |> Repo.update!()
+
+      body = conn |> post("/api/stages/#{@pipeline}/1/build/cancel") |> json_response(400)
+
+      assert body["message"] =~ "X-GoCD-Confirm"
+      assert Repo.get!(StageInstance, stage.id).state == "Building"
     end
 
     test "cancels the stage instance the path names, not whichever row came first", %{
@@ -81,6 +94,7 @@ defmodule ExGoCDWeb.API.StageControllerTest do
       insert_job_instance_unassigned(second.id, "compile", DateTime.utc_now())
 
       conn
+      |> confirmed()
       |> post("/api/stages/#{@pipeline}/1/build/2/cancel")
       |> json_response(200)
 
@@ -89,8 +103,15 @@ defmodule ExGoCDWeb.API.StageControllerTest do
     end
 
     test "answers a counter that is not a number as a bad request", %{conn: conn} do
-      assert conn |> post("/api/stages/#{@pipeline}/nope/build/cancel") |> json_response(400)
-      assert conn |> post("/api/stages/#{@pipeline}/1/build/nope/cancel") |> json_response(400)
+      assert conn
+             |> confirmed()
+             |> post("/api/stages/#{@pipeline}/nope/build/cancel")
+             |> json_response(400)
+
+      assert conn
+             |> confirmed()
+             |> post("/api/stages/#{@pipeline}/1/build/nope/cancel")
+             |> json_response(400)
     end
   end
 
@@ -104,6 +125,7 @@ defmodule ExGoCDWeb.API.StageControllerTest do
 
       body =
         conn
+        |> confirmed()
         |> post("/go/api/stages/#{@pipeline}/1/build/1/run-failed-jobs")
         |> json_response(202)
 
@@ -116,6 +138,7 @@ defmodule ExGoCDWeb.API.StageControllerTest do
 
       body =
         conn
+        |> confirmed()
         |> post("/api/stages/#{@pipeline}/1/build/1/run-failed-jobs")
         |> json_response(422)
 
@@ -125,6 +148,7 @@ defmodule ExGoCDWeb.API.StageControllerTest do
     test "says a stage it cannot find is missing", %{conn: conn} do
       body =
         conn
+        |> confirmed()
         |> post("/api/stages/#{@pipeline}/1/deploy/1/run-failed-jobs")
         |> json_response(404)
 
@@ -133,6 +157,7 @@ defmodule ExGoCDWeb.API.StageControllerTest do
 
     test "answers a counter that is not a number as a bad request", %{conn: conn} do
       assert conn
+             |> confirmed()
              |> post("/api/stages/#{@pipeline}/1/build/x/run-failed-jobs")
              |> json_response(400)
     end
@@ -144,7 +169,7 @@ defmodule ExGoCDWeb.API.StageControllerTest do
 
       body =
         conn
-        |> post("/api/stages/#{@pipeline}/1/build/1/run-selected-jobs", %{
+        |> post_json("/api/stages/#{@pipeline}/1/build/1/run-selected-jobs", %{
           jobs: ["compile"]
         })
         |> json_response(202)
@@ -154,7 +179,7 @@ defmodule ExGoCDWeb.API.StageControllerTest do
 
     test "names no jobs as a bad request", %{conn: conn} do
       assert conn
-             |> post("/api/stages/#{@pipeline}/1/build/1/run-selected-jobs", %{})
+             |> post_json("/api/stages/#{@pipeline}/1/build/1/run-selected-jobs", %{jobs: []})
              |> json_response(400)
     end
 
@@ -163,12 +188,21 @@ defmodule ExGoCDWeb.API.StageControllerTest do
 
       body =
         conn
-        |> post("/api/stages/#{@pipeline}/1/build/1/run-selected-jobs", %{
+        |> post_json("/api/stages/#{@pipeline}/1/build/1/run-selected-jobs", %{
           jobs: ["no-such-job"]
         })
         |> json_response(422)
 
       assert body["message"] =~ "belong to this stage"
     end
+  end
+
+  # The header's presence is the confirmation; GoCD does not read its value.
+  defp confirmed(conn), do: put_req_header(conn, "x-gocd-confirm", "true")
+
+  defp post_json(conn, path, body) do
+    conn
+    |> put_req_header("content-type", "application/json")
+    |> post(path, Jason.encode!(body))
   end
 end

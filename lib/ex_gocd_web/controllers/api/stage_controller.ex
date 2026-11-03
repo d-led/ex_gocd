@@ -1,6 +1,9 @@
 defmodule ExGoCDWeb.API.StageController do
   use ExGoCDWeb, :controller
 
+  # GoCD asks an empty mutating request to carry X-GoCD-Confirm; see the plug.
+  plug ExGoCDWeb.Plugs.GoCDConfirm
+
   alias ExGoCD.Pipelines
   alias ExGoCD.Pipelines.{JobInstance, StageInstance}
 
@@ -114,8 +117,12 @@ defmodule ExGoCDWeb.API.StageController do
   end
 
   @doc "POST /api/stages/:pipeline_name/:pipeline_counter/:stage_name/:stage_counter/run-selected-jobs"
-  def run_selected_jobs(conn, %{"jobs" => job_names} = params) when is_list(job_names) do
-    with_stage_instance(conn, params, &Pipelines.rerun_selected_jobs(&1, &2, &3, &4, job_names))
+  def run_selected_jobs(conn, %{"jobs" => [_ | _]} = params) do
+    with_stage_instance(
+      conn,
+      params,
+      &Pipelines.rerun_selected_jobs(&1, &2, &3, &4, params["jobs"])
+    )
   end
 
   def run_selected_jobs(conn, _params) do
