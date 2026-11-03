@@ -6,12 +6,27 @@ describe("External CI Repo Wizard E2E Tests", () => {
   });
 
   afterEach(() => {
-    // Clean up eci-test config repos created by this test run.
-    // In mock mode the cleanup endpoint may not exist — ignore failures.
+    // Remove the repositories this run created, through the documented API.
+    // Every URL the suite uses contains "eci-test".
     cy.request({
-      method: "DELETE",
-      url: "/api/admin/config_repos/cleanup",
+      url: "/api/admin/config_repos",
       failOnStatusCode: false,
+    }).then((response) => {
+      if (response.status !== 200) {
+        return;
+      }
+
+      const repos = response.body.config_repos || [];
+
+      repos
+        .filter((repo) => String(repo.url || "").includes("eci-test"))
+        .forEach((repo) =>
+          cy.request({
+            method: "DELETE",
+            url: `/api/admin/config_repos/${repo.id}`,
+            failOnStatusCode: false,
+          }),
+        );
     });
   });
 

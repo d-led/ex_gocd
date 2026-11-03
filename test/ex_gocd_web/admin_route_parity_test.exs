@@ -5,17 +5,11 @@ defmodule ExGoCDWeb.AdminRouteParityTest do
   other is invisible to whoever reads the documentation — the config repo API and
   the role config API were both in that state, and both answered 404 at the path
   a GoCD client is told to call.
-
-  `/config_repos/cleanup` is one exception and stays one: it deletes data for
-  tests, and a destructive hook does not need a second door.
   """
   use ExUnit.Case, async: true
 
-  @deliberately_unmirrored [{"delete", "/config_repos/cleanup"}]
-
   test "the go-prefixed tree serves every route the plain tree serves" do
-    assert Enum.sort(MapSet.to_list(missing_from("/go/api/admin"))) ==
-             Enum.sort(@deliberately_unmirrored)
+    assert MapSet.size(missing_from("/go/api/admin")) == 0
   end
 
   test "the plain tree serves every route the go-prefixed tree serves" do

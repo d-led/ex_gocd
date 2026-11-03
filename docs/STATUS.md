@@ -768,9 +768,10 @@ config API at `/go/api/admin/security/roles`; ex_gocd served it only without the
 `go` prefix, so a client following the documentation got a 404 — the third
 endpoint found in that state after config repos and the backup settings. Rather
 than find a fourth by hand, a test compares the two admin route trees and fails
-on any route in one and not the other, with `/config_repos/cleanup` named as the
-one exception: it deletes data for tests, and a destructive hook does not need a
-second door. Checked by deleting one `go` route: the test names it.
+on any route in one and not the other. Checked by deleting one `go` route: the
+test names it. The one route that used to be exempt — `/config_repos/cleanup`, a
+hook that deleted test repositories — is gone; the Cypress suite deletes the
+repositories it creates through the documented API instead.
 
 The pipeline mistake behind the role API is now held to a sweep rather than to
 memory: a test asks **every** route under `/api/admin` — 105 of them — with a

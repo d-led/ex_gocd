@@ -117,26 +117,17 @@ defmodule ExGoCDWeb.AdminLiveTest do
     # The maintenance mode toggle is in its own synchronous file: it flips a flag
     # the whole server shares, so it cannot run beside other tests.
 
-    test "performs database configuration backup", %{conn: conn} do
+    test "starts a backup through the backup service and reports its answer", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/admin/server")
 
-      # Initially backup status is Idle
-      assert render(view) =~ "Idle"
-
-      # Trigger backup — falls back to simulation when Backup GenServer unavailable
       view
       |> element("button", "Start Backup Now")
       |> render_click()
 
+      # The panel shows what the service said: it is running. Nothing here may
+      # claim the backup finished — only the service can say that.
       assert render(view) =~ "Running Backup..."
-      assert render(view) =~ "Config backup started at"
-
-      # Wait for simulated completion
-      send(view.pid, :backup_complete)
-
-      # Ensure it completed successfully
-      assert render(view) =~ "Completed"
-      assert render(view) =~ "Backup completed successfully"
+      refute render(view) =~ "Backup completed successfully"
     end
 
     test "allows searching/filtering pipelines within groups", %{conn: conn} do

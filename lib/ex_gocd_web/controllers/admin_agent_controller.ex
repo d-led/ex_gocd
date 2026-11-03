@@ -8,7 +8,7 @@ defmodule ExGoCDWeb.AdminAgentController do
   Original GoCD endpoints:
   - POST /admin/agent - Form-based agent registration
   - GET /admin/agent/token - Get registration token for agent
-  - GET /admin/agent/root_certificate - Get server CA certificate (HTTPS only)
+  - GET /admin/agent/root_certificate - Answers 404: this server serves no TLS
   """
   use ExGoCDWeb, :controller
 
@@ -129,24 +129,18 @@ defmodule ExGoCDWeb.AdminAgentController do
   @doc """
   GET /admin/agent/root_certificate
 
-  Returns the server's root CA certificate for TLS connections.
-  Only relevant for HTTPS deployments.
+  This server does not terminate TLS, so it has no CA of its own to hand out:
+  the certificate an agent should trust belongs to whatever sits in front of
+  the server — oauth2-proxy, a load balancer. Answering 404 says that plainly;
+  the certificate-shaped placeholder that used to be served here was worse than
+  nothing, because a trusting agent would pin it. The Go agent asks only when
+  its server URL is `https` (`agent/internal/registration`).
   """
   def root_certificate(conn, _params) do
-    Logger.info("Root certificate request")
-
-    # For development with HTTP, return a placeholder
-    # In production with HTTPS, this would return the actual CA certificate
-    cert = """
-    -----BEGIN CERTIFICATE-----
-    # Development placeholder - not using TLS
-    # In production, this would be the actual server CA certificate
-    -----END CERTIFICATE-----
-    """
-
     conn
+    |> put_status(:not_found)
     |> put_resp_content_type("text/plain")
-    |> text(cert)
+    |> text("This server does not serve TLS; it is expected behind a proxy that does.\n")
   end
 
   # Helper to parse comma-separated values into array

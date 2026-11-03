@@ -393,11 +393,6 @@ defmodule ExGoCDWeb.Router do
     get "/openapi", OpenApiSpex.Plug.RenderSpec, []
   end
 
-  scope "/api/admin/config_repos", ExGoCDWeb.API do
-    pipe_through :admin_api
-    delete "/cleanup", ConfigRepoController, :cleanup_test_data
-  end
-
   scope "/api/admin/config_repos", ExGoCDWeb.API.Admin do
     pipe_through :admin_api
     get "/", ConfigRepoController, :index

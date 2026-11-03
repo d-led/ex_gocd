@@ -1529,16 +1529,14 @@ defmodule ExGoCDWeb.AdminLive do
         {:noreply, socket |> put_flash(:error, "A backup is already in progress.")}
 
       {:error, :unavailable} ->
-        # Fallback: simulate backup when Backup GenServer isn't running
-        Process.send_after(self(), :backup_complete, 1500)
-
         {:noreply,
          socket
-         |> assign(:backup_status, "Running")
+         |> assign(:backup_status, "Unavailable")
          |> assign(
            :backup_message,
-           "Config backup started at #{DateTime.utc_now() |> DateTime.to_string()}..."
-         )}
+           "The backup service is not running, so no backup was started."
+         )
+         |> put_flash(:error, "The backup service is not running. Nothing was backed up.")}
     end
   end
 
@@ -2027,15 +2025,6 @@ defmodule ExGoCDWeb.AdminLive do
      socket
      |> assign(:backup_status, status.status)
      |> assign(:backup_message, status.message)}
-  end
-
-  @impl true
-  def handle_info(:backup_complete, socket) do
-    {:noreply,
-     socket
-     |> assign(:backup_status, "Completed")
-     |> assign(:backup_message, "Backup completed successfully.")
-     |> assign(:flash_info, "Database config backup completed successfully.")}
   end
 
   @impl true
