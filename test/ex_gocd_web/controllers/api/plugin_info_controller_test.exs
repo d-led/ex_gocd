@@ -4,7 +4,21 @@
 defmodule ExGoCDWeb.API.PluginInfoControllerTest do
   use ExGoCDWeb.ConnCase, async: true
 
+  alias ExGoCD.Accounts
+
   @git_plugin "ex_gocd.scm.git"
+
+  setup %{conn: conn} do
+    {:ok, admin} =
+      Accounts.create_user(%{
+        username: "plugin-info-admin-#{System.unique_integer([:positive])}",
+        display_name: "Admin",
+        roles: ["admin"],
+        status: "Active"
+      })
+
+    %{conn: log_in_as(conn, admin.username)}
+  end
 
   describe "GET /api/admin/plugin_info" do
     test "lists every built-in plugin with its health", %{conn: conn} do

@@ -312,8 +312,6 @@ defmodule ExGoCDWeb.Router do
     get "/dashboard", DashboardController, :show
     get "/version", VersionController, :show
     get "/server_health_messages", ServerHealthController, :show
-    get "/admin/plugin_info", PluginInfoController, :index
-    get "/admin/plugin_info/:plugin_id", PluginInfoController, :show
 
     # Agent health monitoring (GoCD parity)
     get "/agent_health", AgentHealthController, :index
@@ -412,6 +410,8 @@ defmodule ExGoCDWeb.Router do
     pipe_through :admin_api
     get "/scms", SCMController, :index
     get "/scms/:id", SCMController, :show
+    get "/plugin_info", PluginInfoController, :index
+    get "/plugin_info/:plugin_id", PluginInfoController, :show
   end
 
   scope "/api/admin", ExGoCDWeb.API.Admin do
@@ -422,7 +422,10 @@ defmodule ExGoCDWeb.Router do
     resources "/templates", TemplateController, except: [:new, :edit], param: "name"
     resources "/environments", EnvironmentController, except: [:new, :edit], param: "name"
 
+    # GoCD toggles maintenance mode with GET; the POST forms are ours and stay.
     get "/maintenance_mode/info", MaintenanceModeController, :show
+    get "/maintenance_mode/enable", MaintenanceModeController, :enable
+    get "/maintenance_mode/disable", MaintenanceModeController, :disable
     post "/maintenance_mode/enable", MaintenanceModeController, :enable
     post "/maintenance_mode/disable", MaintenanceModeController, :disable
 
@@ -565,8 +568,6 @@ defmodule ExGoCDWeb.Router do
     get "/dashboard", DashboardController, :show
     get "/version", VersionController, :show
     get "/server_health_messages", ServerHealthController, :show
-    get "/admin/plugin_info", PluginInfoController, :index
-    get "/admin/plugin_info/:plugin_id", PluginInfoController, :show
 
     # Agent health monitoring (GoCD parity)
     get "/agent_health", AgentHealthController, :index
@@ -637,6 +638,8 @@ defmodule ExGoCDWeb.Router do
     pipe_through :admin_api
     get "/scms", SCMController, :index
     get "/scms/:id", SCMController, :show
+    get "/plugin_info", PluginInfoController, :index
+    get "/plugin_info/:plugin_id", PluginInfoController, :show
   end
 
   scope "/go/api/admin", ExGoCDWeb.API.Admin do
@@ -647,7 +650,10 @@ defmodule ExGoCDWeb.Router do
     resources "/templates", TemplateController, except: [:new, :edit], param: "name"
     resources "/environments", EnvironmentController, except: [:new, :edit], param: "name"
 
+    # GoCD toggles maintenance mode with GET; the POST forms are ours and stay.
     get "/maintenance_mode/info", MaintenanceModeController, :show
+    get "/maintenance_mode/enable", MaintenanceModeController, :enable
+    get "/maintenance_mode/disable", MaintenanceModeController, :disable
     post "/maintenance_mode/enable", MaintenanceModeController, :enable
     post "/maintenance_mode/disable", MaintenanceModeController, :disable
 
