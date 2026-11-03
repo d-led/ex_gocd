@@ -312,6 +312,7 @@ defmodule ExGoCDWeb.Router do
     get "/dashboard", DashboardController, :show
     get "/version", VersionController, :show
     get "/server_health_messages", ServerHealthController, :show
+    get "/config/materials", MaterialsController, :index
 
     # Agent health monitoring (GoCD parity)
     get "/agent_health", AgentHealthController, :index
@@ -584,6 +585,7 @@ defmodule ExGoCDWeb.Router do
     get "/dashboard", DashboardController, :show
     get "/version", VersionController, :show
     get "/server_health_messages", ServerHealthController, :show
+    get "/config/materials", MaterialsController, :index
 
     # Agent health monitoring (GoCD parity)
     get "/agent_health", AgentHealthController, :index
