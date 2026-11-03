@@ -165,6 +165,18 @@ run should check.
 
 ## Known gaps
 
+### Notification filters are a different object, not a missing path
+
+GoCD's `api-notification-filter-v2` keeps notification filters **per user**, at
+`/go/api/notification_filters`, and lets any signed-in user read and change their
+own (`checkUserAnd403` in `NotificationFilterControllerV2`, not the admin check).
+This server keeps them as one server-wide list at
+`/api/admin/notification_filters`, admin only. Answering the documented path with
+our rows would hand every user everyone else's filters, so it is not routed until
+the model matches: that needs a `user_id` on the row, a migration, and the pages
+that edit them learning whose they are. `mix run --no-start scripts/api_gap.exs`
+will keep listing the path until then — that is the honest state, not an oversight.
+
 ### Config XML export covers part of the configuration, and revert no longer loses the rest
 
 `generate/0` renders pipelines, templates, environments, roles, cluster profiles,
