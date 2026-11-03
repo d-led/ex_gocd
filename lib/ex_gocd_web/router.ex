@@ -313,6 +313,7 @@ defmodule ExGoCDWeb.Router do
     get "/version", VersionController, :show
     get "/server_health_messages", ServerHealthController, :show
     get "/plugin_info", PluginInfoController, :index
+    get "/plugin_info/:plugin_id", PluginInfoController, :show
 
     # Agent health monitoring (GoCD parity)
     get "/agent_health", AgentHealthController, :index
@@ -565,6 +566,7 @@ defmodule ExGoCDWeb.Router do
     get "/version", VersionController, :show
     get "/server_health_messages", ServerHealthController, :show
     get "/plugin_info", PluginInfoController, :index
+    get "/plugin_info/:plugin_id", PluginInfoController, :show
 
     # Agent health monitoring (GoCD parity)
     get "/agent_health", AgentHealthController, :index
