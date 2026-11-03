@@ -3,6 +3,8 @@ defmodule ExGoCDWeb.API.PipelineOperationsControllerTest do
 
   import Ecto.Query
 
+  import ExGoCDWeb.ConfirmHeader
+
   alias ExGoCD.Pipelines
   alias ExGoCD.Repo
 
@@ -99,7 +101,7 @@ defmodule ExGoCDWeb.API.PipelineOperationsControllerTest do
           paused_at: DateTime.utc_now() |> DateTime.truncate(:second)
         })
 
-      conn = post(conn, ~p"/api/pipelines/#{pipeline.name}/unpause")
+      conn = post(confirmed(conn), ~p"/api/pipelines/#{pipeline.name}/unpause")
 
       assert response = json_response(conn, 200)
       assert response["message"] == "Pipeline 'test-api-unpause' unpaused successfully."
@@ -123,7 +125,7 @@ defmodule ExGoCDWeb.API.PipelineOperationsControllerTest do
           paused_at: DateTime.utc_now() |> DateTime.truncate(:second)
         })
 
-      conn = post(conn, ~p"/go/api/pipelines/#{pipeline.name}/unpause")
+      conn = post(confirmed(conn), ~p"/go/api/pipelines/#{pipeline.name}/unpause")
 
       assert response = json_response(conn, 200)
       assert response["message"] == "Pipeline 'test-go-api-unpause' unpaused successfully."
@@ -209,9 +211,25 @@ defmodule ExGoCDWeb.API.PipelineOperationsControllerTest do
 
       conn = post(conn, ~p"/api/pipelines/#{pipeline.name}/unlock")
 
-      assert json_response(conn, 400) == %{
-               "error" => "Missing required header 'X-GoCD-Confirm: true'"
-             }
+      assert_unconfirmed_request_refused(conn)
+      assert Repo.get!(Pipelines.Pipeline, pipeline.id).locked
+    end
+
+    test "asks only that the header is there, as GoCD does", %{conn: conn} do
+      pipeline =
+        Repo.insert!(%Pipelines.Pipeline{
+          name: "test-api-unlock-any-confirm",
+          group: "test",
+          locked: true
+        })
+
+      conn =
+        conn
+        |> put_req_header("x-gocd-confirm", "anything")
+        |> post(~p"/api/pipelines/#{pipeline.name}/unlock")
+
+      assert json_response(conn, 200)["message"] ==
+               "Pipeline lock released for test-api-unlock-any-confirm."
     end
   end
 
@@ -220,7 +238,7 @@ defmodule ExGoCDWeb.API.PipelineOperationsControllerTest do
       pipeline = seed_pipeline_with_material("test-api-schedule")
 
       # Trigger via API
-      conn = post(conn, ~p"/api/pipelines/#{pipeline.name}/schedule")
+      conn = post(confirmed(conn), ~p"/api/pipelines/#{pipeline.name}/schedule")
 
       assert json_response(conn, 202) == %{
                "message" => "Request to schedule pipeline test-api-schedule accepted"
@@ -297,7 +315,7 @@ defmodule ExGoCDWeb.API.PipelineOperationsControllerTest do
       instance = insert_instance(pipeline, 1)
       insert_stage_run(instance, "build", "Awaiting")
 
-      conn = post(conn, ~p"/api/pipelines/#{pipeline.name}/1/build/run")
+      conn = post(confirmed(conn), ~p"/api/pipelines/#{pipeline.name}/1/build/run")
 
       assert json_response(conn, 200)["message"] == "Stage 'build' approved successfully."
       assert [%{state: state}] = waiting_stages(pipeline, "build")
@@ -309,7 +327,7 @@ defmodule ExGoCDWeb.API.PipelineOperationsControllerTest do
       instance = insert_instance(pipeline, 1)
       insert_stage_run(instance, "build", "Building")
 
-      conn = post(conn, ~p"/api/pipelines/#{pipeline.name}/1/build/run")
+      conn = post(confirmed(conn), ~p"/api/pipelines/#{pipeline.name}/1/build/run")
 
       assert json_response(conn, 400)["error"] == "Stage 'build' is not awaiting approval."
     end

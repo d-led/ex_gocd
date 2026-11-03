@@ -10,6 +10,8 @@ defmodule ExGoCDWeb.API.Admin.MaintenanceModeControllerTest do
   alias ExGoCD.Agents
   alias ExGoCD.MaintenanceMode
 
+  import ExGoCDWeb.ConfirmHeader
+
   setup %{conn: conn} do
     {:ok, admin} =
       Accounts.create_user(%{
@@ -75,6 +77,15 @@ defmodule ExGoCDWeb.API.Admin.MaintenanceModeControllerTest do
                  }
                }
              } = json_response(conn, 200)
+    end
+  end
+
+  describe "POST /go/api/admin/maintenance_mode/enable" do
+    test "asks an empty request to confirm itself", %{conn: conn} do
+      conn = post(conn, ~p"/go/api/admin/maintenance_mode/enable")
+
+      assert_unconfirmed_request_refused(conn)
+      refute ExGoCD.MaintenanceMode.enabled?()
     end
   end
 

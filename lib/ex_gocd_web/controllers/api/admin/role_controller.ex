@@ -1,6 +1,8 @@
 defmodule ExGoCDWeb.API.Admin.RoleController do
   use ExGoCDWeb, :controller
 
+  plug ExGoCDWeb.Plugs.GoCDConfirm
+
   alias ExGoCD.Accounts
   alias ExGoCD.Accounts.Role
 

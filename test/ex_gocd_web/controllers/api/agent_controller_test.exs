@@ -6,6 +6,8 @@ defmodule ExGoCDWeb.API.AgentControllerTest do
   alias ExGoCD.Agents.Agent
   alias ExGoCD.Repo
 
+  import ExGoCDWeb.ConfirmHeader
+
   @valid_uuid "550e8400-e29b-41d4-a716-446655500002"
   @another_uuid "650e8400-e29b-41d4-a716-446655440001"
 
@@ -332,7 +334,7 @@ defmodule ExGoCDWeb.API.AgentControllerTest do
     end
 
     test "soft deletes an agent", %{conn: conn} do
-      conn = put(conn, ~p"/api/agents/#{@valid_uuid}/disable")
+      conn = put(confirmed(conn), ~p"/api/agents/#{@valid_uuid}/disable")
       assert response(conn, 200)
 
       conn = delete(conn, ~p"/api/agents/#{@valid_uuid}")
@@ -368,7 +370,7 @@ defmodule ExGoCDWeb.API.AgentControllerTest do
     end
 
     test "enables a disabled agent", %{conn: conn} do
-      conn = put(conn, ~p"/api/agents/#{@valid_uuid}/enable")
+      conn = put(confirmed(conn), ~p"/api/agents/#{@valid_uuid}/enable")
 
       response = json_response(conn, 200)
       assert response["agent_config_state"] == "Enabled"
@@ -380,7 +382,7 @@ defmodule ExGoCDWeb.API.AgentControllerTest do
     end
 
     test "returns 404 for non-existent agent", %{conn: conn} do
-      conn = put(conn, ~p"/api/agents/#{@another_uuid}/enable")
+      conn = put(confirmed(conn), ~p"/api/agents/#{@another_uuid}/enable")
 
       assert %{"error" => "Agent not found"} = json_response(conn, 404)
     end
@@ -399,7 +401,7 @@ defmodule ExGoCDWeb.API.AgentControllerTest do
     end
 
     test "disables an enabled agent", %{conn: conn} do
-      conn = put(conn, ~p"/api/agents/#{@valid_uuid}/disable")
+      conn = put(confirmed(conn), ~p"/api/agents/#{@valid_uuid}/disable")
 
       response = json_response(conn, 200)
       assert response["agent_config_state"] == "Disabled"
@@ -410,9 +412,13 @@ defmodule ExGoCDWeb.API.AgentControllerTest do
     end
 
     test "returns 404 for non-existent agent", %{conn: conn} do
-      conn = put(conn, ~p"/api/agents/#{@another_uuid}/disable")
+      conn = put(confirmed(conn), ~p"/api/agents/#{@another_uuid}/disable")
 
       assert %{"error" => "Agent not found"} = json_response(conn, 404)
+    end
+
+    test "asks an empty request to confirm itself", %{conn: conn} do
+      assert_unconfirmed_request_refused(put(conn, ~p"/api/agents/#{@valid_uuid}/disable"))
     end
   end
 

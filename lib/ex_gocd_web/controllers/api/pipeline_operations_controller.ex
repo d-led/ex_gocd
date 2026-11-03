@@ -1,6 +1,8 @@
 defmodule ExGoCDWeb.API.PipelineOperationsController do
   use ExGoCDWeb, :controller
 
+  plug ExGoCDWeb.Plugs.GoCDConfirm
+
   alias ExGoCD.Pipelines
 
   action_fallback ExGoCDWeb.FallbackController
@@ -148,37 +150,28 @@ defmodule ExGoCDWeb.API.PipelineOperationsController do
     user = get_current_user(conn)
 
     case ExGoCD.Policies.permit?(ExGoCD.Policies.EnvironmentPolicy, :trigger_pipeline, user) do
-      true ->
-        confirm_header = get_req_header(conn, "x-gocd-confirm")
+      true -> do_unlock(conn, name)
+      false -> forbidden(conn)
+    end
+  end
 
-        if List.first(confirm_header) in ["true", "confirm"] do
-          case Pipelines.unlock_pipeline(name) do
-            {:ok, _pipeline} ->
-              conn
-              |> put_status(:ok)
-              |> put_view(json: ExGoCDWeb.API.PipelineOperationsJSON)
-              |> render(:message, message: "Pipeline lock released for #{name}.")
-
-            {:error, :pipeline_not_found} ->
-              conn
-              |> put_status(:not_found)
-              |> json(%{error: "Pipeline '#{name}' not found."})
-
-            {:error, _} ->
-              conn
-              |> put_status(:unprocessable_entity)
-              |> json(%{error: "Failed to unlock pipeline."})
-          end
-        else
-          conn
-          |> put_status(:bad_request)
-          |> json(%{error: "Missing required header 'X-GoCD-Confirm: true'"})
-        end
-
-      false ->
+  defp do_unlock(conn, name) do
+    case Pipelines.unlock_pipeline(name) do
+      {:ok, _pipeline} ->
         conn
-        |> put_status(:forbidden)
-        |> json(%{error: "Forbidden"})
+        |> put_status(:ok)
+        |> put_view(json: ExGoCDWeb.API.PipelineOperationsJSON)
+        |> render(:message, message: "Pipeline lock released for #{name}.")
+
+      {:error, :pipeline_not_found} ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{error: "Pipeline '#{name}' not found."})
+
+      {:error, _} ->
+        conn
+        |> put_status(:unprocessable_entity)
+        |> json(%{error: "Failed to unlock pipeline."})
     end
   end
 

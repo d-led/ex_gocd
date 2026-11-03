@@ -81,7 +81,10 @@ defmodule ExGoCDWeb.API.Admin.NotificationFilterControllerTest do
     end
 
     test "says what is missing when the body has no filter in it", %{conn: conn} do
-      body = conn |> post("/api/admin/notification_filters", %{}) |> json_response(400)
+      body =
+        conn
+        |> post("/api/admin/notification_filters", %{"unrelated" => true})
+        |> json_response(400)
 
       assert body["message"] =~ "notification_filter"
     end

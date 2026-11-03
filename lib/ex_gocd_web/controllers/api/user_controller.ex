@@ -1,6 +1,8 @@
 defmodule ExGoCDWeb.API.UserController do
   use ExGoCDWeb, :controller
 
+  plug ExGoCDWeb.Plugs.GoCDConfirm
+
   alias ExGoCD.Accounts
 
   @doc "GET /api/users"

@@ -9,6 +9,8 @@ defmodule ExGoCDWeb.API.Admin.ConfigRepoControllerTest do
   alias ExGoCD.Accounts
   alias ExGoCD.ConfigRepos
 
+  import ExGoCDWeb.ConfirmHeader
+
   setup %{conn: conn} do
     {:ok, admin} =
       Accounts.create_user(%{
@@ -64,10 +66,21 @@ defmodule ExGoCDWeb.API.Admin.ConfigRepoControllerTest do
 
   describe "POST /go/api/admin/config_repos" do
     test "refuses a repository with no url, naming the field", %{conn: conn} do
-      body = conn |> post("/go/api/admin/config_repos", %{}) |> json_response(422)
+      body =
+        conn
+        |> post("/go/api/admin/config_repos", %{"branch" => "main"})
+        |> json_response(422)
 
       assert body["error"] == "Validation failed"
       assert Map.has_key?(body["details"], "url")
+    end
+  end
+
+  describe "POST /go/api/admin/config_repos/:id/refresh" do
+    test "asks an empty request to confirm itself", %{conn: conn} do
+      conn = post(conn, "/go/api/admin/config_repos/#{Ecto.UUID.generate()}/refresh")
+
+      assert_unconfirmed_request_refused(conn)
     end
   end
 

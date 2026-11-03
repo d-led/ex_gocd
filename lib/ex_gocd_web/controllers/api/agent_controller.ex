@@ -11,6 +11,8 @@ defmodule ExGoCDWeb.API.AgentController do
   """
   use ExGoCDWeb, :controller
 
+  plug ExGoCDWeb.Plugs.GoCDConfirm
+
   alias ExGoCD.AgentJobRuns
   alias ExGoCD.Agents
 

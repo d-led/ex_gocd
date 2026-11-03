@@ -4,6 +4,8 @@
 defmodule ExGoCDWeb.API.Admin.ConfigRepoController do
   use ExGoCDWeb, :controller
 
+  plug ExGoCDWeb.Plugs.GoCDConfirm
+
   alias ExGoCD.ConfigRepos
   alias ExGoCD.ConfigRepos.Poller
   alias ExGoCDWeb.API.Admin.ConfigRepoJSON

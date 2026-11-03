@@ -1,6 +1,8 @@
 defmodule ExGoCDWeb.API.Admin.MaintenanceModeController do
   use ExGoCDWeb, :controller
 
+  plug ExGoCDWeb.Plugs.GoCDConfirm
+
   import Ecto.Query
 
   alias ExGoCD.AgentJobRuns.AgentJobRun

@@ -5,6 +5,8 @@ defmodule ExGoCDWeb.API.Admin.BackupConfigController do
   """
   use ExGoCDWeb, :controller
 
+  plug ExGoCDWeb.Plugs.GoCDConfirm
+
   alias ExGoCD.{BackupConfig, Repo}
 
   @doc "GET /api/admin/config/backup"

@@ -1,5 +1,8 @@
 defmodule ExGoCDWeb.API.Admin.NotificationFilterController do
   use ExGoCDWeb, :controller
+
+  plug ExGoCDWeb.Plugs.GoCDConfirm
+
   alias ExGoCD.Notifications
 
   def index(conn, params) do

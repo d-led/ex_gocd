@@ -32,7 +32,7 @@ defmodule ExGoCDWeb.API.Admin.EncryptionControllerTest do
     end
 
     test "returns 400 when value parameter is missing", %{conn: conn} do
-      conn = post(conn, "/api/admin/encrypt", %{})
+      conn = post(conn, "/api/admin/encrypt", %{"unrelated" => "field"})
 
       assert conn.status == 400
       assert %{"error" => msg} = json_response(conn, 400)

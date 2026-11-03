@@ -7,6 +7,11 @@ defmodule ExGoCDWeb.Plugs.GoCDConfirm do
   Only the presence of the header matters, as in GoCD — its value is not read.
   That is why the documented curl for cancelling a stage sends the header while
   the one for running selected jobs, which posts a body, does not.
+
+  GoCD wires this per controller (`before("/*", mimeType, this::verifyContentType)`),
+  not per pipeline: the plugin, environment, permission and site-URL controllers
+  never ask. A controller here opts in for the same reason its GoCD counterpart
+  does, so the two disagree only where one of them changed its mind.
   """
   import Plug.Conn
 

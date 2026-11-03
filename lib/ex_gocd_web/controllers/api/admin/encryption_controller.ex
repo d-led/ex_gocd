@@ -9,6 +9,8 @@ defmodule ExGoCDWeb.API.Admin.EncryptionController do
   """
   use ExGoCDWeb, :controller
 
+  plug ExGoCDWeb.Plugs.GoCDConfirm
+
   alias ExGoCD.Crypto
 
   action_fallback ExGoCDWeb.FallbackController

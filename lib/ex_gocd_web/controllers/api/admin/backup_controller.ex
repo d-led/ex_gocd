@@ -1,6 +1,8 @@
 defmodule ExGoCDWeb.API.Admin.BackupController do
   use ExGoCDWeb, :controller
 
+  plug ExGoCDWeb.Plugs.GoCDConfirm
+
   require Logger
 
   @doc "POST /api/admin/backups — triggers a database backup"

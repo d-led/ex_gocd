@@ -1069,10 +1069,21 @@ Reconstructed from the two indexed sessions for this workspace
    service behind `profiles: ["docker"]`, so plain `up` behaves as before and
    `--profile docker` runs the dogfood docker jobs. The socket it mounts is the
    daemon, so it stays a profile and the README says what that means.
-10. **Carry GoCD's confirm-header rule to the rest of the mutating API.** GoCD
-    asks every POST/PUT/PATCH that carries no body to say so with
-    `X-GoCD-Confirm` (`ApiController#verifyContentType`, quoted in
-    `lib/ex_gocd_web/plugs/gocd_confirm.ex`). Only the stage operations enforce
-    it today; the pipeline, agent and backup calls still accept an empty request
-    without the header, so a client that follows the docs works either way and a
-    client that omits it is not told.
+10. ~~**Carry GoCD's confirm-header rule to the rest of the mutating API.**~~ Done,
+    and the interesting part was the scope: GoCD does *not* apply the rule to
+    every API route. Each controller wires it itself with
+    `before("/*", mimeType, this::verifyContentType)` — 39 of them do, and the
+    plugin, environment, permission, secret-config, elastic-profile, mail-server,
+    site-URL and agent-job-history controllers do not. So the controllers whose
+    GoCD counterpart wires it now carry
+    `plug ExGoCDWeb.Plugs.GoCDConfirm`: agents, users, config repos,
+    maintenance mode, backups, backup config, notification filters, roles,
+    pipeline operations, encryption and the stage operations that had it.
+    `POST /api/jobs/schedule` deliberately does not, because it is ours and not a
+    documented path.
+    Carrying it also removed a second, invented rule: `unlock` demanded the
+    header's *value* be `true` or `confirm` and answered
+    `{"error": "Missing required header 'X-GoCD-Confirm: true'"}`. GoCD reads
+    only the header's presence and answers
+    `{"message": "Missing required header 'X-GoCD-Confirm' with value 'true'"}`,
+    which is now what the plug says for every resource.

@@ -14,6 +14,8 @@ defmodule ExGoCDWeb.API.AuthorisationTest do
   alias ExGoCD.Accounts
   alias ExGoCD.Agents
 
+  import ExGoCDWeb.ConfirmHeader
+
   setup do
     {:ok, admin} =
       Accounts.create_user(%{
@@ -112,7 +114,10 @@ defmodule ExGoCDWeb.API.AuthorisationTest do
     end
 
     test "can disable an agent", %{conn: conn, agent: agent} do
-      assert conn |> put("/go/api/agents/#{agent.uuid}/disable") |> json_response(200)
+      assert conn
+             |> confirmed()
+             |> put("/go/api/agents/#{agent.uuid}/disable")
+             |> json_response(200)
 
       assert agent |> reload() |> Map.fetch!(:disabled) == true
     end
