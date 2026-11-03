@@ -116,119 +116,65 @@ jobs:
     - run: mix deps.get
     - run: mix dialyzer
 
-  publish-server:
-    name: Build and publish Server Docker image
-    runs-on: ubuntu-latest
+  # One manifest per image per architecture, each built on a runner of that
+  # architecture, and an index job that turns the two digests into the tags.
+  #
+  # The reason is not only the time QEMU costs. The server image compiles a C NIF
+  # — `argon2_elixir` builds it with `:make` — in a `--platform=$BUILDPLATFORM`
+  # stage, so building a *foreign* target on an x86 runner put an x86-64
+  # `argon2_nif.so` into the arm64 image: the module's `@on_load` then fails and
+  # the first password hash on an arm64 host dies with "module Argon2.Base is not
+  # available". On a runner of the target's own architecture the compiler stage's
+  # platform *is* the target's, and the question cannot arise. The two checks
+  # below ask anyway, because nothing in this workflow used to run the image it
+  # had just published.
+  publish:
+    name: publish ${{ matrix.image.name }} (${{ matrix.arch }})
+    runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
     needs: build
-    # Only run publish on push to main or tags matching v*
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
-
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v7
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract metadata (tags, labels) for Server
-        id: meta-server
-        uses: docker/metadata-action@v6
-        with:
-          images: ghcr.io/${{ github.repository }}
-          tags: |
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
-            type=ref,event=tag,pattern=^v[0-9]
-            type=ref,event=branch
-
-      - name: Build and push Server Docker image
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.meta-server.outputs.tags }}
-          labels: ${{ steps.meta-server.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=min
-
-  publish-agent:
-    name: Build and publish Agent Docker image (minimal)
-    runs-on: ubuntu-latest
-    needs: build
-    # Run on push to main/tags, or manual workflow_dispatch
-    if: (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))) || github.event_name == 'workflow_dispatch'
-
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v7
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract metadata (tags, labels) for Agent
-        id: meta-agent
-        uses: docker/metadata-action@v6
-        with:
-          images: ghcr.io/${{ github.repository }}-agent
-          tags: |
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch' }}
-            type=ref,event=tag,pattern=^v[0-9]
-            type=ref,event=tag,pattern=^v[0-9]\\.[0-9]
-            type=ref,event=tag,pattern=^v[0-9]\\.[0-9]\\.[0-9]
-
-      - name: Build and push Agent Docker image
-        uses: docker/build-push-action@v7
-        with:
-          context: ./agent
-          file: ./agent/Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.meta-agent.outputs.tags }}
-          labels: ${{ steps.meta-agent.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=min
-
-  publish-agent-variants:
-    name: Build and publish Agent Docker image (${{ matrix.variant }})
-    runs-on: ubuntu-latest
-    needs: build
+    timeout-minutes: 40
+    # Push to main or a v* tag; a manual run publishes as well, which used to be
+    # the agents' door only and is now both images'.
     if: (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))) || github.event_name == 'workflow_dispatch'
     strategy:
       fail-fast: false
       matrix:
-        variant:
-          - standard
-          - full
-          - rust-elixir
-          - golang
+        arch: [amd64, arm64]
+        image:
+          - name: server
+            repository: ghcr.io/${{ github.repository }}
+            context: .
+            dockerfile: Dockerfile
+            packages: ""
+          - name: agent
+            repository: ghcr.io/${{ github.repository }}-agent
+            context: ./agent
+            dockerfile: ./agent/Dockerfile
+            packages: ""
+          - name: standard
+            repository: ghcr.io/${{ github.repository }}-agent
+            context: ./agent
+            dockerfile: ./agent/Dockerfile
+            packages: build-base openssl-dev python3 nodejs npm
+          - name: full
+            repository: ghcr.io/${{ github.repository }}-agent
+            context: ./agent
+            dockerfile: ./agent/Dockerfile
+            packages: build-base openssl-dev python3 nodejs npm openjdk21-jdk subversion clang rust cargo dotnet8-sdk docker-cli
+          - name: rust-elixir
+            repository: ghcr.io/${{ github.repository }}-agent
+            context: ./agent
+            dockerfile: ./agent/Dockerfile
+            packages: rust cargo elixir erlang build-base openssl-dev zlib-dev
+          - name: golang
+            repository: ghcr.io/${{ github.repository }}-agent
+            context: ./agent
+            dockerfile: ./agent/Dockerfile
+            packages: go build-base git
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v7
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -240,45 +186,180 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set extra packages
-        id: packages
-        run: |
-          case "${{ matrix.variant }}" in
-            standard)
-              echo "pkgs=build-base openssl-dev python3 nodejs npm" >> $GITHUB_OUTPUT
-              ;;
-            full)
-              echo "pkgs=build-base openssl-dev python3 nodejs npm openjdk21-jdk subversion clang rust cargo dotnet8-sdk docker-cli" >> $GITHUB_OUTPUT
-              ;;
-            rust-elixir)
-              echo "pkgs=rust cargo elixir erlang build-base openssl-dev zlib-dev" >> $GITHUB_OUTPUT
-              ;;
-            golang)
-              echo "pkgs=go build-base git" >> $GITHUB_OUTPUT
-              ;;
-          esac
-
-      - name: Extract metadata (tags, labels) for Agent
-        id: meta-agent
+      - name: Extract metadata (labels) for ${{ matrix.image.name }}
+        id: meta
         uses: docker/metadata-action@v6
         with:
-          images: ghcr.io/${{ github.repository }}-agent
-          tags: |
-            type=raw,value=${{ matrix.variant }}
+          images: ${{ matrix.image.repository }}
 
-      - name: Build and push Agent Docker image
+      # Pushed by digest rather than tagged: a tag names one architecture, and
+      # `image-index` is what makes tags out of the two digests. A scope per
+      # image and architecture, because `type=gha` with no scope has every leg of
+      # this matrix writing over the others' cache.
+      - name: Build linux/${{ matrix.arch }} and keep its digest
+        id: build
         uses: docker/build-push-action@v7
         with:
-          context: ./agent
-          file: ./agent/Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.meta-agent.outputs.tags }}
-          labels: ${{ steps.meta-agent.outputs.labels }}
-          build-args: |
-            EXTRA_PACKAGES=${{ steps.packages.outputs.pkgs }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=min
+          context: ${{ matrix.image.context }}
+          file: ${{ matrix.image.dockerfile }}
+          platforms: linux/${{ matrix.arch }}
+          outputs: type=image,name=${{ matrix.image.repository }},push-by-digest=true,name-canonical=true,push=true
+          labels: ${{ steps.meta.outputs.labels }}
+          # Only the flavours install anything; an empty build-arg would be an
+          # unused argument in the other four images.
+          build-args: ${{ matrix.image.packages != '' && format('EXTRA_PACKAGES={0}', matrix.image.packages) || '' }}
+          cache-from: type=gha,scope=${{ matrix.image.name }}-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image.name }}-${{ matrix.arch }}
+
+      # A password hash is what a first sign-in does, and it is the C NIF that a
+      # foreign-architecture build gets wrong.
+      - name: The server hashes a password
+        if: matrix.image.name == 'server'
+        run: |
+          set -euo pipefail
+          image="${{ matrix.image.repository }}@${{ steps.build.outputs.digest }}"
+          out=$(docker run --rm --platform "linux/${{ matrix.arch }}" \
+            -e SECRET_KEY_BASE="$(head -c 96 /dev/zero | tr '\0' x)" \
+            -e DATABASE_URL=postgres://unused:unused@127.0.0.1/unused \
+            --entrypoint /app/bin/ex_gocd "$image" eval \
+            'IO.inspect(:code.load_file(Argon2.Base), label: "argon2")')
+          echo "$out"
+          grep -q 'argon2: :module' <<< "$out"
+
+      # The agent binary is cross-compiled, so the image's own architecture says
+      # nothing about it: the ELF header does. `e_machine` sits at byte 18.
+      - name: The agent binary is linux/${{ matrix.arch }}
+        if: matrix.image.name != 'server'
+        run: |
+          set -euo pipefail
+          case "${{ matrix.arch }}" in
+            amd64) expected=3e00 ;;
+            arm64) expected=b700 ;;
+          esac
+          image="${{ matrix.image.repository }}@${{ steps.build.outputs.digest }}"
+          found=$(docker run --rm --platform "linux/${{ matrix.arch }}" \
+            --entrypoint /bin/sh "$image" \
+            -c 'od -An -tx1 -j18 -N2 /usr/local/bin/gocd-agent' | tr -d ' \n')
+          echo "e_machine=$found expected=$expected"
+          test "$found" = "$expected"
+
+      - name: Keep the digest for the index
+        run: |
+          set -euo pipefail
+          mkdir -p digests
+          echo "${{ steps.build.outputs.digest }}" > "digests/${{ matrix.image.name }}-${{ matrix.arch }}"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: digest-${{ matrix.image.name }}-${{ matrix.arch }}
+          path: digests/
+          if-no-files-found: error
+          retention-days: 1
+
+  # The tags, made from the two manifests `publish` pushed. `imagetools create`
+  # only writes a list that names them, so neither architecture's bytes are
+  # uploaded twice, and no tag exists until both of its legs have passed their
+  # checks.
+  image-index:
+    name: index ${{ matrix.image }}
+    runs-on: ubuntu-24.04
+    needs: publish
+    timeout-minutes: 10
+    if: (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))) || github.event_name == 'workflow_dispatch'
+    strategy:
+      fail-fast: false
+      matrix:
+        # `server` is the application; the rest are agent flavours of
+        # `<repository>-agent`.
+        image: [server, agent, standard, full, rust-elixir, golang]
+
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: The two digests
+        uses: actions/download-artifact@v8
+        with:
+          pattern: digest-${{ matrix.image }}-*
+          path: digests
+          merge-multiple: true
+
+      - name: The image this index belongs to
+        id: image
+        run: |
+          set -euo pipefail
+          base="ghcr.io/${GITHUB_REPOSITORY,,}"
+          case "${{ matrix.image }}" in
+            server) echo "repository=${base}" >> "$GITHUB_OUTPUT" ;;
+            *) echo "repository=${base}-agent" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      # What the three publish jobs named their images before, to the letter: a
+      # flavour answers to its own name; the server to the ref this run is for and
+      # to `latest` on main; the plain agent to `latest` (main or a manual run)
+      # and to a release tag. Nothing answers to a branch name but the server.
+      - name: The tags this image answers to
+        id: tags
+        run: |
+          set -euo pipefail
+          repository="${{ steps.image.outputs.repository }}"
+          tags=()
+          case "${{ matrix.image }}" in
+            standard | full | rust-elixir | golang)
+              tags+=("${repository}:${{ matrix.image }}")
+              ;;
+            agent)
+              if [ "${GITHUB_REF}" = "refs/heads/main" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+                tags+=("${repository}:latest")
+              fi
+              if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+                tags+=("${repository}:${GITHUB_REF_NAME}")
+              fi
+              ;;
+            server)
+              tags+=("${repository}:${GITHUB_REF_NAME}")
+              if [ "${GITHUB_REF}" = "refs/heads/main" ]; then
+                tags+=("${repository}:latest")
+              fi
+              ;;
+          esac
+          {
+            echo "tags<<TAGS"
+            printf '%s\n' "${tags[@]}"
+            echo "TAGS"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Tag both manifests
+        run: |
+          set -euo pipefail
+          repository="${{ steps.image.outputs.repository }}"
+
+          args=()
+          while IFS= read -r tag; do args+=(--tag "$tag"); done <<< "${{ steps.tags.outputs.tags }}"
+
+          sources=()
+          for digest in digests/*; do sources+=("${repository}@$(cat "$digest")"); done
+          echo "${args[*]} from ${sources[*]}"
+          test "${#sources[@]}" -eq 2
+
+          docker buildx imagetools create "${args[@]}" "${sources[@]}"
+
+      # "Multi-arch" is checked rather than claimed: a tag that quietly carried
+      # one platform would only surface on the machine that pulled it.
+      - name: The tag carries both architectures
+        run: |
+          set -euo pipefail
+          first=$(head -1 <<< "${{ steps.tags.outputs.tags }}")
+          docker buildx imagetools inspect "$first" | tee /tmp/index.txt
+          grep -q 'linux/amd64' /tmp/index.txt
+          grep -q 'linux/arm64' /tmp/index.txt
 
   cypress:
     name: Run Cypress E2E Tests
