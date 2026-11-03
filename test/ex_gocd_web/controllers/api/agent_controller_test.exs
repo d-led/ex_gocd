@@ -1,6 +1,7 @@
 defmodule ExGoCDWeb.API.AgentControllerTest do
   use ExGoCDWeb.ConnCase, async: true
 
+  alias ExGoCD.AgentJobRuns
   alias ExGoCD.Agents
   alias ExGoCD.Agents.Agent
   alias ExGoCD.Repo
@@ -208,6 +209,40 @@ defmodule ExGoCDWeb.API.AgentControllerTest do
       conn = get(conn, ~p"/api/agents/#{@another_uuid}")
 
       assert %{"error" => "Agent not found"} = json_response(conn, 404)
+    end
+
+    test "a building agent names the job it is on, and where to read it", %{
+      conn: conn,
+      agent: agent
+    } do
+      {:ok, run} =
+        AgentJobRuns.create_run(agent.uuid, "build-7", "deploy app", "build", "unit tests")
+
+      {:ok, _} = AgentJobRuns.report_status(agent.uuid, run.build_id, "Building")
+
+      response = conn |> get(~p"/api/agents/#{@valid_uuid}") |> json_response(200)
+
+      assert %{
+               "pipeline_name" => "deploy app",
+               "stage_name" => "build",
+               "job_name" => "unit tests",
+               "_links" => %{
+                 "job" => %{"href" => job_href},
+                 "stage" => %{"href" => stage_href},
+                 "pipeline" => %{"href" => pipeline_href}
+               }
+             } = response["build_details"]
+
+      # A name is a path segment here, so a space cannot arrive as one.
+      assert job_href == "/api/jobs/deploy%20app/1/build/1/unit%20tests"
+      assert stage_href == "/api/stages/deploy%20app/1/build/1"
+      assert pipeline_href == "/api/pipelines/deploy%20app/1"
+    end
+
+    test "an idle agent carries no build details at all", %{conn: conn} do
+      response = conn |> get(~p"/api/agents/#{@valid_uuid}") |> json_response(200)
+
+      refute Map.has_key?(response, "build_details")
     end
   end
 

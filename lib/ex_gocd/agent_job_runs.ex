@@ -226,6 +226,20 @@ defmodule ExGoCD.AgentJobRuns do
   end
 
   @doc """
+  The run each of these agents is in the middle of, newest first, keyed by agent
+  uuid. A run is over once the agent reports it completed — the same line
+  `MaintenanceMode` draws when it says which work still has to drain.
+  """
+  def current_runs(agent_uuids) when is_list(agent_uuids) do
+    from(r in AgentJobRun,
+      where: r.agent_uuid in ^agent_uuids and r.state != "Completed",
+      order_by: [desc: r.id]
+    )
+    |> Repo.all()
+    |> Enum.reduce(%{}, fn run, acc -> Map.put_new(acc, run.agent_uuid, run) end)
+  end
+
+  @doc """
   Gets the latest agent job run matching the given pipeline coordinates.
   """
   def get_run_by_params(pipeline_name, pipeline_counter, stage_name, stage_counter, job_name) do

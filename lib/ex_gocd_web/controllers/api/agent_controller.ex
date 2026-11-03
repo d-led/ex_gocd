@@ -11,6 +11,7 @@ defmodule ExGoCDWeb.API.AgentController do
   """
   use ExGoCDWeb, :controller
 
+  alias ExGoCD.AgentJobRuns
   alias ExGoCD.Agents
 
   action_fallback ExGoCDWeb.FallbackController
@@ -45,12 +46,12 @@ defmodule ExGoCDWeb.API.AgentController do
   """
   def index(conn, %{"active" => "true"}) do
     agents = Agents.list_active_agents()
-    render(conn, :index, agents: agents)
+    render(conn, :index, agents: agents, current_runs: current_runs(agents))
   end
 
   def index(conn, _params) do
     agents = Agents.list_agents()
-    render(conn, :index, agents: agents)
+    render(conn, :index, agents: agents, current_runs: current_runs(agents))
   end
 
   @doc """
@@ -66,7 +67,10 @@ defmodule ExGoCDWeb.API.AgentController do
         |> json(%{error: "Agent not found"})
 
       agent ->
-        render(conn, :show, agent: agent)
+        render(conn, :show,
+          agent: agent,
+          current_run: AgentJobRuns.current_runs([agent.uuid]) |> Map.get(agent.uuid)
+        )
     end
   end
 
@@ -266,4 +270,8 @@ defmodule ExGoCDWeb.API.AgentController do
         params
     end
   end
+
+  # One query for the whole list: an agent's live run is what `build_details`
+  # reports, and asking per agent would be a query per row.
+  defp current_runs(agents), do: AgentJobRuns.current_runs(Enum.map(agents, & &1.uuid))
 end

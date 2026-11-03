@@ -16,15 +16,21 @@ defmodule ExGoCDWeb.API.AgentJSON do
 
   @doc """
   Renders list of agents per GoCD spec: _links (self, doc) and _embedded.agents[].
+
+  `current_runs` maps an agent uuid to the run it is in the middle of, so a
+  building agent can name its job; without it the build details are left out
+  rather than sent empty.
   """
-  def index(%{agents: agents}) do
+  def index(%{agents: agents} = assigns) do
+    running = Map.get(assigns, :current_runs, %{})
+
     %{
       _links: %{
         self: %{href: "#{@api_prefix}/agents"},
         doc: %{href: @doc_url}
       },
       _embedded: %{
-        agents: Enum.map(agents, &agent_data/1)
+        agents: Enum.map(agents, &agent_data(&1, Map.get(running, &1.uuid)))
       }
     }
   end
@@ -32,8 +38,8 @@ defmodule ExGoCDWeb.API.AgentJSON do
   @doc """
   Renders a single agent (same shape as each item in _embedded.agents).
   """
-  def show(%{agent: agent}) do
-    agent_data(agent)
+  def show(%{agent: agent} = assigns) do
+    agent_data(agent, Map.get(assigns, :current_run))
   end
 
   @doc """
@@ -50,7 +56,7 @@ defmodule ExGoCDWeb.API.AgentJSON do
     }
   end
 
-  defp agent_data(%Agent{} = agent) do
+  defp agent_data(%Agent{} = agent, current_run) do
     build_state = build_state(agent)
 
     base = %{
@@ -76,10 +82,9 @@ defmodule ExGoCDWeb.API.AgentJSON do
       elastic_plugin_id: agent.elastic_plugin_id
     }
 
-    if build_state == "Building" do
-      Map.put(base, :build_details, build_details(agent))
-    else
-      base
+    case build_details(current_run) do
+      nil -> base
+      details -> Map.put(base, :build_details, details)
     end
   end
 
@@ -108,16 +113,36 @@ defmodule ExGoCDWeb.API.AgentJSON do
     end)
   end
 
-  defp build_details(_agent) do
+  # GoCD shows what an agent is building: the names and the three links a client
+  # follows to see the job, its stage and its pipeline. No run means nothing is
+  # building, whatever the agent's last report said.
+  defp build_details(nil), do: nil
+
+  defp build_details(run) do
+    pipeline = encode(run.pipeline_name)
+    stage = encode(run.stage_name)
+    job = encode(run.job_name)
+
     %{
       _links: %{
-        job: %{href: ""},
-        stage: %{href: ""},
-        pipeline: %{href: ""}
+        job: %{
+          href:
+            "#{@api_prefix}/jobs/#{pipeline}/#{run.pipeline_counter}/#{stage}/" <>
+              "#{run.stage_counter}/#{job}"
+        },
+        stage: %{
+          href:
+            "#{@api_prefix}/stages/#{pipeline}/#{run.pipeline_counter}/#{stage}/" <>
+              "#{run.stage_counter}"
+        },
+        pipeline: %{href: "#{@api_prefix}/pipelines/#{pipeline}/#{run.pipeline_counter}"}
       },
-      pipeline_name: "",
-      stage_name: "",
-      job_name: ""
+      pipeline_name: run.pipeline_name,
+      stage_name: run.stage_name,
+      job_name: run.job_name
     }
   end
+
+  # A name is a path segment here, so anything not unreserved gets escaped.
+  defp encode(name), do: URI.encode(name, &URI.char_unreserved?/1)
 end
