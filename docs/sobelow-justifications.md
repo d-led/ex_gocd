@@ -7,6 +7,22 @@ All ignored checks are by design, not bugs. Each has been reviewed.
 - `:api` pipeline uses `TokenAuthPlug` (bearer token authentication), not session cookies. CSRF attacks require session cookies — tokens are immune.
 - `:agent_remoting` pipeline handles agent communication via agent-specific cookie auth. Agents are CLI processes, not browsers.
 
+## Config.CSRFRoute — CSRF via action reuse
+**Files:** `lib/ex_gocd_web/router.ex`, the four `maintenance_mode` routes
+- GoCD's own API turns maintenance mode on and off with **GET**
+  (`api.go.cd` → `maintenance_mode/_50-enable.md.erb`), so `enable` and `disable`
+  are reached by a safe method and by POST, which is what this check reports.
+  Dropping the GET would break the documented call; we chose the documented call.
+- What that leaves: a browser holding an admin session could be made to toggle the
+  flag from another site. The blast radius is the flag itself — it pauses
+  scheduling and is reversible with the other GET — and scripts, the audience for
+  this API, authenticate with a token, which no cross-site request carries.
+- If the trade is ever revisited, the fix is not "delete the GET" but a
+  confirmation that a cross-site request cannot produce: either GoCD's
+  `X-GoCD-Confirm` header (which `ExGoCDWeb.Plugs.GoCDConfirm` already enforces
+  for empty mutating requests) or an admin session check that refuses a request
+  whose `Origin` is not this server.
+
 ## Config.HTTPS
 **Scope:** Global
 - HTTPS is a deployment/infrastructure concern (reverse proxy, load balancer). The application itself runs HTTP and is fronted by nginx/ALB in production.

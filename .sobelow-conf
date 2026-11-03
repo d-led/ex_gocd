@@ -9,6 +9,7 @@
     "Config.CSP",
     "Config.HTTPS",
     "Config.CSRF",
+    "Config.CSRFRoute",
     "Traversal.FileModule",
     "Traversal.SendFile",
     "XSS.SendResp"
